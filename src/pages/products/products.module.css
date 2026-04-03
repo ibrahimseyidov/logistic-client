@@ -1,0 +1,368 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 104px);
+}
+
+.screenLoading {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 0% 10px;
+}
+
+.left {
+  display: flex;
+  gap: 10px;
+}
+
+.right {
+  display: flex;
+  gap: 10px;
+}
+
+.searchInput {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 14px;
+  width: 200px;
+}
+
+.filterBtn,
+.createBtn,
+.editBtn,
+.deleteBtn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.filterBtn {
+  background-color: var(--primary);
+  color: white;
+}
+
+.filterBtn:hover {
+  background-color: var(--primary-strong);
+}
+
+.createBtn {
+  background-color: var(--primary);
+  color: white;
+}
+
+.createBtn:hover {
+  background-color: var(--primary-strong);
+}
+
+.editBtn {
+  background-color: var(--primary);
+  color: white;
+  margin-right: 5px;
+  padding: 6px 8px;
+}
+
+.editBtn:hover {
+  background-color: var(--primary-strong);
+}
+
+.deleteBtn {
+  background-color: #dc3545;
+  color: white;
+  padding: 6px 8px;
+}
+
+.deleteBtn:hover {
+  background-color: #c82333;
+}
+
+.table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  table-layout: fixed;
+}
+
+.table th,
+.table td {
+  border: 1px solid var(--border);
+  padding: 10px 16px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.idHeader,
+.idCell {
+  width: 60px;
+  min-width: 60px;
+}
+
+.nameHeader,
+.nameCell {
+  width: 200px;
+  min-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.parentHeader,
+.parentCell {
+  width: 180px;
+  min-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.subHeader,
+.subCell {
+  width: 180px;
+  min-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.levelHeader,
+.levelCell {
+  width: 150px;
+  min-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.barcodeHeader,
+.barcodeCell {
+  width: 180px;
+  min-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stockHeader,
+.stockCell {
+  width: 130px;
+  min-width: 130px;
+  white-space: nowrap;
+}
+
+.stockUnitHeader,
+.stockUnitCell {
+  width: 110px;
+  min-width: 110px;
+  white-space: nowrap;
+}
+
+.table .purchaseHeader,
+.table .purchaseCell,
+.table .saleHeader,
+.table .saleCell,
+.table .stockHeader,
+.table .stockCell {
+  text-align: center;
+}
+
+.saleHeader,
+.saleCell {
+  width: 120px;
+  min-width: 120px;
+  white-space: nowrap;
+}
+
+.purchaseHeader,
+.purchaseCell {
+  width: 120px;
+  min-width: 120px;
+  white-space: nowrap;
+}
+
+.table .imageHeader,
+.table .imageCell {
+  width: 90px;
+  min-width: 90px;
+  text-align: center;
+}
+
+.statusHeader,
+.statusCell {
+  width: 90px;
+  min-width: 90px;
+  white-space: nowrap;
+}
+
+.table .statusCell {
+  text-align: center;
+}
+
+.table .statusHeader {
+  text-align: center;
+}
+
+.statusIconActive {
+  color: var(--primary);
+  font-size: 14px;
+}
+
+.statusIconPassive {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.imagePreview {
+  display: block;
+  margin: 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  background: var(--background);
+}
+
+.table th {
+  background-color: var(--background);
+  font-weight: 600;
+  color: var(--foreground);
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.table tbody tr {
+  background-color: var(--background);
+  transition: background-color 0.2s ease;
+}
+
+.table tbody tr:nth-child(even) {
+  background-color: var(--background);
+}
+
+.table tbody tr:hover {
+  background-color: var(--primary-soft);
+  cursor: pointer;
+}
+
+.table td {
+  color: var(--foreground);
+  font-weight: 500;
+}
+
+.table tbody td {
+  font-size: 11px;
+}
+
+.actionsHeader {
+  text-align: center !important;
+  width: 120px;
+  min-width: 120px;
+}
+
+.actionsCell {
+  text-align: center !important;
+  white-space: nowrap;
+  width: 120px;
+  min-width: 120px;
+}
+
+.tableWrapper {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow-x: auto;
+  background: var(--background);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.03);
+  margin-bottom: 41px;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 32px 14px 24px;
+  border-top: 1px solid var(--border);
+  position: fixed;
+  left: 220px;
+  bottom: 0;
+  width: calc(100% - 220px);
+  background: var(--background);
+  box-shadow: 0 -4px 24px 0 rgba(0, 0, 0, 0.06);
+  z-index: 100;
+  min-height: 56px;
+  gap: 16px;
+}
+
+.footer .total {
+  font-size: 15px;
+  color: var(--foreground);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.footer .pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.footer .pageBtn {
+  padding: 7px 14px;
+  border: 1px solid #d1d5db;
+  background: #f8f9fa;
+  color: #495057;
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    background 0.18s,
+    color 0.18s,
+    border 0.18s;
+}
+
+.active,
+.footer .pageBtn:focus {
+  background: #007bff;
+  color: #fff;
+  border-color: #007bff;
+}
+
+.footer .pageBtn:hover:not(:disabled):not(.active) {
+  background: #e2e6ea;
+  color: #222;
+}
+
+.footer .pageBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+  .footer {
+    left: 0;
+    width: 100%;
+    padding: 12px 8px;
+  }
+
+  .tableWrapper {
+    padding-bottom: 8px;
+    margin-bottom: 64px;
+  }
+}

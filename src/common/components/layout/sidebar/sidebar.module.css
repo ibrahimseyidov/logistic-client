@@ -1,0 +1,331 @@
+.sidebar {
+  width: 220px;
+  min-width: 220px;
+  background-color: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.logoArea {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logoIcon {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  width: 22px;
+  height: 22px;
+}
+
+.logoIcon span {
+  background-color: #ffffff;
+  border-radius: 2px;
+  display: block;
+}
+
+.logoText {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--sidebar-text);
+  letter-spacing: 0.02em;
+}
+
+.collapseBtn {
+  background: none;
+  border: none;
+  color: var(--sidebar-text-muted);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s;
+}
+
+.collapseBtn:hover {
+  color: var(--sidebar-text);
+}
+
+/* ── Branch Selector ── */
+.branchSelector {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.branchLabel {
+  font-size: 0.72rem;
+  color: var(--sidebar-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 5px;
+  padding-left: 2px;
+}
+
+.branchSelect {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  color: var(--sidebar-text);
+  font-size: 0.82rem;
+  padding: 6px 10px;
+  cursor: pointer;
+  outline: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+}
+
+.branchSelectWrap {
+  position: relative;
+}
+
+.branchValue {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.branchChevron {
+  font-size: 0.7rem;
+  color: var(--sidebar-text-muted);
+}
+
+.branchMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+  padding: 8px;
+  z-index: 20;
+}
+
+.branchSearch {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #dddddd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #333333;
+  font-size: 0.78rem;
+  margin-bottom: 8px;
+}
+
+.branchSearch:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-soft);
+}
+
+.branchList {
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.branchOption {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: #333333;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.branchOption:hover {
+  background: var(--primary-soft);
+}
+
+.branchEmpty {
+  padding: 6px 8px;
+  font-size: 0.78rem;
+  color: #666666;
+}
+
+/* ── Nav ── */
+.nav {
+  flex: 1;
+  padding: 8px 0;
+}
+
+.navItem {
+  position: relative;
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--sidebar-text-muted);
+  text-decoration: none;
+  user-select: none;
+}
+
+.navLink:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: var(--sidebar-text);
+}
+
+.navLink:hover .navIcon {
+  color: var(--sidebar-text);
+}
+
+.navLinkActive {
+  background-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  border-radius: 8px;
+  margin: 0 8px;
+  padding: 9px 10px;
+}
+
+.navLinkActive .navIcon {
+  color: #ffffff !important;
+}
+
+.navLinkActive .navChevron {
+  color: #ffffff;
+}
+
+.navIcon {
+  font-size: 0.95rem;
+  color: var(--sidebar-text-muted);
+  flex-shrink: 0;
+  transition: color 0.15s;
+  width: 16px;
+  text-align: center;
+}
+
+.navChevron {
+  margin-left: auto;
+  font-size: 0.65rem;
+  color: var(--sidebar-text-muted);
+  transition: transform 0.25s ease;
+  flex-shrink: 0;
+}
+
+.navChevronOpen {
+  transform: rotate(90deg);
+}
+
+/* ── Sub Menu ── */
+.subMenu {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition:
+    max-height 0.35s ease,
+    opacity 0.25s ease;
+}
+
+.subMenuOpen {
+  max-height: 400px;
+  opacity: 1;
+}
+
+.subItem {
+  display: block;
+  padding: 7px 16px 7px 42px;
+  font-size: 0.82rem;
+  color: var(--sidebar-text-muted);
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    background 0.15s;
+  font-weight: 400;
+}
+
+.subItem:hover {
+  color: var(--sidebar-text);
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.subItemActive {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* ── Logout ── */
+.logoutSection {
+  padding: 12px 14px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  margin-top: auto;
+}
+
+.logoutLink {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  color: var(--sidebar-text-muted);
+  text-decoration: none;
+  font-size: 0.88rem;
+  font-weight: 500;
+  transition:
+    background 0.15s,
+    color 0.15s;
+  cursor: pointer;
+}
+
+.logoutLink:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: var(--sidebar-text);
+}
+
+.logoutLink:hover .logoutIcon {
+  color: var(--sidebar-text);
+}
+
+.logoutIcon {
+  font-size: 0.95rem;
+  color: var(--sidebar-text-muted);
+  transition: color 0.15s;
+}

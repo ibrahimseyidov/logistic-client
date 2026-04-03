@@ -1,0 +1,110 @@
+.userProfile {
+  position: relative;
+  margin-left: auto;
+}
+
+.profileButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #333;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.profileButton:hover {
+  background-color: #f5f5f5;
+}
+
+.userIcon {
+  font-size: 16px;
+  color: #666;
+}
+
+.userName {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.chevron {
+  font-size: 12px;
+  color: #666;
+  transition: transform 0.2s;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 250px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  margin-top: 4px;
+}
+
+.userInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.dropdownUserIcon {
+  font-size: 20px;
+  color: #666;
+  background: #f5f5f5;
+  padding: 8px;
+  border-radius: 50%;
+}
+
+.userDetails {
+  flex: 1;
+}
+
+.fullName {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+}
+
+.divider {
+  margin: 0;
+  border: none;
+  border-top: 1px solid #f0f0f0;
+}
+
+.logoutButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  border-radius: 0 0 8px 8px;
+  cursor: pointer;
+  color: #d32f2f;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.logoutButton:hover {
+  background-color: #fef2f2;
+}
+
+.logoutIcon {
+  font-size: 14px;
+}
