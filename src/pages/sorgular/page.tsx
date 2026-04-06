@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useAppDispatch } from "../../common/store/hooks";
 import { showNotification } from "../../common/store/modalSlice";
-import { NotificationModal } from "../categories/components";
+import { NotificationModal } from "../../common/components/NotificationModal";
 import {
   SorgularActionBar,
   SorgularFilters,

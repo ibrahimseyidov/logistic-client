@@ -8,14 +8,8 @@ import styles from "./appShell.module.css";
 
 const headerTitles: Record<string, string> = {
   "/sorgular": "Sorğular",
-  "/dashboard": "Dashboard",
-  "/products": "Ürünler",
-  "/categories": "Kategoriler",
-  "/purchase": "Urun Alis",
-  "/suppliers": "Tedarikçiler",
-  "/companies": "Şirketler",
-  "/settings/kassa-ekle": "Kassa Ekle",
-  "/kasalar": "Kassalar",
+  "/sifarisler": "Sifarişlər",
+  "/tapshiriqlar": "Tapşırıqlar",
 };
 
 function resolveHeaderTitle(pathname: string): string {
@@ -23,7 +17,7 @@ function resolveHeaderTitle(pathname: string): string {
   if (pathname.startsWith("/sorgular/") && rest.length > 0) {
     return "Sorğu detalı";
   }
-  return headerTitles[pathname] ?? "ERP";
+  return headerTitles[pathname] ?? "Sorğular";
 }
 
 function AppShellInner({

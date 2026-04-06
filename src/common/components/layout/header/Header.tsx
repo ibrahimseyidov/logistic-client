@@ -10,7 +10,7 @@ interface HeaderProps {
   title?: string;
 }
 
-const Header: React.FC<HeaderProps> = ({ title = "Ürünler" }) => {
+const Header: React.FC<HeaderProps> = ({ title = "Sorğular" }) => {
   const { collapsed, toggleSidebar } = useSidebarLayout();
 
   return (
