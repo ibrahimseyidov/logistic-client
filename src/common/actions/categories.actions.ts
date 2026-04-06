@@ -14,15 +14,33 @@ export interface CategoryRecord {
   parentId?: number | null;
 }
 
+const categoriesRequests = new Map<number, Promise<CategoryRecord[]>>();
+
 export async function fetchAllCategories(companyId: number) {
-  const response = await fetchNoCache(
-    buildApiUrl(ENDPOINTS.CATEGORIES.BASE, { companyId }),
-  );
-  const data = await handleApiResponse<{ categories?: CategoryRecord[] }>(
-    response,
-    "Kategoriler getirilemedi",
-  );
-  return data.categories || [];
+  const existingRequest = categoriesRequests.get(companyId);
+
+  if (existingRequest) {
+    return existingRequest;
+  }
+
+  const request = (async () => {
+    const response = await fetchNoCache(
+      buildApiUrl(ENDPOINTS.CATEGORIES.BASE, { companyId }),
+    );
+    const data = await handleApiResponse<{ categories?: CategoryRecord[] }>(
+      response,
+      "Kategoriler getirilemedi",
+    );
+    return data.categories || [];
+  })();
+
+  categoriesRequests.set(companyId, request);
+
+  try {
+    return await request;
+  } finally {
+    categoriesRequests.delete(companyId);
+  }
 }
 
 export async function fetchParentCategories(companyId: number) {

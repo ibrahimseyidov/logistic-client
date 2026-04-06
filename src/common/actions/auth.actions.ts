@@ -12,6 +12,27 @@ interface RefreshResponse {
   token: string;
   refreshToken: string;
 }
+
+export interface AuthBranch {
+  id: number;
+  name: string;
+  companyId: number;
+}
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  companyId: number;
+  roleId: number;
+}
+
+export interface AuthBootstrapData {
+  user: AuthUser;
+  companyName: string | null;
+  branches: AuthBranch[];
+}
+
 export async function refreshTokenAction(refreshToken: string) {
   const response = await fetch(buildApiUrl(ENDPOINTS.AUTH.REFRESH), {
     method: "POST",
@@ -23,6 +44,38 @@ export async function refreshTokenAction(refreshToken: string) {
   return handleApiResponse<RefreshResponse>(
     response,
     "Token yenileme başarısız",
+  );
+}
+
+export async function fetchAuthBootstrap() {
+  let token = "";
+
+  try {
+    token = localStorage.getItem("token") || "";
+  } catch {}
+
+  if (!token && typeof document !== "undefined") {
+    const cookieToken = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("token="))
+      ?.split("=")[1];
+
+    if (cookieToken) {
+      token = cookieToken;
+    }
+  }
+
+  const response = await fetch(buildApiUrl(ENDPOINTS.AUTH.BOOTSTRAP), {
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    credentials: "include",
+  });
+
+  return handleApiResponse<AuthBootstrapData>(
+    response,
+    "Oturum bilgileri alınamadı",
   );
 }
 

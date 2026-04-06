@@ -5,8 +5,14 @@ import DashboardPage from "./pages/dashboard/page";
 import LoginPage from "./pages/login/page";
 import ProductsPage from "./pages/products/page";
 import CategoriesPage from "./pages/categories/page";
+import PurchasePage from "./pages/purchase/page";
+import KassaEklePage from "./pages/settings/kassa-ekle/page";
+import KassalarPage from "./pages/kasalar/page";
 import AppShell from "./common/components/layout/appShell/AppShell";
 import RequireAuth from "./common/components/auth/RequireAuth";
+import SuppliersPage from "./pages/suppliers/page";
+import SorgularPage from "./pages/sorgular/page";
+import SorguDetailPage from "./pages/sorgular/detail/page";
 
 function App() {
   return (
@@ -15,6 +21,22 @@ function App() {
         <AppShell>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route
+              path="/sorgular"
+              element={
+                <RequireAuth>
+                  <SorgularPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/sorgular/:sorguKey"
+              element={
+                <RequireAuth>
+                  <SorguDetailPage />
+                </RequireAuth>
+              }
+            />
             <Route
               path="/dashboard"
               element={
@@ -39,7 +61,39 @@ function App() {
                 </RequireAuth>
               }
             />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route
+              path="/suppliers"
+              element={
+                <RequireAuth>
+                  <SuppliersPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/purchase"
+              element={
+                <RequireAuth>
+                  <PurchasePage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/settings/kassa-ekle"
+              element={
+                <RequireAuth>
+                  <KassaEklePage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/kasalar"
+              element={
+                <RequireAuth>
+                  <KassalarPage />
+                </RequireAuth>
+              }
+            />
+            <Route path="/" element={<Navigate to="/sorgular" replace />} />
           </Routes>
         </AppShell>
       </BrowserRouter>

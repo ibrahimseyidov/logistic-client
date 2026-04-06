@@ -163,7 +163,7 @@ export default function ProductsPage() {
         )}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-auto">
         {loading ? (
           <div className="flex justify-center items-center h-full">
             <Loading />
@@ -182,6 +182,8 @@ export default function ProductsPage() {
 
       <div className="shrink-0 border-t bg-white">
         <ProductsPagination
+          currentPage={currentPage}
+          onSetPage={setCurrentPage}
           totalRows={products.length}
           totalPages={totalPages}
           getVisiblePages={getVisiblePages}

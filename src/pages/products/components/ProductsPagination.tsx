@@ -1,24 +1,20 @@
-import { useAppDispatch, useAppSelector } from "../../../common/store/hooks";
-import { setProductsPage } from "../store/productsPaginationSlice";
-
 export interface ProductsPaginationProps {
+  currentPage: number;
+  onSetPage: (page: number) => void;
   totalRows: number;
   totalPages: number;
   getVisiblePages: () => number[];
 }
 
 export default function ProductsPagination({
+  currentPage,
+  onSetPage,
   totalRows,
   totalPages,
   getVisiblePages,
 }: ProductsPaginationProps) {
-  const dispatch = useAppDispatch();
-  const currentPage = useAppSelector(
-    (state) => state.productsPagination.currentPage,
-  );
-
   const handleSetPage = (page: number) => {
-    dispatch(setProductsPage(page));
+    onSetPage(page);
   };
 
   return (

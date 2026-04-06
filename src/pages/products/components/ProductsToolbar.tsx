@@ -1,6 +1,11 @@
 import type { ProductsPaginationProps } from "./ProductsPagination";
 
-interface ProductsToolbarProps extends ProductsPaginationProps {
+type ToolbarPaginationProps = Pick<
+  ProductsPaginationProps,
+  "totalRows" | "totalPages" | "getVisiblePages"
+>;
+
+interface ProductsToolbarProps extends ToolbarPaginationProps {
   codeSearchTerm: string;
   nameSearchTerm: string;
   barcodeSearchTerm: string;
@@ -12,7 +17,6 @@ interface ProductsToolbarProps extends ProductsPaginationProps {
   onResetPage: () => void;
 }
 
-import ProductsPagination from "./ProductsPagination";
 export default function ProductsToolbar({
   codeSearchTerm,
   nameSearchTerm,

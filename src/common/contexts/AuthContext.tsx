@@ -8,23 +8,18 @@ import React, {
   useRef,
   useState,
 } from "react";
-import axios from "axios";
-
-axios.defaults.baseURL = "/api";
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  companyId: number;
-  roleId: number;
-}
+import {
+  AuthBootstrapData,
+  AuthBranch,
+  AuthUser,
+  fetchAuthBootstrap,
+} from "../actions/auth.actions";
 
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   companyName: string | null;
-  branches: string[];
-  login: (token: string) => void;
+  branches: AuthBranch[];
+  login: (data: AuthBootstrapData, token?: string) => void;
   logout: () => void;
 }
 
@@ -36,50 +31,39 @@ const inFlightTokens = new Set<string>();
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [companyName, setCompanyName] = useState<string | null>(null);
-  const [branches, setBranches] = useState<string[]>([]);
+  const [branches, setBranches] = useState<AuthBranch[]>([]);
   const mountedRef = useRef(true);
 
-  const login = useCallback(async (token: string) => {
-    if (!token || inFlightTokens.has(token)) return;
+  const login = useCallback((data: AuthBootstrapData, token?: string) => {
+    if (!mountedRef.current) return;
 
-    console.log("AuthContext login fonksiyonu çağrıldı, token:", token);
-    inFlightTokens.add(token);
-    try {
-      document.cookie = `token=${token}; path=/; max-age=3600`;
+    setUser(data.user);
+    setCompanyName(data.companyName);
+    setBranches(Array.isArray(data.branches) ? data.branches : []);
 
-      const userRes = await axios.get("/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      console.log("/auth/me yanıtı:", userRes.data);
-
-      if (!mountedRef.current) return;
-      setUser(userRes.data.user);
-
-      const companyDataRes = await axios.get(
-        `/companies/${userRes.data.user.companyId}/branches`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-      console.log(
-        "/companies/{companyId}/branches yanıtı:",
-        companyDataRes.data,
-      );
-
-      if (!mountedRef.current) return;
-      setCompanyName(companyDataRes.data.companyName || "");
-      setBranches(
-        Array.isArray(companyDataRes.data.branches)
-          ? companyDataRes.data.branches
-          : [],
-      );
+    if (token) {
       hydratedTokens.add(token);
-    } finally {
-      inFlightTokens.delete(token);
     }
   }, []);
+
+  const hydrateFromToken = useCallback(
+    async (token: string) => {
+      if (!token || inFlightTokens.has(token)) return;
+
+      inFlightTokens.add(token);
+      try {
+        const bootstrap = await fetchAuthBootstrap();
+        if (!mountedRef.current) return;
+        login(bootstrap);
+        hydratedTokens.add(token);
+      } finally {
+        inFlightTokens.delete(token);
+      }
+    },
+    [login],
+  );
 
   const logout = () => {
     setUser(null);
@@ -97,13 +81,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     console.log("AuthContext useEffect token:", token);
     if (token && !hydratedTokens.has(token)) {
-      login(token);
+      void hydrateFromToken(token);
     }
 
     return () => {
       mountedRef.current = false;
     };
-  }, [login]);
+  }, [hydrateFromToken]);
 
   return (
     <AuthContext.Provider

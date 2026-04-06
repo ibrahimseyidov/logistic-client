@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { loginAction } from "../../common/actions/auth.actions";
+import {
+  fetchAuthBootstrap,
+  loginAction,
+} from "../../common/actions/auth.actions";
+import { useAuth } from "../../common/contexts/AuthContext";
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
@@ -9,6 +13,7 @@ export default function LoginPage() {
   const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,9 +28,11 @@ export default function LoginPage() {
       const userData = await loginAction(formData);
       if (userData && userData.token) {
         localStorage.setItem("token", userData.token);
-        document.cookie = `token=${userData.token}; path=/; max-age=3600`;
-        console.log("Login sonrası token cookieye yazıldı:", userData.token);
-        window.location.href = "/dashboard";
+        localStorage.setItem("refreshToken", userData.refreshToken);
+        document.cookie = `token=${userData.token}; path=/; max-age=86400`;
+        const bootstrapData = await fetchAuthBootstrap();
+        login(bootstrapData, userData.token);
+        navigate("/sorgular", { replace: true });
       } else {
         setError("Giriş başarısız. Lütfen bilgilerinizi kontrol edin.");
       }
