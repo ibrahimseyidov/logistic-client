@@ -1,5 +1,4 @@
-import Select from "../../../common/components/select/Select";
-import type { SelectOption } from "../../../common/components/select/Select";
+import { FiFilePlus, FiFilter } from "react-icons/fi";
 
 interface Stats {
   orders: number;
@@ -14,16 +13,10 @@ interface Stats {
 
 interface Props {
   stats: Stats;
-  bulkStatus: string;
-  onBulkStatusChange: (v: string) => void;
-  statusOptions: SelectOption[];
   onNew: () => void;
-  onClear: () => void;
-  onApplyFilter: () => void;
-  onNotify: () => void;
-  onChangeStatus: () => void;
-  onImportExcel: () => void;
+  onToggleFilters: () => void;
   onExportExcel: () => void;
+  activeFilterCount: number;
 }
 
 function fmt(n: number) {
@@ -32,112 +25,73 @@ function fmt(n: number) {
 
 export default function SifarisActionBar({
   stats,
-  bulkStatus,
-  onBulkStatusChange,
-  statusOptions,
   onNew,
-  onClear,
-  onApplyFilter,
-  onNotify,
-  onChangeStatus,
-  onImportExcel,
+  onToggleFilters,
   onExportExcel,
+  activeFilterCount,
 }: Props) {
   return (
-    <div className="space-y-3">
-      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 bg-white border border-gray-200 rounded-lg p-3">
+    <div className="space-y-3 pb-4">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={onNew}
-            className="inline-flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white px-4 py-1.5 rounded text-sm font-medium transition-colors"
+            className="inline-flex items-center gap-2 rounded-[18px] border border-slate-300 bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700"
           >
-            + Yeni sifariş
+            <FiFilePlus />
+            Yeni sifariş
           </button>
           <button
             type="button"
-            onClick={onClear}
-            className="inline-flex items-center gap-1 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-1.5 rounded text-sm font-medium transition-colors"
+            onClick={onToggleFilters}
+            className="inline-flex items-center gap-2 rounded-[18px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
           >
-            ✕ Təmizlə
-          </button>
-          <button
-            type="button"
-            onClick={onApplyFilter}
-            className="inline-flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white px-4 py-1.5 rounded text-sm font-medium transition-colors"
-          >
-            Filtirdən keçir
+            <FiFilter />
+            Filtrlər
+            {activeFilterCount > 0 ? (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                {activeFilterCount}
+              </span>
+            ) : null}
           </button>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={onNotify}
-            className="inline-flex items-center gap-1 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded text-sm font-medium transition-colors"
-          >
-            Bildiriş göndər
-          </button>
-          <div className="w-44">
-            <Select
-              value={bulkStatus}
-              options={statusOptions}
-              onChange={onBulkStatusChange}
-              placeholder="Status"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={onChangeStatus}
-            className="inline-flex items-center gap-1 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded text-sm font-medium transition-colors"
-          >
-            + Statusu dəyiş
-          </button>
-          <button
-            type="button"
-            onClick={onImportExcel}
-            className="inline-flex items-center gap-1 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded text-sm font-medium transition-colors"
-          >
-            + Excel-dən idxal et
-          </button>
-          <button
-            type="button"
             onClick={onExportExcel}
-            className="inline-flex items-center gap-1 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded text-sm font-medium transition-colors"
+            className="inline-flex items-center gap-2 rounded-[16px] border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
           >
             + Excel
           </button>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-4 py-2">
-        <span>
-          <span className="font-medium">Sifarişlər:</span> {stats.orders}
+      <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium">
+          Sifarişlər: {stats.orders}
         </span>
-        <span className="text-gray-300">|</span>
-        <span>
-          <span className="font-medium">Yüklər:</span> {stats.loads}
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium">
+          Yüklər: {stats.loads}
         </span>
-        <span className="text-gray-300">|</span>
-        <span>
-          <span className="font-medium">Reyslər:</span> {stats.voyages}
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium">
+          Reyslər: {stats.voyages}
         </span>
-        <span className="text-gray-300 hidden sm:inline">|</span>
-        <span>
-          <span className="font-medium">Çəki (kq):</span> {fmt(stats.weight)}
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium">
+          Çəki (kq): {fmt(stats.weight)}
         </span>
-        <span>
-          <span className="font-medium">Həcm (m³):</span> {fmt(stats.volume)}
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium">
+          Həcm (m³): {fmt(stats.volume)}
         </span>
-        <span>
-          <span className="font-medium">LDM:</span> {fmt(stats.ldm)}
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium">
+          LDM: {fmt(stats.ldm)}
         </span>
-        <span className="text-gray-300 hidden md:inline">|</span>
-        <span>
-          <span className="font-medium">Fraxtın məbləği (AZN):</span> {fmt(stats.freightAzn)}
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium">
+          Fraxtın məbləği (AZN): {fmt(stats.freightAzn)}
         </span>
-        <span>
-          <span className="font-medium">Gəlirin məbləği (AZN):</span> {fmt(stats.profitAzn)}
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium text-slate-700">
+          Gəlirin məbləği (AZN): {fmt(stats.profitAzn)}
         </span>
       </div>
     </div>

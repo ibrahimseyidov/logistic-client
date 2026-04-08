@@ -1,11 +1,6 @@
 import { useCallback, useState } from "react";
-import {
-  FaChartBar,
-  FaCut,
-  FaEdit,
-  FaEye,
-  FaMinus,
-} from "react-icons/fa";
+import { FaChartBar, FaCut, FaEdit, FaEye, FaMinus } from "react-icons/fa";
+import { getStatusSelectClasses } from "../../../common/components/StatusBadge";
 import { YUK_CARGO_STATUS_OPTIONS } from "../constants/yuk.constants";
 import type { YukLoadRow } from "../types/yuk.types";
 
@@ -93,21 +88,33 @@ export default function YukTable({
             <td className="px-2 py-2 whitespace-nowrap align-top font-medium text-indigo-600">
               {row.orderRef}
             </td>
-            <td className="px-2 py-2 text-gray-800 align-top whitespace-nowrap">{row.company}</td>
-            <td className="px-2 py-2 text-gray-800 align-top text-xs">{row.customer}</td>
+            <td className="px-2 py-2 text-gray-800 align-top whitespace-nowrap">
+              {row.company}
+            </td>
+            <td className="px-2 py-2 text-gray-800 align-top text-xs">
+              {row.customer}
+            </td>
             <td className="px-2 py-2 text-gray-600 align-top whitespace-nowrap">
               {row.loadDate || "—"}
             </td>
             <td className="px-2 py-2 text-gray-600 align-top whitespace-nowrap">
               {row.unloadDate || "—"}
             </td>
-            <td className="px-2 py-2 text-gray-600 align-top text-xs">{row.sender || "—"}</td>
-            <td className="px-2 py-2 text-gray-700 align-top text-xs max-w-[280px]">{row.loadPlace}</td>
-            <td className="px-2 py-2 text-gray-700 align-top whitespace-nowrap">{row.recipient}</td>
-            <td className="px-2 py-2 text-gray-700 align-top text-xs max-w-[260px]">{row.unloadPlace}</td>
+            <td className="px-2 py-2 text-gray-600 align-top text-xs">
+              {row.sender || "—"}
+            </td>
+            <td className="px-2 py-2 text-gray-700 align-top text-xs max-w-[280px]">
+              {row.loadPlace}
+            </td>
+            <td className="px-2 py-2 text-gray-700 align-top whitespace-nowrap">
+              {row.recipient}
+            </td>
+            <td className="px-2 py-2 text-gray-700 align-top text-xs max-w-[260px]">
+              {row.unloadPlace}
+            </td>
             <td className="px-2 py-2 align-top">
               <select
-                className="w-full max-w-[140px] rounded border border-gray-300 bg-white px-1.5 py-1 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-200"
+                className={`w-full max-w-[150px] rounded-full border px-2.5 py-1 text-xs font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] focus:outline-none focus:ring-2 ${getStatusSelectClasses(statusFor(row))}`}
                 value={statusFor(row)}
                 onChange={(e) => setStatus(row.id, e.target.value)}
               >
@@ -118,24 +125,41 @@ export default function YukTable({
                 ))}
               </select>
             </td>
-            <td className="px-2 py-2 text-gray-600 align-top">{row.place || "—"}</td>
-            <td className="px-2 py-2 text-gray-700 align-top whitespace-nowrap">{row.entryDate}</td>
-            <td className="px-2 py-2 text-gray-700 align-top whitespace-nowrap">{row.entryTime}</td>
-            <td className="px-2 py-2 text-gray-500 align-top text-xs">{row.comments || "—"}</td>
+            <td className="px-2 py-2 text-gray-600 align-top">
+              {row.place || "—"}
+            </td>
+            <td className="px-2 py-2 text-gray-700 align-top whitespace-nowrap">
+              {row.entryDate}
+            </td>
+            <td className="px-2 py-2 text-gray-700 align-top whitespace-nowrap">
+              {row.entryTime}
+            </td>
+            <td className="px-2 py-2 text-gray-500 align-top text-xs">
+              {row.comments || "—"}
+            </td>
             <td className="px-2 py-2 text-gray-800 align-top whitespace-nowrap font-medium">
               {row.cargoNumber}
             </td>
-            <td className="px-2 py-2 text-gray-800 align-top whitespace-nowrap">{row.cargoName}</td>
+            <td className="px-2 py-2 text-gray-800 align-top whitespace-nowrap">
+              {row.cargoName}
+            </td>
             <td className="px-2 py-2 text-gray-700 align-top whitespace-pre-line text-xs max-w-[280px]">
               {row.cargoParams}
             </td>
-            <td className="px-2 py-2 text-gray-500 align-top text-xs">{row.attributes || "—"}</td>
+            <td className="px-2 py-2 text-gray-500 align-top text-xs">
+              {row.attributes || "—"}
+            </td>
             <td className="px-2 py-2 text-gray-800 align-top text-xs whitespace-nowrap">
               {row.carrier}
             </td>
-            <td className="px-2 py-2 align-top" onClick={(e) => e.stopPropagation()}>
+            <td
+              className="px-2 py-2 align-top"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-gray-800 whitespace-nowrap">{row.tripId}</span>
+                <span className="text-xs font-medium text-gray-800 whitespace-nowrap">
+                  {row.tripId}
+                </span>
                 <div className="flex flex-wrap items-center gap-0.5">
                   <button
                     type="button"

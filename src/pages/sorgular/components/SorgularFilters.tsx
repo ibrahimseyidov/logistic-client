@@ -1,10 +1,30 @@
+import type { ReactNode } from "react";
+import {
+  FiBookmark,
+  FiCalendar,
+  FiChevronRight,
+  FiFilter,
+  FiHash,
+  FiMapPin,
+  FiPackage,
+  FiSearch,
+  FiTruck,
+  FiUsers,
+  FiX,
+} from "react-icons/fi";
 import Select from "../../../common/components/select/Select";
 import type { SelectOption } from "../../../common/components/select/Select";
 import { FILTER_SECTIONS } from "../constants/sorgular.constants";
 import type { FilterFormState, FilterSectionId } from "../types/sorgu.types";
 
 const inputClass =
-  "rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-200 w-full bg-gray-50 border border-gray-300";
+  "h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm outline-none transition-all placeholder:text-slate-400 hover:border-slate-300 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100";
+
+const selectTriggerClass =
+  "h-12 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition-all hover:border-slate-300 focus-within:border-emerald-300 focus-within:ring-2 focus-within:ring-emerald-100";
+
+const sectionCardClass =
+  "rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm";
 
 interface Props {
   activeSections: Set<FilterSectionId>;
@@ -12,7 +32,98 @@ interface Props {
   filter: FilterFormState;
   onFilterChange: (field: keyof FilterFormState, value: string) => void;
   companyOptions: SelectOption[];
+  onClose: () => void;
+  onClear: () => void;
+  onApplyFilter: () => void;
   onSaveTemplate: () => void;
+}
+
+interface SectionCardProps {
+  title: string;
+  description: string;
+  icon: ReactNode;
+  children: ReactNode;
+}
+
+interface TextFieldProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  icon?: ReactNode;
+}
+
+interface DateFieldProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}
+
+function SectionCard({ title, description, icon, children }: SectionCardProps) {
+  return (
+    <section className={sectionCardClass}>
+      <div className="mb-4 flex items-start gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+          {icon}
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold tracking-[0.01em] text-slate-900">
+            {title}
+          </h3>
+          <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  icon,
+}: TextFieldProps) {
+  return (
+    <label className="flex flex-col gap-2">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        {label}
+      </span>
+      <div className="relative">
+        {icon ? (
+          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+            {icon}
+          </span>
+        ) : null}
+        <input
+          className={`${inputClass} ${icon ? "pl-11" : ""}`}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+        />
+      </div>
+    </label>
+  );
+}
+
+function DateField({ label, value, onChange }: DateFieldProps) {
+  return (
+    <label className="flex flex-col gap-2">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        {label}
+      </span>
+      <div className="relative">
+        <input
+          type="date"
+          className={`${inputClass} pr-11 [color-scheme:light]`}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <FiCalendar className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" />
+      </div>
+    </label>
+  );
 }
 
 export default function SorgularFilters({
@@ -21,26 +132,68 @@ export default function SorgularFilters({
   filter,
   onFilterChange,
   companyOptions,
+  onClose,
+  onClear,
+  onApplyFilter,
   onSaveTemplate,
 }: Props) {
+  const hasAdvancedSections =
+    activeSections.has("transport") ||
+    activeSections.has("loads") ||
+    activeSections.has("users") ||
+    activeSections.has("other") ||
+    activeSections.has("sort") ||
+    activeSections.has("templates");
+
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
-      <div>
-        <p className="text-sm font-medium text-gray-700 mb-2">Filtrləri göstər:</p>
-        <div className="flex flex-wrap gap-2">
+    <div className="flex h-full flex-col bg-slate-50">
+      <div className="border-b border-slate-200 bg-white px-5 py-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+              <FiFilter className="text-lg" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold tracking-[0.01em] text-slate-900">
+                Filtrlər
+              </h2>
+              <p className="mt-1 max-w-sm text-sm leading-6 text-slate-500">
+                Sorğuları daha sürətli tapmaq üçün tarix, şirkət və istiqamətə
+                görə görünüşü fərdiləşdirin.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
+            aria-label="Filtrləri bağla"
+          >
+            <FiX className="text-lg" />
+          </button>
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-2.5">
           {FILTER_SECTIONS.map(({ id, label }) => {
-            const on = activeSections.has(id);
+            const isActive = activeSections.has(id);
+
             return (
               <button
                 key={id}
                 type="button"
                 onClick={() => toggleSection(id)}
-                className={`px-3 py-1.5 rounded text-sm font-medium border transition-colors ${
-                  on
-                    ? "bg-green-600 text-white border-green-600"
-                    : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                  isActive
+                    ? "border-slate-800 bg-slate-800 text-white"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800"
                 }`}
               >
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    isActive ? "bg-white" : "bg-slate-300"
+                  }`}
+                />
                 {label}
               </button>
             );
@@ -48,196 +201,225 @@ export default function SorgularFilters({
         </div>
       </div>
 
-      {activeSections.has("id") && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-gray-600">Sorğunun nömrəsi</span>
-            <input
-              className={inputClass}
-              value={filter.queryNumber}
-              onChange={(e) => onFilterChange("queryNumber", e.target.value)}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-gray-600">
-              Müştəridə olan sifarişin nömrəsi
-            </span>
-            <input
-              className={inputClass}
-              value={filter.customerOrderRef}
-              onChange={(e) => onFilterChange("customerOrderRef", e.target.value)}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-gray-600">Şirkət</span>
-            <Select
-              value={filter.company}
-              options={companyOptions}
-              onChange={(v) => onFilterChange("company", v)}
-              placeholder="Hamısı"
-            />
-          </label>
-        </div>
-      )}
-
-      {activeSections.has("dates") && (
-        <div className="space-y-3">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <fieldset className="space-y-2">
-              <legend className="text-xs font-medium text-gray-600 mb-1">
-                Sorğunun tarixi
-              </legend>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="flex flex-col gap-1">
-                  <span className="text-xs text-gray-500">Tarixindən</span>
-                  <input
-                    type="date"
-                    className={inputClass}
-                    value={filter.queryDateFrom}
-                    onChange={(e) => onFilterChange("queryDateFrom", e.target.value)}
-                  />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-xs text-gray-500">Tarixinə qədər</span>
-                  <input
-                    type="date"
-                    className={inputClass}
-                    value={filter.queryDateTo}
-                    onChange={(e) => onFilterChange("queryDateTo", e.target.value)}
-                  />
-                </label>
-              </div>
-            </fieldset>
-            <fieldset className="space-y-2">
-              <legend className="text-xs font-medium text-gray-600 mb-1">
-                Yükləmə tarixi
-              </legend>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="flex flex-col gap-1">
-                  <span className="text-xs text-gray-500">Tarixindən</span>
-                  <input
-                    type="date"
-                    className={inputClass}
-                    value={filter.loadDateFrom}
-                    onChange={(e) => onFilterChange("loadDateFrom", e.target.value)}
-                  />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-xs text-gray-500">Tarixinə qədər</span>
-                  <input
-                    type="date"
-                    className={inputClass}
-                    value={filter.loadDateTo}
-                    onChange={(e) => onFilterChange("loadDateTo", e.target.value)}
-                  />
-                </label>
-              </div>
-            </fieldset>
-            <fieldset className="space-y-2">
-              <legend className="text-xs font-medium text-gray-600 mb-1">
-                Boşaltma tarixi
-              </legend>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="flex flex-col gap-1">
-                  <span className="text-xs text-gray-500">Tarixindən</span>
-                  <input
-                    type="date"
-                    className={inputClass}
-                    value={filter.unloadDateFrom}
-                    onChange={(e) => onFilterChange("unloadDateFrom", e.target.value)}
-                  />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-xs text-gray-500">Tarixinə qədər</span>
-                  <input
-                    type="date"
-                    className={inputClass}
-                    value={filter.unloadDateTo}
-                    onChange={(e) => onFilterChange("unloadDateTo", e.target.value)}
-                  />
-                </label>
-              </div>
-            </fieldset>
-          </div>
-          <fieldset className="space-y-2 max-w-md">
-            <legend className="text-xs font-medium text-gray-600 mb-1">
-              Statusun təyin edilməsi tarixi
-            </legend>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-gray-500">Tarixindən</span>
-                <input
-                  type="date"
-                  className={inputClass}
-                  value={filter.statusDateFrom}
-                  onChange={(e) => onFilterChange("statusDateFrom", e.target.value)}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-gray-500">Tarixinə qədər</span>
-                <input
-                  type="date"
-                  className={inputClass}
-                  value={filter.statusDateTo}
-                  onChange={(e) => onFilterChange("statusDateTo", e.target.value)}
+      <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
+        {activeSections.has("id") && (
+          <SectionCard
+            title="Əsas məlumatlar"
+            description="Sorğunun nömrəsi, müştəri sifarişi və şirkət üzrə hədəfli axtarış edin."
+            icon={<FiHash className="text-lg" />}
+          >
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <TextField
+                label="Sorğunun nömrəsi"
+                value={filter.queryNumber}
+                onChange={(value) => onFilterChange("queryNumber", value)}
+                placeholder="Məsələn, ZFR260236"
+                icon={<FiSearch />}
+              />
+              <TextField
+                label="Müştəri sifariş nömrəsi"
+                value={filter.customerOrderRef}
+                onChange={(value) => onFilterChange("customerOrderRef", value)}
+                placeholder="Sifariş kodu daxil edin"
+                icon={<FiSearch />}
+              />
+              <label className="flex flex-col gap-2 sm:col-span-2">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Şirkət
+                </span>
+                <Select
+                  value={filter.company}
+                  options={companyOptions}
+                  onChange={(value) => onFilterChange("company", value)}
+                  placeholder="Şirkət seçin"
+                  className={selectTriggerClass}
                 />
               </label>
             </div>
-          </fieldset>
-        </div>
-      )}
+          </SectionCard>
+        )}
 
-      {activeSections.has("customers") && (
-        <label className="flex flex-col gap-1 max-w-md">
-          <span className="text-xs font-medium text-gray-600">Müştəri adı</span>
-          <input
-            className={inputClass}
-            value={filter.customerName}
-            onChange={(e) => onFilterChange("customerName", e.target.value)}
-            placeholder="Axtar..."
-          />
-        </label>
-      )}
+        {activeSections.has("dates") && (
+          <SectionCard
+            title="Tarix aralıqları"
+            description="Tarix intervallarını ayrı-ayrılıqda seçərək cədvəli daraldın."
+            icon={<FiCalendar className="text-lg" />}
+          >
+            <div className="grid grid-cols-1 gap-4">
+              <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <FiCalendar className="text-emerald-600" />
+                  Sorğunun tarixi
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <DateField
+                    label="Tarixindən"
+                    value={filter.queryDateFrom}
+                    onChange={(value) => onFilterChange("queryDateFrom", value)}
+                  />
+                  <DateField
+                    label="Tarixinə qədər"
+                    value={filter.queryDateTo}
+                    onChange={(value) => onFilterChange("queryDateTo", value)}
+                  />
+                </div>
+              </div>
 
-      {activeSections.has("directions") && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-gray-600">Yükləmə yeri</span>
-            <input
-              className={inputClass}
-              value={filter.loadPlace}
-              onChange={(e) => onFilterChange("loadPlace", e.target.value)}
+              <div className="rounded-[20px] border border-slate-200 bg-white p-4">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <FiTruck className="text-emerald-600" />
+                  Yükləmə tarixi
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <DateField
+                    label="Tarixindən"
+                    value={filter.loadDateFrom}
+                    onChange={(value) => onFilterChange("loadDateFrom", value)}
+                  />
+                  <DateField
+                    label="Tarixinə qədər"
+                    value={filter.loadDateTo}
+                    onChange={(value) => onFilterChange("loadDateTo", value)}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-[20px] border border-slate-200 bg-white p-4">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <FiPackage className="text-emerald-600" />
+                  Boşaltma tarixi
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <DateField
+                    label="Tarixindən"
+                    value={filter.unloadDateFrom}
+                    onChange={(value) =>
+                      onFilterChange("unloadDateFrom", value)
+                    }
+                  />
+                  <DateField
+                    label="Tarixinə qədər"
+                    value={filter.unloadDateTo}
+                    onChange={(value) => onFilterChange("unloadDateTo", value)}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-[20px] border border-slate-200 bg-white p-4">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <FiChevronRight className="text-emerald-600" />
+                  Statusun təyin edilməsi tarixi
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <DateField
+                    label="Tarixindən"
+                    value={filter.statusDateFrom}
+                    onChange={(value) =>
+                      onFilterChange("statusDateFrom", value)
+                    }
+                  />
+                  <DateField
+                    label="Tarixinə qədər"
+                    value={filter.statusDateTo}
+                    onChange={(value) => onFilterChange("statusDateTo", value)}
+                  />
+                </div>
+              </div>
+            </div>
+          </SectionCard>
+        )}
+
+        {activeSections.has("customers") && (
+          <SectionCard
+            title="Müştəri axtarışı"
+            description="Müştəri adını daxil edərək uyğun sorğuları daha tez tapın."
+            icon={<FiUsers className="text-lg" />}
+          >
+            <TextField
+              label="Müştəri adı"
+              value={filter.customerName}
+              onChange={(value) => onFilterChange("customerName", value)}
+              placeholder="Müştəri adını yazın"
+              icon={<FiUsers />}
             />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-gray-600">Boşaltma yeri</span>
-            <input
-              className={inputClass}
-              value={filter.unloadPlace}
-              onChange={(e) => onFilterChange("unloadPlace", e.target.value)}
-            />
-          </label>
+          </SectionCard>
+        )}
+
+        {activeSections.has("directions") && (
+          <SectionCard
+            title="İstiqamətlər"
+            description="Yükləmə və boşaltma məntəqələrinə görə marşrutları ayırın."
+            icon={<FiMapPin className="text-lg" />}
+          >
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <TextField
+                label="Yükləmə yeri"
+                value={filter.loadPlace}
+                onChange={(value) => onFilterChange("loadPlace", value)}
+                placeholder="Şəhər və ya terminal"
+                icon={<FiMapPin />}
+              />
+              <TextField
+                label="Boşaltma yeri"
+                value={filter.unloadPlace}
+                onChange={(value) => onFilterChange("unloadPlace", value)}
+                placeholder="Şəhər və ya anbar"
+                icon={<FiMapPin />}
+              />
+            </div>
+          </SectionCard>
+        )}
+
+        {hasAdvancedSections && (
+          <section className="rounded-[24px] border border-dashed border-slate-300 bg-white p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                <FiFilter />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">
+                  Genişlənmiş filtr qrupları
+                </h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Nəqliyyat, yüklər, istifadəçilər və digər qruplar üçün sahələr
+                  API inteqrasiyası tamamlandıqda eyni bu görünüşdə əlavə
+                  ediləcək.
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        <button
+          type="button"
+          onClick={onSaveTemplate}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+        >
+          <FiBookmark />
+          Filtrləri şablon kimi yaddaşda saxla
+        </button>
+      </div>
+
+      <div className="border-t border-slate-200 bg-white px-5 py-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onClear}
+            className="inline-flex items-center justify-center gap-2 rounded-[18px] border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+          >
+            <FiX />
+            Təmizlə
+          </button>
+          <button
+            type="button"
+            onClick={onApplyFilter}
+            className="inline-flex items-center justify-center gap-2 rounded-[18px] border border-slate-300 bg-slate-800 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-700"
+          >
+            <FiFilter />
+            Filterdən keçir
+          </button>
         </div>
-      )}
-
-      {(activeSections.has("transport") ||
-        activeSections.has("loads") ||
-        activeSections.has("users") ||
-        activeSections.has("other") ||
-        activeSections.has("sort") ||
-        activeSections.has("templates")) && (
-        <p className="text-xs text-gray-500 italic">
-          Bu filtr qrupu üçün əlavə sahələr API bağlandıqda doldurulacaq.
-        </p>
-      )}
-
-      <button
-        type="button"
-        onClick={onSaveTemplate}
-        className="w-full md:w-auto px-4 py-2 rounded text-sm font-medium bg-green-600 hover:bg-green-700 text-white transition-colors"
-      >
-        Filtrləri şablon kimi yaddaşda saxla
-      </button>
+      </div>
     </div>
   );
 }

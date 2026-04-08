@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import StatusBadge from "../../../common/components/StatusBadge";
 import type { EmekRow } from "../types/emek.types";
 
 const th =
@@ -98,19 +99,33 @@ export default function EmekTable({
                 onChange={() => onToggleRow(row.id)}
               />
             </td>
-            <td className="px-1 py-1.5 text-gray-800 align-top whitespace-nowrap">{tipLabel(row.kind)}</td>
+            <td className="px-1 py-1.5 text-gray-800 align-top whitespace-nowrap">
+              {tipLabel(row.kind)}
+            </td>
             <td className="px-1 py-1.5 font-medium text-indigo-600 align-top whitespace-nowrap">
               {row.orderNumber}
             </td>
-            <td className="px-1 py-1.5 text-gray-700 align-top whitespace-nowrap">{row.orderDate}</td>
-            <td className="px-1 py-1.5 text-gray-800 align-top">{row.orderStatus}</td>
-            <td className="px-1 py-1.5 text-gray-800 align-top max-w-[120px]">{row.customer}</td>
+            <td className="px-1 py-1.5 text-gray-700 align-top whitespace-nowrap">
+              {row.orderDate}
+            </td>
+            <td className="px-1 py-1.5 align-top">
+              <StatusBadge label={row.orderStatus} className="text-[10px]" />
+            </td>
+            <td className="px-1 py-1.5 text-gray-800 align-top max-w-[120px]">
+              {row.customer}
+            </td>
             <td className="px-1 py-1.5 text-gray-800 align-top">
               {row.employee}
-              {row.employeeRequired && <span className="text-red-600 ml-0.5">*</span>}
+              {row.employeeRequired && (
+                <span className="text-red-600 ml-0.5">*</span>
+              )}
             </td>
-            <td className="px-1 py-1.5 text-gray-800 align-top whitespace-nowrap">{row.freight}</td>
-            <td className="px-1 py-1.5 text-gray-800 align-top tabular-nums">{fmt(row.expensesAzn)}</td>
+            <td className="px-1 py-1.5 text-gray-800 align-top whitespace-nowrap">
+              {row.freight}
+            </td>
+            <td className="px-1 py-1.5 text-gray-800 align-top tabular-nums">
+              {fmt(row.expensesAzn)}
+            </td>
             <td className="px-1 py-1.5 text-emerald-800 font-medium align-top tabular-nums">
               {fmt(row.profitAzn)}
             </td>
@@ -119,12 +134,17 @@ export default function EmekTable({
                 className={inputCls}
                 value={getRevenue(row)}
                 onChange={(e) =>
-                  setRevenuePct((prev) => ({ ...prev, [row.id]: e.target.value }))
+                  setRevenuePct((prev) => ({
+                    ...prev,
+                    [row.id]: e.target.value,
+                  }))
                 }
                 inputMode="decimal"
               />
             </td>
-            <td className="px-1 py-1.5 text-gray-800 align-top tabular-nums">{fmt(row.totalBonusAzn)}</td>
+            <td className="px-1 py-1.5 text-gray-800 align-top tabular-nums">
+              {fmt(row.totalBonusAzn)}
+            </td>
             <td className="px-1 py-1 align-top">
               <input
                 className={inputCls}
@@ -135,19 +155,33 @@ export default function EmekTable({
                 inputMode="decimal"
               />
             </td>
-            <td className="px-1 py-1.5 text-gray-800 align-top tabular-nums">{fmt(row.rewardAmount)}</td>
-            <td className="px-1 py-1.5 text-gray-700 align-top">{row.paidLabel}</td>
+            <td className="px-1 py-1.5 text-gray-800 align-top tabular-nums">
+              {fmt(row.rewardAmount)}
+            </td>
+            <td className="px-1 py-1.5 align-top">
+              <StatusBadge label={row.paidLabel} className="text-[10px]" />
+            </td>
             <td className="px-1 py-1.5 text-gray-600 align-top whitespace-nowrap">
               {row.paymentDate || "—"}
             </td>
             <td className="px-1 py-1.5 text-gray-800 align-top whitespace-nowrap max-w-[200px]">
               {row.route}
             </td>
-            <td className="px-1 py-1.5 text-gray-800 align-top">{row.carrier}</td>
-            <td className="px-1 py-1.5 text-gray-700 align-top">{row.incompleteLoad}</td>
-            <td className="px-1 py-1.5 text-gray-800 align-top whitespace-nowrap">{row.tripNumber}</td>
-            <td className="px-1 py-1.5 text-gray-800 align-top whitespace-nowrap">{row.voyagePrice}</td>
-            <td className="px-1 py-1.5 text-gray-700 align-top">{row.accounts}</td>
+            <td className="px-1 py-1.5 text-gray-800 align-top">
+              {row.carrier}
+            </td>
+            <td className="px-1 py-1.5 text-gray-700 align-top">
+              {row.incompleteLoad}
+            </td>
+            <td className="px-1 py-1.5 text-gray-800 align-top whitespace-nowrap">
+              {row.tripNumber}
+            </td>
+            <td className="px-1 py-1.5 text-gray-800 align-top whitespace-nowrap">
+              {row.voyagePrice}
+            </td>
+            <td className="px-1 py-1.5 text-gray-700 align-top">
+              {row.accounts}
+            </td>
             <td
               className={`px-1 py-1.5 align-top tabular-nums font-medium ${
                 row.amountRed ? "text-red-600" : "text-gray-900"

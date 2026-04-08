@@ -1,3 +1,4 @@
+import { FiFilter } from "react-icons/fi";
 import Select from "../../../common/components/select/Select";
 import type { SelectOption } from "../../../common/components/select/Select";
 
@@ -13,11 +14,11 @@ interface Props {
   accountAction: string;
   onAccountActionChange: (v: string) => void;
   accountOptions: SelectOption[];
-  onClear: () => void;
-  onApplyFilter: () => void;
+  onToggleFilters: () => void;
   onTrackingImport: () => void;
   onExcel: () => void;
   onPerformActions: () => void;
+  activeFilterCount: number;
 }
 
 function fmt(n: number, decimals = 2) {
@@ -32,29 +33,28 @@ export default function YukActionBar({
   accountAction,
   onAccountActionChange,
   accountOptions,
-  onClear,
-  onApplyFilter,
+  onToggleFilters,
   onTrackingImport,
   onExcel,
   onPerformActions,
+  activeFilterCount,
 }: Props) {
   return (
-    <div className="space-y-3">
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 bg-gray-100 border border-gray-200 rounded-lg px-3 py-2.5">
+    <div className="space-y-3 pb-4">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={onClear}
-            className="inline-flex items-center gap-1 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 py-1.5 rounded text-sm font-medium transition-colors"
+            onClick={onToggleFilters}
+            className="inline-flex items-center gap-2 rounded-[18px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
           >
-            ✕ Təmizlə
-          </button>
-          <button
-            type="button"
-            onClick={onApplyFilter}
-            className="inline-flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white px-4 py-1.5 rounded text-sm font-medium transition-colors"
-          >
-            Filtirdən keçir
+            <FiFilter />
+            Filtrlər
+            {activeFilterCount > 0 ? (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                {activeFilterCount}
+              </span>
+            ) : null}
           </button>
         </div>
 
@@ -62,14 +62,14 @@ export default function YukActionBar({
           <button
             type="button"
             onClick={onTrackingImport}
-            className="inline-flex items-center gap-1 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded text-sm font-medium transition-colors"
+            className="inline-flex items-center gap-2 rounded-[16px] border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
           >
             + Tracking idxal
           </button>
           <button
             type="button"
             onClick={onExcel}
-            className="inline-flex items-center gap-1 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded text-sm font-medium transition-colors"
+            className="inline-flex items-center gap-2 rounded-[16px] border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
           >
             + Excel
           </button>
@@ -79,35 +79,32 @@ export default function YukActionBar({
               options={accountOptions}
               onChange={onAccountActionChange}
               placeholder="Hesab əməliyyatı"
+              className="rounded-[16px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
             />
           </div>
           <button
             type="button"
             onClick={onPerformActions}
-            className="inline-flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded text-sm font-semibold transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 rounded-[16px] bg-green-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700"
           >
             Hərəkətləri yerinə yetir
           </button>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3 items-stretch">
-        <div className="flex-1 min-w-[140px] border-2 border-green-600 rounded-lg bg-white px-4 py-1.5 text-center shadow-sm">
-          <div className="text-xs font-medium text-gray-600">LDM</div>
-          <div className="text-lg font-semibold text-gray-900 tabular-nums">{fmt(stats.ldm, 0)}</div>
-        </div>
-        <div className="flex-1 min-w-[140px] border-2 border-green-600 rounded-lg bg-white px-4 py-1.5 text-center shadow-sm">
-          <div className="text-xs font-medium text-gray-600">Çəki</div>
-          <div className="text-lg font-semibold text-gray-900 tabular-nums">{fmt(stats.weight, 2)}</div>
-        </div>
-        <div className="flex-1 min-w-[140px] border-2 border-green-600 rounded-lg bg-white px-4 py-1.5 text-center shadow-sm">
-          <div className="text-xs font-medium text-gray-600">Həcm</div>
-          <div className="text-lg font-semibold text-gray-900 tabular-nums">{fmt(stats.volume, 2)}</div>
-        </div>
-        <div className="flex-1 min-w-[140px] border-2 border-green-600 rounded-lg bg-white px-4 py-1.5 text-center shadow-sm">
-          <div className="text-xs font-medium text-gray-600">Yüklərin sayı</div>
-          <div className="text-lg font-semibold text-gray-900 tabular-nums">{stats.count}</div>
-        </div>
+      <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium">
+          LDM: {fmt(stats.ldm, 0)}
+        </span>
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium">
+          Çəki: {fmt(stats.weight, 2)}
+        </span>
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium">
+          Həcm: {fmt(stats.volume, 2)}
+        </span>
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium">
+          Yüklərin sayı: {stats.count}
+        </span>
       </div>
     </div>
   );

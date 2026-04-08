@@ -1,28 +1,9 @@
-import {
-  FaClipboard,
-  FaEdit,
-  FaEye,
-  FaFileAlt,
-  FaMinus,
-} from "react-icons/fa";
+import { FaClipboard, FaEdit, FaEye, FaFileAlt, FaMinus } from "react-icons/fa";
+import StatusBadge from "../../../common/components/StatusBadge";
 import type { ReysRow, ReysTripStatusKind } from "../types/reys.types";
 
 const th =
   "px-2 py-2 text-xs font-semibold text-sky-900 text-center whitespace-nowrap border-b border-sky-200 bg-sky-100";
-
-function statusBadge(kind: ReysTripStatusKind, label: string) {
-  const cls =
-    kind === "completed"
-      ? "bg-emerald-100 text-emerald-900"
-      : kind === "progress"
-        ? "bg-amber-100 text-amber-900"
-        : "bg-sky-100 text-sky-900";
-  return (
-    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}>
-      {label}
-    </span>
-  );
-}
 
 interface Props {
   rows: ReysRow[];
@@ -58,32 +39,57 @@ export default function ReysTable({ rows }: Props) {
             className={index % 2 === 0 ? "bg-white" : "bg-gray-50/90"}
           >
             <td className="px-2 py-2 align-top text-xs">
-              <div className="font-semibold text-indigo-600 whitespace-nowrap">{row.orderRef}</div>
+              <div className="font-semibold text-indigo-600 whitespace-nowrap">
+                {row.orderRef}
+              </div>
               <div className="text-gray-500 mt-0.5">{row.orderDate}</div>
             </td>
             <td className="px-2 py-2 align-top font-medium text-gray-900 whitespace-nowrap">
               {row.tripRef}
             </td>
-            <td className="px-2 py-2 align-top text-center">{statusBadge(row.tripStatusKind, row.tripStatus)}</td>
-            <td className="px-2 py-2 text-gray-800 align-top text-xs">{row.customer}</td>
+            <td className="px-2 py-2 align-top text-center">
+              <StatusBadge label={row.tripStatus} kind={row.tripStatusKind} />
+            </td>
+            <td className="px-2 py-2 text-gray-800 align-top text-xs">
+              {row.customer}
+            </td>
             <td className="px-2 py-2 text-gray-800 align-top text-xs whitespace-nowrap">
               {row.tripPrice}
             </td>
             <td className="px-2 py-2 text-gray-800 align-top text-xs whitespace-nowrap">
               {row.carrier}
             </td>
-            <td className="px-2 py-2 text-gray-700 align-top text-xs">{row.vehicleInfo}</td>
-            <td className="px-2 py-2 text-gray-700 align-top text-xs max-w-[220px]">{row.cargoInfo}</td>
-            <td className="px-2 py-2 text-gray-500 align-top text-xs">{row.loadDate || "—"}</td>
-            <td className="px-2 py-2 text-gray-500 align-top text-xs">{row.sender || "—"}</td>
-            <td className="px-2 py-2 text-gray-500 align-top text-xs">{row.loading || "—"}</td>
-            <td className="px-2 py-2 text-gray-500 align-top text-xs">{row.unloadDate || "—"}</td>
-            <td className="px-2 py-2 text-gray-500 align-top text-xs">{row.receiver || "—"}</td>
-            <td className="px-2 py-2 text-gray-500 align-top text-xs">{row.unloading || "—"}</td>
+            <td className="px-2 py-2 text-gray-700 align-top text-xs">
+              {row.vehicleInfo}
+            </td>
+            <td className="px-2 py-2 text-gray-700 align-top text-xs max-w-[220px]">
+              {row.cargoInfo}
+            </td>
+            <td className="px-2 py-2 text-gray-500 align-top text-xs">
+              {row.loadDate || "—"}
+            </td>
+            <td className="px-2 py-2 text-gray-500 align-top text-xs">
+              {row.sender || "—"}
+            </td>
+            <td className="px-2 py-2 text-gray-500 align-top text-xs">
+              {row.loading || "—"}
+            </td>
+            <td className="px-2 py-2 text-gray-500 align-top text-xs">
+              {row.unloadDate || "—"}
+            </td>
+            <td className="px-2 py-2 text-gray-500 align-top text-xs">
+              {row.receiver || "—"}
+            </td>
+            <td className="px-2 py-2 text-gray-500 align-top text-xs">
+              {row.unloading || "—"}
+            </td>
             <td className="px-2 py-2 text-gray-700 align-top text-xs whitespace-pre-line max-w-[180px]">
               {row.tags || "—"}
             </td>
-            <td className="px-2 py-2 align-top" onClick={(e) => e.stopPropagation()}>
+            <td
+              className="px-2 py-2 align-top"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex flex-wrap items-center gap-0.5 justify-center">
                 <button
                   type="button"

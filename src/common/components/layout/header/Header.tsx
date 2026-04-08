@@ -18,15 +18,17 @@ const Header: React.FC<HeaderProps> = ({ title = "Sorğular" }) => {
       className={`${styles.header} ${collapsed ? styles.headerSidebarCollapsed : ""}`}
     >
       <div className={styles.headerLeft}>
-        <button
-          type="button"
-          className={styles.menuToggle}
-          onClick={toggleSidebar}
-          aria-expanded={!collapsed}
-          aria-label={collapsed ? "Menyunu aç" : "Menyunu bağla"}
-        >
-          {collapsed ? <FaBars /> : <FaChevronLeft />}
-        </button>
+        {collapsed ? (
+          <button
+            type="button"
+            className={styles.menuToggle}
+            onClick={toggleSidebar}
+            aria-expanded={!collapsed}
+            aria-label="Menyunu aç"
+          >
+            <FaBars />
+          </button>
+        ) : null}
         <h1 className={styles.title}>{title}</h1>
       </div>
       <UserProfile />

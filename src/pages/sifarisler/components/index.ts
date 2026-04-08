@@ -1,6 +1,8 @@
 export { default as SifarisSubTabs } from "./SifarisSubTabs";
 export { default as SifarisFilters } from "./SifarisFilters";
 export { default as SifarisActionBar } from "./SifarisActionBar";
+export { default as SifarisNewModal } from "./SifarisNewModal";
+export type { NewSifarisFormPayload } from "./SifarisNewModal";
 export { default as SifarisTable } from "./SifarisTable";
 export { default as SifarisPagination } from "./SifarisPagination";
 export { default as YukFilters } from "./YukFilters";

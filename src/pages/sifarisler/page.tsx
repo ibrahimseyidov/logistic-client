@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAppDispatch } from "../../common/store/hooks";
 import { showNotification } from "../../common/store/modalSlice";
 import { NotificationModal } from "../../common/components/NotificationModal";
@@ -8,8 +9,8 @@ import type { SelectOption } from "../../common/components/select/Select";
 import {
   SifarisActionBar,
   SifarisFilters,
+  SifarisNewModal,
   SifarisPagination,
-  SifarisSubTabs,
   SifarisTable,
   YukActionBar,
   YukFilters,
@@ -20,12 +21,16 @@ import {
   EmekFilters,
   EmekSummaryBar,
   EmekTable,
+  type NewSifarisFormPayload,
 } from "./components";
 import { MOCK_SIFARISLER } from "./data/mockSifarisler";
 import { MOCK_YUKLER } from "./data/mockYukler";
 import { MOCK_REYSLER } from "./data/mockReysler";
 import { MOCK_EMEK } from "./data/mockEmek";
-import { aggregateSifarisStats, applySifarisFilters } from "./lib/filterSifarisler";
+import {
+  aggregateSifarisStats,
+  applySifarisFilters,
+} from "./lib/filterSifarisler";
 import { aggregateYukStats, applyYukFilters } from "./lib/filterYukler";
 import {
   aggregateReysStats,
@@ -52,15 +57,11 @@ import type {
   ReysTransportMode,
 } from "./types/reys.types";
 import { emptyReysFilter } from "./types/reys.types";
-import type { EmekFilterFormState, EmekFilterSectionId } from "./types/emek.types";
+import type {
+  EmekFilterFormState,
+  EmekFilterSectionId,
+} from "./types/emek.types";
 import { emptyEmekFilter } from "./types/emek.types";
-
-const BULK_STATUS_OPTIONS: SelectOption[] = [
-  { value: "", label: "Status" },
-  { value: "planned", label: "Planlaşdırılıb" },
-  { value: "progress", label: "Davam edir" },
-  { value: "completed", label: "Tamamlandı" },
-];
 
 const YUK_ACCOUNT_OPTIONS: SelectOption[] = [
   { value: "", label: "Təfərrüatlı hesab irəli sür" },
@@ -75,38 +76,86 @@ const EMEK_SAVE_SELECTED_OPTIONS: SelectOption[] = [
 
 export default function SifarislerPage() {
   const dispatch = useAppDispatch();
-  const [subTab, setSubTab] = useState<SifarisSubTab>("orders");
-
-  const [activeSections, setActiveSections] = useState<Set<SifarisFilterSectionId>>(
-    () => new Set(["id", "dates"]),
+  const [searchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const initialTab: SifarisSubTab =
+    requestedTab === "loads" ||
+    requestedTab === "voyages" ||
+    requestedTab === "payroll"
+      ? requestedTab
+      : "orders";
+  const [subTab, setSubTab] = useState<SifarisSubTab>(initialTab);
+  const [openFilterPanel, setOpenFilterPanel] = useState<SifarisSubTab | null>(
+    null,
   );
-  const [filterDraft, setFilterDraft] = useState<SifarisFilterFormState>(emptySifarisFilter);
-  const [appliedFilter, setAppliedFilter] = useState<SifarisFilterFormState>(emptySifarisFilter);
+  const [isSifarisNewOpen, setIsSifarisNewOpen] = useState(false);
+
+  const [activeSections, setActiveSections] = useState<
+    Set<SifarisFilterSectionId>
+  >(() => new Set(["id", "dates"]));
+  const [filterDraft, setFilterDraft] =
+    useState<SifarisFilterFormState>(emptySifarisFilter);
+  const [appliedFilter, setAppliedFilter] =
+    useState<SifarisFilterFormState>(emptySifarisFilter);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [bulkStatus, setBulkStatus] = useState("");
 
-  const [yukActiveSections, setYukActiveSections] = useState<Set<YukFilterSectionId>>(
-    () => new Set(["id"]),
+  const [yukActiveSections, setYukActiveSections] = useState<
+    Set<YukFilterSectionId>
+  >(() => new Set(["id"]));
+  const [yukFilterDraft, setYukFilterDraft] =
+    useState<YukFilterFormState>(emptyYukFilter);
+  const [yukAppliedFilter, setYukAppliedFilter] =
+    useState<YukFilterFormState>(emptyYukFilter);
+  const [yukSelectedIds, setYukSelectedIds] = useState<Set<string>>(
+    () => new Set(),
   );
-  const [yukFilterDraft, setYukFilterDraft] = useState<YukFilterFormState>(emptyYukFilter);
-  const [yukAppliedFilter, setYukAppliedFilter] = useState<YukFilterFormState>(emptyYukFilter);
-  const [yukSelectedIds, setYukSelectedIds] = useState<Set<string>>(() => new Set());
   const [yukAccountAction, setYukAccountAction] = useState("");
 
-  const [reysActiveSections, setReysActiveSections] = useState<Set<ReysFilterSectionId>>(
-    () => new Set(["id", "dates"]),
-  );
-  const [reysFilterDraft, setReysFilterDraft] = useState<ReysFilterFormState>(emptyReysFilter);
-  const [reysAppliedFilter, setReysAppliedFilter] = useState<ReysFilterFormState>(emptyReysFilter);
-  const [reysTransportMode, setReysTransportMode] = useState<ReysTransportMode>("all");
+  const [reysActiveSections, setReysActiveSections] = useState<
+    Set<ReysFilterSectionId>
+  >(() => new Set(["id", "dates"]));
+  const [reysFilterDraft, setReysFilterDraft] =
+    useState<ReysFilterFormState>(emptyReysFilter);
+  const [reysAppliedFilter, setReysAppliedFilter] =
+    useState<ReysFilterFormState>(emptyReysFilter);
+  const [reysTransportMode, setReysTransportMode] =
+    useState<ReysTransportMode>("all");
 
-  const [emekActiveSections, setEmekActiveSections] = useState<Set<EmekFilterSectionId>>(
-    () => new Set(["id", "dates", "customers"]),
+  const [emekActiveSections, setEmekActiveSections] = useState<
+    Set<EmekFilterSectionId>
+  >(() => new Set(["id", "dates", "customers"]));
+  const [emekFilterDraft, setEmekFilterDraft] =
+    useState<EmekFilterFormState>(emptyEmekFilter);
+  const [emekAppliedFilter, setEmekAppliedFilter] =
+    useState<EmekFilterFormState>(emptyEmekFilter);
+  const [emekSelectedIds, setEmekSelectedIds] = useState<Set<string>>(
+    () => new Set(),
   );
-  const [emekFilterDraft, setEmekFilterDraft] = useState<EmekFilterFormState>(emptyEmekFilter);
-  const [emekAppliedFilter, setEmekAppliedFilter] = useState<EmekFilterFormState>(emptyEmekFilter);
-  const [emekSelectedIds, setEmekSelectedIds] = useState<Set<string>>(() => new Set());
   const [emekSaveSelected, setEmekSaveSelected] = useState("");
+
+  useEffect(() => {
+    const nextTab: SifarisSubTab =
+      requestedTab === "loads" ||
+      requestedTab === "voyages" ||
+      requestedTab === "payroll"
+        ? requestedTab
+        : "orders";
+
+    setSubTab((prev) => (prev === nextTab ? prev : nextTab));
+  }, [requestedTab]);
+
+  useEffect(() => {
+    if (!openFilterPanel) return undefined;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpenFilterPanel(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [openFilterPanel]);
 
   const toggleSection = useCallback((id: SifarisFilterSectionId) => {
     setActiveSections((prev) => {
@@ -174,27 +223,42 @@ export default function SifarislerPage() {
 
   const companyOptions: SelectOption[] = useMemo(() => {
     const names = [...new Set(MOCK_SIFARISLER.map((r) => r.company))].sort();
-    return [{ value: "", label: "Hamısı" }, ...names.map((n) => ({ value: n, label: n }))];
+    return [
+      { value: "", label: "Hamısı" },
+      ...names.map((n) => ({ value: n, label: n })),
+    ];
   }, []);
 
   const reysCompanyOptions: SelectOption[] = useMemo(() => {
     const names = [...new Set(MOCK_REYSLER.map((r) => r.company))].sort();
-    return [{ value: "", label: "Hamısı" }, ...names.map((n) => ({ value: n, label: n }))];
+    return [
+      { value: "", label: "Hamısı" },
+      ...names.map((n) => ({ value: n, label: n })),
+    ];
   }, []);
 
   const emekCompanyOptions: SelectOption[] = useMemo(() => {
     const names = [...new Set(MOCK_EMEK.map((r) => r.company))].sort();
-    return [{ value: "", label: "Hamısı" }, ...names.map((n) => ({ value: n, label: n }))];
+    return [
+      { value: "", label: "Hamısı" },
+      ...names.map((n) => ({ value: n, label: n })),
+    ];
   }, []);
 
   const emekCustomerOptions: SelectOption[] = useMemo(() => {
     const names = [...new Set(MOCK_EMEK.map((r) => r.customer))].sort();
-    return [{ value: "", label: "Hamısı" }, ...names.map((n) => ({ value: n, label: n }))];
+    return [
+      { value: "", label: "Hamısı" },
+      ...names.map((n) => ({ value: n, label: n })),
+    ];
   }, []);
 
   const emekCarrierOptions: SelectOption[] = useMemo(() => {
     const names = [...new Set(MOCK_EMEK.map((r) => r.carrier))].sort();
-    return [{ value: "", label: "Hamısı" }, ...names.map((n) => ({ value: n, label: n }))];
+    return [
+      { value: "", label: "Hamısı" },
+      ...names.map((n) => ({ value: n, label: n })),
+    ];
   }, []);
 
   const filteredRows = useMemo(
@@ -202,7 +266,17 @@ export default function SifarislerPage() {
     [appliedFilter],
   );
 
-  const stats = useMemo(() => aggregateSifarisStats(filteredRows), [filteredRows]);
+  const stats = useMemo(
+    () => aggregateSifarisStats(filteredRows),
+    [filteredRows],
+  );
+
+  const sifarisActiveFilterCount = useMemo(
+    () =>
+      Object.values(appliedFilter).filter((value) => value.trim() !== "")
+        .length,
+    [appliedFilter],
+  );
 
   const {
     currentPage,
@@ -217,7 +291,17 @@ export default function SifarislerPage() {
     [yukAppliedFilter],
   );
 
-  const yukStats = useMemo(() => aggregateYukStats(yukFilteredRows), [yukFilteredRows]);
+  const yukStats = useMemo(
+    () => aggregateYukStats(yukFilteredRows),
+    [yukFilteredRows],
+  );
+
+  const yukActiveFilterCount = useMemo(
+    () =>
+      Object.values(yukAppliedFilter).filter((value) => value.trim() !== "")
+        .length,
+    [yukAppliedFilter],
+  );
 
   const {
     currentPage: yukPage,
@@ -232,7 +316,17 @@ export default function SifarislerPage() {
     return filterByTransport(after, reysTransportMode);
   }, [reysAppliedFilter, reysTransportMode]);
 
-  const reysStats = useMemo(() => aggregateReysStats(reysFilteredRows), [reysFilteredRows]);
+  const reysStats = useMemo(
+    () => aggregateReysStats(reysFilteredRows),
+    [reysFilteredRows],
+  );
+
+  const reysActiveFilterCount = useMemo(
+    () =>
+      Object.values(reysAppliedFilter).filter((value) => value.trim() !== "")
+        .length,
+    [reysAppliedFilter],
+  );
 
   const {
     currentPage: reysPage,
@@ -247,7 +341,17 @@ export default function SifarislerPage() {
     [emekAppliedFilter],
   );
 
-  const emekStats = useMemo(() => aggregateEmekStats(emekFilteredRows), [emekFilteredRows]);
+  const emekStats = useMemo(
+    () => aggregateEmekStats(emekFilteredRows),
+    [emekFilteredRows],
+  );
+
+  const emekActiveFilterCount = useMemo(
+    () =>
+      Object.values(emekAppliedFilter).filter((value) => value.trim() !== "")
+        .length,
+    [emekAppliedFilter],
+  );
 
   const {
     currentPage: emekPage,
@@ -257,8 +361,8 @@ export default function SifarislerPage() {
     getVisiblePages: emekGetVisiblePages,
   } = useEmekPagination(emekFilteredRows);
 
-  const handleSubTab = (tab: SifarisSubTab) => {
-    setSubTab(tab);
+  useEffect(() => {
+    setOpenFilterPanel(null);
     setCurrentPage(1);
     setYukPage(1);
     setReysPage(1);
@@ -266,12 +370,13 @@ export default function SifarislerPage() {
     setSelectedIds(new Set());
     setYukSelectedIds(new Set());
     setEmekSelectedIds(new Set());
-  };
+  }, [subTab, setCurrentPage, setYukPage, setReysPage, setEmekPage]);
 
   const handleApplyFilter = () => {
     setAppliedFilter({ ...filterDraft });
     setCurrentPage(1);
     setSelectedIds(new Set());
+    setOpenFilterPanel(null);
   };
 
   const handleClear = () => {
@@ -286,6 +391,7 @@ export default function SifarislerPage() {
     setYukAppliedFilter({ ...yukFilterDraft });
     setYukPage(1);
     setYukSelectedIds(new Set());
+    setOpenFilterPanel(null);
   };
 
   const handleYukClear = () => {
@@ -299,6 +405,7 @@ export default function SifarislerPage() {
   const handleReysApplyFilter = () => {
     setReysAppliedFilter({ ...reysFilterDraft });
     setReysPage(1);
+    setOpenFilterPanel(null);
   };
 
   const handleReysClear = () => {
@@ -338,6 +445,7 @@ export default function SifarislerPage() {
     setEmekAppliedFilter({ ...emekFilterDraft });
     setEmekPage(1);
     setEmekSelectedIds(new Set());
+    setOpenFilterPanel(null);
   };
 
   const handleEmekClear = () => {
@@ -398,16 +506,6 @@ export default function SifarislerPage() {
     );
   };
 
-  const handleImportExcel = () => {
-    dispatch(
-      showNotification({
-        message: "Excel idxal tezliklə əlavə olunacaq.",
-        type: "info",
-        autoCloseDuration: 3500,
-      }),
-    );
-  };
-
   const handleExportExcel = () => {
     dispatch(
       showNotification({
@@ -418,31 +516,16 @@ export default function SifarislerPage() {
     );
   };
 
-  const handleNotify = () => {
-    dispatch(
-      showNotification({
-        message: "Bildiriş göndərildi (demo).",
-        type: "success",
-        autoCloseDuration: 2500,
-      }),
-    );
-  };
-
-  const handleChangeStatus = () => {
-    dispatch(
-      showNotification({
-        message: "Status dəyişikliyi (demo) — seçilmiş sətirlər.",
-        type: "info",
-        autoCloseDuration: 3000,
-      }),
-    );
-  };
-
   const handleNewOrder = () => {
+    setIsSifarisNewOpen(true);
+  };
+
+  const handleNewOrderSubmit = (_payload: NewSifarisFormPayload) => {
+    setIsSifarisNewOpen(false);
     dispatch(
       showNotification({
-        message: "Yeni sifariş formu tezliklə əlavə olunacaq.",
-        type: "info",
+        message: "Yeni sifariş yaradıldı (demo).",
+        type: "success",
         autoCloseDuration: 3000,
       }),
     );
@@ -540,28 +623,14 @@ export default function SifarislerPage() {
 
   return (
     <div
-      className="flex flex-col overflow-hidden"
+      className="relative flex flex-col overflow-hidden bg-gray-50"
       style={{ height: "calc(100vh - 56px)" }}
     >
       <NotificationModal />
 
       <div className="shrink-0 space-y-3 mt-2 px-2">
-        <SifarisSubTabs value={subTab} onChange={handleSubTab} />
-
         {subTab === "payroll" && (
           <>
-            <EmekFilters
-              activeSections={emekActiveSections}
-              toggleSection={toggleEmekSection}
-              filter={emekFilterDraft}
-              onFilterChange={onEmekFilterChange}
-              companyOptions={emekCompanyOptions}
-              customerOptions={emekCustomerOptions}
-              carrierOptions={emekCarrierOptions}
-              onSaveTemplate={handleEmekSaveTemplate}
-              onClear={handleEmekClear}
-              onApplyFilter={handleEmekApplyFilter}
-            />
             <EmekSummaryBar
               profitAzn={emekStats.profit}
               bonusAzn={emekStats.bonus}
@@ -569,80 +638,52 @@ export default function SifarislerPage() {
               saveSelectedValue={emekSaveSelected}
               onSaveSelectedChange={setEmekSaveSelected}
               saveSelectedOptions={EMEK_SAVE_SELECTED_OPTIONS}
+              onToggleFilters={() => setOpenFilterPanel("payroll")}
               onExcel={handleEmekExcel}
               onPerformActions={handleEmekPerformActions}
+              activeFilterCount={emekActiveFilterCount}
             />
           </>
         )}
 
         {subTab === "orders" && (
           <>
-            <SifarisFilters
-              activeSections={activeSections}
-              toggleSection={toggleSection}
-              filter={filterDraft}
-              onFilterChange={onFilterChange}
-              companyOptions={companyOptions}
-              onSaveTemplate={handleSaveTemplate}
-            />
             <SifarisActionBar
               stats={stats}
-              bulkStatus={bulkStatus}
-              onBulkStatusChange={setBulkStatus}
-              statusOptions={BULK_STATUS_OPTIONS}
               onNew={handleNewOrder}
-              onClear={handleClear}
-              onApplyFilter={handleApplyFilter}
-              onNotify={handleNotify}
-              onChangeStatus={handleChangeStatus}
-              onImportExcel={handleImportExcel}
+              onToggleFilters={() => setOpenFilterPanel("orders")}
               onExportExcel={handleExportExcel}
+              activeFilterCount={sifarisActiveFilterCount}
             />
           </>
         )}
 
         {subTab === "voyages" && (
           <>
-            <ReysFilters
-              activeSections={reysActiveSections}
-              toggleSection={toggleReysSection}
-              filter={reysFilterDraft}
-              onFilterChange={onReysFilterChange}
-              companyOptions={reysCompanyOptions}
-              onSaveTemplate={handleReysSaveTemplate}
-              onClear={handleReysClear}
-              onApplyFilter={handleReysApplyFilter}
-            />
             <ReysToolbar
               transportMode={reysTransportMode}
               onTransportChange={handleReysTransportChange}
+              onToggleFilters={() => setOpenFilterPanel("voyages")}
               count={reysStats.count}
               totalValueAzn={reysStats.totalValueAzn}
               onExcel={handleReysExcel}
+              activeFilterCount={reysActiveFilterCount}
             />
           </>
         )}
 
         {subTab === "loads" && (
           <>
-            <YukFilters
-              activeSections={yukActiveSections}
-              toggleSection={toggleYukSection}
-              filter={yukFilterDraft}
-              onFilterChange={onYukFilterChange}
-              userOptions={YUK_USER_OPTIONS}
-              onSaveTemplate={handleYukSaveTemplate}
-            />
             <YukActionBar
               stats={yukStats}
               accountAction={yukAccountAction}
               onAccountActionChange={setYukAccountAction}
               accountOptions={YUK_ACCOUNT_OPTIONS}
-              onClear={handleYukClear}
-              onApplyFilter={handleYukApplyFilter}
+              onToggleFilters={() => setOpenFilterPanel("loads")}
               onTrackingImport={handleYukTrackingImport}
               onExcel={handleYukExcel}
               onPerformActions={handleYukPerformActions}
+              activeFilterCount={yukActiveFilterCount}
             />
           </>
         )}
@@ -734,6 +775,87 @@ export default function SifarislerPage() {
           </div>
         </>
       )}
+
+      <SifarisNewModal
+        isOpen={isSifarisNewOpen}
+        onClose={() => setIsSifarisNewOpen(false)}
+        onSubmit={handleNewOrderSubmit}
+      />
+
+      <div
+        className={`absolute inset-0 z-40 transition-opacity duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          openFilterPanel
+            ? "pointer-events-auto bg-slate-900/15 opacity-100"
+            : "pointer-events-none opacity-0"
+        }`}
+        onClick={() => setOpenFilterPanel(null)}
+        aria-hidden={!openFilterPanel}
+      />
+
+      <aside
+        className={`absolute inset-y-0 right-0 z-50 w-full max-w-[620px] border-l border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.12)] transition-transform duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform ${
+          openFilterPanel ? "translate-x-0" : "translate-x-full"
+        }`}
+        aria-hidden={!openFilterPanel}
+      >
+        {openFilterPanel === "orders" ? (
+          <SifarisFilters
+            activeSections={activeSections}
+            toggleSection={toggleSection}
+            filter={filterDraft}
+            onFilterChange={onFilterChange}
+            companyOptions={companyOptions}
+            onClose={() => setOpenFilterPanel(null)}
+            onClear={handleClear}
+            onApplyFilter={handleApplyFilter}
+            onSaveTemplate={handleSaveTemplate}
+          />
+        ) : null}
+
+        {openFilterPanel === "loads" ? (
+          <YukFilters
+            activeSections={yukActiveSections}
+            toggleSection={toggleYukSection}
+            filter={yukFilterDraft}
+            onFilterChange={onYukFilterChange}
+            userOptions={YUK_USER_OPTIONS}
+            onClose={() => setOpenFilterPanel(null)}
+            onClear={handleYukClear}
+            onApplyFilter={handleYukApplyFilter}
+            onSaveTemplate={handleYukSaveTemplate}
+          />
+        ) : null}
+
+        {openFilterPanel === "voyages" ? (
+          <ReysFilters
+            activeSections={reysActiveSections}
+            toggleSection={toggleReysSection}
+            filter={reysFilterDraft}
+            onFilterChange={onReysFilterChange}
+            companyOptions={reysCompanyOptions}
+            onClose={() => setOpenFilterPanel(null)}
+            onSaveTemplate={handleReysSaveTemplate}
+            onClear={handleReysClear}
+            onApplyFilter={handleReysApplyFilter}
+          />
+        ) : null}
+
+        {openFilterPanel === "payroll" ? (
+          <EmekFilters
+            activeSections={emekActiveSections}
+            toggleSection={toggleEmekSection}
+            filter={emekFilterDraft}
+            onFilterChange={onEmekFilterChange}
+            companyOptions={emekCompanyOptions}
+            customerOptions={emekCustomerOptions}
+            carrierOptions={emekCarrierOptions}
+            onClose={() => setOpenFilterPanel(null)}
+            onSaveTemplate={handleEmekSaveTemplate}
+            onClear={handleEmekClear}
+            onApplyFilter={handleEmekApplyFilter}
+          />
+        ) : null}
+      </aside>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { FaFileAlt } from "react-icons/fa";
+import StatusBadge from "../../../common/components/StatusBadge";
 import type { OrderStatusKind, SifarisOrderRow } from "../types/sifaris.types";
 
 const th =
@@ -76,9 +77,11 @@ export default function SifarisTable({
             <td className="px-2 py-2 whitespace-nowrap align-top font-medium text-indigo-600">
               {row.orderNumber}
             </td>
-            <td className="px-2 py-2 text-gray-700 whitespace-nowrap align-top">{row.orderDate}</td>
-            <td className="px-2 py-2 text-gray-800 whitespace-nowrap align-top font-medium">
-              {row.statusLabel}
+            <td className="px-2 py-2 text-gray-700 whitespace-nowrap align-top">
+              {row.orderDate}
+            </td>
+            <td className="px-2 py-2 whitespace-nowrap align-top">
+              <StatusBadge label={row.statusLabel} kind={row.statusKind} />
             </td>
             <td className="px-2 py-2 text-gray-800 align-top text-xs">
               <div>{row.customer}</div>
@@ -90,19 +93,30 @@ export default function SifarisTable({
             <td className="px-2 py-2 text-gray-700 whitespace-nowrap align-top">
               {row.voyageNumber}
             </td>
-            <td className="px-2 py-2 text-gray-800 align-top whitespace-nowrap">{row.route}</td>
+            <td className="px-2 py-2 text-gray-800 align-top whitespace-nowrap">
+              {row.route}
+            </td>
             <td className="px-2 py-2 text-gray-700 align-top whitespace-pre-line text-xs max-w-[240px]">
               {row.cargoParams}
             </td>
-            <td className="px-2 py-2 text-gray-800 align-top whitespace-nowrap">{row.freight}</td>
-            <td className="px-2 py-2 text-gray-700 align-top whitespace-nowrap">{row.extraCosts}</td>
+            <td className="px-2 py-2 text-gray-800 align-top whitespace-nowrap">
+              {row.freight}
+            </td>
+            <td className="px-2 py-2 text-gray-700 align-top whitespace-nowrap">
+              {row.extraCosts}
+            </td>
             <td className="px-2 py-2 text-emerald-700 font-medium align-top whitespace-nowrap">
               {row.profit}
             </td>
             <td className="px-2 py-2 align-top">
-              <div className="flex items-center gap-1 text-gray-600" title={row.documents}>
+              <div
+                className="flex items-center gap-1 text-gray-600"
+                title={row.documents}
+              >
                 <FaFileAlt className="shrink-0" />
-                <span className="text-xs line-clamp-2 max-w-[120px]">{row.documents}</span>
+                <span className="text-xs line-clamp-2 max-w-[120px]">
+                  {row.documents}
+                </span>
               </div>
             </td>
           </tr>

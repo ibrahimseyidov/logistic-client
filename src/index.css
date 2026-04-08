@@ -10,9 +10,9 @@
   --primary-soft: rgba(0, 102, 255, 0.2);
   --muted: #666666;
   --border: #dddddd;
-  --sidebar-bg: #3385ff;
+  --sidebar-bg: #214fb6;
   --sidebar-text: #ffffff;
-  --sidebar-text-muted: rgba(255, 255, 255, 0.75);
+  --sidebar-text-muted: rgba(255, 255, 255, 0.7);
   --modal-open-duration: 220ms;
   --modal-close-duration: 180ms;
 }

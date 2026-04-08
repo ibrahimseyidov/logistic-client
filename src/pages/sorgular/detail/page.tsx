@@ -2,19 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import {
-  FaArrowLeft,
-  FaHistory,
-  FaPlus,
-  FaRedo,
-} from "react-icons/fa";
+import { FaArrowLeft, FaHistory, FaPlus, FaRedo } from "react-icons/fa";
 import { getSorguByKey } from "../lib/getSorguByKey";
 import {
   buildSorguDetailView,
   type SorguDetailTabId,
 } from "../lib/sorguDetailViewModel";
 
-const accentBar = "bg-indigo-600 text-white";
 const tabBase =
   "px-3 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap";
 const tabActive = "border-indigo-600 text-indigo-700";
@@ -41,7 +35,9 @@ function DlRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-x-2 gap-y-1 py-1.5 border-b border-gray-100 last:border-0 text-xs sm:text-sm">
       <div className="text-gray-500 font-medium">{label}</div>
-      <div className="text-gray-900 text-right sm:text-left break-words">{value}</div>
+      <div className="text-gray-900 text-right sm:text-left break-words">
+        {value}
+      </div>
     </div>
   );
 }
@@ -86,19 +82,18 @@ export default function SorguDetailPage() {
 
   return (
     <div className="min-h-full flex flex-col bg-gray-50/90">
-      <div className={`${accentBar} px-4 py-2.5 flex items-center justify-between gap-3 shrink-0`}>
-        <span className="text-sm font-semibold tracking-tight">Nr.: {r.number}</span>
+      <div className="shrink-0 px-4 pt-4">
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-white/90 hover:text-white"
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
         >
           <FaArrowLeft className="text-xs" aria-hidden />
           Geri
         </button>
       </div>
 
-      <div className="flex-1 flex flex-col xl:flex-row gap-4 p-4 max-w-[1600px] mx-auto w-full min-h-0">
+      <div className="flex-1 flex flex-col xl:flex-row gap-4 p-4 w-full min-h-0">
         <aside className="w-full xl:w-[300px] shrink-0 flex flex-col gap-3">
           <div className="border border-gray-200 rounded-lg bg-white shadow-sm p-3">
             <button
@@ -186,23 +181,37 @@ export default function SorguDetailPage() {
                 <SectionCard title={`Yük: ${detail.cargoTitle}`}>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
                     <div>
-                      <p className="text-xs text-gray-500 font-medium">Miqdarı</p>
-                      <p className="text-gray-900 font-semibold">{detail.quantityTotal}</p>
+                      <p className="text-xs text-gray-500 font-medium">
+                        Miqdarı
+                      </p>
+                      <p className="text-gray-900 font-semibold">
+                        {detail.quantityTotal}
+                      </p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500 font-medium">LDM</p>
-                      <p className="text-gray-900 font-semibold">{detail.ldmTotal}</p>
+                      <p className="text-gray-900 font-semibold">
+                        {detail.ldmTotal}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 font-medium">Çəkisi</p>
-                      <p className="text-gray-900 font-semibold">{detail.weightTotal}</p>
+                      <p className="text-xs text-gray-500 font-medium">
+                        Çəkisi
+                      </p>
+                      <p className="text-gray-900 font-semibold">
+                        {detail.weightTotal}
+                      </p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500 font-medium">Həcmi</p>
-                      <p className="text-gray-900 font-semibold">{detail.volumeLabel}</p>
+                      <p className="text-gray-900 font-semibold">
+                        {detail.volumeLabel}
+                      </p>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500 font-medium mb-1">Nəqliyyatın tipi</p>
+                  <p className="text-xs text-gray-500 font-medium mb-1">
+                    Nəqliyyatın tipi
+                  </p>
                   <p className="text-gray-900">{r.transportType}</p>
                 </SectionCard>
 
@@ -220,7 +229,9 @@ export default function SorguDetailPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-gray-500 font-medium mb-1">Incoterms</p>
+                    <p className="text-xs text-gray-500 font-medium mb-1">
+                      Incoterms
+                    </p>
                     <p className="text-gray-900">{detail.incoterms}</p>
                   </div>
                   <div>
@@ -234,10 +245,14 @@ export default function SorguDetailPage() {
             )}
 
             {tab === "comments" && (
-              <p className="text-sm text-gray-500">Şərhlər tezliklə əlavə olunacaq.</p>
+              <p className="text-sm text-gray-500">
+                Şərhlər tezliklə əlavə olunacaq.
+              </p>
             )}
             {tab === "offers" && (
-              <p className="text-sm text-gray-500">Qiymət təklifləri siyahısı tezliklə.</p>
+              <p className="text-sm text-gray-500">
+                Qiymət təklifləri siyahısı tezliklə.
+              </p>
             )}
             {tab === "documents" && (
               <p className="text-sm text-gray-500">Sənədlər tezliklə.</p>

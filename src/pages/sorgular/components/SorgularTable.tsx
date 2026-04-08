@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { FaCheck, FaClipboard, FaMinus } from "react-icons/fa";
+import StatusBadge from "../../../common/components/StatusBadge";
 import type { LogisticQueryRow } from "../types/sorgu.types";
 
 const th =
@@ -7,9 +8,6 @@ const th =
 
 interface Props {
   rows: LogisticQueryRow[];
-  selectedIds: Set<string>;
-  onToggleRow: (id: string) => void;
-  onToggleAllPage: (ids: string[], checked: boolean) => void;
 }
 
 function formatCreated(iso: string) {
@@ -24,29 +22,11 @@ function formatCreated(iso: string) {
   });
 }
 
-export default function SorgularTable({
-  rows,
-  selectedIds,
-  onToggleRow,
-  onToggleAllPage,
-}: Props) {
-  const pageIds = rows.map((r) => r.id);
-  const allSelected =
-    pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
-
+export default function SorgularTable({ rows }: Props) {
   return (
     <table className="min-w-max w-full border-collapse text-sm">
       <thead className="sticky top-0 z-10">
         <tr>
-          <th className={`${th} w-10`}>
-            <input
-              type="checkbox"
-              className="rounded border-gray-300"
-              checked={allSelected}
-              onChange={(e) => onToggleAllPage(pageIds, e.target.checked)}
-              aria-label="Səhifədəki bütün sətirlər"
-            />
-          </th>
           <th className={th}>Sorğunun nömrəsi</th>
           <th className={th}>Sorğunun statusu</th>
           <th className={th}>Sorğunun məqsədi</th>
@@ -72,15 +52,6 @@ export default function SorgularTable({
             key={row.id}
             className={index % 2 === 0 ? "bg-white" : "bg-gray-50/80"}
           >
-            <td className="px-2 py-2 text-center border-l-4 border-amber-400 align-top">
-              <input
-                type="checkbox"
-                className="rounded border-gray-300"
-                checked={selectedIds.has(row.id)}
-                onChange={() => onToggleRow(row.id)}
-                aria-label={`Seç: ${row.number}`}
-              />
-            </td>
             <td className="px-2 py-2 whitespace-nowrap align-top">
               <Link
                 to={`/sorgular/${encodeURIComponent(row.number)}`}
@@ -90,8 +61,8 @@ export default function SorgularTable({
                 {row.number}
               </Link>
             </td>
-            <td className="px-2 py-2 text-gray-700 whitespace-nowrap align-top">
-              {row.status}
+            <td className="px-2 py-2 whitespace-nowrap align-top">
+              <StatusBadge label={row.status} />
             </td>
             <td className="px-2 py-2 text-gray-700 whitespace-nowrap align-top">
               {row.purpose}
@@ -133,7 +104,10 @@ export default function SorgularTable({
             <td className="px-2 py-2 text-gray-700 align-top whitespace-pre-line text-xs">
               {row.priceOffers}
             </td>
-            <td className="px-2 py-2 align-top" onClick={(e) => e.stopPropagation()}>
+            <td
+              className="px-2 py-2 align-top"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex items-center justify-center gap-1">
                 <button
                   type="button"

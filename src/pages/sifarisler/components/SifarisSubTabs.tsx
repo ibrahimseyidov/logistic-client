@@ -14,7 +14,7 @@ interface Props {
 
 export default function SifarisSubTabs({ value, onChange }: Props) {
   return (
-    <div className="flex flex-wrap gap-1 border-b border-gray-200 bg-white px-3 pt-2">
+    <div className="flex flex-wrap gap-1 border-b border-slate-200 pt-2">
       {TABS.map((tab) => (
         <button
           key={tab.id}
