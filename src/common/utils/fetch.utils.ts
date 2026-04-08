@@ -1,16 +1,7 @@
 import { refreshTokenAction } from "../actions/auth.actions";
-// TypeScript için import.meta.env tipini tanımla
-declare global {
-  interface ImportMeta {
-    env: {
-      VITE_API_URL: string;
-      [key: string]: any;
-    };
-  }
-}
 
 const getApiBaseUrl = (): string => {
-  let url = (import.meta as any).env.VITE_API_URL;
+  let url = import.meta.env.VITE_API_URL;
   // Remove trailing slash for consistency
   if (url.endsWith("/")) url = url.slice(0, -1);
   return url;
@@ -70,7 +61,7 @@ export const fetchNoCache = async (
   input: RequestInfo | URL,
   init?: RequestInit,
   retry = true,
-) => {
+): Promise<Response> => {
   let token = "";
   // Öncelik localStorage, yoksa cookie
   try {
