@@ -10,9 +10,8 @@ import { useAuth } from "../../common/contexts/AuthContext";
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [companyName, setCompanyName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("ibrahim@gmail.com");
+  const [password, setPassword] = useState("1234");
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -22,7 +21,6 @@ export default function LoginPage() {
     setError(null);
     try {
       const formData = new FormData();
-      formData.append("companyName", companyName);
       formData.append("email", email);
       formData.append("password", password);
       const userData = await loginAction(formData);
@@ -56,26 +54,11 @@ export default function LoginPage() {
         >
           <div className="mb-8 text-center">
             <h2 className="text-2xl font-bold text-blue-700">Logistra Logo</h2>
+            <p className="mt-2 text-xs text-gray-500">
+              Demo giriş: ibrahim@gmail.com / 1234
+            </p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label
-                htmlFor="companyName"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Brend
-              </label>
-              <input
-                type="text"
-                id="companyName"
-                name="companyName"
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Brend"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                required
-              />
-            </div>
             <div>
               <label
                 htmlFor="email"

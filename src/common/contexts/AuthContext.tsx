@@ -5,7 +5,6 @@ import React, {
   useCallback,
   useContext,
   useEffect,
-  useRef,
   useState,
 } from "react";
 import {
@@ -34,11 +33,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<AuthUser | null>(null);
   const [companyName, setCompanyName] = useState<string | null>(null);
   const [branches, setBranches] = useState<AuthBranch[]>([]);
-  const mountedRef = useRef(true);
 
   const login = useCallback((data: AuthBootstrapData, token?: string) => {
-    if (!mountedRef.current) return;
-
     setUser(data.user);
     setCompanyName(data.companyName);
     setBranches(Array.isArray(data.branches) ? data.branches : []);
@@ -48,46 +44,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
-  const hydrateFromToken = useCallback(
-    async (token: string) => {
-      if (!token || inFlightTokens.has(token)) return;
-
-      inFlightTokens.add(token);
-      try {
-        const bootstrap = await fetchAuthBootstrap();
-        if (!mountedRef.current) return;
-        login(bootstrap);
-        hydratedTokens.add(token);
-      } finally {
-        inFlightTokens.delete(token);
-      }
-    },
-    [login],
-  );
-
   const logout = () => {
     setUser(null);
     setCompanyName(null);
     setBranches([]);
     document.cookie = "token=; path=/; max-age=0";
+    try {
+      localStorage.removeItem("token");
+      localStorage.removeItem("refreshToken");
+    } catch {}
   };
 
   useEffect(() => {
-    mountedRef.current = true;
     const token = document.cookie
       .split("; ")
       .find((row) => row.startsWith("token="))
       ?.split("=")[1];
 
-    console.log("AuthContext useEffect token:", token);
-    if (token && !hydratedTokens.has(token)) {
-      void hydrateFromToken(token);
+    if (!token || hydratedTokens.has(token) || inFlightTokens.has(token)) {
+      return;
     }
 
-    return () => {
-      mountedRef.current = false;
-    };
-  }, [hydrateFromToken]);
+    inFlightTokens.add(token);
+    void fetchAuthBootstrap()
+      .then((bootstrap) => {
+        login(bootstrap, token);
+      })
+      .finally(() => {
+        inFlightTokens.delete(token);
+      });
+  }, [login]);
 
   return (
     <AuthContext.Provider

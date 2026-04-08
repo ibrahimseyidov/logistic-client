@@ -1,8 +1,3 @@
-"use server";
-
-import { ENDPOINTS } from "../../services/EndpointResources.g";
-import { buildApiUrl, handleApiResponse } from "../utils/fetch.utils";
-
 interface LoginResponse {
   token: string;
   refreshToken: string;
@@ -33,64 +28,54 @@ export interface AuthBootstrapData {
   branches: AuthBranch[];
 }
 
-export async function refreshTokenAction(refreshToken: string) {
-  const response = await fetch(buildApiUrl(ENDPOINTS.AUTH.REFRESH), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+const LOCAL_ACCESS_TOKEN = "local-demo-token";
+const LOCAL_REFRESH_TOKEN = "local-demo-refresh-token";
+const DEMO_EMAIL = "ibrahim@gmail.com";
+const DEMO_PASSWORD = "1234";
+
+const LOCAL_AUTH_BOOTSTRAP: AuthBootstrapData = {
+  user: {
+    id: "local-user-1",
+    name: "Ibrahim",
+    email: DEMO_EMAIL,
+    companyId: 1,
+    roleId: 1,
+  },
+  companyName: "Logistra",
+  branches: [
+    {
+      id: 1,
+      name: "Baş ofis",
+      companyId: 1,
     },
-    body: JSON.stringify({ refreshToken }),
-  });
-  return handleApiResponse<RefreshResponse>(
-    response,
-    "Token yenileme başarısız",
-  );
+  ],
+};
+
+export async function refreshTokenAction(refreshToken: string) {
+  if (refreshToken !== LOCAL_REFRESH_TOKEN) {
+    throw new Error("Token yenileme başarısız");
+  }
+
+  return {
+    token: LOCAL_ACCESS_TOKEN,
+    refreshToken: LOCAL_REFRESH_TOKEN,
+  } satisfies RefreshResponse;
 }
 
 export async function fetchAuthBootstrap() {
-  let token = "";
-
-  try {
-    token = localStorage.getItem("token") || "";
-  } catch {}
-
-  if (!token && typeof document !== "undefined") {
-    const cookieToken = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("token="))
-      ?.split("=")[1];
-
-    if (cookieToken) {
-      token = cookieToken;
-    }
-  }
-
-  const response = await fetch(buildApiUrl(ENDPOINTS.AUTH.BOOTSTRAP), {
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    credentials: "include",
-  });
-
-  return handleApiResponse<AuthBootstrapData>(
-    response,
-    "Oturum bilgileri alınamadı",
-  );
+  return LOCAL_AUTH_BOOTSTRAP;
 }
 
 export async function loginAction(formData: FormData) {
-  const companyName = formData.get("companyName") as string;
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
 
-  const response = await fetch(buildApiUrl(ENDPOINTS.AUTH.LOGIN), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ companyName, email, password }),
-  });
+  if (email !== DEMO_EMAIL || password !== DEMO_PASSWORD) {
+    throw new Error("Email veya şifre hatalı");
+  }
 
-  return handleApiResponse<LoginResponse>(response, "Login failed");
+  return {
+    token: LOCAL_ACCESS_TOKEN,
+    refreshToken: LOCAL_REFRESH_TOKEN,
+  } satisfies LoginResponse;
 }
