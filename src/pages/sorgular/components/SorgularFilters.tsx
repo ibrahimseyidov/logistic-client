@@ -2,13 +2,10 @@ import type { ReactNode } from "react";
 import {
   FiBookmark,
   FiCalendar,
-  FiChevronRight,
   FiFilter,
   FiHash,
   FiMapPin,
-  FiPackage,
   FiSearch,
-  FiTruck,
   FiUsers,
   FiX,
 } from "react-icons/fi";
@@ -242,7 +239,7 @@ export default function SorgularFilters({
         {activeSections.has("dates") && (
           <SectionCard
             title="Tarix aralıqları"
-            description="Tarix intervallarını ayrı-ayrılıqda seçərək cədvəli daraldın."
+            description="Sorğunun tarix intervalını seçərək cədvəli daraldın."
             icon={<FiCalendar className="text-lg" />}
           >
             <div className="grid grid-cols-1 gap-4">
@@ -261,67 +258,6 @@ export default function SorgularFilters({
                     label="Tarixinə qədər"
                     value={filter.queryDateTo}
                     onChange={(value) => onFilterChange("queryDateTo", value)}
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-[20px] border border-slate-200 bg-white p-4">
-                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <FiTruck className="text-emerald-600" />
-                  Yükləmə tarixi
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <DateField
-                    label="Tarixindən"
-                    value={filter.loadDateFrom}
-                    onChange={(value) => onFilterChange("loadDateFrom", value)}
-                  />
-                  <DateField
-                    label="Tarixinə qədər"
-                    value={filter.loadDateTo}
-                    onChange={(value) => onFilterChange("loadDateTo", value)}
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-[20px] border border-slate-200 bg-white p-4">
-                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <FiPackage className="text-emerald-600" />
-                  Boşaltma tarixi
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <DateField
-                    label="Tarixindən"
-                    value={filter.unloadDateFrom}
-                    onChange={(value) =>
-                      onFilterChange("unloadDateFrom", value)
-                    }
-                  />
-                  <DateField
-                    label="Tarixinə qədər"
-                    value={filter.unloadDateTo}
-                    onChange={(value) => onFilterChange("unloadDateTo", value)}
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-[20px] border border-slate-200 bg-white p-4">
-                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <FiChevronRight className="text-emerald-600" />
-                  Statusun təyin edilməsi tarixi
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <DateField
-                    label="Tarixindən"
-                    value={filter.statusDateFrom}
-                    onChange={(value) =>
-                      onFilterChange("statusDateFrom", value)
-                    }
-                  />
-                  <DateField
-                    label="Tarixinə qədər"
-                    value={filter.statusDateTo}
-                    onChange={(value) => onFilterChange("statusDateTo", value)}
                   />
                 </div>
               </div>

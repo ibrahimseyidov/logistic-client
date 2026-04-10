@@ -66,9 +66,6 @@ export function applyFilters(
     }
     const created = dayOnly(r.createdAt);
     if (!inRange(created, f.queryDateFrom, f.queryDateTo)) return false;
-    if (!inRange(r.loadDate, f.loadDateFrom, f.loadDateTo)) return false;
-    if (!inRange(r.unloadDate, f.unloadDateFrom, f.unloadDateTo)) return false;
-    if (!inRange(r.statusAssignedAt, f.statusDateFrom, f.statusDateTo)) return false;
     return true;
   });
 }

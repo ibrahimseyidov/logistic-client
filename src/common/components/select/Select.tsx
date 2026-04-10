@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { FaChevronDown } from "react-icons/fa";
 import styles from "./Select.module.css";
@@ -31,6 +39,23 @@ export default function Select({
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [menuBox, setMenuBox] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  }>({ top: 0, left: 0, width: 0 });
+
+  const updateMenuPosition = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setMenuBox({
+      top: rect.bottom + 6,
+      left: rect.left,
+      width: rect.width,
+    });
+  }, []);
 
   const selectedOption = useMemo(
     () => options.find((option) => option.value === value),
@@ -41,11 +66,17 @@ export default function Select({
     ? selectedOption.label
     : placeholder || "";
 
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    updateMenuPosition();
+  }, [isOpen, updateMenuPosition]);
+
   useEffect(() => {
     if (!isOpen) return;
     const handlePointerDown = (event: MouseEvent) => {
-      if (!containerRef.current) return;
-      if (containerRef.current.contains(event.target as Node)) return;
+      const t = event.target as Node;
+      if (containerRef.current?.contains(t)) return;
+      if (menuRef.current?.contains(t)) return;
       setIsOpen(false);
     };
 
@@ -57,12 +88,16 @@ export default function Select({
 
     document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    window.addEventListener("resize", updateMenuPosition);
 
     return () => {
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+      window.removeEventListener("resize", updateMenuPosition);
     };
-  }, [isOpen]);
+  }, [isOpen, updateMenuPosition]);
 
   const handleToggle = () => {
     if (disabled) return;
@@ -119,37 +154,51 @@ export default function Select({
         </span>
       </div>
 
-      {isOpen && (
-        <div className={styles.menu} role="listbox">
-          <input
-            className={styles.search}
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="Ara..."
-            type="text"
-            autoFocus
-          />
-          <div className={styles.list}>
-            {filteredOptions.length === 0 ? (
-              <div className={styles.empty}>Sonuc bulunamadi</div>
-            ) : (
-              filteredOptions.map((option) => (
-                <div
-                  key={option.value || option.label}
-                  role="option"
-                  aria-selected={option.value === value}
-                  className={`${styles.option} ${
-                    option.value === value ? styles.optionActive : ""
-                  } ${option.disabled ? styles.optionDisabled : ""}`}
-                  onClick={() => handleSelect(option)}
-                >
-                  {option.label}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
+      {isOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={menuRef}
+            className={styles.menu}
+            style={{
+              position: "fixed",
+              top: menuBox.top,
+              left: menuBox.left,
+              width: menuBox.width,
+              zIndex: 5000,
+            }}
+            role="listbox"
+          >
+            <input
+              className={styles.search}
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Ara..."
+              type="text"
+              autoFocus
+            />
+            <div className={styles.list}>
+              {filteredOptions.length === 0 ? (
+                <div className={styles.empty}>Sonuc bulunamadi</div>
+              ) : (
+                filteredOptions.map((option) => (
+                  <div
+                    key={option.value || option.label}
+                    role="option"
+                    aria-selected={option.value === value}
+                    className={`${styles.option} ${
+                      option.value === value ? styles.optionActive : ""
+                    } ${option.disabled ? styles.optionDisabled : ""}`}
+                    onClick={() => handleSelect(option)}
+                  >
+                    {option.label}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

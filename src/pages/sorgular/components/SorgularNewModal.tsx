@@ -46,17 +46,6 @@ const contractOptions = placeholderOpts([
   { value: "ctr-2026-01", label: "CTR-2026/01" },
 ]);
 
-const currencyOptions = placeholderOpts([
-  { value: "AZN", label: "AZN" },
-  { value: "USD", label: "USD" },
-  { value: "EUR", label: "EUR" },
-]);
-
-const vatRateOptions = placeholderOpts([
-  { value: "0", label: "0%" },
-  { value: "18", label: "18%" },
-]);
-
 const simpleSelect = placeholderOpts();
 
 const incotermsOptions = placeholderOpts([
@@ -71,6 +60,82 @@ const countryOptions = placeholderOpts([
   { value: "CN", label: "Çin" },
   { value: "DE", label: "Almaniya" },
 ]);
+
+const cargoTransportOptions = placeholderOpts([
+  { value: "air", label: "Hava" },
+  { value: "sea", label: "Dəniz" },
+  { value: "road", label: "Quru" },
+  { value: "rail", label: "Dəmir yolu" },
+]);
+
+/** «Nəqliyyatın yeni tipi» modalındakı üst qrup seçimi (şəkil: Avtoreyslər və s.) */
+const transportParentKindOptions = placeholderOpts([
+  { value: "avtoreys", label: "Avtoreyslər" },
+  { value: "konteyner", label: "Konteynerlər" },
+  { value: "tanker", label: "Tankerlər" },
+]);
+
+const cargoCurrencyOptions = placeholderOpts([
+  { value: "AZN", label: "AZN" },
+  { value: "USD", label: "USD" },
+  { value: "EUR", label: "EUR" },
+]);
+
+const packagingTypeOptions = placeholderOpts([
+  { value: "pallet", label: "Palet" },
+  { value: "box", label: "Qutu" },
+  { value: "crate", label: "Taxta qutu" },
+]);
+
+export interface CargoPackagingRow {
+  id: string;
+  packagingType: string;
+  packagingExtra: string;
+  lengthM: string;
+  widthM: string;
+  heightM: string;
+  volumeM3: string;
+}
+
+export interface CargoItemForm {
+  id: string;
+  name: string;
+  weight: string;
+  ldm: string;
+  transportType: string;
+  cargoValue: string;
+  currency: string;
+  packagingRows: CargoPackagingRow[];
+  incompleteLoad: boolean;
+  additionalInfo: string;
+}
+
+function createPackagingRow(): CargoPackagingRow {
+  return {
+    id: crypto.randomUUID(),
+    packagingType: "",
+    packagingExtra: "",
+    lengthM: "",
+    widthM: "",
+    heightM: "",
+    volumeM3: "",
+  };
+}
+
+function createCargoItem(): CargoItemForm {
+  return {
+    id: crypto.randomUUID(),
+    name: "",
+    weight: "",
+    ldm: "",
+    transportType: "",
+    cargoValue: "",
+    currency: "",
+    packagingRows: [createPackagingRow()],
+    incompleteLoad: false,
+    additionalInfo: "",
+  };
+}
 
 export interface NewSorguFormPayload {
   tabSnapshot: "main" | "cargo";
@@ -90,16 +155,22 @@ interface Props {
 function PlusButton({
   title,
   onClick,
+  variant = "default",
 }: {
   title: string;
   onClick: () => void;
+  variant?: "default" | "emerald";
 }) {
+  const ring =
+    variant === "emerald"
+      ? "border-emerald-300 bg-white text-emerald-600 hover:bg-emerald-50"
+      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50";
   return (
     <button
       type="button"
       title={title}
       onClick={onClick}
-      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg leading-none text-slate-700 transition-colors hover:bg-slate-50"
+      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-lg leading-none transition-colors ${ring}`}
       aria-label={title}
     >
       +
@@ -116,6 +187,21 @@ function Label({
 }) {
   return (
     <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+      {children}
+      {required && <span className="text-red-500 ml-0.5">*</span>}
+    </span>
+  );
+}
+
+function ModalSentenceLabel({
+  children,
+  required,
+}: {
+  children: React.ReactNode;
+  required?: boolean;
+}) {
+  return (
+    <span className="mb-1 block text-sm font-medium text-slate-800">
       {children}
       {required && <span className="text-red-500 ml-0.5">*</span>}
     </span>
@@ -146,14 +232,6 @@ export default function SorgularNewModal({
   const [contactPerson, setContactPerson] = useState("");
   const [extremelyUrgent, setExtremelyUrgent] = useState(false);
 
-  const [loadDate, setLoadDate] = useState("");
-  const [loadTime, setLoadTime] = useState("");
-  const [unloadDate, setUnloadDate] = useState("");
-  const [unloadTime, setUnloadTime] = useState("");
-  const [priceStandard, setPriceStandard] = useState("0");
-  const [currency, setCurrency] = useState("AZN");
-  const [vatWith, setVatWith] = useState("0");
-  const [vatRate, setVatRate] = useState("0");
   const [tags, setTags] = useState("");
 
   const [inquirySource, setInquirySource] = useState("");
@@ -182,13 +260,37 @@ export default function SorgularNewModal({
   const [receiver, setReceiver] = useState("");
   const [additionalInfo, setAdditionalInfo] = useState("");
 
-  const [cargoTransportType, setCargoTransportType] = useState("");
-  const [cargoWeight, setCargoWeight] = useState("");
-  const [cargoVolume, setCargoVolume] = useState("");
-  const [cargoPackages, setCargoPackages] = useState("");
-  const [cargoDescription, setCargoDescription] = useState("");
-  const [cargoDangerous, setCargoDangerous] = useState(false);
-  const [cargoTemp, setCargoTemp] = useState("");
+  const [cargoItems, setCargoItems] = useState<CargoItemForm[]>([
+    createCargoItem(),
+  ]);
+
+  const [transportTypeModalOpen, setTransportTypeModalOpen] = useState(false);
+  const [newTransportName, setNewTransportName] = useState("");
+  const [newTransportParentKind, setNewTransportParentKind] =
+    useState("avtoreys");
+  const [newTransportActive, setNewTransportActive] = useState(true);
+
+  const openNewTransportTypeModal = useCallback(() => {
+    setNewTransportName("");
+    setNewTransportParentKind("avtoreys");
+    setNewTransportActive(true);
+    setTransportTypeModalOpen(true);
+  }, []);
+
+  const closeNewTransportTypeModal = useCallback(() => {
+    setTransportTypeModalOpen(false);
+  }, []);
+
+  const saveNewTransportTypeModal = useCallback(() => {
+    dispatch(
+      showNotification({
+        message: "Nəqliyyat tipi yadda saxlanıldı (demo).",
+        type: "success",
+        autoCloseDuration: 3200,
+      }),
+    );
+    setTransportTypeModalOpen(false);
+  }, [dispatch]);
 
   const notifyPlus = useCallback(
     (label: string) => {
@@ -203,6 +305,69 @@ export default function SorgularNewModal({
     [dispatch],
   );
 
+  const patchCargo = useCallback(
+    (cargoId: string, patch: Partial<CargoItemForm>) => {
+      setCargoItems((prev) =>
+        prev.map((c) => (c.id === cargoId ? { ...c, ...patch } : c)),
+      );
+    },
+    [],
+  );
+
+  const updatePackagingRow = useCallback(
+    (cargoId: string, rowId: string, patch: Partial<CargoPackagingRow>) => {
+      setCargoItems((prev) =>
+        prev.map((c) => {
+          if (c.id !== cargoId) return c;
+          return {
+            ...c,
+            packagingRows: c.packagingRows.map((r) =>
+              r.id === rowId ? { ...r, ...patch } : r,
+            ),
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const addPackagingRowAfter = useCallback(
+    (cargoId: string, afterIndex: number) => {
+      setCargoItems((prev) =>
+        prev.map((c) => {
+          if (c.id !== cargoId) return c;
+          const next = [...c.packagingRows];
+          next.splice(afterIndex + 1, 0, createPackagingRow());
+          return { ...c, packagingRows: next };
+        }),
+      );
+    },
+    [],
+  );
+
+  const removePackagingRow = useCallback((cargoId: string, rowId: string) => {
+    setCargoItems((prev) =>
+      prev.map((c) => {
+        if (c.id !== cargoId) return c;
+        if (c.packagingRows.length <= 1) return c;
+        return {
+          ...c,
+          packagingRows: c.packagingRows.filter((r) => r.id !== rowId),
+        };
+      }),
+    );
+  }, []);
+
+  const removeCargo = useCallback((cargoId: string) => {
+    setCargoItems((prev) =>
+      prev.length <= 1 ? prev : prev.filter((c) => c.id !== cargoId),
+    );
+  }, []);
+
+  const addCargo = useCallback(() => {
+    setCargoItems((prev) => [...prev, createCargoItem()]);
+  }, []);
+
   const resetForm = useCallback(() => {
     setTab("main");
     setCompany("ziyafreight");
@@ -213,14 +378,6 @@ export default function SorgularNewModal({
     setContractNumber("");
     setContactPerson("");
     setExtremelyUrgent(false);
-    setLoadDate("");
-    setLoadTime("");
-    setUnloadDate("");
-    setUnloadTime("");
-    setPriceStandard("0");
-    setCurrency("AZN");
-    setVatWith("0");
-    setVatRate("0");
     setTags("");
     setInquirySource("");
     setInquiryPurpose("");
@@ -244,13 +401,7 @@ export default function SorgularNewModal({
     setSender("");
     setReceiver("");
     setAdditionalInfo("");
-    setCargoTransportType("");
-    setCargoWeight("");
-    setCargoVolume("");
-    setCargoPackages("");
-    setCargoDescription("");
-    setCargoDangerous(false);
-    setCargoTemp("");
+    setCargoItems([createCargoItem()]);
   }, []);
 
   useEffect(() => {
@@ -301,6 +452,19 @@ export default function SorgularNewModal({
     if (isOpen) resetForm();
   }, [isOpen, resetForm]);
 
+  useEffect(() => {
+    if (!isOpen) setTransportTypeModalOpen(false);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!transportTypeModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setTransportTypeModalOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [transportTypeModalOpen]);
+
   if (!mounted) return null;
 
   const handleClose = () => onClose();
@@ -316,14 +480,6 @@ export default function SorgularNewModal({
       contractNumber,
       contactPerson,
       extremelyUrgent,
-      loadDate,
-      loadTime,
-      unloadDate,
-      unloadTime,
-      priceStandard,
-      currency,
-      vatWith,
-      vatRate,
       tags,
       inquirySource,
       inquiryPurpose,
@@ -347,13 +503,7 @@ export default function SorgularNewModal({
       sender,
       receiver,
       additionalInfo,
-      cargoTransportType,
-      cargoWeight,
-      cargoVolume,
-      cargoPackages,
-      cargoDescription,
-      cargoDangerous,
-      cargoTemp,
+      cargoItemsJson: JSON.stringify(cargoItems),
     },
   });
 
@@ -391,6 +541,7 @@ export default function SorgularNewModal({
   );
 
   return (
+    <>
     <div
       className="fixed inset-0 z-[1100] flex justify-end"
       role="dialog"
@@ -428,14 +579,14 @@ export default function SorgularNewModal({
           </button>
         </div>
 
-        <div className="flex shrink-0 gap-2 border-b border-slate-200 bg-white px-6 py-3">
+        <div className="flex shrink-0 gap-6 border-b border-slate-200 bg-white px-6">
           <button
             type="button"
             onClick={() => setTab("main")}
-            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+            className={`border-b-2 px-0 py-3 text-sm font-medium transition-colors ${
               tab === "main"
-                ? "bg-slate-800 text-white"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-slate-600 hover:text-slate-900"
             }`}
           >
             Əsas məlumat
@@ -443,10 +594,10 @@ export default function SorgularNewModal({
           <button
             type="button"
             onClick={() => setTab("cargo")}
-            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+            className={`border-b-2 px-0 py-3 text-sm font-medium transition-colors ${
               tab === "cargo"
-                ? "bg-slate-800 text-white"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-slate-600 hover:text-slate-900"
             }`}
           >
             Yük haqqında məlumat
@@ -456,11 +607,11 @@ export default function SorgularNewModal({
         <div className="flex-1 overflow-y-auto px-6 py-5 text-slate-800">
           {tab === "main" && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <div className={cardCls}>
-                  <div className="mb-4 text-sm font-semibold text-slate-900">
-                    Əsas məlumatlar
-                  </div>
+              <div className={cardCls}>
+                <div className="mb-4 text-sm font-semibold text-slate-900">
+                  Əsas məlumatlar
+                </div>
+                <div className="grid grid-cols-1 gap-x-8 gap-y-3 lg:grid-cols-2 lg:items-start">
                   <div className="space-y-3">
                     <div className="space-y-1">
                       <Label required>Şirkət</Label>
@@ -516,6 +667,8 @@ export default function SorgularNewModal({
                         className={selectCls}
                       />
                     </div>
+                  </div>
+                  <div className="space-y-3">
                     {rowSelect(
                       <Label>Əlaqədar şəxs</Label>,
                       contactPerson,
@@ -532,92 +685,6 @@ export default function SorgularNewModal({
                       />
                       <span>Son dərəcə təcilidir</span>
                     </label>
-                  </div>
-                </div>
-
-                <div className={cardCls}>
-                  <div className="mb-4 text-sm font-semibold text-slate-900">
-                    Tarix və qiymət
-                  </div>
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label>Yükləmə tarixi</Label>
-                        <input
-                          type="date"
-                          className={inputCls}
-                          value={loadDate}
-                          onChange={(e) => setLoadDate(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <span className="block select-none text-[11px] font-semibold uppercase tracking-[0.12em] text-transparent">
-                          Saat
-                        </span>
-                        <input
-                          type="time"
-                          className={inputCls}
-                          value={loadTime}
-                          onChange={(e) => setLoadTime(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label>Boşaltma tarixi</Label>
-                        <input
-                          type="date"
-                          className={inputCls}
-                          value={unloadDate}
-                          onChange={(e) => setUnloadDate(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <span className="block select-none text-[11px] font-semibold uppercase tracking-[0.12em] text-transparent">
-                          Saat
-                        </span>
-                        <input
-                          type="time"
-                          className={inputCls}
-                          value={unloadTime}
-                          onChange={(e) => setUnloadTime(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Qiymət (standart)</Label>
-                      <input
-                        className={inputCls}
-                        value={priceStandard}
-                        onChange={(e) => setPriceStandard(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label required>Valyuta</Label>
-                      <Select
-                        value={currency}
-                        options={currencyOptions}
-                        onChange={setCurrency}
-                        className={selectCls}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>ƏDV ilə</Label>
-                      <input
-                        className={inputCls}
-                        value={vatWith}
-                        onChange={(e) => setVatWith(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>ƏDV-nin tarifi</Label>
-                      <Select
-                        value={vatRate}
-                        options={vatRateOptions}
-                        onChange={setVatRate}
-                        className={selectCls}
-                      />
-                    </div>
                     {rowSelect(
                       <Label>Teqlər</Label>,
                       tags,
@@ -875,73 +942,284 @@ export default function SorgularNewModal({
           )}
 
           {tab === "cargo" && (
-            <div
-              className={`${cardCls} grid max-w-4xl grid-cols-1 gap-4 md:grid-cols-2`}
-            >
-              <div className="space-y-1">
-                <Label>Nəqliyyatın tipi</Label>
-                <Select
-                  value={cargoTransportType}
-                  options={placeholderOpts([
-                    { value: "air", label: "Hava" },
-                    { value: "sea", label: "Dəniz" },
-                    { value: "road", label: "Quru" },
-                    { value: "rail", label: "Dəmir yolu" },
-                  ])}
-                  onChange={setCargoTransportType}
-                  className={selectCls}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Ümumi çəki (kq)</Label>
-                <input
-                  className={inputCls}
-                  value={cargoWeight}
-                  onChange={(e) => setCargoWeight(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Həcm (m³)</Label>
-                <input
-                  className={inputCls}
-                  value={cargoVolume}
-                  onChange={(e) => setCargoVolume(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Paket / yer sayı</Label>
-                <input
-                  className={inputCls}
-                  value={cargoPackages}
-                  onChange={(e) => setCargoPackages(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1 md:col-span-2">
-                <Label>Yükün təsviri</Label>
-                <textarea
-                  className={textareaCls}
-                  value={cargoDescription}
-                  onChange={(e) => setCargoDescription(e.target.value)}
-                  rows={4}
-                />
-              </div>
-              <div className="space-y-1 md:col-span-2">
-                <Label>Temperature / xüsusi şərtlər</Label>
-                <input
-                  className={inputCls}
-                  value={cargoTemp}
-                  onChange={(e) => setCargoTemp(e.target.value)}
-                />
-              </div>
-              <label className="flex items-center gap-2 md:col-span-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className={checkboxCls}
-                  checked={cargoDangerous}
-                  onChange={(e) => setCargoDangerous(e.target.checked)}
-                />
-                <span className="text-sm">Təhlükəli yüklər (ADR və s.)</span>
-              </label>
+            <div className="space-y-6">
+              {cargoItems.map((cargo) => (
+                <div key={cargo.id} className={`${cardCls} space-y-4`}>
+                  <div className="overflow-x-auto">
+                    <div className="flex min-w-[52rem] items-end gap-2">
+                      <button
+                        type="button"
+                        title="Yükü sil"
+                        disabled={cargoItems.length <= 1}
+                        onClick={() => removeCargo(cargo.id)}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-red-200 bg-white text-lg leading-none text-red-500 transition-colors hover:bg-red-50 disabled:pointer-events-none disabled:opacity-35"
+                        aria-label="Yükü sil"
+                      >
+                        −
+                      </button>
+                      <div className="min-w-[8rem] flex-1 space-y-1">
+                        <Label>Adı</Label>
+                        <input
+                          className={inputCls}
+                          value={cargo.name}
+                          onChange={(e) =>
+                            patchCargo(cargo.id, { name: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="w-[5.5rem] shrink-0 space-y-1">
+                        <Label>Çəkisi</Label>
+                        <input
+                          className={inputCls}
+                          value={cargo.weight}
+                          onChange={(e) =>
+                            patchCargo(cargo.id, { weight: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="w-[5.5rem] shrink-0 space-y-1">
+                        <Label>LDM (m)</Label>
+                        <input
+                          className={inputCls}
+                          value={cargo.ldm}
+                          onChange={(e) =>
+                            patchCargo(cargo.id, { ldm: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="min-w-[14rem] flex-[1.2] space-y-1">
+                        <Label>Nəqliyyatın tipi</Label>
+                        <div className="flex items-center gap-2">
+                          <div className="min-w-0 flex-1">
+                            <Select
+                              value={cargo.transportType}
+                              options={cargoTransportOptions}
+                              onChange={(v) =>
+                                patchCargo(cargo.id, { transportType: v })
+                              }
+                              placeholder="Dəyəri seçin"
+                              className={selectCls}
+                            />
+                          </div>
+                          <PlusButton
+                            variant="emerald"
+                            title="Yeni nəqliyyat tipi"
+                            onClick={openNewTransportTypeModal}
+                          />
+                        </div>
+                      </div>
+                      <div className="w-[6.5rem] shrink-0 space-y-1">
+                        <Label>Yükün dəyəri</Label>
+                        <input
+                          className={inputCls}
+                          value={cargo.cargoValue}
+                          onChange={(e) =>
+                            patchCargo(cargo.id, {
+                              cargoValue: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="w-[5.5rem] shrink-0 space-y-1">
+                        <Label>Valyuta</Label>
+                        <Select
+                          value={cargo.currency}
+                          options={cargoCurrencyOptions}
+                          onChange={(v) =>
+                            patchCargo(cargo.id, { currency: v })
+                          }
+                          placeholder="Dəyəri seçin"
+                          className={selectCls}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 border-t border-slate-100 pt-3">
+                    {cargo.packagingRows.map((row, rowIndex) => (
+                      <div key={row.id} className="overflow-x-auto">
+                        <div className="flex min-w-[48rem] items-end gap-2">
+                          <div className="flex w-11 shrink-0 items-end pb-0.5">
+                            {rowIndex === 0 ? (
+                              cargo.packagingRows.length <= 1 ? (
+                                <button
+                                  type="button"
+                                  title="Qablaşdırma sətri əlavə et"
+                                  onClick={() =>
+                                    addPackagingRowAfter(cargo.id, 0)
+                                  }
+                                  className="flex h-9 w-9 items-center justify-center rounded-full border border-emerald-300 bg-white text-base leading-none text-emerald-600 transition-colors hover:bg-emerald-50"
+                                  aria-label="Qablaşdırma sətri əlavə et"
+                                >
+                                  +
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  title="Sətri sil"
+                                  onClick={() =>
+                                    removePackagingRow(cargo.id, row.id)
+                                  }
+                                  className="flex h-9 w-9 items-center justify-center rounded-full border border-red-200 bg-white text-base leading-none text-red-500 transition-colors hover:bg-red-50"
+                                  aria-label="Qablaşdırma sətri sil"
+                                >
+                                  −
+                                </button>
+                              )
+                            ) : (
+                              <button
+                                type="button"
+                                title="Qablaşdırma sətri əlavə et"
+                                onClick={() =>
+                                  addPackagingRowAfter(cargo.id, rowIndex)
+                                }
+                                className="flex h-9 w-9 items-center justify-center rounded-full border border-emerald-300 bg-white text-base leading-none text-emerald-600 transition-colors hover:bg-emerald-50"
+                                aria-label="Qablaşdırma sətri əlavə et"
+                              >
+                                +
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex min-w-[13rem] flex-[1.2] flex-col gap-1 sm:flex-row sm:items-end">
+                            <div className="min-w-0 flex-1 space-y-1">
+                              <Label>Qablaşdırmanın tipi</Label>
+                              <Select
+                                value={row.packagingType}
+                                options={packagingTypeOptions}
+                                onChange={(v) =>
+                                  updatePackagingRow(cargo.id, row.id, {
+                                    packagingType: v,
+                                  })
+                                }
+                                placeholder="Dəyəri seçin"
+                                className={selectCls}
+                              />
+                            </div>
+                            <div className="w-full min-w-[3.5rem] max-w-[5rem] space-y-1 sm:w-auto">
+                              <span className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                                &nbsp;
+                              </span>
+                              <input
+                                className={inputCls}
+                                value={row.packagingExtra}
+                                onChange={(e) =>
+                                  updatePackagingRow(cargo.id, row.id, {
+                                    packagingExtra: e.target.value,
+                                  })
+                                }
+                                placeholder="…"
+                                aria-label="Qablaşdırma əlavə"
+                              />
+                            </div>
+                          </div>
+                          <div className="w-[5rem] shrink-0 space-y-1">
+                            <Label>Uzunluğu (m)</Label>
+                            <input
+                              className={inputCls}
+                              value={row.lengthM}
+                              onChange={(e) =>
+                                updatePackagingRow(cargo.id, row.id, {
+                                  lengthM: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                          <div className="w-[5rem] shrink-0 space-y-1">
+                            <Label>Eni (m)</Label>
+                            <input
+                              className={inputCls}
+                              value={row.widthM}
+                              onChange={(e) =>
+                                updatePackagingRow(cargo.id, row.id, {
+                                  widthM: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                          <div className="w-[5rem] shrink-0 space-y-1">
+                            <Label>Hündürlüyü (m)</Label>
+                            <input
+                              className={inputCls}
+                              value={row.heightM}
+                              onChange={(e) =>
+                                updatePackagingRow(cargo.id, row.id, {
+                                  heightM: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                          <div className="w-[5rem] shrink-0 space-y-1">
+                            <Label>Həcmi (m³)</Label>
+                            <input
+                              className={inputCls}
+                              value={row.volumeM3}
+                              onChange={(e) =>
+                                updatePackagingRow(cargo.id, row.id, {
+                                  volumeM3: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                          {cargo.packagingRows.length > 1 && rowIndex > 0 && (
+                            <button
+                              type="button"
+                              title="Sətri sil"
+                              onClick={() =>
+                                removePackagingRow(cargo.id, row.id)
+                              }
+                              className="flex h-11 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg leading-none text-slate-500 transition-colors hover:bg-slate-50"
+                              aria-label="Sətri sil"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      className={checkboxCls}
+                      checked={cargo.incompleteLoad}
+                      onChange={(e) =>
+                        patchCargo(cargo.id, {
+                          incompleteLoad: e.target.checked,
+                        })
+                      }
+                    />
+                    <span>Natamam yük</span>
+                  </label>
+
+                  <div className="space-y-1">
+                    <span className="text-sm font-semibold text-emerald-600">
+                      Əlavə məlumat
+                    </span>
+                    <textarea
+                      className={textareaCls}
+                      value={cargo.additionalInfo}
+                      onChange={(e) =>
+                        patchCargo(cargo.id, {
+                          additionalInfo: e.target.value,
+                        })
+                      }
+                      rows={4}
+                    />
+                  </div>
+                </div>
+              ))}
+
+              <button
+                type="button"
+                onClick={addCargo}
+                className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-sm font-medium text-emerald-800 transition-colors hover:bg-emerald-100"
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-300 bg-white text-lg leading-none text-emerald-600">
+                  +
+                </span>
+                Yükü əlavə et
+              </button>
             </div>
           )}
         </div>
@@ -956,7 +1234,7 @@ export default function SorgularNewModal({
           </button>
           <button
             type="button"
-            className="rounded-xl border border-slate-300 bg-slate-800 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-700"
+            className="rounded-xl border border-emerald-600 bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
             onClick={handleSubmit}
           >
             {submitLabel}
@@ -964,5 +1242,91 @@ export default function SorgularNewModal({
         </div>
       </div>
     </div>
+
+    {transportTypeModalOpen && (
+      <div
+        className="fixed inset-0 z-[1200] flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="transport-type-new-title"
+      >
+        <button
+          type="button"
+          className="absolute inset-0 bg-slate-900/45"
+          aria-label="Bağla"
+          onClick={closeNewTransportTypeModal}
+        />
+        <div
+          className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-start justify-between border-b border-slate-100 px-5 py-4">
+            <h2
+              id="transport-type-new-title"
+              className="text-lg font-semibold text-slate-900"
+            >
+              Nəqliyyatın yeni tipi
+            </h2>
+            <button
+              type="button"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl leading-none text-slate-500 transition-colors hover:bg-slate-50"
+              onClick={closeNewTransportTypeModal}
+              aria-label="Bağla"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="max-h-[min(70vh,520px)] overflow-y-auto px-5 py-4">
+            <div className="space-y-4">
+              <div>
+                <ModalSentenceLabel required>Adı</ModalSentenceLabel>
+                <input
+                  className={inputCls}
+                  value={newTransportName}
+                  onChange={(e) => setNewTransportName(e.target.value)}
+                  placeholder=""
+                  autoComplete="off"
+                />
+              </div>
+              <div>
+                <ModalSentenceLabel required>
+                  Nəqliyyatın tipi
+                </ModalSentenceLabel>
+                <Select
+                  value={newTransportParentKind}
+                  options={transportParentKindOptions}
+                  onChange={setNewTransportParentKind}
+                  placeholder="Dəyəri seçin"
+                  className={selectCls}
+                />
+              </div>
+              <label className="flex cursor-pointer items-center gap-2 pt-1 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  className={checkboxCls}
+                  checked={newTransportActive}
+                  onChange={(e) =>
+                    setNewTransportActive(e.target.checked)
+                  }
+                />
+                <span>Aktiv</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="flex justify-end border-t border-slate-100 bg-slate-50/80 px-5 py-4">
+            <button
+              type="button"
+              className="rounded-xl border border-emerald-600 bg-emerald-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+              onClick={saveNewTransportTypeModal}
+            >
+              Yaddaşda saxlamaq
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
