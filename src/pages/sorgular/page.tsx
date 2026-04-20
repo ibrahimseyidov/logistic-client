@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { NotificationModal } from "../../common/components/NotificationModal";
+import type { SelectOption } from "../../common/components/select/Select";
 import { useAppDispatch } from "../../common/store/hooks";
 import { showNotification } from "../../common/store/modalSlice";
-import { NotificationModal } from "../../common/components/NotificationModal";
 import {
   SorgularActionBar,
   SorgularFilters,
@@ -13,13 +14,14 @@ import {
   SorgularTable,
   type NewSorguFormPayload,
 } from "./components";
-import { MOCK_SORGULAR } from "./data/mockSorgular";
+import { createQuery, fetchQueries } from "./api";
 import { useSorgularPagination } from "./hooks/useSorgularPagination";
 import { applyFilters, filterByTab } from "./lib/filterSorgular";
-import type { SelectOption } from "../../common/components/select/Select";
+import styles from "./sorgular.module.css";
 import type {
   FilterFormState,
   FilterSectionId,
+  LogisticQueryRow,
   SorguSubTab,
 } from "./types/sorgu.types";
 import { emptyFilterForm } from "./types/sorgu.types";
@@ -32,16 +34,19 @@ export default function SorgularPage() {
     requestedTab === "archive" || requestedTab === "offers"
       ? requestedTab
       : "active";
+
   const [subTab, setSubTab] = useState<SorguSubTab>(initialTab);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [activeSections, setActiveSections] = useState<Set<FilterSectionId>>(
-    () => new Set(),
+    () => new Set(["id", "dates"]),
   );
   const [filterDraft, setFilterDraft] =
     useState<FilterFormState>(emptyFilterForm);
   const [appliedFilter, setAppliedFilter] =
     useState<FilterFormState>(emptyFilterForm);
   const [isNewOpen, setIsNewOpen] = useState(false);
+  const [rows, setRows] = useState<LogisticQueryRow[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const nextTab: SorguSubTab =
@@ -65,6 +70,38 @@ export default function SorgularPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isFilterPanelOpen]);
 
+  useEffect(() => {
+    let ignore = false;
+
+    setLoading(true);
+    fetchQueries()
+      .then((data) => {
+        if (!ignore) {
+          setRows(data);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          dispatch(
+            showNotification({
+              message: "Sorğular yüklənmədi.",
+              type: "error",
+              autoCloseDuration: 3000,
+            }),
+          );
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [dispatch]);
+
   const toggleSection = useCallback((id: FilterSectionId) => {
     setActiveSections((prev) => {
       const next = new Set(prev);
@@ -82,21 +119,22 @@ export default function SorgularPage() {
   );
 
   const companyOptions: SelectOption[] = useMemo(() => {
-    const names = [...new Set(MOCK_SORGULAR.map((r) => r.company))].sort();
+    const names = [...new Set(rows.map((row) => row.company))].sort();
     return [
       { value: "", label: "Hamısı" },
-      ...names.map((n) => ({ value: n, label: n })),
+      ...names.map((name) => ({ value: name, label: name })),
     ];
-  }, []);
+  }, [rows]);
 
-  const tabRows = useMemo(() => filterByTab(MOCK_SORGULAR, subTab), [subTab]);
+  const tabRows = useMemo(() => filterByTab(rows, subTab), [rows, subTab]);
+
   const filteredRows = useMemo(
     () => applyFilters(tabRows, appliedFilter),
     [tabRows, appliedFilter],
   );
 
   const confirmedCount = useMemo(
-    () => filteredRows.filter((r) => r.confirmed).length,
+    () => filteredRows.filter((row) => row.confirmed).length,
     [filteredRows],
   );
 
@@ -117,6 +155,7 @@ export default function SorgularPage() {
 
   useEffect(() => {
     setCurrentPage(1);
+    setIsFilterPanelOpen(false);
   }, [subTab, setCurrentPage]);
 
   const handleApplyFilter = () => {
@@ -162,25 +201,35 @@ export default function SorgularPage() {
     );
   };
 
-  const handleNewSubmit = (_payload: NewSorguFormPayload) => {
+  const handleNewSubmit = async (payload: NewSorguFormPayload) => {
     setIsNewOpen(false);
-    dispatch(
-      showNotification({
-        message: "Yeni sorğu yaradıldı (demo).",
-        type: "success",
-        autoCloseDuration: 3000,
-      }),
-    );
+
+    try {
+      const created = await createQuery(payload.fields);
+      setRows((prev) => [created, ...prev]);
+      dispatch(
+        showNotification({
+          message: "Yeni sorğu yaradıldı.",
+          type: "success",
+          autoCloseDuration: 3000,
+        }),
+      );
+    } catch {
+      dispatch(
+        showNotification({
+          message: "Sorğu yaradılmadı.",
+          type: "error",
+          autoCloseDuration: 3000,
+        }),
+      );
+    }
   };
 
   return (
-    <div
-      className="relative flex flex-col overflow-hidden bg-gray-50"
-      style={{ height: "calc(100vh - 56px)" }}
-    >
+    <div className={styles.container}>
       <NotificationModal />
 
-      <div className="shrink-0 space-y-3 mt-2 px-2">
+      <div className={styles.header}>
         <SorgularActionBar
           total={filteredRows.length}
           confirmedCount={confirmedCount}
@@ -192,19 +241,25 @@ export default function SorgularPage() {
         />
       </div>
 
-      <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto px-2 pb-2">
-        <SorgularTable rows={paginatedRows} />
+      <div className={styles.body}>
+        {loading ? (
+          <div className={styles.statePanel}>Sorğular yüklənir...</div>
+        ) : (
+          <SorgularTable rows={paginatedRows} />
+        )}
       </div>
 
-      <div className="shrink-0 border-t bg-white">
-        <SorgularPagination
-          totalRows={filteredRows.length}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          getVisiblePages={getVisiblePages}
-          onPageChange={setCurrentPage}
-        />
-      </div>
+      {!loading ? (
+        <div className={styles.footer}>
+          <SorgularPagination
+            totalRows={filteredRows.length}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            getVisiblePages={getVisiblePages}
+            onPageChange={setCurrentPage}
+          />
+        </div>
+      ) : null}
 
       <SorgularNewModal
         isOpen={isNewOpen}
@@ -213,18 +268,16 @@ export default function SorgularPage() {
       />
 
       <div
-        className={`absolute inset-0 z-40 transition-opacity duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-          isFilterPanelOpen
-            ? "pointer-events-auto bg-slate-900/15 opacity-100"
-            : "pointer-events-none opacity-0"
+        className={`${styles.overlay} ${
+          isFilterPanelOpen ? styles.overlayOpen : ""
         }`}
         onClick={() => setIsFilterPanelOpen(false)}
         aria-hidden={!isFilterPanelOpen}
       />
 
       <aside
-        className={`absolute inset-y-0 right-0 z-50 w-full max-w-[620px] border-l border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.12)] transition-transform duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform ${
-          isFilterPanelOpen ? "translate-x-0" : "translate-x-full"
+        className={`${styles.drawer} ${
+          isFilterPanelOpen ? styles.drawerOpen : ""
         }`}
         aria-hidden={!isFilterPanelOpen}
       >

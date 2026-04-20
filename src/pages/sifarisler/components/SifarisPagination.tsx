@@ -1,3 +1,5 @@
+import styles from "./SifarisPagination.module.css";
+
 interface Props {
   totalRows: number;
   currentPage: number;
@@ -14,12 +16,12 @@ export default function SifarisPagination({
   onPageChange,
 }: Props) {
   return (
-    <div className="flex items-center justify-between py-3 px-4 border-t bg-gray-50">
-      <span className="text-sm text-gray-600">Cəmi sətir: {totalRows}</span>
-      <div className="flex items-center gap-1">
+    <div className={styles.container}>
+      <span className={styles.summary}>Cəmi sətir: {totalRows}</span>
+      <div className={styles.controls}>
         <button
           type="button"
-          className="px-3 py-1 rounded border bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-50 text-sm"
+          className={styles.button}
           onClick={() => onPageChange(Math.max(currentPage - 1, 1))}
           disabled={currentPage === 1}
         >
@@ -27,17 +29,15 @@ export default function SifarisPagination({
         </button>
         {getVisiblePages().map((page, index) =>
           page === -1 ? (
-            <span key={`e-${index}`} className="px-2 py-1 text-gray-400 text-sm">
+            <span key={`e-${index}`} className={styles.ellipsis}>
               …
             </span>
           ) : (
             <button
               key={page}
               type="button"
-              className={`px-3 py-1 rounded border text-sm ${
-                currentPage === page
-                  ? "bg-blue-500 text-white border-blue-500"
-                  : "bg-white text-gray-700 hover:bg-gray-100"
+              className={`${styles.button} ${
+                currentPage === page ? styles.pageActive : ""
               }`}
               onClick={() => onPageChange(page)}
             >
@@ -47,7 +47,7 @@ export default function SifarisPagination({
         )}
         <button
           type="button"
-          className="px-3 py-1 rounded border bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-50 text-sm"
+          className={styles.button}
           onClick={() => onPageChange(Math.min(currentPage + 1, totalPages))}
           disabled={currentPage === totalPages}
         >

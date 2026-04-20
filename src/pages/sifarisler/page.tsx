@@ -1,4 +1,36 @@
-"use client";
+// Tüm alanları string'e çeviren yardımcı fonksiyon
+// Zorunlu alanlar eksikse bile boş string olarak ekle
+const REQUIRED_FIELDS = [
+  "number",
+  "customerOrderRef",
+  "status",
+  "statusAssignedAt",
+  "purpose",
+  "transportType",
+  "cargoInfo",
+  "loadPlace",
+  "recipient",
+  "unloadPlace",
+  "loadDate",
+  "unloadDate",
+  "seller",
+  "priceOffers",
+];
+
+function toStringFields(fields: Record<string, any>) {
+  const result: Record<string, string> = {};
+  for (const key of REQUIRED_FIELDS) {
+    result[key] = fields[key] == null ? "" : String(fields[key]);
+  }
+  // Diğer alanları da ekle (varsa)
+  for (const [k, v] of Object.entries(fields)) {
+    if (!(k in result)) {
+      result[k] = v == null ? "" : String(v);
+    }
+  }
+  return result;
+}
+("use client");
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -23,6 +55,7 @@ import {
   EmekTable,
   type NewSifarisFormPayload,
 } from "./components";
+import styles from "./sifarisler.module.css";
 import { MOCK_SIFARISLER } from "./data/mockSifarisler";
 import { MOCK_YUKLER } from "./data/mockYukler";
 import { MOCK_REYSLER } from "./data/mockReysler";
@@ -62,6 +95,7 @@ import type {
   EmekFilterSectionId,
 } from "./types/emek.types";
 import { emptyEmekFilter } from "./types/emek.types";
+import axios from "axios";
 
 const YUK_ACCOUNT_OPTIONS: SelectOption[] = [
   { value: "", label: "Təfərrüatlı hesab irəli sür" },
@@ -521,6 +555,10 @@ export default function SifarislerPage() {
   };
 
   const handleNewOrderSubmit = (_payload: NewSifarisFormPayload) => {
+    // Tüm alanları string'e çevir, boş/undefined ise "" gönder
+    const fields = _payload.fields || {};
+    const fixedFields = toStringFields(fields);
+    // Sifarişler sayfasında sadece demo bildirim
     setIsSifarisNewOpen(false);
     dispatch(
       showNotification({
@@ -622,76 +660,61 @@ export default function SifarislerPage() {
   };
 
   return (
-    <div
-      className="relative flex flex-col overflow-hidden bg-gray-50"
-      style={{ height: "calc(100vh - 56px)" }}
-    >
+    <div className={styles.container}>
       <NotificationModal />
-
-      <div className="shrink-0 space-y-3 mt-2 px-2">
+      <div className={styles.header}>
         {subTab === "payroll" && (
-          <>
-            <EmekSummaryBar
-              profitAzn={emekStats.profit}
-              bonusAzn={emekStats.bonus}
-              rewardAzn={emekStats.reward}
-              saveSelectedValue={emekSaveSelected}
-              onSaveSelectedChange={setEmekSaveSelected}
-              saveSelectedOptions={EMEK_SAVE_SELECTED_OPTIONS}
-              onToggleFilters={() => setOpenFilterPanel("payroll")}
-              onExcel={handleEmekExcel}
-              onPerformActions={handleEmekPerformActions}
-              activeFilterCount={emekActiveFilterCount}
-            />
-          </>
+          <EmekSummaryBar
+            profitAzn={emekStats.profit}
+            bonusAzn={emekStats.bonus}
+            rewardAzn={emekStats.reward}
+            saveSelectedValue={emekSaveSelected}
+            onSaveSelectedChange={setEmekSaveSelected}
+            saveSelectedOptions={EMEK_SAVE_SELECTED_OPTIONS}
+            onToggleFilters={() => setOpenFilterPanel("payroll")}
+            onExcel={handleEmekExcel}
+            onPerformActions={handleEmekPerformActions}
+            activeFilterCount={emekActiveFilterCount}
+          />
         )}
-
         {subTab === "orders" && (
-          <>
-            <SifarisActionBar
-              stats={stats}
-              onNew={handleNewOrder}
-              onToggleFilters={() => setOpenFilterPanel("orders")}
-              onExportExcel={handleExportExcel}
-              activeFilterCount={sifarisActiveFilterCount}
-            />
-          </>
+          <SifarisActionBar
+            stats={stats}
+            onNew={handleNewOrder}
+            onToggleFilters={() => setOpenFilterPanel("orders")}
+            onExportExcel={handleExportExcel}
+            activeFilterCount={sifarisActiveFilterCount}
+          />
         )}
-
         {subTab === "voyages" && (
-          <>
-            <ReysToolbar
-              transportMode={reysTransportMode}
-              onTransportChange={handleReysTransportChange}
-              onToggleFilters={() => setOpenFilterPanel("voyages")}
-              count={reysStats.count}
-              totalValueAzn={reysStats.totalValueAzn}
-              onExcel={handleReysExcel}
-              activeFilterCount={reysActiveFilterCount}
-            />
-          </>
+          <ReysToolbar
+            transportMode={reysTransportMode}
+            onTransportChange={handleReysTransportChange}
+            onToggleFilters={() => setOpenFilterPanel("voyages")}
+            count={reysStats.count}
+            totalValueAzn={reysStats.totalValueAzn}
+            onExcel={handleReysExcel}
+            activeFilterCount={reysActiveFilterCount}
+          />
         )}
-
         {subTab === "loads" && (
-          <>
-            <YukActionBar
-              stats={yukStats}
-              accountAction={yukAccountAction}
-              onAccountActionChange={setYukAccountAction}
-              accountOptions={YUK_ACCOUNT_OPTIONS}
-              onToggleFilters={() => setOpenFilterPanel("loads")}
-              onTrackingImport={handleYukTrackingImport}
-              onExcel={handleYukExcel}
-              onPerformActions={handleYukPerformActions}
-              activeFilterCount={yukActiveFilterCount}
-            />
-          </>
+          <YukActionBar
+            stats={yukStats}
+            accountAction={yukAccountAction}
+            onAccountActionChange={setYukAccountAction}
+            accountOptions={YUK_ACCOUNT_OPTIONS}
+            onToggleFilters={() => setOpenFilterPanel("loads")}
+            onTrackingImport={handleYukTrackingImport}
+            onExcel={handleYukExcel}
+            onPerformActions={handleYukPerformActions}
+            activeFilterCount={yukActiveFilterCount}
+          />
         )}
       </div>
 
       {subTab === "orders" && (
         <>
-          <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto px-2 pb-2">
+          <div className={styles.tableBody}>
             <SifarisTable
               rows={paginatedRows}
               selectedIds={selectedIds}
@@ -700,7 +723,7 @@ export default function SifarislerPage() {
             />
           </div>
 
-          <div className="shrink-0 border-t bg-white">
+          <div className={styles.footer}>
             <SifarisPagination
               totalRows={filteredRows.length}
               currentPage={currentPage}
@@ -714,11 +737,11 @@ export default function SifarislerPage() {
 
       {subTab === "voyages" && (
         <>
-          <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto px-2 pb-2">
+          <div className={styles.tableBody}>
             <ReysTable rows={reysPaginated} />
           </div>
 
-          <div className="shrink-0 border-t bg-white">
+          <div className={styles.footer}>
             <SifarisPagination
               totalRows={reysFilteredRows.length}
               currentPage={reysPage}
@@ -732,7 +755,7 @@ export default function SifarislerPage() {
 
       {subTab === "loads" && (
         <>
-          <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto px-2 pb-2">
+          <div className={styles.tableBody}>
             <YukTable
               rows={yukPaginated}
               selectedIds={yukSelectedIds}
@@ -741,7 +764,7 @@ export default function SifarislerPage() {
             />
           </div>
 
-          <div className="shrink-0 border-t bg-white">
+          <div className={styles.footer}>
             <SifarisPagination
               totalRows={yukFilteredRows.length}
               currentPage={yukPage}
@@ -755,7 +778,7 @@ export default function SifarislerPage() {
 
       {subTab === "payroll" && (
         <>
-          <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto px-2 pb-2">
+          <div className={styles.tableBody}>
             <EmekTable
               rows={emekPaginated}
               selectedIds={emekSelectedIds}
@@ -764,7 +787,7 @@ export default function SifarislerPage() {
             />
           </div>
 
-          <div className="shrink-0 border-t bg-white">
+          <div className={styles.footer}>
             <SifarisPagination
               totalRows={emekFilteredRows.length}
               currentPage={emekPage}
@@ -783,18 +806,16 @@ export default function SifarislerPage() {
       />
 
       <div
-        className={`absolute inset-0 z-40 transition-opacity duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-          openFilterPanel
-            ? "pointer-events-auto bg-slate-900/15 opacity-100"
-            : "pointer-events-none opacity-0"
+        className={`${styles.overlay} ${
+          openFilterPanel ? styles.overlayOpen : ""
         }`}
         onClick={() => setOpenFilterPanel(null)}
         aria-hidden={!openFilterPanel}
       />
 
       <aside
-        className={`absolute inset-y-0 right-0 z-50 w-full max-w-[620px] border-l border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.12)] transition-transform duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform ${
-          openFilterPanel ? "translate-x-0" : "translate-x-full"
+        className={`${styles.drawer} ${
+          openFilterPanel ? styles.drawerOpen : ""
         }`}
         aria-hidden={!openFilterPanel}
       >

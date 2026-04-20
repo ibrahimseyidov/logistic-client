@@ -1,20 +1,18 @@
 import { FaFileAlt } from "react-icons/fa";
 import StatusBadge from "../../../common/components/StatusBadge";
 import type { OrderStatusKind, SifarisOrderRow } from "../types/sifaris.types";
-
-const th =
-  "px-2 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap border-b border-gray-200 bg-gray-100";
+import styles from "./SifarisTable.module.css";
 
 function rowTone(kind: OrderStatusKind): string {
   switch (kind) {
     case "planned":
-      return "bg-orange-50/90 border-l-4 border-l-orange-500";
+      return styles.rowPlanned;
     case "progress":
-      return "bg-amber-50/90 border-l-4 border-l-amber-400";
+      return styles.rowProgress;
     case "completed":
-      return "bg-sky-50/90 border-l-4 border-l-sky-500";
+      return styles.rowCompleted;
     default:
-      return "bg-white border-l-4 border-l-gray-300";
+      return styles.rowDefault;
   }
 }
 
@@ -36,85 +34,110 @@ export default function SifarisTable({
     pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
 
   return (
-    <table className="min-w-max w-full border-collapse text-sm">
-      <thead className="sticky top-0 z-10">
+    <table className={styles.table}>
+      <thead className={styles.head}>
         <tr>
-          <th className={`${th} w-10`}>
+          <th className={`${styles.headerCell} ${styles.checkboxHeader}`}>
             <input
               type="checkbox"
-              className="rounded border-gray-300"
+              className={styles.checkbox}
               checked={allSelected}
               onChange={(e) => onToggleAllPage(pageIds, e.target.checked)}
               aria-label="Səhifədəki bütün sətirlər"
             />
           </th>
-          <th className={th}>Sifarişin nömrəsi</th>
-          <th className={th}>Sifarişin tarixi</th>
-          <th className={th}>Sifarişin statusu</th>
-          <th className={`${th} min-w-[160px]`}>Müştəri</th>
-          <th className={`${th} min-w-[140px]`}>Daşıyıcılar</th>
-          <th className={th}>Reysin nömrəsi</th>
-          <th className={`${th} min-w-[140px]`}>Marşrutlar</th>
-          <th className={`${th} min-w-[180px]`}>Yükün parametrləri</th>
-          <th className={th}>Fraxt</th>
-          <th className={th}>Əlavə xərclər</th>
-          <th className={th}>Mənfəət</th>
-          <th className={th}>Sənədlər</th>
+          <th className={styles.headerCell}>Sifarişin nömrəsi</th>
+          <th className={styles.headerCell}>Sifarişin tarixi</th>
+          <th className={styles.headerCell}>Sifarişin statusu</th>
+          <th className={`${styles.headerCell} ${styles.min160}`}>Müştəri</th>
+          <th className={`${styles.headerCell} ${styles.min140}`}>
+            Daşıyıcılar
+          </th>
+          <th className={styles.headerCell}>Reysin nömrəsi</th>
+          <th className={`${styles.headerCell} ${styles.min140}`}>
+            Marşrutlar
+          </th>
+          <th className={`${styles.headerCell} ${styles.min180}`}>
+            Yükün parametrləri
+          </th>
+          <th className={styles.headerCell}>Fraxt</th>
+          <th className={styles.headerCell}>Əlavə xərclər</th>
+          <th className={styles.headerCell}>Mənfəət</th>
+          <th className={styles.headerCell}>Sənədlər</th>
         </tr>
       </thead>
       <tbody>
         {rows.map((row) => (
           <tr key={row.id} className={rowTone(row.statusKind)}>
-            <td className="px-2 py-2 text-center align-top">
+            <td className={`${styles.cell} ${styles.center}`}>
               <input
                 type="checkbox"
-                className="rounded border-gray-300"
+                className={styles.checkbox}
                 checked={selectedIds.has(row.id)}
                 onChange={() => onToggleRow(row.id)}
                 aria-label={`Seç: ${row.orderNumber}`}
               />
             </td>
-            <td className="px-2 py-2 whitespace-nowrap align-top font-medium text-indigo-600">
+            <td
+              className={`${styles.cell} ${styles.nowrap} ${styles.primaryText}`}
+            >
               {row.orderNumber}
             </td>
-            <td className="px-2 py-2 text-gray-700 whitespace-nowrap align-top">
+            <td
+              className={`${styles.cell} ${styles.mutedText} ${styles.nowrap}`}
+            >
               {row.orderDate}
             </td>
-            <td className="px-2 py-2 whitespace-nowrap align-top">
+            <td className={`${styles.cell} ${styles.nowrap}`}>
               <StatusBadge label={row.statusLabel} kind={row.statusKind} />
             </td>
-            <td className="px-2 py-2 text-gray-800 align-top text-xs">
+            <td
+              className={`${styles.cell} ${styles.bodyText} ${styles.smallText}`}
+            >
               <div>{row.customer}</div>
-              <div className="text-gray-500 mt-0.5">{row.customerRefs}</div>
+              <div className={`${styles.softText} ${styles.customerMeta}`}>
+                {row.customerRefs}
+              </div>
             </td>
-            <td className="px-2 py-2 text-gray-700 align-top text-xs whitespace-pre-line">
+            <td
+              className={`${styles.cell} ${styles.mutedText} ${styles.smallText} ${styles.preLine}`}
+            >
               {row.carriers}
             </td>
-            <td className="px-2 py-2 text-gray-700 whitespace-nowrap align-top">
+            <td
+              className={`${styles.cell} ${styles.mutedText} ${styles.nowrap}`}
+            >
               {row.voyageNumber}
             </td>
-            <td className="px-2 py-2 text-gray-800 align-top whitespace-nowrap">
+            <td
+              className={`${styles.cell} ${styles.bodyText} ${styles.nowrap}`}
+            >
               {row.route}
             </td>
-            <td className="px-2 py-2 text-gray-700 align-top whitespace-pre-line text-xs max-w-[240px]">
+            <td
+              className={`${styles.cell} ${styles.mutedText} ${styles.preLine} ${styles.smallText} ${styles.max240}`}
+            >
               {row.cargoParams}
             </td>
-            <td className="px-2 py-2 text-gray-800 align-top whitespace-nowrap">
+            <td
+              className={`${styles.cell} ${styles.bodyText} ${styles.nowrap}`}
+            >
               {row.freight}
             </td>
-            <td className="px-2 py-2 text-gray-700 align-top whitespace-nowrap">
+            <td
+              className={`${styles.cell} ${styles.mutedText} ${styles.nowrap}`}
+            >
               {row.extraCosts}
             </td>
-            <td className="px-2 py-2 text-emerald-700 font-medium align-top whitespace-nowrap">
+            <td
+              className={`${styles.cell} ${styles.profitText} ${styles.nowrap}`}
+            >
               {row.profit}
             </td>
-            <td className="px-2 py-2 align-top">
-              <div
-                className="flex items-center gap-1 text-gray-600"
-                title={row.documents}
-              >
-                <FaFileAlt className="shrink-0" />
-                <span className="text-xs line-clamp-2 max-w-[120px]">
+            <td className={styles.cell}>
+              <div className={styles.documents} title={row.documents}>
+                <FaFileAlt className={styles.documentsIcon} />
+                <span className={`${styles.smallText} ${styles.documentsText}`}>
                   {row.documents}
                 </span>
               </div>

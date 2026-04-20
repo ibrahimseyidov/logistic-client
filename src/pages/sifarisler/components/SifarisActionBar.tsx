@@ -1,4 +1,5 @@
 import { FiFilePlus, FiFilter } from "react-icons/fi";
+import styles from "./ToolbarCommon.module.css";
 
 interface Stats {
   orders: number;
@@ -31,13 +32,13 @@ export default function SifarisActionBar({
   activeFilterCount,
 }: Props) {
   return (
-    <div className="space-y-3 pb-4">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
+    <div className={styles.wrapper}>
+      <div className={styles.topRow}>
+        <div className={styles.leftActions}>
           <button
             type="button"
             onClick={onNew}
-            className="inline-flex items-center gap-2 rounded-[18px] border border-slate-300 bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700"
+            className={`${styles.buttonBase} ${styles.buttonPrimary}`}
           >
             <FiFilePlus />
             Yeni sifariş
@@ -45,52 +46,38 @@ export default function SifarisActionBar({
           <button
             type="button"
             onClick={onToggleFilters}
-            className="inline-flex items-center gap-2 rounded-[18px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            className={`${styles.buttonBase} ${styles.buttonSecondary}`}
           >
             <FiFilter />
             Filtrlər
             {activeFilterCount > 0 ? (
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
-                {activeFilterCount}
-              </span>
+              <span className={styles.badge}>{activeFilterCount}</span>
             ) : null}
           </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className={styles.rightActions}>
           <button
             type="button"
             onClick={onExportExcel}
-            className="inline-flex items-center gap-2 rounded-[16px] border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+            className={`${styles.buttonBase} ${styles.buttonSecondary}`}
           >
             + Excel
           </button>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
-        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium">
-          Sifarişlər: {stats.orders}
-        </span>
-        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium">
-          Yüklər: {stats.loads}
-        </span>
-        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium">
-          Reyslər: {stats.voyages}
-        </span>
-        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium">
-          Çəki (kq): {fmt(stats.weight)}
-        </span>
-        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium">
-          Həcm (m³): {fmt(stats.volume)}
-        </span>
-        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium">
-          LDM: {fmt(stats.ldm)}
-        </span>
-        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium">
+      <div className={styles.statsRow}>
+        <span className={styles.statPill}>Sifarişlər: {stats.orders}</span>
+        <span className={styles.statPill}>Yüklər: {stats.loads}</span>
+        <span className={styles.statPill}>Reyslər: {stats.voyages}</span>
+        <span className={styles.statPill}>Çəki (kq): {fmt(stats.weight)}</span>
+        <span className={styles.statPill}>Həcm (m³): {fmt(stats.volume)}</span>
+        <span className={styles.statPill}>LDM: {fmt(stats.ldm)}</span>
+        <span className={styles.statPill}>
           Fraxtın məbləği (AZN): {fmt(stats.freightAzn)}
         </span>
-        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 font-medium text-slate-700">
+        <span className={styles.statPill}>
           Gəlirin məbləği (AZN): {fmt(stats.profitAzn)}
         </span>
       </div>

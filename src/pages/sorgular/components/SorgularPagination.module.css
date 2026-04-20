@@ -1,0 +1,61 @@
+.root {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+  padding: 0.75rem 1rem;
+}
+
+.summary {
+  color: #4b5563;
+  font-size: 0.875rem;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.button {
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  background: #ffffff;
+  color: #374151;
+  cursor: pointer;
+  font-size: 0.875rem;
+  padding: 0.25rem 0.75rem;
+  transition:
+    background-color 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.button:hover {
+  background: #f3f4f6;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.activeButton {
+  border-color: #3b82f6;
+  background: #3b82f6;
+  color: #ffffff;
+}
+
+.ellipsis {
+  color: #9ca3af;
+  font-size: 0.875rem;
+  padding: 0.25rem 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .root {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

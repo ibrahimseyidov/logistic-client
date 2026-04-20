@@ -1,11 +1,9 @@
 import { useCallback, useState } from "react";
 import { FaChartBar, FaCut, FaEdit, FaEye, FaMinus } from "react-icons/fa";
-import { getStatusSelectClasses } from "../../../common/components/StatusBadge";
+import { getStatusTone } from "../../../common/components/StatusBadge";
 import { YUK_CARGO_STATUS_OPTIONS } from "../constants/yuk.constants";
 import type { YukLoadRow } from "../types/yuk.types";
-
-const th =
-  "px-2 py-2 text-xs font-semibold text-gray-700 text-center whitespace-nowrap border-b border-gray-200 bg-gray-100";
+import styles from "./YukTable.module.css";
 
 interface Props {
   rows: YukLoadRow[];
@@ -35,86 +33,129 @@ export default function YukTable({
     setStatusMap((prev) => ({ ...prev, [id]: v }));
   };
 
+  const getStatusClassName = (value: string) => {
+    switch (getStatusTone(value)) {
+      case "emerald":
+        return styles.statusEmerald;
+      case "amber":
+        return styles.statusAmber;
+      case "sky":
+      case "cyan":
+      case "violet":
+        return styles.statusSky;
+      default:
+        return styles.statusSlate;
+    }
+  };
+
   return (
-    <table className="min-w-max w-full border-collapse text-sm">
-      <thead className="sticky top-0 z-10">
+    <table className={styles.table}>
+      <thead className={styles.head}>
         <tr>
-          <th className={`${th} w-10`}>
+          <th className={`${styles.headerCell} ${styles.checkboxHeader}`}>
             <input
               type="checkbox"
-              className="rounded border-gray-300"
+              className={styles.checkbox}
               checked={allSelected}
               onChange={(e) => onToggleAllPage(pageIds, e.target.checked)}
               aria-label="Səhifədəki bütün sətirlər"
             />
           </th>
-          <th className={th}>Sifariş</th>
-          <th className={th}>Şirkət</th>
-          <th className={`${th} min-w-[120px]`}>Müştəri</th>
-          <th className={th}>Yükləmə tarixi</th>
-          <th className={th}>Boşaltma tarixi</th>
-          <th className={th}>Göndərən</th>
-          <th className={`${th} min-w-[200px]`}>Yükləmə yeri</th>
-          <th className={th}>Alıcı</th>
-          <th className={`${th} min-w-[180px]`}>Boşaltma yeri</th>
-          <th className={`${th} min-w-[140px]`}>Yükün statusları</th>
-          <th className={th}>Yeri</th>
-          <th className={th}>Tarix</th>
-          <th className={th}>Vaxt</th>
-          <th className={`${th} min-w-[100px]`}>Şərhlər</th>
-          <th className={th}>Yükün nömrəsi</th>
-          <th className={`${th} min-w-[120px]`}>Yükün adı</th>
-          <th className={`${th} min-w-[220px]`}>Yükün parametrləri</th>
-          <th className={th}>Atributlar</th>
-          <th className={`${th} min-w-[120px]`}>Daşıyıcı</th>
-          <th className={`${th} min-w-[160px]`}>Reys</th>
+          <th className={styles.headerCell}>Sifariş</th>
+          <th className={styles.headerCell}>Şirkət</th>
+          <th className={`${styles.headerCell} ${styles.min120}`}>Müştəri</th>
+          <th className={styles.headerCell}>Yükləmə tarixi</th>
+          <th className={styles.headerCell}>Boşaltma tarixi</th>
+          <th className={styles.headerCell}>Göndərən</th>
+          <th className={`${styles.headerCell} ${styles.min200}`}>
+            Yükləmə yeri
+          </th>
+          <th className={styles.headerCell}>Alıcı</th>
+          <th className={`${styles.headerCell} ${styles.min180}`}>
+            Boşaltma yeri
+          </th>
+          <th className={`${styles.headerCell} ${styles.min140}`}>
+            Yükün statusları
+          </th>
+          <th className={styles.headerCell}>Yeri</th>
+          <th className={styles.headerCell}>Tarix</th>
+          <th className={styles.headerCell}>Vaxt</th>
+          <th className={`${styles.headerCell} ${styles.min100}`}>Şərhlər</th>
+          <th className={styles.headerCell}>Yükün nömrəsi</th>
+          <th className={`${styles.headerCell} ${styles.min120}`}>Yükün adı</th>
+          <th className={`${styles.headerCell} ${styles.min220}`}>
+            Yükün parametrləri
+          </th>
+          <th className={styles.headerCell}>Atributlar</th>
+          <th className={`${styles.headerCell} ${styles.min120}`}>Daşıyıcı</th>
+          <th className={`${styles.headerCell} ${styles.min160}`}>Reys</th>
         </tr>
       </thead>
       <tbody>
         {rows.map((row, index) => (
           <tr
             key={row.id}
-            className={index % 2 === 0 ? "bg-white" : "bg-gray-50/90"}
+            className={index % 2 === 0 ? styles.rowEven : styles.rowOdd}
           >
-            <td className="px-2 py-2 text-center align-top border-l border-gray-100">
+            <td
+              className={`${styles.cell} ${styles.center} ${styles.cellWithBorder}`}
+            >
               <input
                 type="checkbox"
-                className="rounded border-gray-300"
+                className={styles.checkbox}
                 checked={selectedIds.has(row.id)}
                 onChange={() => onToggleRow(row.id)}
                 aria-label={`Seç: ${row.cargoNumber}`}
               />
             </td>
-            <td className="px-2 py-2 whitespace-nowrap align-top font-medium text-indigo-600">
+            <td
+              className={`${styles.cell} ${styles.nowrap} ${styles.primaryText}`}
+            >
               {row.orderRef}
             </td>
-            <td className="px-2 py-2 text-gray-800 align-top whitespace-nowrap">
+            <td
+              className={`${styles.cell} ${styles.bodyText} ${styles.nowrap}`}
+            >
               {row.company}
             </td>
-            <td className="px-2 py-2 text-gray-800 align-top text-xs">
+            <td
+              className={`${styles.cell} ${styles.bodyText} ${styles.smallText}`}
+            >
               {row.customer}
             </td>
-            <td className="px-2 py-2 text-gray-600 align-top whitespace-nowrap">
+            <td
+              className={`${styles.cell} ${styles.dateText} ${styles.nowrap}`}
+            >
               {row.loadDate || "—"}
             </td>
-            <td className="px-2 py-2 text-gray-600 align-top whitespace-nowrap">
+            <td
+              className={`${styles.cell} ${styles.dateText} ${styles.nowrap}`}
+            >
               {row.unloadDate || "—"}
             </td>
-            <td className="px-2 py-2 text-gray-600 align-top text-xs">
+            <td
+              className={`${styles.cell} ${styles.dateText} ${styles.smallText}`}
+            >
               {row.sender || "—"}
             </td>
-            <td className="px-2 py-2 text-gray-700 align-top text-xs max-w-[280px]">
+            <td
+              className={`${styles.cell} ${styles.mutedText} ${styles.smallText} ${styles.max280}`}
+            >
               {row.loadPlace}
             </td>
-            <td className="px-2 py-2 text-gray-700 align-top whitespace-nowrap">
+            <td
+              className={`${styles.cell} ${styles.mutedText} ${styles.nowrap}`}
+            >
               {row.recipient}
             </td>
-            <td className="px-2 py-2 text-gray-700 align-top text-xs max-w-[260px]">
+            <td
+              className={`${styles.cell} ${styles.mutedText} ${styles.smallText} ${styles.max260}`}
+            >
               {row.unloadPlace}
             </td>
-            <td className="px-2 py-2 align-top">
+            <td className={styles.cell}>
               <select
-                className={`w-full max-w-[150px] rounded-full border px-2.5 py-1 text-xs font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] focus:outline-none focus:ring-2 ${getStatusSelectClasses(statusFor(row))}`}
+                className={`${styles.statusSelect} ${getStatusClassName(statusFor(row))}`}
                 value={statusFor(row)}
                 onChange={(e) => setStatus(row.id, e.target.value)}
               >
@@ -125,81 +166,92 @@ export default function YukTable({
                 ))}
               </select>
             </td>
-            <td className="px-2 py-2 text-gray-600 align-top">
+            <td className={`${styles.cell} ${styles.dateText}`}>
               {row.place || "—"}
             </td>
-            <td className="px-2 py-2 text-gray-700 align-top whitespace-nowrap">
+            <td
+              className={`${styles.cell} ${styles.mutedText} ${styles.nowrap}`}
+            >
               {row.entryDate}
             </td>
-            <td className="px-2 py-2 text-gray-700 align-top whitespace-nowrap">
+            <td
+              className={`${styles.cell} ${styles.mutedText} ${styles.nowrap}`}
+            >
               {row.entryTime}
             </td>
-            <td className="px-2 py-2 text-gray-500 align-top text-xs">
+            <td
+              className={`${styles.cell} ${styles.softText} ${styles.smallText}`}
+            >
               {row.comments || "—"}
             </td>
-            <td className="px-2 py-2 text-gray-800 align-top whitespace-nowrap font-medium">
+            <td
+              className={`${styles.cell} ${styles.bodyText} ${styles.nowrap}`}
+            >
               {row.cargoNumber}
             </td>
-            <td className="px-2 py-2 text-gray-800 align-top whitespace-nowrap">
+            <td
+              className={`${styles.cell} ${styles.bodyText} ${styles.nowrap}`}
+            >
               {row.cargoName}
             </td>
-            <td className="px-2 py-2 text-gray-700 align-top whitespace-pre-line text-xs max-w-[280px]">
+            <td
+              className={`${styles.cell} ${styles.mutedText} ${styles.preLine} ${styles.smallText} ${styles.max280}`}
+            >
               {row.cargoParams}
             </td>
-            <td className="px-2 py-2 text-gray-500 align-top text-xs">
+            <td
+              className={`${styles.cell} ${styles.softText} ${styles.smallText}`}
+            >
               {row.attributes || "—"}
             </td>
-            <td className="px-2 py-2 text-gray-800 align-top text-xs whitespace-nowrap">
+            <td
+              className={`${styles.cell} ${styles.bodyText} ${styles.smallText} ${styles.nowrap}`}
+            >
               {row.carrier}
             </td>
-            <td
-              className="px-2 py-2 align-top"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-gray-800 whitespace-nowrap">
-                  {row.tripId}
-                </span>
-                <div className="flex flex-wrap items-center gap-0.5">
+            <td className={styles.cell} onClick={(e) => e.stopPropagation()}>
+              <div className={styles.tripWrap}>
+                <span className={styles.tripId}>{row.tripId}</span>
+                <div className={styles.actionRow}>
                   <button
                     type="button"
                     title="Bax"
-                    className="p-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200"
+                    className={`${styles.iconButton} ${styles.viewButton}`}
                     aria-label="Bax"
                   >
-                    <FaEye className="text-xs" />
+                    <FaEye className={styles.icon} />
                   </button>
                   <button
                     type="button"
                     title="Qrafik"
-                    className="p-1 rounded bg-violet-100 text-violet-700 hover:bg-violet-200"
+                    className={`${styles.iconButton} ${styles.chartButton}`}
                     aria-label="Qrafik"
                   >
-                    <FaChartBar className="text-xs" />
+                    <FaChartBar className={styles.icon} />
                   </button>
                   <button
                     type="button"
                     title="Redaktə"
-                    className="p-1 rounded bg-amber-100 text-amber-800 hover:bg-amber-200"
+                    className={`${styles.iconButton} ${styles.editButton}`}
                     aria-label="Redaktə"
                   >
-                    <FaEdit className="text-xs" />
+                    <FaEdit className={styles.icon} />
                   </button>
                   <button
                     type="button"
                     title="Sil"
-                    className="p-1 rounded bg-red-100 text-red-700 hover:bg-red-200"
+                    className={`${styles.iconButton} ${styles.deleteButton}`}
                     aria-label="Sil"
                   >
-                    <FaMinus className="text-xs" />
+                    <FaMinus className={styles.icon} />
                   </button>
                   <button
                     type="button"
                     title="Böl"
-                    className="p-1 rounded bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    className={`${styles.iconButton} ${styles.splitButton}`}
                     aria-label="Böl"
                   >
-                    <FaCut className="text-xs" />
+                    <FaCut className={styles.icon} />
                   </button>
                 </div>
               </div>

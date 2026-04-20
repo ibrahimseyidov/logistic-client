@@ -1,0 +1,130 @@
+.table {
+  width: 100%;
+  min-width: max-content;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.headerCell {
+  border-bottom: 1px solid #e5e7eb;
+  background: #f3f4f6;
+  color: #374151;
+  padding: 0.5rem;
+  text-align: center;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.checkboxHeader {
+  width: 2.5rem;
+}
+
+.min140 {
+  min-width: 8.75rem;
+}
+
+.min160 {
+  min-width: 10rem;
+}
+
+.min180 {
+  min-width: 11.25rem;
+}
+
+.rowDefault {
+  background: #ffffff;
+}
+
+.rowPlanned {
+  background: #ffffff;
+}
+
+.rowProgress {
+  background: #ffffff;
+}
+
+.rowCompleted {
+  background: #ffffff;
+}
+
+.cell {
+  padding: 0.5rem;
+  vertical-align: top;
+}
+
+.center {
+  text-align: center;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.smallText {
+  font-size: 0.75rem;
+}
+
+.primaryText {
+  color: #4f46e5;
+  font-weight: 500;
+}
+
+.bodyText {
+  color: #1f2937;
+}
+
+.mutedText {
+  color: #374151;
+}
+
+.softText {
+  color: #6b7280;
+}
+
+.profitText {
+  color: #047857;
+  font-weight: 500;
+}
+
+.preLine {
+  white-space: pre-line;
+}
+
+.max240 {
+  max-width: 15rem;
+}
+
+.checkbox {
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+}
+
+.customerMeta {
+  margin-top: 0.125rem;
+}
+
+.documents {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #4b5563;
+}
+
+.documentsIcon {
+  flex-shrink: 0;
+}
+
+.documentsText {
+  max-width: 7.5rem;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}

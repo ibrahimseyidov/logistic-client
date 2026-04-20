@@ -1,9 +1,7 @@
 import { FaClipboard, FaEdit, FaEye, FaFileAlt, FaMinus } from "react-icons/fa";
 import StatusBadge from "../../../common/components/StatusBadge";
 import type { ReysRow, ReysTripStatusKind } from "../types/reys.types";
-
-const th =
-  "px-2 py-2 text-xs font-semibold text-sky-900 text-center whitespace-nowrap border-b border-sky-200 bg-sky-100";
+import styles from "./ReysTable.module.css";
 
 interface Props {
   rows: ReysRow[];
@@ -11,125 +9,159 @@ interface Props {
 
 export default function ReysTable({ rows }: Props) {
   return (
-    <table className="min-w-max w-full border-collapse text-sm">
-      <thead className="sticky top-0 z-10">
+    <table className={styles.table}>
+      <thead className={styles.head}>
         <tr>
-          <th className={`${th} min-w-[120px]`}>Sifariş</th>
-          <th className={th}>Reys</th>
-          <th className={`${th} min-w-[130px]`}>Reysin statusu</th>
-          <th className={`${th} min-w-[120px]`}>Müştəri</th>
-          <th className={`${th} min-w-[140px]`}>Reysin qiyməti, paylaşdırma</th>
-          <th className={th}>Daşıyıcı</th>
-          <th className={`${th} min-w-[160px]`}>N/v-nin №, qoşqu, sürücü</th>
-          <th className={`${th} min-w-[180px]`}>Yükün adı, konteynerin №</th>
-          <th className={th}>Yükləmə tarixi</th>
-          <th className={th}>Göndərən</th>
-          <th className={th}>Yükləmə</th>
-          <th className={th}>Boşaltma tarixi</th>
-          <th className={th}>Alıcı</th>
-          <th className={th}>Boşaltma</th>
-          <th className={`${th} min-w-[140px]`}>Teqlər</th>
-          <th className={`${th} min-w-[120px]`}>Sənədlər</th>
+          <th className={`${styles.headerCell} ${styles.min120}`}>Sifariş</th>
+          <th className={styles.headerCell}>Reys</th>
+          <th className={`${styles.headerCell} ${styles.min130}`}>
+            Reysin statusu
+          </th>
+          <th className={`${styles.headerCell} ${styles.min120}`}>Müştəri</th>
+          <th className={`${styles.headerCell} ${styles.min140}`}>
+            Reysin qiyməti, paylaşdırma
+          </th>
+          <th className={styles.headerCell}>Daşıyıcı</th>
+          <th className={`${styles.headerCell} ${styles.min160}`}>
+            N/v-nin №, qoşqu, sürücü
+          </th>
+          <th className={`${styles.headerCell} ${styles.min180}`}>
+            Yükün adı, konteynerin №
+          </th>
+          <th className={styles.headerCell}>Yükləmə tarixi</th>
+          <th className={styles.headerCell}>Göndərən</th>
+          <th className={styles.headerCell}>Yükləmə</th>
+          <th className={styles.headerCell}>Boşaltma tarixi</th>
+          <th className={styles.headerCell}>Alıcı</th>
+          <th className={styles.headerCell}>Boşaltma</th>
+          <th className={`${styles.headerCell} ${styles.min140}`}>Teqlər</th>
+          <th className={`${styles.headerCell} ${styles.min120}`}>Sənədlər</th>
         </tr>
       </thead>
       <tbody>
         {rows.map((row, index) => (
           <tr
             key={row.id}
-            className={index % 2 === 0 ? "bg-white" : "bg-gray-50/90"}
+            className={index % 2 === 0 ? styles.rowEven : styles.rowOdd}
           >
-            <td className="px-2 py-2 align-top text-xs">
-              <div className="font-semibold text-indigo-600 whitespace-nowrap">
-                {row.orderRef}
+            <td className={`${styles.cell} ${styles.cellXs}`}>
+              <div className={styles.orderRef}>{row.orderRef}</div>
+              <div className={`${styles.mutedText} ${styles.orderDate}`}>
+                {row.orderDate}
               </div>
-              <div className="text-gray-500 mt-0.5">{row.orderDate}</div>
             </td>
-            <td className="px-2 py-2 align-top font-medium text-gray-900 whitespace-nowrap">
+            <td
+              className={`${styles.cell} ${styles.primaryText} ${styles.nowrap}`}
+            >
               {row.tripRef}
             </td>
-            <td className="px-2 py-2 align-top text-center">
+            <td className={`${styles.cell} ${styles.center}`}>
               <StatusBadge label={row.tripStatus} kind={row.tripStatusKind} />
             </td>
-            <td className="px-2 py-2 text-gray-800 align-top text-xs">
+            <td
+              className={`${styles.cell} ${styles.bodyText} ${styles.cellXs}`}
+            >
               {row.customer}
             </td>
-            <td className="px-2 py-2 text-gray-800 align-top text-xs whitespace-nowrap">
+            <td
+              className={`${styles.cell} ${styles.bodyText} ${styles.cellXs} ${styles.nowrap}`}
+            >
               {row.tripPrice}
             </td>
-            <td className="px-2 py-2 text-gray-800 align-top text-xs whitespace-nowrap">
+            <td
+              className={`${styles.cell} ${styles.bodyText} ${styles.cellXs} ${styles.nowrap}`}
+            >
               {row.carrier}
             </td>
-            <td className="px-2 py-2 text-gray-700 align-top text-xs">
+            <td
+              className={`${styles.cell} ${styles.subtleText} ${styles.cellXs}`}
+            >
               {row.vehicleInfo}
             </td>
-            <td className="px-2 py-2 text-gray-700 align-top text-xs max-w-[220px]">
+            <td
+              className={`${styles.cell} ${styles.subtleText} ${styles.cellXs} ${styles.max220}`}
+            >
               {row.cargoInfo}
             </td>
-            <td className="px-2 py-2 text-gray-500 align-top text-xs">
+            <td
+              className={`${styles.cell} ${styles.mutedText} ${styles.cellXs}`}
+            >
               {row.loadDate || "—"}
             </td>
-            <td className="px-2 py-2 text-gray-500 align-top text-xs">
+            <td
+              className={`${styles.cell} ${styles.mutedText} ${styles.cellXs}`}
+            >
               {row.sender || "—"}
             </td>
-            <td className="px-2 py-2 text-gray-500 align-top text-xs">
+            <td
+              className={`${styles.cell} ${styles.mutedText} ${styles.cellXs}`}
+            >
               {row.loading || "—"}
             </td>
-            <td className="px-2 py-2 text-gray-500 align-top text-xs">
+            <td
+              className={`${styles.cell} ${styles.mutedText} ${styles.cellXs}`}
+            >
               {row.unloadDate || "—"}
             </td>
-            <td className="px-2 py-2 text-gray-500 align-top text-xs">
+            <td
+              className={`${styles.cell} ${styles.mutedText} ${styles.cellXs}`}
+            >
               {row.receiver || "—"}
             </td>
-            <td className="px-2 py-2 text-gray-500 align-top text-xs">
+            <td
+              className={`${styles.cell} ${styles.mutedText} ${styles.cellXs}`}
+            >
               {row.unloading || "—"}
             </td>
-            <td className="px-2 py-2 text-gray-700 align-top text-xs whitespace-pre-line max-w-[180px]">
+            <td
+              className={`${styles.cell} ${styles.subtleText} ${styles.cellXs} ${styles.preLine} ${styles.max180}`}
+            >
               {row.tags || "—"}
             </td>
             <td
-              className="px-2 py-2 align-top"
+              className={styles.actionCell}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex flex-wrap items-center gap-0.5 justify-center">
+              <div className={styles.actionRow}>
                 <button
                   type="button"
                   title="Redaktə"
-                  className="p-1 rounded bg-amber-100 text-amber-800 hover:bg-amber-200"
+                  className={`${styles.iconButton} ${styles.editButton}`}
                   aria-label="Redaktə"
                 >
-                  <FaEdit className="text-xs" />
+                  <FaEdit className={styles.icon} />
                 </button>
                 <button
                   type="button"
                   title="Bax"
-                  className="p-1 rounded bg-sky-100 text-sky-800 hover:bg-sky-200"
+                  className={`${styles.iconButton} ${styles.viewButton}`}
                   aria-label="Bax"
                 >
-                  <FaEye className="text-xs" />
+                  <FaEye className={styles.icon} />
                 </button>
                 <button
                   type="button"
                   title="Sənəd"
-                  className="p-1 rounded bg-violet-100 text-violet-800 hover:bg-violet-200"
+                  className={`${styles.iconButton} ${styles.fileButton}`}
                   aria-label="Sənəd"
                 >
-                  <FaFileAlt className="text-xs" />
+                  <FaFileAlt className={styles.icon} />
                 </button>
                 <button
                   type="button"
                   title="Kopyala"
-                  className="p-1 rounded bg-gray-200 text-gray-800 hover:bg-gray-300"
+                  className={`${styles.iconButton} ${styles.copyButton}`}
                   aria-label="Kopyala"
                 >
-                  <FaClipboard className="text-xs" />
+                  <FaClipboard className={styles.icon} />
                 </button>
                 <button
                   type="button"
                   title="Sil"
-                  className="p-1 rounded bg-red-100 text-red-700 hover:bg-red-200"
+                  className={`${styles.iconButton} ${styles.deleteButton}`}
                   aria-label="Sil"
                 >
-                  <FaMinus className="text-xs" />
+                  <FaMinus className={styles.icon} />
                 </button>
               </div>
             </td>

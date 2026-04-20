@@ -1,3 +1,5 @@
+import axios from "axios";
+
 interface LoginResponse {
   token: string;
   refreshToken: string;
@@ -69,13 +71,10 @@ export async function fetchAuthBootstrap() {
 export async function loginAction(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
-
-  if (email !== DEMO_EMAIL || password !== DEMO_PASSWORD) {
-    throw new Error("Email veya şifre hatalı");
+  try {
+    const res = await axios.post("/api/auth/login", { email, password });
+    return res.data as LoginResponse;
+  } catch (err: any) {
+    throw new Error(err.response?.data?.message || "Login failed");
   }
-
-  return {
-    token: LOCAL_ACCESS_TOKEN,
-    refreshToken: LOCAL_REFRESH_TOKEN,
-  } satisfies LoginResponse;
 }

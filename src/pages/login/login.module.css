@@ -1,0 +1,47 @@
+.container {
+  min-height: 100vh;
+  display: flex;
+  background: #f3f4f6;
+}
+.leftPanel {
+  display: none;
+}
+@media (min-width: 768px) {
+  .leftPanel {
+    display: flex;
+    width: 60%;
+    background: linear-gradient(135deg, #2563eb, #6366f1);
+    align-items: center;
+    justify-content: center;
+  }
+}
+.centerPanel {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.card {
+  width: 100%;
+  max-width: 400px;
+  min-width: 260px;
+  background: #fff;
+  border-radius: 1rem;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  padding: 2rem;
+}
+.title {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+.titleText {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #2563eb;
+}
+.demoText {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}

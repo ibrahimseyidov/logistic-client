@@ -34,6 +34,8 @@ export interface LogisticQueryRow {
   priceOffers: string;
   confirmed: boolean;
   archived: boolean;
+  contactPerson: string;
+  cargoItems?: any[]; // API'den gelen yükler
 }
 
 export interface FilterFormState {

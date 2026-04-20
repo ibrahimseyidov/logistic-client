@@ -1,7 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { FaEyeSlash, FaFilter, FaPlus, FaTasks, FaTh, FaThList } from "react-icons/fa";
+import styles from "./tapshiriqlar.module.css";
+import {
+  FaEyeSlash,
+  FaFilter,
+  FaPlus,
+  FaTasks,
+  FaTh,
+  FaThList,
+} from "react-icons/fa";
 import { useAppDispatch } from "../../common/store/hooks";
 import { showNotification } from "../../common/store/modalSlice";
 import { NotificationModal } from "../../common/components/NotificationModal";
@@ -11,10 +19,9 @@ import TaskViewModal from "./components/TaskViewModal";
 
 const PLACEHOLDER_OPTS: SelectOption[] = [{ value: "", label: "Dəyəri seçin" }];
 
-const DEMO_OPTS = (extra: { value: string; label: string }[]): SelectOption[] => [
-  ...PLACEHOLDER_OPTS,
-  ...extra,
-];
+const DEMO_OPTS = (
+  extra: { value: string; label: string }[],
+): SelectOption[] => [...PLACEHOLDER_OPTS, ...extra];
 
 export default function TapshiriqlarPage() {
   const dispatch = useAppDispatch();
@@ -52,10 +59,6 @@ export default function TapshiriqlarPage() {
     { value: "finance", label: "Maliyyə" },
   ]);
 
-  const handleAdd = () => {
-    setTaskModalOpen(true);
-  };
-
   const handleTaskSave = () => {
     setTaskModalOpen(false);
     dispatch(
@@ -89,10 +92,7 @@ export default function TapshiriqlarPage() {
   };
 
   return (
-    <div
-      className="flex flex-col overflow-hidden pt-4 md:pt-6"
-      style={{ height: "calc(100vh - 56px)" }}
-    >
+    <div className={styles.container}>
       <NotificationModal />
 
       <TaskViewModal
@@ -102,69 +102,69 @@ export default function TapshiriqlarPage() {
         onDelete={handleTaskDelete}
       />
 
-      <div className="shrink-0 space-y-3 px-2">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className={styles.header}>
+        <div className={styles.headerRow}>
           <button
             type="button"
-            onClick={handleAdd}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm font-medium shadow-sm transition-colors w-full sm:w-auto"
+            onClick={() => setTaskModalOpen(true)}
+            className={styles.addButton}
           >
             <FaPlus aria-hidden />
             Əlavə et
           </button>
 
-          <div className="inline-flex rounded-lg border border-gray-300 bg-white p-0.5 shadow-sm self-stretch sm:self-auto">
+          <div className={styles.viewSwitch}>
             <button
               type="button"
               onClick={() => setViewMode("kanban")}
-              className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors flex-1 sm:flex-initial justify-center ${
+              className={`${styles.viewButton} ${
                 viewMode === "kanban"
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-gray-600 hover:bg-gray-50"
+                  ? styles.viewButtonActive
+                  : styles.viewButtonInactive
               }`}
             >
-              <FaThList className="text-sm shrink-0" aria-hidden />
+              <FaThList aria-hidden />
               Tapşırıqların kanbanı
             </button>
             <button
               type="button"
               onClick={() => setViewMode("list")}
-              className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors flex-1 sm:flex-initial justify-center ${
+              className={`${styles.viewButton} ${
                 viewMode === "list"
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-gray-600 hover:bg-gray-50"
+                  ? styles.viewButtonActive
+                  : styles.viewButtonInactive
               }`}
             >
-              <FaTh className="text-sm shrink-0" aria-hidden />
+              <FaTh aria-hidden />
               Bütün tapşırıqlar
             </button>
           </div>
         </div>
 
-        <div className="bg-gray-100 border border-gray-200 rounded-lg p-3 space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className={styles.filterBar}>
+          <div className={styles.filterActions}>
             <button
               type="button"
-              onClick={() => setFiltersVisible((v) => !v)}
-              className="inline-flex items-center gap-2 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded text-sm font-medium transition-colors"
+              onClick={() => setFiltersVisible((value) => !value)}
+              className={styles.filterButton}
             >
-              <FaEyeSlash className="text-gray-500" aria-hidden />
+              <FaEyeSlash aria-hidden />
               {filtersVisible ? "Gizlət" : "Göstər"}
             </button>
             <button
               type="button"
               onClick={handleApplyFilter}
-              className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded text-sm font-medium transition-colors"
+              className={styles.applyFilterButton}
             >
-              <FaFilter className="text-xs opacity-90" aria-hidden />
+              <FaFilter aria-hidden />
               Filtrdən keçir
             </button>
           </div>
 
-          {filtersVisible && (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7 gap-3 pt-1">
-              <label className="flex flex-col gap-1 min-w-0">
-                <span className="text-xs font-medium text-gray-600">Müəllif</span>
+          {filtersVisible ? (
+            <div className={styles.filtersGrid}>
+              <label className={styles.filterLabel}>
+                <span className={styles.filterLabelText}>Müəllif</span>
                 <Select
                   value={author}
                   options={authorOptions}
@@ -172,8 +172,8 @@ export default function TapshiriqlarPage() {
                   placeholder="Dəyəri seçin"
                 />
               </label>
-              <label className="flex flex-col gap-1 min-w-0">
-                <span className="text-xs font-medium text-gray-600">İcraçı</span>
+              <label className={styles.filterLabel}>
+                <span className={styles.filterLabelText}>İcraçı</span>
                 <Select
                   value={executor}
                   options={executorOptions}
@@ -181,8 +181,8 @@ export default function TapshiriqlarPage() {
                   placeholder="Dəyəri seçin"
                 />
               </label>
-              <label className="flex flex-col gap-1 min-w-0">
-                <span className="text-xs font-medium text-gray-600">Kontragent</span>
+              <label className={styles.filterLabel}>
+                <span className={styles.filterLabelText}>Kontragent</span>
                 <Select
                   value={counterparty}
                   options={counterpartyOptions}
@@ -190,17 +190,17 @@ export default function TapshiriqlarPage() {
                   placeholder="Dəyəri seçin"
                 />
               </label>
-              <label className="flex flex-col gap-1 min-w-0">
-                <span className="text-xs font-medium text-gray-600">Son müddət</span>
+              <label className={styles.filterLabel}>
+                <span className={styles.filterLabelText}>Son müddət</span>
                 <input
                   type="date"
-                  className="rounded border border-gray-300 bg-white px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
                   value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
+                  onChange={(event) => setDeadline(event.target.value)}
                 />
               </label>
-              <label className="flex flex-col gap-1 min-w-0">
-                <span className="text-xs font-medium text-gray-600">Status</span>
+              <label className={styles.filterLabel}>
+                <span className={styles.filterLabelText}>Status</span>
                 <Select
                   value={status}
                   options={statusOptions}
@@ -208,39 +208,47 @@ export default function TapshiriqlarPage() {
                   placeholder="Dəyəri seçin"
                 />
               </label>
-              <label className="flex flex-col gap-1 min-w-0">
-                <span className="text-xs font-medium text-gray-600">Nişan</span>
-                <Select value={tag} options={tagOptions} onChange={setTag} placeholder="Dəyəri seçin" />
+              <label className={styles.filterLabel}>
+                <span className={styles.filterLabelText}>Nişan</span>
+                <Select
+                  value={tag}
+                  options={tagOptions}
+                  onChange={setTag}
+                  placeholder="Dəyəri seçin"
+                />
               </label>
-              <label className="flex flex-col gap-1 min-w-0 xl:col-span-2 2xl:col-span-1">
-                <span className="text-xs font-medium text-gray-600">Tapşırığın adı</span>
+              <label className={styles.filterLabel}>
+                <span className={styles.filterLabelText}>Tapşırığın adı</span>
                 <input
                   type="text"
-                  className="rounded border border-gray-300 bg-white px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
                   value={taskName}
-                  onChange={(e) => setTaskName(e.target.value)}
+                  onChange={(event) => setTaskName(event.target.value)}
                   placeholder="Axtar..."
                 />
               </label>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col mx-2 mb-1 rounded-lg border border-gray-200 bg-gray-50/80 overflow-hidden">
+      <div className="mx-2 mb-1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-gray-50/80">
         {viewMode === "list" ? (
-          <div className="flex-1 flex items-center justify-center p-8">
-            <p className="text-lg text-gray-500 font-medium">Siyahı boşdur</p>
+          <div className="flex flex-1 items-center justify-center p-8">
+            <p className="text-lg font-medium text-gray-500">Siyahı boşdur</p>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col md:flex-row gap-3 p-3 min-h-0 overflow-x-auto">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-auto p-3 md:flex-row">
             {["Gözləmədə", "İcrada", "Bitib"].map((title) => (
               <div
                 key={title}
-                className="flex-1 min-w-[220px] rounded-lg border border-dashed border-gray-300 bg-white/60 flex items-center justify-center py-12"
+                className="flex min-w-[220px] flex-1 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white/60 py-12"
               >
-                <div className="text-center space-y-1">
-                  <FaTasks className="mx-auto text-gray-300 text-2xl mb-2" aria-hidden />
+                <div className="space-y-1 text-center">
+                  <FaTasks
+                    className="mx-auto mb-2 text-2xl text-gray-300"
+                    aria-hidden
+                  />
                   <p className="text-sm font-medium text-gray-600">{title}</p>
                   <p className="text-xs text-gray-400">Boş</p>
                 </div>

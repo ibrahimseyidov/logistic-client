@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { FaTimes } from "react-icons/fa";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { hideNotification } from "../store/modalSlice";
+import styles from "./NotificationModal.module.css";
 
 export const NotificationModal: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -20,40 +21,45 @@ export const NotificationModal: React.FC = () => {
 
   if (!open) return null;
 
-  let color = "";
-  if (type === "error") color = "border-red-500";
-  else if (type === "success") color = "border-green-500";
-  else color = "border-blue-500";
+  let toneClass = styles.info;
+  let title = "Bilgi";
+
+  if (type === "error") {
+    toneClass = styles.error;
+    title = "Hata";
+  } else if (type === "success") {
+    toneClass = styles.success;
+    title = "Başarılı";
+  }
 
   return (
-    <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black bg-opacity-40">
+    <div className={styles.overlay}>
       <div
-        className={`bg-white rounded-lg shadow-lg w-full max-w-md border-l-4 ${color} animate-fadeIn`}
+        className={`${styles.modal} ${toneClass}`}
+        role="alertdialog"
+        aria-modal="true"
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b">
-          <h3 className="text-lg font-semibold capitalize">
-            {type === "error"
-              ? "Hata"
-              : type === "success"
-                ? "Başarılı"
-                : "Bilgi"}
-          </h3>
+        <div className={styles.header}>
+          <div>
+            <h3 className={styles.title}>{title}</h3>
+          </div>
           <button
+            type="button"
             onClick={() => dispatch(hideNotification())}
-            className="text-gray-400 hover:text-gray-700 text-xl"
+            className={styles.closeButton}
             aria-label="Kapat"
           >
             <FaTimes />
           </button>
         </div>
-        <div className="px-4 py-4">
-          <p className="text-gray-700 text-base">{message}</p>
+        <div className={styles.body}>
+          <p className={styles.message}>{message}</p>
         </div>
-        <div className="flex justify-end px-4 pb-4">
+        <div className={styles.footer}>
           <button
             type="button"
             onClick={() => dispatch(hideNotification())}
-            className="border bg-gray-100 hover:bg-gray-200 text-gray-700 rounded px-4 py-2 text-sm"
+            className={styles.actionButton}
           >
             Kapat
           </button>

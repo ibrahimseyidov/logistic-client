@@ -1,0 +1,398 @@
+.root {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  background: #f8fafc;
+}
+
+.header {
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 1.25rem;
+}
+
+.headerRow,
+.sectionHeader,
+.advancedHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.headerRow {
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.headerIntro {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.iconBadge,
+.sectionIcon,
+.advancedIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 1rem;
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.iconBadge {
+  width: 3rem;
+  height: 3rem;
+}
+
+.sectionIcon {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.advancedIcon {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.iconLg {
+  font-size: 1.125rem;
+}
+
+.headerTitle {
+  color: #0f172a;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.sectionTitle,
+.advancedTitle {
+  color: #0f172a;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.sectionTitle {
+  letter-spacing: 0.01em;
+}
+
+.headerDescription {
+  margin-top: 0.25rem;
+  max-width: 24rem;
+  color: #64748b;
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+}
+
+.sectionDescription,
+.advancedDescription {
+  margin-top: 0.25rem;
+  color: #64748b;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+}
+
+.closeButton,
+.ghostButton,
+.primaryButton,
+.saveTemplateButton,
+.chip {
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.closeButton {
+  display: inline-flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  background: #ffffff;
+  color: #64748b;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  cursor: pointer;
+}
+
+.closeButton:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  margin-top: 1.25rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.chip:hover {
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+.chipActive {
+  border-color: #1e293b;
+  background: #1e293b;
+  color: #ffffff;
+}
+
+.chipDot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.chipDotActive {
+  background: #ffffff;
+}
+
+.body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sectionCard,
+.advancedCard {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 1rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.sectionCard {
+  border-radius: 1.5rem;
+}
+
+.advancedCard {
+  border-style: dashed;
+  border-color: #cbd5e1;
+  border-radius: 1.5rem;
+}
+
+.sectionContent {
+  margin-top: 1rem;
+}
+
+.gridOne,
+.gridTwo,
+.dateGrid {
+  display: grid;
+  gap: 1rem;
+}
+
+.gridTwo {
+  grid-template-columns: 1fr;
+}
+
+.datePanel {
+  border: 1px solid #e2e8f0;
+  border-radius: 1.25rem;
+  background: #f8fafc;
+  padding: 1rem;
+}
+
+.datePanelHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  color: #1e293b;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.accentIcon {
+  color: #059669;
+}
+
+.field,
+.fieldFull {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.fieldFull {
+  grid-column: 1 / -1;
+}
+
+.label {
+  color: #64748b;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.fieldWrap {
+  position: relative;
+}
+
+.leadingIcon,
+.trailingIcon {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.leadingIcon {
+  left: 1rem;
+}
+
+.trailingIcon {
+  right: 1rem;
+}
+
+.input,
+.inputWithIcon,
+.dateInput,
+.selectControl {
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.input,
+.inputWithIcon,
+.dateInput {
+  width: 100%;
+  height: 3rem;
+  padding: 0 1rem;
+}
+
+.inputWithIcon {
+  padding-left: 2.75rem;
+}
+
+.dateInput {
+  padding-right: 2.75rem;
+  color-scheme: light;
+}
+
+.selectControl {
+  padding: 0.875rem 1rem;
+}
+
+.input:hover,
+.inputWithIcon:hover,
+.dateInput:hover,
+.saveTemplateButton:hover {
+  border-color: #cbd5e1;
+}
+
+.input:focus,
+.inputWithIcon:focus,
+.dateInput:focus {
+  border-color: #86efac;
+  outline: none;
+  box-shadow: 0 0 0 2px #d1fae5;
+}
+
+.saveTemplateButton {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 1.25rem;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.saveTemplateButton:hover {
+  background: #f8fafc;
+}
+
+.footer {
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 1rem 1.25rem;
+}
+
+.footerActions {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.ghostButton,
+.primaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 1rem;
+  cursor: pointer;
+  padding: 0.75rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.ghostButton {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #334155;
+}
+
+.ghostButton:hover {
+  background: #f8fafc;
+}
+
+.primaryButton {
+  border: 1px solid #cbd5e1;
+  background: #1e293b;
+  color: #ffffff;
+}
+
+.primaryButton:hover {
+  background: #334155;
+}
+
+@media (min-width: 640px) {
+  .gridTwo,
+  .dateGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .footerActions {
+    display: flex;
+    justify-content: flex-end;
+  }
+}

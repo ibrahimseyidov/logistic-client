@@ -36,7 +36,10 @@ export interface SorguDetailViewModel {
 }
 
 function parsePlace(place: string): { country: string; city: string } {
-  const parts = place.split(",").map((p) => p.trim()).filter(Boolean);
+  const parts = place
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
   if (parts.length >= 2) {
     return { country: parts[0], city: parts.slice(1).join(", ") };
   }
@@ -80,9 +83,20 @@ const OVERRIDES: Partial<
   },
 };
 
-export function buildSorguDetailView(row: LogisticQueryRow): SorguDetailViewModel {
-  const load = parsePlace(row.loadPlace);
-  const unload = parsePlace(row.unloadPlace);
+export function buildSorguDetailView(
+  row: LogisticQueryRow,
+): SorguDetailViewModel {
+  // Eğer loadCountry, loadCity, loadAddress gibi alanlar varsa doğrudan kullan
+  const load = {
+    country: row.loadCountry || parsePlace(row.loadPlace).country,
+    city: row.loadCity || parsePlace(row.loadPlace).city,
+    address: row.loadAddress || row.sender || "—",
+  };
+  const unload = {
+    country: row.unloadCountry || parsePlace(row.unloadPlace).country,
+    city: row.unloadCity || parsePlace(row.unloadPlace).city,
+    address: row.unloadAddress || row.recipient || "—",
+  };
   const o = OVERRIDES[row.number];
 
   const inquiryDate = new Date(row.createdAt);
@@ -113,12 +127,14 @@ export function buildSorguDetailView(row: LogisticQueryRow): SorguDetailViewMode
     source: "Sistem",
     fromCountry: load.country,
     fromCity: load.city || "—",
-    fromAddress: row.sender || "—",
+    fromAddress: load.address,
     toCountry: unload.country,
     toCity: unload.city || "—",
-    toAddress: row.recipient || "—",
+    toAddress: unload.address,
     cargoTitle: "Yük",
-    cargoBoxLines: row.cargoInfo ? row.cargoInfo.split("\n").filter(Boolean) : [],
+    cargoBoxLines: row.cargoInfo
+      ? row.cargoInfo.split("\n").filter(Boolean)
+      : [],
     inquiryDateLabel,
     commentsCount: 0,
     offersCount: row.priceOffers && row.priceOffers !== "—" ? 1 : 0,

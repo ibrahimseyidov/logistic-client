@@ -10,32 +10,7 @@ import Select from "../../../common/components/select/Select";
 import type { SelectOption } from "../../../common/components/select/Select";
 import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
-import styles from "./SorgularNewModal.module.css";
-
-// Zorunlu alanlar
-const requiredFields = [
-  "company",
-  "manager",
-  "customer",
-  "loadCountry",
-  "unloadCountry",
-];
-
-function validateRequired({
-  company,
-  manager,
-  customer,
-  loadCountry,
-  unloadCountry,
-}: any) {
-  return {
-    company: !company,
-    manager: !manager,
-    customer: !customer,
-    loadCountry: !loadCountry,
-    unloadCountry: !unloadCountry,
-  };
-}
+import styles from "./SorgularEditModal.module.css";
 
 const panelTransitionMs = 320;
 
@@ -160,7 +135,7 @@ function createCargoItem(): CargoItemForm {
 
 export interface NewSorguFormPayload {
   tabSnapshot: "main" | "cargo";
-  fields: Record<string, string | boolean>;
+  fields: Record<string, string | boolean | undefined>;
 }
 
 interface Props {
@@ -170,7 +145,7 @@ interface Props {
   title?: string;
   description?: string;
   submitLabel?: string;
-  initialValues?: any;
+  initialValues?: Record<string, any>;
 }
 
 function PlusButton({
@@ -236,12 +211,6 @@ export default function SorgularNewModal({
   submitLabel = "Yaddaşda saxlamaq",
   initialValues = {},
 }: Props) {
-  // Edit modunda modal açıldığında initialValues'ı consola yazdır
-  useEffect(() => {
-    if (isOpen && initialValues && Object.keys(initialValues).length > 0) {
-      console.log("[Sorgular Edit Modal] initialValues:", initialValues);
-    }
-  }, [isOpen, initialValues]);
   const dispatch = useAppDispatch();
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
@@ -250,125 +219,202 @@ export default function SorgularNewModal({
   const closeTimeoutRef = useRef<number | null>(null);
 
   // Ana form state'leri
-  const [company, setCompany] = useState(
-    initialValues?.company ?? "ziyafreight",
-  );
-  const [manager, setManager] = useState(initialValues?.manager ?? "ulvi");
-  const [logist, setLogist] = useState(initialValues?.logist ?? "");
-  const [department, setDepartment] = useState(initialValues?.department ?? "");
-  const [customer, setCustomer] = useState(initialValues?.customer ?? "");
-  const [loadCountry, setLoadCountry] = useState(
-    initialValues?.loadCountry ?? "",
-  );
-  const [unloadCountry, setUnloadCountry] = useState(
-    initialValues?.unloadCountry ?? "",
-  );
-  const [showErrors, setShowErrors] = useState(false);
+  const [company, setCompany] = useState("ziyafreight");
+  const [manager, setManager] = useState("ulvi");
+  const [logist, setLogist] = useState("");
+  const [department, setDepartment] = useState("");
+  const [customer, setCustomer] = useState("");
+  const [contractNumber, setContractNumber] = useState("");
+  const [contactPerson, setContactPerson] = useState("");
+  const [extremelyUrgent, setExtremelyUrgent] = useState(false);
+  const [tags, setTags] = useState("");
+  const [inquirySource, setInquirySource] = useState("");
+  const [inquiryPurpose, setInquiryPurpose] = useState("");
+  const [cargoComposition, setCargoComposition] = useState("");
+  const [cargoSpecs, setCargoSpecs] = useState("");
+  const [incoterms, setIncoterms] = useState("");
 
-  const errors = validateRequired({
-    company,
-    manager,
-    customer,
-    loadCountry,
-    unloadCountry,
-  });
-  const [contractNumber, setContractNumber] = useState(
-    initialValues?.contractNumber ?? "",
-  );
-  const [contactPerson, setContactPerson] = useState(
-    initialValues?.contactPerson ?? "",
-  );
-  const [extremelyUrgent, setExtremelyUrgent] = useState(
-    initialValues?.extremelyUrgent ?? false,
-  );
-  const [tags, setTags] = useState(initialValues?.tags ?? "");
-  const [inquirySource, setInquirySource] = useState(
-    initialValues?.inquirySource ?? "",
-  );
-  const [inquiryPurpose, setInquiryPurpose] = useState(
-    initialValues?.inquiryPurpose ?? "",
-  );
-  const [cargoComposition, setCargoComposition] = useState(
-    initialValues?.cargoComposition ?? "",
-  );
-  const [cargoSpecs, setCargoSpecs] = useState(initialValues?.cargoSpecs ?? "");
-  const [incoterms, setIncoterms] = useState(initialValues?.incoterms ?? "");
-  const [loadPlaceCompany, setLoadPlaceCompany] = useState(
-    initialValues?.loadPlaceCompany ?? "",
-  );
-  const [loadCity, setLoadCity] = useState(initialValues?.loadCity ?? "");
-  const [loadPostal, setLoadPostal] = useState(initialValues?.loadPostal ?? "");
-  const [loadAddress, setLoadAddress] = useState(
-    initialValues?.loadAddress ?? "",
-  );
-  const [loadCoordinates, setLoadCoordinates] = useState(
-    initialValues?.loadCoordinates ?? "",
-  );
-  const [loadSaveTerminal, setLoadSaveTerminal] = useState(
-    initialValues?.loadSaveTerminal ?? false,
-  );
-  const [unloadPlaceCompany, setUnloadPlaceCompany] = useState(
-    initialValues?.unloadPlaceCompany ?? "",
-  );
-  const [unloadCity, setUnloadCity] = useState(initialValues?.unloadCity ?? "");
-  const [unloadPostal, setUnloadPostal] = useState(
-    initialValues?.unloadPostal ?? "",
-  );
-  const [unloadAddress, setUnloadAddress] = useState(
-    initialValues?.unloadAddress ?? "",
-  );
-  const [unloadCoordinates, setUnloadCoordinates] = useState(
-    initialValues?.unloadCoordinates ?? "",
-  );
-  const [unloadSaveTerminal, setUnloadSaveTerminal] = useState(
-    initialValues?.unloadSaveTerminal ?? false,
-  );
-  const [sender, setSender] = useState(initialValues?.sender ?? "");
-  const [receiver, setReceiver] = useState(initialValues?.receiver ?? "");
-  const [additionalInfo, setAdditionalInfo] = useState(
-    initialValues?.additionalInfo ?? "",
-  );
-  const [cargoItems, setCargoItems] = useState<CargoItemForm[]>(
-    initialValues?.cargoItems
-      ? initialValues.cargoItems
-      : initialValues?.cargoItemsJson
-        ? (() => {
-            try {
-              const parsed = JSON.parse(initialValues.cargoItemsJson);
-              return Array.isArray(parsed) ? parsed : [createCargoItem()];
-            } catch {
-              return [createCargoItem()];
-            }
-          })()
-        : [createCargoItem()],
-  );
+  // Yükləmə yeri
+  const [loadPlaceCompany, setLoadPlaceCompany] = useState("");
+  const [loadCity, setLoadCity] = useState("");
+  const [loadCountry, setLoadCountry] = useState("");
+  const [loadPostal, setLoadPostal] = useState("");
+  const [loadAddress, setLoadAddress] = useState("");
+  const [loadCoordinates, setLoadCoordinates] = useState("");
+  const [loadSaveTerminal, setLoadSaveTerminal] = useState(false);
+
+  // Boşaltma yeri
+  const [unloadPlaceCompany, setUnloadPlaceCompany] = useState("");
+  const [unloadCity, setUnloadCity] = useState("");
+  const [unloadCountry, setUnloadCountry] = useState("");
+  const [unloadPostal, setUnloadPostal] = useState("");
+  const [unloadAddress, setUnloadAddress] = useState("");
+  const [unloadCoordinates, setUnloadCoordinates] = useState("");
+  const [unloadSaveTerminal, setUnloadSaveTerminal] = useState(false);
+
+  // Göndərən/Alıcı
+  const [sender, setSender] = useState("");
+  const [receiver, setReceiver] = useState("");
+  const [additionalInfo, setAdditionalInfo] = useState("");
+
+  // Yük məlumatları
+  const [cargoItems, setCargoItems] = useState<CargoItemForm[]>([
+    createCargoItem(),
+  ]);
+
+  // Transport type modal
   const [transportTypeModalOpen, setTransportTypeModalOpen] = useState(false);
   const [newTransportName, setNewTransportName] = useState("");
   const [newTransportParentKind, setNewTransportParentKind] =
     useState("avtoreys");
   const [newTransportActive, setNewTransportActive] = useState(true);
 
-  // Query modelinde olup eksik olan state'ler (hepsi burada, blok dışında):
-  const [createdAt, setCreatedAt] = useState(initialValues?.createdAt ?? "");
-  const [status, setStatus] = useState(initialValues?.status ?? "");
-  const [transportType, setTransportType] = useState(
-    initialValues?.transportType ?? "",
-  );
-  const [cargoInfo, setCargoInfo] = useState(initialValues?.cargoInfo ?? "");
-  const [loadPlace, setLoadPlace] = useState(initialValues?.loadPlace ?? "");
-  const [recipient, setRecipient] = useState(initialValues?.recipient ?? "");
-  const [unloadPlace, setUnloadPlace] = useState(
-    initialValues?.unloadPlace ?? "",
-  );
-  const [loadDate, setLoadDate] = useState(initialValues?.loadDate ?? "");
-  const [unloadDate, setUnloadDate] = useState(initialValues?.unloadDate ?? "");
-  const [priceOffers, setPriceOffers] = useState(
-    initialValues?.priceOffers ?? "",
-  );
-  const [confirmed, setConfirmed] = useState(initialValues?.confirmed ?? false);
-  const [archived, setArchived] = useState(initialValues?.archived ?? false);
-  const [seller, setSeller] = useState(initialValues?.seller ?? "");
-  const [purpose, setPurpose] = useState(initialValues?.purpose ?? "");
+  // Query modelindən gələn əlavə state'lər
+  const [createdAt, setCreatedAt] = useState("");
+  const [status, setStatus] = useState("");
+  const [transportType, setTransportType] = useState("");
+  const [cargoInfo, setCargoInfo] = useState("");
+  const [loadPlace, setLoadPlace] = useState("");
+  const [recipient, setRecipient] = useState("");
+  const [unloadPlace, setUnloadPlace] = useState("");
+  const [loadDate, setLoadDate] = useState("");
+  const [unloadDate, setUnloadDate] = useState("");
+  const [priceOffers, setPriceOffers] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const [archived, setArchived] = useState(false);
+  const [seller, setSeller] = useState("");
+  const [purpose, setPurpose] = useState("");
+
+  // Initial values-ları modal açıldığında doldur
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (initialValues && Object.keys(initialValues).length > 0) {
+      const data = initialValues as Record<string, any>;
+
+      // Ana alanlar
+      setCompany(data.company || "ziyafreight");
+      setManager(data.manager || "ulvi");
+      setLogist(data.logist || "");
+      setDepartment(data.department || "");
+      setCustomer(data.customer || "");
+      setContractNumber(data.contractNumber || "");
+      setContactPerson(data.contactPerson || "");
+      setExtremelyUrgent(data.extremelyUrgent === true);
+      setTags(data.tags || "");
+      setInquirySource(data.inquirySource || "");
+      setInquiryPurpose(data.inquiryPurpose || "");
+      setCargoComposition(data.cargoComposition || "");
+      setCargoSpecs(data.cargoSpecs || "");
+      setIncoterms(data.incoterms || "");
+
+      // Yükləmə yeri
+      setLoadPlaceCompany(data.loadPlaceCompany || "");
+      setLoadCity(data.loadCity || "");
+      setLoadCountry(data.loadCountry || "");
+      setLoadPostal(data.loadPostal || "");
+      setLoadAddress(data.loadAddress || "");
+      setLoadCoordinates(data.loadCoordinates || "");
+      setLoadSaveTerminal(data.loadSaveTerminal === true);
+
+      // Boşaltma yeri
+      setUnloadPlaceCompany(data.unloadPlaceCompany || "");
+      setUnloadCity(data.unloadCity || "");
+      setUnloadCountry(data.unloadCountry || "");
+      setUnloadPostal(data.unloadPostal || "");
+      setUnloadAddress(data.unloadAddress || "");
+      setUnloadCoordinates(data.unloadCoordinates || "");
+      setUnloadSaveTerminal(data.unloadSaveTerminal === true);
+
+      // Göndərən/Alıcı
+      setSender(data.sender || "");
+      setReceiver(data.receiver || "");
+      setAdditionalInfo(data.additionalInfo || "");
+
+      // Yük məlumatları
+      if (Array.isArray(data.cargoItems)) {
+        setCargoItems(data.cargoItems);
+      } else if (typeof data.cargoItemsJson === "string") {
+        try {
+          const parsed = JSON.parse(data.cargoItemsJson);
+          setCargoItems(Array.isArray(parsed) ? parsed : [createCargoItem()]);
+        } catch {
+          setCargoItems([createCargoItem()]);
+        }
+      } else {
+        setCargoItems([createCargoItem()]);
+      }
+
+      // Query modelindən gələn alanlar
+      setCreatedAt(data.createdAt || "");
+      setStatus(data.status || "");
+      setTransportType(data.transportType || "");
+      setCargoInfo(data.cargoInfo || "");
+      setLoadPlace(data.loadPlace || "");
+      setRecipient(data.recipient || "");
+      setUnloadPlace(data.unloadPlace || "");
+      setLoadDate(data.loadDate || "");
+      setUnloadDate(data.unloadDate || "");
+      setPriceOffers(data.priceOffers || "");
+      setConfirmed(data.confirmed === true);
+      setArchived(data.archived === true);
+      setSeller(data.seller || "");
+      setPurpose(data.purpose || "");
+    } else {
+      // Yeni qeyd olduqda varsayılan dəyərləri təyin et
+      resetFormStates();
+    }
+  }, [isOpen, initialValues]);
+
+  const resetFormStates = useCallback(() => {
+    setTab("main");
+    setCompany("ziyafreight");
+    setManager("ulvi");
+    setLogist("");
+    setDepartment("");
+    setCustomer("");
+    setContractNumber("");
+    setContactPerson("");
+    setExtremelyUrgent(false);
+    setTags("");
+    setInquirySource("");
+    setInquiryPurpose("");
+    setCargoComposition("");
+    setCargoSpecs("");
+    setIncoterms("");
+    setLoadPlaceCompany("");
+    setLoadCity("");
+    setLoadCountry("");
+    setLoadPostal("");
+    setLoadAddress("");
+    setLoadCoordinates("");
+    setLoadSaveTerminal(false);
+    setUnloadPlaceCompany("");
+    setUnloadCity("");
+    setUnloadCountry("");
+    setUnloadPostal("");
+    setUnloadAddress("");
+    setUnloadCoordinates("");
+    setUnloadSaveTerminal(false);
+    setSender("");
+    setReceiver("");
+    setAdditionalInfo("");
+    setCargoItems([createCargoItem()]);
+    setCreatedAt("");
+    setStatus("");
+    setTransportType("");
+    setCargoInfo("");
+    setLoadPlace("");
+    setRecipient("");
+    setUnloadPlace("");
+    setLoadDate("");
+    setUnloadDate("");
+    setPriceOffers("");
+    setConfirmed(false);
+    setArchived(false);
+    setSeller("");
+    setPurpose("");
+  }, []);
 
   const openNewTransportTypeModal = useCallback(() => {
     setNewTransportName("");
@@ -471,42 +517,7 @@ export default function SorgularNewModal({
     setCargoItems((prev) => [...prev, createCargoItem()]);
   }, []);
 
-  const resetForm = useCallback(() => {
-    setTab("main");
-    setCompany("ziyafreight");
-    setManager("ulvi");
-    setLogist("");
-    setDepartment("");
-    setCustomer("");
-    setContractNumber("");
-    setContactPerson("");
-    setExtremelyUrgent(false);
-    setTags("");
-    setInquirySource("");
-    setInquiryPurpose("");
-    setCargoComposition("");
-    setCargoSpecs("");
-    setIncoterms("");
-    setLoadPlaceCompany("");
-    setLoadCity("");
-    setLoadCountry("");
-    setLoadPostal("");
-    setLoadAddress("");
-    setLoadCoordinates("");
-    setLoadSaveTerminal(false);
-    setUnloadPlaceCompany("");
-    setUnloadCity("");
-    setUnloadCountry("");
-    setUnloadPostal("");
-    setUnloadAddress("");
-    setUnloadCoordinates("");
-    setUnloadSaveTerminal(false);
-    setSender("");
-    setReceiver("");
-    setAdditionalInfo("");
-    setCargoItems([createCargoItem()]);
-  }, []);
-
+  // Modal animasiyası
   useEffect(() => {
     if (openAnimationFrameRef.current !== null) {
       cancelAnimationFrame(openAnimationFrameRef.current);
@@ -550,10 +561,6 @@ export default function SorgularNewModal({
   }, []);
 
   useEffect(() => {
-    if (isOpen) resetForm();
-  }, [isOpen, resetForm]);
-
-  useEffect(() => {
     if (!isOpen) setTransportTypeModalOpen(false);
   }, [isOpen]);
 
@@ -572,16 +579,15 @@ export default function SorgularNewModal({
 
   if (!mounted) return null;
 
-  // Backend'e gidecek tüm alanları Query DTO'suna uygun şekilde mapliyoruz
+  // Backend'e gidəcək payload
   const buildPayload = (): NewSorguFormPayload => ({
     tabSnapshot: tab,
     fields: {
+      // Core Query alanları
       company,
       customer,
       status,
-      statusAssignedAt: new Date().toISOString(),
       purpose,
-      createdAt: createdAt || new Date().toISOString(),
       transportType,
       cargoInfo,
       sender,
@@ -591,38 +597,49 @@ export default function SorgularNewModal({
       loadDate,
       unloadDate,
       seller,
-      priceOffers,
+      priceOffers: priceOffers || undefined,
       confirmed,
       archived,
+
+      // Əlaqə məlumatları
       manager,
-      logist,
-      department,
-      contractNumber,
-      contactPerson,
+      logist: logist || undefined,
+      department: department || undefined,
+      contractNumber: contractNumber || undefined,
+      contactPerson: contactPerson || undefined,
       extremelyUrgent,
-      tags,
-      inquirySource,
-      inquiryPurpose,
-      cargoComposition,
-      cargoSpecs,
-      incoterms,
-      loadPlaceCompany,
-      loadCity,
-      loadCountry,
-      loadPostal,
-      loadAddress,
-      loadCoordinates,
+
+      // Sorğu məlumatları
+      tags: tags || undefined,
+      inquirySource: inquirySource || undefined,
+      inquiryPurpose: inquiryPurpose || undefined,
+
+      // Yük xüsusiyyətləri
+      cargoComposition: cargoComposition || undefined,
+      cargoSpecs: cargoSpecs || undefined,
+      incoterms: incoterms || undefined,
+
+      // Yükləmə yeri
+      loadPlaceCompany: loadPlaceCompany || undefined,
+      loadCity: loadCity || undefined,
+      loadCountry: loadCountry || undefined,
+      loadPostal: loadPostal || undefined,
+      loadAddress: loadAddress || undefined,
+      loadCoordinates: loadCoordinates || undefined,
       loadSaveTerminal,
-      unloadPlaceCompany,
-      unloadCity,
-      unloadCountry,
-      unloadPostal,
-      unloadAddress,
-      unloadCoordinates,
+
+      // Boşaltma yeri
+      unloadPlaceCompany: unloadPlaceCompany || undefined,
+      unloadCity: unloadCity || undefined,
+      unloadCountry: unloadCountry || undefined,
+      unloadPostal: unloadPostal || undefined,
+      unloadAddress: unloadAddress || undefined,
+      unloadCoordinates: unloadCoordinates || undefined,
       unloadSaveTerminal,
-      additionalInfo,
+
+      // Əlavə məlumatlar
+      additionalInfo: additionalInfo || undefined,
       cargoItemsJson: JSON.stringify(cargoItems),
-      customerOrderRef: contractNumber,
     },
   });
 
@@ -720,12 +737,7 @@ export default function SorgularNewModal({
                           value={company}
                           options={companyOptions}
                           onChange={setCompany}
-                          className={
-                            styles.selectControl +
-                            (showErrors && errors.company
-                              ? " " + styles.inputError
-                              : "")
-                          }
+                          className={styles.selectControl}
                         />
                       </div>
 
@@ -736,12 +748,7 @@ export default function SorgularNewModal({
                             value={manager}
                             options={personOptions}
                             onChange={setManager}
-                            className={
-                              styles.selectControl +
-                              (showErrors && errors.manager
-                                ? " " + styles.inputError
-                                : "")
-                            }
+                            className={styles.selectControl}
                           />
                         </div>
                         <div className={styles.fieldStack}>
@@ -770,13 +777,7 @@ export default function SorgularNewModal({
                         customer,
                         customerOptions,
                         setCustomer,
-                        {
-                          title: "Yeni müştəri",
-                          className:
-                            showErrors && errors.customer
-                              ? styles.inputError
-                              : undefined,
-                        },
+                        { title: "Yeni müştəri" },
                       )}
 
                       <div className={styles.fieldStack}>
@@ -898,13 +899,7 @@ export default function SorgularNewModal({
                         loadCountry,
                         countryOptions,
                         setLoadCountry,
-                        {
-                          title: "Yeni ölkə",
-                          className:
-                            showErrors && errors.loadCountry
-                              ? styles.inputError
-                              : undefined,
-                        },
+                        { title: "Yeni ölkə" },
                       )}
                       <div className={styles.fieldStack}>
                         <Label>Poçt kodu</Label>
@@ -995,13 +990,7 @@ export default function SorgularNewModal({
                         unloadCountry,
                         countryOptions,
                         setUnloadCountry,
-                        {
-                          title: "Yeni ölkə",
-                          className:
-                            showErrors && errors.unloadCountry
-                              ? styles.inputError
-                              : undefined,
-                        },
+                        { title: "Yeni ölkə" },
                       )}
                       <div className={styles.fieldStack}>
                         <Label>Poçt kodu</Label>
@@ -1401,11 +1390,7 @@ export default function SorgularNewModal({
             <button
               type="button"
               className={styles.primaryButton}
-              onClick={() => {
-                setShowErrors(true);
-                if (Object.values(errors).some(Boolean)) return;
-                onSubmit(buildPayload());
-              }}
+              onClick={() => onSubmit(buildPayload())}
             >
               {submitLabel}
             </button>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import styles from "./TaskViewModal.module.css";
 import {
   FaCloudUploadAlt,
   FaInfoCircle,
@@ -44,15 +45,22 @@ interface Props {
   onDelete: () => void;
 }
 
-const fieldBox = "rounded-md border border-gray-200 bg-gray-50 px-3 py-2";
+const fieldBox = styles.fieldBox;
 
-export default function TaskViewModal({ isOpen, onClose, onSave, onDelete }: Props) {
+export default function TaskViewModal({
+  isOpen,
+  onClose,
+  onSave,
+  onDelete,
+}: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [kontragent, setKontragent] = useState("");
   const [department, setDepartment] = useState("");
   const [author, setAuthor] = useState("ulvi");
-  const [executorTags, setExecutorTags] = useState<string[]>(["Ulvi Adilzadə (Satış şöbəsi)"]);
+  const [executorTags, setExecutorTags] = useState<string[]>([
+    "Ulvi Adilzadə (Satış şöbəsi)",
+  ]);
   const [recurring, setRecurring] = useState(false);
   const [createdDate] = useState("2026-04-06");
   const [createdTime] = useState("22:00");
@@ -80,57 +88,59 @@ export default function TaskViewModal({ isOpen, onClose, onSave, onDelete }: Pro
 
   return (
     <div
-      className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/50 p-3 sm:p-6"
+      className={styles.modalOverlay}
       role="dialog"
       aria-modal="true"
       aria-labelledby="task-modal-title"
       onClick={onClose}
     >
       <div
-        className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+        className={styles.modalContainer}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex shrink-0 items-center justify-center border-b border-gray-100 px-4 py-3">
-          <h2 id="task-modal-title" className="text-lg font-semibold text-gray-900">
+        <div className={styles.header}>
+          <h2 id="task-modal-title" className={styles.title}>
             Tapşırığa baxış
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-3 top-3 rounded p-1.5 text-red-600 hover:bg-red-50"
+            className={styles.closeButton}
             aria-label="Bağla"
           >
-            <FaTimes className="text-xl" />
+            <FaTimes />
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.65fr_1fr] lg:gap-8">
-            <div className="space-y-4">
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-gray-500">Adı</span>
+        <div className={styles.body}>
+          <div className={styles.gridContainer}>
+            <div className={styles.leftCol}>
+              <label className={styles.labelBlock}>
+                <span className={styles.labelTitle}>Adı</span>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full border-0 border-b border-transparent bg-transparent px-0 py-2 text-lg font-medium text-gray-900 placeholder:text-gray-400 focus:border-blue-400 focus:outline-none focus:ring-0"
+                  className={styles.inputTitle}
                   placeholder="Tapşırığın adı"
                 />
               </label>
 
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-gray-500">Təsviri</span>
+              <label className={styles.labelBlock}>
+                <span className={styles.labelTitle}>Təsviri</span>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={6}
-                  className="w-full resize-y rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  className={styles.textareaDesc}
                   placeholder="Təsvir daxil edin..."
                 />
               </label>
 
               <div>
-                <span className="mb-2 block text-xs font-medium text-gray-500">Çeklist</span>
+                <span className="mb-2 block text-xs font-medium text-gray-500">
+                  Çeklist
+                </span>
                 <button
                   type="button"
                   className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
@@ -147,7 +157,10 @@ export default function TaskViewModal({ isOpen, onClose, onSave, onDelete }: Pro
                 <div
                   className={`flex min-h-[140px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50/80 px-4 py-8 text-center text-sm text-gray-500 transition-colors hover:border-gray-400 hover:bg-gray-50`}
                 >
-                  <FaCloudUploadAlt className="mb-2 text-2xl text-gray-400" aria-hidden />
+                  <FaCloudUploadAlt
+                    className="mb-2 text-2xl text-gray-400"
+                    aria-hidden
+                  />
                   <span>Faylınızı sürüşdürün &amp; buraxın ya da seçin</span>
                 </div>
               </div>
@@ -155,7 +168,9 @@ export default function TaskViewModal({ isOpen, onClose, onSave, onDelete }: Pro
 
             <div className="space-y-3">
               <div className={fieldBox}>
-                <span className="mb-1 block text-xs font-medium text-gray-500">Kontragent</span>
+                <span className="mb-1 block text-xs font-medium text-gray-500">
+                  Kontragent
+                </span>
                 <Select
                   value={kontragent}
                   options={KONTRAGENT_OPTS}
@@ -165,7 +180,9 @@ export default function TaskViewModal({ isOpen, onClose, onSave, onDelete }: Pro
               </div>
 
               <div className={fieldBox}>
-                <span className="mb-1 block text-xs font-medium text-gray-500">Şöbə</span>
+                <span className="mb-1 block text-xs font-medium text-gray-500">
+                  Şöbə
+                </span>
                 <Select
                   value={department}
                   options={DEPT_OPTS}
@@ -175,12 +192,20 @@ export default function TaskViewModal({ isOpen, onClose, onSave, onDelete }: Pro
               </div>
 
               <div className={fieldBox}>
-                <span className="mb-1 block text-xs font-medium text-gray-500">Müəllif</span>
-                <Select value={author} options={AUTHOR_OPTS} onChange={setAuthor} />
+                <span className="mb-1 block text-xs font-medium text-gray-500">
+                  Müəllif
+                </span>
+                <Select
+                  value={author}
+                  options={AUTHOR_OPTS}
+                  onChange={setAuthor}
+                />
               </div>
 
               <div className={fieldBox}>
-                <span className="mb-1 block text-xs font-medium text-gray-500">İcraçı</span>
+                <span className="mb-1 block text-xs font-medium text-gray-500">
+                  İcraçı
+                </span>
                 <div className="flex flex-wrap gap-1.5 pt-0.5">
                   {executorTags.map((t) => (
                     <span
@@ -211,7 +236,11 @@ export default function TaskViewModal({ isOpen, onClose, onSave, onDelete }: Pro
                   />
                   Təkrarlanan tapşırıq
                 </label>
-                <FaInfoCircle className="text-blue-500" title="Məlumat" aria-hidden />
+                <FaInfoCircle
+                  className="text-blue-500"
+                  title="Məlumat"
+                  aria-hidden
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -227,7 +256,9 @@ export default function TaskViewModal({ isOpen, onClose, onSave, onDelete }: Pro
                   />
                 </label>
                 <label className={fieldBox}>
-                  <span className="mb-1 block text-xs font-medium text-gray-500">Vaxt</span>
+                  <span className="mb-1 block text-xs font-medium text-gray-500">
+                    Vaxt
+                  </span>
                   <input
                     type="text"
                     readOnly
@@ -238,7 +269,9 @@ export default function TaskViewModal({ isOpen, onClose, onSave, onDelete }: Pro
               </div>
 
               <div>
-                <span className="mb-1 block text-xs font-medium text-gray-500">Son müddət</span>
+                <span className="mb-1 block text-xs font-medium text-gray-500">
+                  Son müddət
+                </span>
                 <div className="grid grid-cols-3 gap-2">
                   <input
                     type="date"
@@ -274,7 +307,11 @@ export default function TaskViewModal({ isOpen, onClose, onSave, onDelete }: Pro
                   <FaInfoCircle className="text-blue-500" aria-hidden />
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  <Select value={remindWhen} options={REMIND_OPTS} onChange={setRemindWhen} />
+                  <Select
+                    value={remindWhen}
+                    options={REMIND_OPTS}
+                    onChange={setRemindWhen}
+                  />
                   <input
                     type="time"
                     value={remindTime}

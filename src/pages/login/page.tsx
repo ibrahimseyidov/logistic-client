@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-
 import {
   fetchAuthBootstrap,
   loginAction,
 } from "../../common/actions/auth.actions";
 import { useAuth } from "../../common/contexts/AuthContext";
+import styles from "./login.module.css";
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
@@ -43,26 +43,29 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-gray-100">
-      <div className="hidden md:flex w-[60%] bg-gradient-to-br from-blue-600 to-indigo-700 items-center justify-center">
+    <div className={styles.container}>
+      <div className={styles.leftPanel}>
         {/* Sol panel görsel veya marka için kullanılabilir */}
       </div>
-      <div className="flex flex-1 items-center justify-center p-4">
-        <div
-          className="w-full max-w-xs md:max-w-sm lg:max-w-md xl:max-w-lg 2xl:max-w-xl bg-white rounded-xl shadow-lg p-8"
-          style={{ width: "100%", maxWidth: "400px", minWidth: "260px" }}
-        >
-          <div className="mb-8 text-center">
-            <h2 className="text-2xl font-bold text-blue-700">Logistra Logo</h2>
-            <p className="mt-2 text-xs text-gray-500">
+      <div className={styles.centerPanel}>
+        <div className={styles.card}>
+          <div className={styles.title}>
+            <h2 className={styles.titleText}>Logistra Logo</h2>
+            <p className={styles.demoText}>
               Demo giriş: ibrahim@gmail.com / 1234
             </p>
           </div>
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
+          <form onSubmit={handleSubmit}>
+            <div style={{ marginBottom: "1.25rem" }}>
               <label
                 htmlFor="email"
-                className="block text-sm font-medium text-gray-700 mb-1"
+                style={{
+                  display: "block",
+                  fontSize: "0.95rem",
+                  fontWeight: 500,
+                  color: "#374151",
+                  marginBottom: 4,
+                }}
               >
                 Email
               </label>
@@ -70,17 +73,31 @@ export default function LoginPage() {
                 type="email"
                 id="email"
                 name="email"
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                style={{
+                  width: "100%",
+                  border: "1px solid #d1d5db",
+                  borderRadius: 6,
+                  padding: "0.5rem 0.75rem",
+                  outline: "none",
+                  fontSize: "1rem",
+                  marginBottom: 0,
+                }}
                 placeholder="your@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>
-            <div>
+            <div style={{ marginBottom: "1.25rem" }}>
               <label
                 htmlFor="password"
-                className="block text-sm font-medium text-gray-700 mb-1"
+                style={{
+                  display: "block",
+                  fontSize: "0.95rem",
+                  fontWeight: 500,
+                  color: "#374151",
+                  marginBottom: 4,
+                }}
               >
                 Şifrə
               </label>
@@ -88,7 +105,15 @@ export default function LoginPage() {
                 type="password"
                 id="password"
                 name="password"
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                style={{
+                  width: "100%",
+                  border: "1px solid #d1d5db",
+                  borderRadius: 6,
+                  padding: "0.5rem 0.75rem",
+                  outline: "none",
+                  fontSize: "1rem",
+                  marginBottom: 0,
+                }}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -97,16 +122,44 @@ export default function LoginPage() {
             </div>
             <button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded transition disabled:opacity-60"
+              style={{
+                width: "100%",
+                background: "#2563eb",
+                color: "#fff",
+                fontWeight: 600,
+                padding: "0.5rem 0",
+                borderRadius: 6,
+                fontSize: "1rem",
+                border: 0,
+                cursor: "pointer",
+                opacity: isLoading ? 0.6 : 1,
+                transition: "background 0.2s",
+              }}
               disabled={isLoading}
             >
               {isLoading ? "Daxil olunur..." : "Daxil ol"}
             </button>
           </form>
           {error && (
-            <div className="mt-4 text-red-600 text-center text-sm">{error}</div>
+            <div
+              style={{
+                marginTop: 16,
+                color: "#dc2626",
+                textAlign: "center",
+                fontSize: "0.95rem",
+              }}
+            >
+              {error}
+            </div>
           )}
-          <div className="mt-8 text-center text-gray-400 text-xs">
+          <div
+            style={{
+              marginTop: 32,
+              textAlign: "center",
+              color: "#9ca3af",
+              fontSize: "0.8rem",
+            }}
+          >
             <p>© Logistra - 2026</p>
           </div>
         </div>

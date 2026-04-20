@@ -1,13 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { FaArrowLeft, FaHistory, FaPlus, FaRedo } from "react-icons/fa";
-import { getSorguByKey } from "../lib/getSorguByKey";
 import {
   buildSorguDetailView,
   type SorguDetailTabId,
 } from "../lib/sorguDetailViewModel";
+import axios from "axios";
+import type { LogisticQueryRow } from "../types/sorgu.types";
+import styles from "./page.module.css";
 
 const tabBase =
   "px-3 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap";
@@ -22,22 +24,53 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden">
-      <div className="bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-800 border-b border-gray-200">
+    <section className={styles.card}>
+      <div
+        style={{
+          fontWeight: 600,
+          fontSize: 15,
+          color: "#334155",
+          borderBottom: "1px solid #e5e7eb",
+          background: "#f1f5f9",
+          padding: "0.5rem 1rem",
+        }}
+      >
         {title}
       </div>
-      <div className="p-3 text-sm">{children}</div>
+      <div style={{ padding: "1rem 0.5rem", fontSize: 14 }}>{children}</div>
     </section>
   );
 }
 
-function DlRow({ label, value }: { label: string; value: React.ReactNode }) {
+// Label-value satırı için yardımcı fonksiyon
+function DlRow({
+  label,
+  value,
+}: {
+  label: string;
+  value?: string | number | null;
+}) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-x-2 gap-y-1 py-1.5 border-b border-gray-100 last:border-0 text-xs sm:text-sm">
-      <div className="text-gray-500 font-medium">{label}</div>
-      <div className="text-gray-900 text-right sm:text-left break-words">
-        {value}
-      </div>
+    <div
+      style={{ display: "flex", alignItems: "start", gap: 8, padding: "2px 0" }}
+    >
+      <dt
+        style={{
+          minWidth: 110,
+          color: "#64748b",
+          fontWeight: 500,
+          fontSize: 12,
+        }}
+      >
+        {label}:
+      </dt>
+      <dd style={{ color: "#0f172a", fontSize: 13, wordBreak: "break-all" }}>
+        {value === undefined || value === null || value === "" ? (
+          <span style={{ color: "#cbd5e1" }}>—</span>
+        ) : (
+          value
+        )}
+      </dd>
     </div>
   );
 }
@@ -46,23 +79,37 @@ export default function SorguDetailPage() {
   const { sorguKey } = useParams<{ sorguKey: string }>();
   const navigate = useNavigate();
   const [tab, setTab] = useState<SorguDetailTabId>("main");
+  const [row, setRow] = useState<LogisticQueryRow | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const row = sorguKey ? getSorguByKey(sorguKey) : undefined;
+  // Detay verisini backend'den çek
+  React.useEffect(() => {
+    if (!sorguKey) return;
+    setLoading(true);
+    axios
+      .get(`/api/query/${sorguKey}`)
+      .then((res) => setRow(res.data))
+      .catch(() => setRow(null))
+      .finally(() => setLoading(false));
+  }, [sorguKey]);
+
   const detail = useMemo(() => (row ? buildSorguDetailView(row) : null), [row]);
 
-  if (!detail) {
+  if (loading)
     return (
-      <div className="p-6 max-w-lg mx-auto">
-        <p className="text-gray-700 mb-4">Sorğu tapılmadı.</p>
-        <Link
-          to="/sorgular"
-          className="text-indigo-600 hover:text-indigo-800 font-medium text-sm"
-        >
-          Sorğular siyahısına qayıt
-        </Link>
+      <div
+        className={styles.content}
+        style={{
+          textAlign: "center",
+          fontSize: 18,
+          fontWeight: 600,
+          color: "#64748b",
+        }}
+      >
+        Yüklənir...
       </div>
     );
-  }
+  if (!detail) return null;
 
   const { row: r } = detail;
 
@@ -81,50 +128,54 @@ export default function SorguDetailPage() {
   ];
 
   return (
-    <div className="min-h-full flex flex-col bg-gray-50/90">
-      <div className="shrink-0 px-4 pt-4">
+    <div className={styles.container}>
+      <div className={styles.header}>
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          className={styles.backBtn}
         >
-          <FaArrowLeft className="text-xs" aria-hidden />
+          <FaArrowLeft style={{ fontSize: 18 }} aria-hidden />
           Geri
         </button>
+        <h1 className={styles.title}>Sorğu detallı</h1>
       </div>
 
-      <div className="flex-1 flex flex-col xl:flex-row gap-4 p-4 w-full min-h-0">
-        <aside className="w-full xl:w-[300px] shrink-0 flex flex-col gap-3">
-          <div className="border border-gray-200 rounded-lg bg-white shadow-sm p-3">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium px-3 py-1.5 rounded transition-colors mb-3"
-            >
-              <FaPlus className="text-[10px]" aria-hidden />
+      <div className={styles.layout}>
+        <aside className={styles.sidebar}>
+          <div className={styles.card}>
+            <button type="button" className={styles.editBtn}>
+              <FaPlus style={{ fontSize: 14 }} aria-hidden />
               Redaktə et
             </button>
-            <div className="flex flex-wrap items-center gap-2 mb-4">
-              <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-green-100 text-green-800 text-xs font-semibold">
-                {r.status}
-              </span>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 20,
+              }}
+            >
+              <span className={styles.status}>{r.status}</span>
               <button
                 type="button"
-                className="p-1.5 text-gray-500 hover:text-indigo-600 rounded border border-gray-200 bg-white"
+                className={styles.iconBtn}
                 title="Yenilə"
                 aria-label="Yenilə"
               >
-                <FaRedo className="text-xs" />
+                <FaRedo style={{ fontSize: 16 }} />
               </button>
               <button
                 type="button"
-                className="p-1.5 text-gray-500 hover:text-indigo-600 rounded border border-gray-200 bg-white"
+                className={styles.iconBtn}
                 title="Tarixçə"
                 aria-label="Tarixçə"
               >
-                <FaHistory className="text-xs" />
+                <FaHistory style={{ fontSize: 16 }} />
               </button>
             </div>
-            <div>
+            <div className={styles.dlList}>
               <DlRow label="Satıcı" value={detail.seller} />
               <DlRow label="Sorğunun tarixi" value={detail.inquiryDateLabel} />
               <DlRow label="İstiqamət" value={detail.direction} />
@@ -144,33 +195,56 @@ export default function SorguDetailPage() {
           </div>
         </aside>
 
-        <div className="flex-1 min-w-0 flex flex-col gap-3 min-h-0">
-          <div className="flex flex-wrap gap-1 border-b border-gray-200 bg-white rounded-t-lg px-2 -mb-px">
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+            minHeight: 0,
+          }}
+        >
+          <div className={styles.tabs}>
             {tabs.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setTab(t.id)}
-                className={`${tabBase} ${tab === t.id ? tabActive : tabIdle}`}
+                className={
+                  tab === t.id
+                    ? `${styles.tabBtn} ${styles.tabBtnActive}`
+                    : styles.tabBtn
+                }
+                tabIndex={0}
               >
                 {t.label}
               </button>
             ))}
           </div>
 
-          <div className="flex-1 overflow-y-auto border border-gray-200 rounded-b-lg bg-white shadow-sm p-4">
+          <div className={styles.content}>
             {tab === "main" && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 24 }}
+              >
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr",
+                    gap: 24,
+                  }}
+                  className="lg:grid-cols-2"
+                >
                   <SectionCard title="Haradan">
-                    <div>
+                    <div className={styles.dlList}>
                       <DlRow label="Ölkə" value={detail.fromCountry} />
                       <DlRow label="Şəhər" value={detail.fromCity} />
                       <DlRow label="Ünvan" value={detail.fromAddress} />
                     </div>
                   </SectionCard>
                   <SectionCard title="Haraya">
-                    <div>
+                    <div className={styles.dlList}>
                       <DlRow label="Ölkə" value={detail.toCountry} />
                       <DlRow label="Şəhər" value={detail.toCity} />
                       <DlRow label="Ünvan" value={detail.toAddress} />
@@ -179,94 +253,199 @@ export default function SorguDetailPage() {
                 </div>
 
                 <SectionCard title={`Yük: ${detail.cargoTitle}`}>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(2, 1fr)",
+                      gap: 16,
+                      marginBottom: 16,
+                    }}
+                    className="sm:grid-cols-4"
+                  >
                     <div>
-                      <p className="text-xs text-gray-500 font-medium">
+                      <p
+                        style={{
+                          fontSize: 12,
+                          color: "#64748b",
+                          fontWeight: 500,
+                        }}
+                      >
                         Miqdarı
                       </p>
-                      <p className="text-gray-900 font-semibold">
+                      <p
+                        style={{
+                          color: "#0f172a",
+                          fontWeight: 600,
+                          fontSize: 18,
+                        }}
+                      >
                         {detail.quantityTotal}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 font-medium">LDM</p>
-                      <p className="text-gray-900 font-semibold">
+                      <p
+                        style={{
+                          fontSize: 12,
+                          color: "#64748b",
+                          fontWeight: 500,
+                        }}
+                      >
+                        LDM
+                      </p>
+                      <p
+                        style={{
+                          color: "#0f172a",
+                          fontWeight: 600,
+                          fontSize: 18,
+                        }}
+                      >
                         {detail.ldmTotal}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 font-medium">
+                      <p
+                        style={{
+                          fontSize: 12,
+                          color: "#64748b",
+                          fontWeight: 500,
+                        }}
+                      >
                         Çəkisi
                       </p>
-                      <p className="text-gray-900 font-semibold">
+                      <p
+                        style={{
+                          color: "#0f172a",
+                          fontWeight: 600,
+                          fontSize: 18,
+                        }}
+                      >
                         {detail.weightTotal}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 font-medium">Həcmi</p>
-                      <p className="text-gray-900 font-semibold">
+                      <p
+                        style={{
+                          fontSize: 12,
+                          color: "#64748b",
+                          fontWeight: 500,
+                        }}
+                      >
+                        Həcmi
+                      </p>
+                      <p
+                        style={{
+                          color: "#0f172a",
+                          fontWeight: 600,
+                          fontSize: 18,
+                        }}
+                      >
                         {detail.volumeLabel}
                       </p>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500 font-medium mb-1">
+                  <p
+                    style={{
+                      fontSize: 12,
+                      color: "#64748b",
+                      fontWeight: 500,
+                      marginBottom: 4,
+                    }}
+                  >
                     Nəqliyyatın tipi
                   </p>
-                  <p className="text-gray-900">{r.transportType}</p>
+                  <p style={{ color: "#0f172a", fontWeight: 600 }}>
+                    {r.transportType}
+                  </p>
                 </SectionCard>
 
                 <SectionCard title="Yük haqqında əlavə məlumat">
                   {detail.cargoBoxLines.length > 0 ? (
-                    <ul className="list-disc pl-5 space-y-1 text-gray-800">
+                    <ul
+                      style={{
+                        listStyle: "disc",
+                        paddingLeft: 20,
+                        color: "#334155",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                      }}
+                    >
                       {detail.cargoBoxLines.map((line, i) => (
                         <li key={i}>{line}</li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-gray-500">Məlumat yoxdur.</p>
+                    <p style={{ color: "#64748b" }}>Məlumat yoxdur.</p>
                   )}
                 </SectionCard>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr",
+                    gap: 24,
+                  }}
+                  className="sm:grid-cols-2"
+                >
                   <div>
-                    <p className="text-xs text-gray-500 font-medium mb-1">
+                    <p
+                      style={{
+                        fontSize: 12,
+                        color: "#64748b",
+                        fontWeight: 500,
+                        marginBottom: 4,
+                      }}
+                    >
                       Incoterms
                     </p>
-                    <p className="text-gray-900">{detail.incoterms}</p>
+                    <p style={{ color: "#0f172a", fontWeight: 600 }}>
+                      {detail.incoterms}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 font-medium mb-1">
+                    <p
+                      style={{
+                        fontSize: 12,
+                        color: "#64748b",
+                        fontWeight: 500,
+                        marginBottom: 4,
+                      }}
+                    >
                       Cargo Specifications
                     </p>
-                    <p className="text-gray-900">{detail.cargoSpecs}</p>
+                    <p style={{ color: "#0f172a", fontWeight: 600 }}>
+                      {detail.cargoSpecs}
+                    </p>
                   </div>
                 </div>
               </div>
             )}
 
             {tab === "comments" && (
-              <p className="text-sm text-gray-500">
+              <p style={{ fontSize: 16, color: "#64748b" }}>
                 Şərhlər tezliklə əlavə olunacaq.
               </p>
             )}
             {tab === "offers" && (
-              <p className="text-sm text-gray-500">
+              <p style={{ fontSize: 16, color: "#64748b" }}>
                 Qiymət təklifləri siyahısı tezliklə.
               </p>
             )}
             {tab === "documents" && (
-              <p className="text-sm text-gray-500">Sənədlər tezliklə.</p>
+              <p style={{ fontSize: 16, color: "#64748b" }}>
+                Sənədlər tezliklə.
+              </p>
             )}
             {tab === "tasks" && (
-              <p className="text-sm text-gray-500">Tapşırıqlar tezliklə.</p>
+              <p style={{ fontSize: 16, color: "#64748b" }}>
+                Tapşırıqlar tezliklə.
+              </p>
             )}
           </div>
         </div>
       </div>
 
-      <footer className="text-xs text-gray-400 px-4 py-2.5 border-t border-gray-200 bg-white shrink-0">
-        Logistra Copyright © 2013-2026
-      </footer>
+      <footer className={styles.footer}>Logistra Copyright © 2013-2026</footer>
     </div>
   );
 }

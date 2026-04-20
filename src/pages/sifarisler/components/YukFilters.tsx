@@ -1,17 +1,12 @@
 import Select from "../../../common/components/select/Select";
 import type { SelectOption } from "../../../common/components/select/Select";
 import FilterPanelShell from "./FilterPanelShell";
+import formStyles from "./FilterForms.module.css";
 import { YUK_FILTER_SECTIONS } from "../constants/yuk.constants";
 import type {
   YukFilterFormState,
   YukFilterSectionId,
 } from "../types/yuk.types";
-
-const inputClass =
-  "rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-200 w-full bg-gray-50 border border-gray-300";
-
-const sectionClass =
-  "rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm";
 
 interface Props {
   activeSections: Set<YukFilterSectionId>;
@@ -48,15 +43,13 @@ export default function YukFilters({
       onApplyFilter={onApplyFilter}
       onSaveTemplate={onSaveTemplate}
     >
-      <div className="space-y-4">
+      <div className={formStyles.stack}>
         {activeSections.has("id") && (
           <div
-            className={`${sectionClass} grid max-w-2xl grid-cols-1 gap-4 md:grid-cols-2`}
+            className={`${formStyles.section} ${formStyles.grid2} ${formStyles.maxWidthLg}`}
           >
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-gray-600">
-                İstifadəçi
-              </span>
+            <label className={formStyles.label}>
+              <span className={formStyles.labelText}>İstifadəçi</span>
               <Select
                 value={filter.userId}
                 options={userOptions}
@@ -64,10 +57,10 @@ export default function YukFilters({
                 placeholder="Hamısı"
               />
             </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-gray-600">Şirkət</span>
+            <label className={formStyles.label}>
+              <span className={formStyles.labelText}>Şirkət</span>
               <input
-                className={inputClass}
+                className={formStyles.input}
                 value={filter.company}
                 onChange={(e) => onFilterChange("company", e.target.value)}
                 placeholder="Şirkət adı ilə axtar..."
@@ -85,8 +78,8 @@ export default function YukFilters({
           activeSections.has("orders") ||
           activeSections.has("sort") ||
           activeSections.has("templates")) && (
-          <div className={sectionClass}>
-            <p className="text-xs text-gray-500 italic">
+          <div className={formStyles.section}>
+            <p className={formStyles.helperText}>
               Bu filtr qrupu üçün əlavə sahələr API bağlandıqda doldurulacaq.
             </p>
           </div>

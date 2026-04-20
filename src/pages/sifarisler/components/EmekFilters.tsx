@@ -1,6 +1,7 @@
 import Select from "../../../common/components/select/Select";
 import type { SelectOption } from "../../../common/components/select/Select";
 import FilterPanelShell from "./FilterPanelShell";
+import formStyles from "./FilterForms.module.css";
 import {
   EMEK_CUSTOMER_TYPE_OPTIONS,
   EMEK_FILTER_SECTIONS,
@@ -11,12 +12,6 @@ import type {
   EmekFilterFormState,
   EmekFilterSectionId,
 } from "../types/emek.types";
-
-const inputClass =
-  "rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-200 w-full bg-gray-50 border border-gray-300";
-
-const sectionClass =
-  "rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm";
 
 interface Props {
   activeSections: Set<EmekFilterSectionId>;
@@ -57,62 +52,56 @@ export default function EmekFilters({
       onApplyFilter={onApplyFilter}
       onSaveTemplate={onSaveTemplate}
     >
-      <div className="space-y-4">
+      <div className={formStyles.stack}>
         {activeSections.has("id") && (
-          <div className={sectionClass}>
-            <p className="text-xs font-semibold text-gray-700 mb-2">ID:</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-gray-600">
-                  Şirkət
-                </span>
+          <div className={formStyles.section}>
+            <p className={formStyles.sectionTitle}>ID:</p>
+            <div className={formStyles.grid5}>
+              <label className={formStyles.label}>
+                <span className={formStyles.labelText}>Şirkət</span>
                 <Select
                   value={filter.company}
                   options={companyOptions}
-                  onChange={(v) => onFilterChange("company", v)}
+                  onChange={(value) => onFilterChange("company", value)}
                   placeholder="Hamısı"
                 />
               </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-gray-600">
-                  Sifarişin nömrəsi
-                </span>
+              <label className={formStyles.label}>
+                <span className={formStyles.labelText}>Sifarişin nömrəsi</span>
                 <input
-                  className={inputClass}
+                  className={formStyles.input}
                   value={filter.orderNumber}
-                  onChange={(e) =>
-                    onFilterChange("orderNumber", e.target.value)
+                  onChange={(event) =>
+                    onFilterChange("orderNumber", event.target.value)
                   }
                 />
               </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-gray-600">Tip</span>
+              <label className={formStyles.label}>
+                <span className={formStyles.labelText}>Tip</span>
                 <Select
                   value={filter.tip}
                   options={EMEK_TIP_OPTIONS}
-                  onChange={(v) => onFilterChange("tip", v)}
+                  onChange={(value) => onFilterChange("tip", value)}
                   placeholder="Hamısı"
                 />
               </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-gray-600">
-                  Status
-                </span>
+              <label className={formStyles.label}>
+                <span className={formStyles.labelText}>Status</span>
                 <Select
                   value={filter.status}
                   options={EMEK_STATUS_OPTIONS}
-                  onChange={(v) => onFilterChange("status", v)}
+                  onChange={(value) => onFilterChange("status", value)}
                   placeholder="Hamısı"
                 />
               </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-gray-600">
-                  Reysin nömrəsi
-                </span>
+              <label className={formStyles.label}>
+                <span className={formStyles.labelText}>Reysin nömrəsi</span>
                 <input
-                  className={inputClass}
+                  className={formStyles.input}
                   value={filter.tripNumber}
-                  onChange={(e) => onFilterChange("tripNumber", e.target.value)}
+                  onChange={(event) =>
+                    onFilterChange("tripNumber", event.target.value)
+                  }
                 />
               </label>
             </div>
@@ -120,195 +109,209 @@ export default function EmekFilters({
         )}
 
         {activeSections.has("dates") && (
-          <div className={sectionClass}>
-            <p className="text-xs font-semibold text-gray-700 mb-2">
-              Tarixlər:
-            </p>
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-              <fieldset className="space-y-2">
-                <legend className="text-xs font-medium text-gray-600 mb-1">
-                  Sifarişin tarixi
-                </legend>
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-500">Tarixindən</span>
-                    <input
-                      type="date"
-                      className={inputClass}
-                      value={filter.orderDateFrom}
-                      onChange={(e) =>
-                        onFilterChange("orderDateFrom", e.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-500">
-                      Tarixinə qədər
-                    </span>
-                    <input
-                      type="date"
-                      className={inputClass}
-                      value={filter.orderDateTo}
-                      onChange={(e) =>
-                        onFilterChange("orderDateTo", e.target.value)
-                      }
-                    />
-                  </label>
+          <div className={formStyles.section}>
+            <p className={formStyles.sectionTitle}>Tarixlər:</p>
+            <div
+              className={`${formStyles.grid1} ${formStyles.dateGrid} ${formStyles.dateGridLg2} ${formStyles.dateGridLg3}`}
+            >
+              <fieldset className={formStyles.dateFieldset}>
+                <div className={formStyles.fieldsetInner}>
+                  <legend className={formStyles.legend}>
+                    Sifarişin tarixi
+                  </legend>
+                  <div className={formStyles.pairGrid}>
+                    <label className={formStyles.label}>
+                      <span className={formStyles.mutedText}>Tarixindən</span>
+                      <input
+                        type="date"
+                        className={formStyles.input}
+                        value={filter.orderDateFrom}
+                        onChange={(event) =>
+                          onFilterChange("orderDateFrom", event.target.value)
+                        }
+                      />
+                    </label>
+                    <label className={formStyles.label}>
+                      <span className={formStyles.mutedText}>
+                        Tarixinə qədər
+                      </span>
+                      <input
+                        type="date"
+                        className={formStyles.input}
+                        value={filter.orderDateTo}
+                        onChange={(event) =>
+                          onFilterChange("orderDateTo", event.target.value)
+                        }
+                      />
+                    </label>
+                  </div>
                 </div>
               </fieldset>
-              <fieldset className="space-y-2">
-                <legend className="text-xs font-medium text-gray-600 mb-1">
-                  Aktın yaradılması tarixi
-                </legend>
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-500">Tarixindən</span>
-                    <input
-                      type="date"
-                      className={inputClass}
-                      value={filter.actCreatedFrom}
-                      onChange={(e) =>
-                        onFilterChange("actCreatedFrom", e.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-500">
-                      Tarixinə qədər
-                    </span>
-                    <input
-                      type="date"
-                      className={inputClass}
-                      value={filter.actCreatedTo}
-                      onChange={(e) =>
-                        onFilterChange("actCreatedTo", e.target.value)
-                      }
-                    />
-                  </label>
+
+              <fieldset className={formStyles.dateFieldset}>
+                <div className={formStyles.fieldsetInner}>
+                  <legend className={formStyles.legend}>
+                    Aktın yaradılması tarixi
+                  </legend>
+                  <div className={formStyles.pairGrid}>
+                    <label className={formStyles.label}>
+                      <span className={formStyles.mutedText}>Tarixindən</span>
+                      <input
+                        type="date"
+                        className={formStyles.input}
+                        value={filter.actCreatedFrom}
+                        onChange={(event) =>
+                          onFilterChange("actCreatedFrom", event.target.value)
+                        }
+                      />
+                    </label>
+                    <label className={formStyles.label}>
+                      <span className={formStyles.mutedText}>
+                        Tarixinə qədər
+                      </span>
+                      <input
+                        type="date"
+                        className={formStyles.input}
+                        value={filter.actCreatedTo}
+                        onChange={(event) =>
+                          onFilterChange("actCreatedTo", event.target.value)
+                        }
+                      />
+                    </label>
+                  </div>
                 </div>
               </fieldset>
-              <fieldset className="space-y-2">
-                <legend className="text-xs font-medium text-gray-600 mb-1">
-                  Aktın tarixi
-                </legend>
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-500">Tarixindən</span>
-                    <input
-                      type="date"
-                      className={inputClass}
-                      value={filter.actDateFrom}
-                      onChange={(e) =>
-                        onFilterChange("actDateFrom", e.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-500">
-                      Tarixinə qədər
-                    </span>
-                    <input
-                      type="date"
-                      className={inputClass}
-                      value={filter.actDateTo}
-                      onChange={(e) =>
-                        onFilterChange("actDateTo", e.target.value)
-                      }
-                    />
-                  </label>
+
+              <fieldset className={formStyles.dateFieldset}>
+                <div className={formStyles.fieldsetInner}>
+                  <legend className={formStyles.legend}>Aktın tarixi</legend>
+                  <div className={formStyles.pairGrid}>
+                    <label className={formStyles.label}>
+                      <span className={formStyles.mutedText}>Tarixindən</span>
+                      <input
+                        type="date"
+                        className={formStyles.input}
+                        value={filter.actDateFrom}
+                        onChange={(event) =>
+                          onFilterChange("actDateFrom", event.target.value)
+                        }
+                      />
+                    </label>
+                    <label className={formStyles.label}>
+                      <span className={formStyles.mutedText}>
+                        Tarixinə qədər
+                      </span>
+                      <input
+                        type="date"
+                        className={formStyles.input}
+                        value={filter.actDateTo}
+                        onChange={(event) =>
+                          onFilterChange("actDateTo", event.target.value)
+                        }
+                      />
+                    </label>
+                  </div>
                 </div>
               </fieldset>
-              <fieldset className="space-y-2">
-                <legend className="text-xs font-medium text-gray-600 mb-1">
-                  Yükləmə tarixi
-                </legend>
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-500">Tarixindən</span>
-                    <input
-                      type="date"
-                      className={inputClass}
-                      value={filter.loadDateFrom}
-                      onChange={(e) =>
-                        onFilterChange("loadDateFrom", e.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-500">
-                      Tarixinə qədər
-                    </span>
-                    <input
-                      type="date"
-                      className={inputClass}
-                      value={filter.loadDateTo}
-                      onChange={(e) =>
-                        onFilterChange("loadDateTo", e.target.value)
-                      }
-                    />
-                  </label>
+
+              <fieldset className={formStyles.dateFieldset}>
+                <div className={formStyles.fieldsetInner}>
+                  <legend className={formStyles.legend}>Yükləmə tarixi</legend>
+                  <div className={formStyles.pairGrid}>
+                    <label className={formStyles.label}>
+                      <span className={formStyles.mutedText}>Tarixindən</span>
+                      <input
+                        type="date"
+                        className={formStyles.input}
+                        value={filter.loadDateFrom}
+                        onChange={(event) =>
+                          onFilterChange("loadDateFrom", event.target.value)
+                        }
+                      />
+                    </label>
+                    <label className={formStyles.label}>
+                      <span className={formStyles.mutedText}>
+                        Tarixinə qədər
+                      </span>
+                      <input
+                        type="date"
+                        className={formStyles.input}
+                        value={filter.loadDateTo}
+                        onChange={(event) =>
+                          onFilterChange("loadDateTo", event.target.value)
+                        }
+                      />
+                    </label>
+                  </div>
                 </div>
               </fieldset>
-              <fieldset className="space-y-2">
-                <legend className="text-xs font-medium text-gray-600 mb-1">
-                  Boşaltma tarixi
-                </legend>
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-500">Tarixindən</span>
-                    <input
-                      type="date"
-                      className={inputClass}
-                      value={filter.unloadDateFrom}
-                      onChange={(e) =>
-                        onFilterChange("unloadDateFrom", e.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-500">
-                      Tarixinə qədər
-                    </span>
-                    <input
-                      type="date"
-                      className={inputClass}
-                      value={filter.unloadDateTo}
-                      onChange={(e) =>
-                        onFilterChange("unloadDateTo", e.target.value)
-                      }
-                    />
-                  </label>
+
+              <fieldset className={formStyles.dateFieldset}>
+                <div className={formStyles.fieldsetInner}>
+                  <legend className={formStyles.legend}>Boşaltma tarixi</legend>
+                  <div className={formStyles.pairGrid}>
+                    <label className={formStyles.label}>
+                      <span className={formStyles.mutedText}>Tarixindən</span>
+                      <input
+                        type="date"
+                        className={formStyles.input}
+                        value={filter.unloadDateFrom}
+                        onChange={(event) =>
+                          onFilterChange("unloadDateFrom", event.target.value)
+                        }
+                      />
+                    </label>
+                    <label className={formStyles.label}>
+                      <span className={formStyles.mutedText}>
+                        Tarixinə qədər
+                      </span>
+                      <input
+                        type="date"
+                        className={formStyles.input}
+                        value={filter.unloadDateTo}
+                        onChange={(event) =>
+                          onFilterChange("unloadDateTo", event.target.value)
+                        }
+                      />
+                    </label>
+                  </div>
                 </div>
               </fieldset>
-              <fieldset className="space-y-2">
-                <legend className="text-xs font-medium text-gray-600 mb-1">
-                  Yazılıb irəli sürülmüş hesabın ödəniş tarixi
-                </legend>
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-500">Tarixindən</span>
-                    <input
-                      type="date"
-                      className={inputClass}
-                      value={filter.invoicePaymentFrom}
-                      onChange={(e) =>
-                        onFilterChange("invoicePaymentFrom", e.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-500">
-                      Tarixinə qədər
-                    </span>
-                    <input
-                      type="date"
-                      className={inputClass}
-                      value={filter.invoicePaymentTo}
-                      onChange={(e) =>
-                        onFilterChange("invoicePaymentTo", e.target.value)
-                      }
-                    />
-                  </label>
+
+              <fieldset className={formStyles.dateFieldset}>
+                <div className={formStyles.fieldsetInner}>
+                  <legend className={formStyles.legend}>
+                    Hesabın ödəniş tarixi
+                  </legend>
+                  <div className={formStyles.pairGrid}>
+                    <label className={formStyles.label}>
+                      <span className={formStyles.mutedText}>Tarixindən</span>
+                      <input
+                        type="date"
+                        className={formStyles.input}
+                        value={filter.invoicePaymentFrom}
+                        onChange={(event) =>
+                          onFilterChange(
+                            "invoicePaymentFrom",
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </label>
+                    <label className={formStyles.label}>
+                      <span className={formStyles.mutedText}>
+                        Tarixinə qədər
+                      </span>
+                      <input
+                        type="date"
+                        className={formStyles.input}
+                        value={filter.invoicePaymentTo}
+                        onChange={(event) =>
+                          onFilterChange("invoicePaymentTo", event.target.value)
+                        }
+                      />
+                    </label>
+                  </div>
                 </div>
               </fieldset>
             </div>
@@ -316,41 +319,33 @@ export default function EmekFilters({
         )}
 
         {activeSections.has("customers") && (
-          <div className={sectionClass}>
-            <p className="text-xs font-semibold text-gray-700 mb-2">
-              Müştərilər:
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-gray-600">
-                  Müştəri
-                </span>
+          <div className={formStyles.section}>
+            <p className={formStyles.sectionTitle}>Müştərilər:</p>
+            <div className={`${formStyles.grid2} ${formStyles.maxWidthLg}`}>
+              <label className={formStyles.label}>
+                <span className={formStyles.labelText}>Müştəri</span>
                 <Select
                   value={filter.customer}
                   options={customerOptions}
-                  onChange={(v) => onFilterChange("customer", v)}
+                  onChange={(value) => onFilterChange("customer", value)}
                   placeholder="Hamısı"
                 />
               </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-gray-600">
-                  Daşıyıcı
-                </span>
+              <label className={formStyles.label}>
+                <span className={formStyles.labelText}>Daşıyıcı</span>
                 <Select
                   value={filter.carrier}
                   options={carrierOptions}
-                  onChange={(v) => onFilterChange("carrier", v)}
+                  onChange={(value) => onFilterChange("carrier", value)}
                   placeholder="Hamısı"
                 />
               </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-gray-600">
-                  Müştəri tipi
-                </span>
+              <label className={`${formStyles.label} ${formStyles.maxWidthMd}`}>
+                <span className={formStyles.labelText}>Müştəri tipi</span>
                 <Select
                   value={filter.customerType}
                   options={EMEK_CUSTOMER_TYPE_OPTIONS}
-                  onChange={(v) => onFilterChange("customerType", v)}
+                  onChange={(value) => onFilterChange("customerType", value)}
                   placeholder="Hamısı"
                 />
               </label>
@@ -361,8 +356,8 @@ export default function EmekFilters({
         {(activeSections.has("users") ||
           activeSections.has("other") ||
           activeSections.has("templates")) && (
-          <div className={sectionClass}>
-            <p className="text-xs text-gray-500 italic">
+          <div className={formStyles.section}>
+            <p className={formStyles.helperText}>
               Bu filtr qrupu üçün əlavə sahələr API bağlandıqda doldurulacaq.
             </p>
           </div>

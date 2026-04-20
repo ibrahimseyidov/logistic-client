@@ -1,4 +1,5 @@
 import type { SifarisSubTab } from "../types/sifaris.types";
+import styles from "./SifarisSubTabs.module.css";
 
 const TABS: { id: SifarisSubTab; label: string }[] = [
   { id: "orders", label: "Sifarişlər" },
@@ -14,17 +15,13 @@ interface Props {
 
 export default function SifarisSubTabs({ value, onChange }: Props) {
   return (
-    <div className="flex flex-wrap gap-1 border-b border-slate-200 pt-2">
+    <div className={styles.container}>
       {TABS.map((tab) => (
         <button
           key={tab.id}
           type="button"
           onClick={() => onChange(tab.id)}
-          className={`px-4 py-2 text-sm font-medium rounded-t-md border border-b-0 transition-colors ${
-            value === tab.id
-              ? "bg-green-600 text-white border-green-600"
-              : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
-          }`}
+          className={`${styles.tab} ${value === tab.id ? styles.tabActive : ""}`}
         >
           {tab.label}
         </button>
