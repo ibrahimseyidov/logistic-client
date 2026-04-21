@@ -1,41 +1,43 @@
+const API = import.meta.env.VITE_API_URL?.replace(/\/$/, "");
+
 export const ENDPOINTS = {
   AUTH: {
-    LOGIN: "/api/auth/login",
-    REGISTER: "/api/auth/register",
-    ME: "/api/auth/me",
-    BOOTSTRAP: "/api/auth/bootstrap",
-    REFRESH: "/api/auth/refresh",
+    LOGIN: `${API}/auth/login`,
+    REGISTER: `${API}/auth/register`,
+    ME: `${API}/auth/me`,
+    BOOTSTRAP: `${API}/auth/bootstrap`,
+    REFRESH: `${API}/auth/refresh`,
   },
   CATEGORIES: {
-    BASE: "/api/categories",
-    BY_ID: (id: number) => `/api/categories/${id}`,
+    BASE: `${API}/categories`,
+    BY_ID: (id: number) => `${API}/categories/${id}`,
   },
   PRODUCTS: {
-    BASE: "/api/products",
-    SEARCH: "/api/products/search",
-    BY_ID: (id: number) => `/api/products/${id}`,
+    BASE: `${API}/products`,
+    SEARCH: `${API}/products/search`,
+    BY_ID: (id: number) => `${API}/products/${id}`,
   },
   SUPPLIERS: {
-    BASE: "/api/suppliers",
-    BY_ID: (id: number) => `/api/suppliers/${id}`,
-    PURCHASE_BY_ID: (id: number) => `/api/suppliers/${id}/purchase`,
-    PAYMENT_BY_ID: (id: number) => `/api/suppliers/${id}/payment`,
+    BASE: `${API}/suppliers`,
+    BY_ID: (id: number) => `${API}/suppliers/${id}`,
+    PURCHASE_BY_ID: (id: number) => `${API}/suppliers/${id}/purchase`,
+    PAYMENT_BY_ID: (id: number) => `${API}/suppliers/${id}/payment`,
   },
   PURCHASES: {
-    BASE: "/api/purchases",
-    MODAL_DATA: "/api/purchases/modal-data",
-    BY_ID: (id: number) => `/api/purchases/${id}`,
+    BASE: `${API}/purchases`,
+    MODAL_DATA: `${API}/purchases/modal-data`,
+    BY_ID: (id: number) => `${API}/purchases/${id}`,
   },
   TILLS: {
-    BASE: "/api/tills",
-    BY_BRANCH: (branchId: number) => `/api/tills?branchId=${branchId}`,
-    OVERVIEW: "/api/tills/overview",
-    TRANSACTIONS: (tillId: number) => `/api/tills/${tillId}/transactions`,
-    TRANSFER: (tillId: number) => `/api/tills/${tillId}/transfer`,
+    BASE: `${API}/tills`,
+    BY_BRANCH: (branchId: number) => `${API}/tills?branchId=${branchId}`,
+    OVERVIEW: `${API}/tills/overview`,
+    TRANSACTIONS: (tillId: number) => `${API}/tills/${tillId}/transactions`,
+    TRANSFER: (tillId: number) => `${API}/tills/${tillId}/transfer`,
   },
   BRANCHES: {
-    BY_COMPANY: (companyId: number) => `/api/branches/company/${companyId}`,
+    BY_COMPANY: (companyId: number) => `${API}/branches/company/${companyId}`,
     WAREHOUSES_BY_BRANCH: (branchId: number) =>
-      `/api/branches/${branchId}/warehouses`,
+      `${API}/branches/${branchId}/warehouses`,
   },
 } as const;
