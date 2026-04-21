@@ -3,11 +3,15 @@ import { Theme } from "@radix-ui/themes";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/login/page";
 import AppShell from "./common/components/layout/appShell/AppShell";
-import RequireAuth from "./common/components/auth/RequireAuth";
+// import RequireAuth from "./common/components/auth/RequireAuth";
 import SorgularPage from "./pages/sorgular/page";
 import SorguDetailPage from "./pages/sorgular/detail/page";
 import SifarislerPage from "./pages/sifarisler/page";
 import TapshiriqlarPage from "./pages/tapshiriqlar/page";
+import MusterilerPage from "./pages/musteriler/page";
+import MusteriDetailPage from "./pages/musteriler/detail/page";
+import AyarlarPage from "./pages/ayarlar/page";
+import RequireAuth from "./common/components/auth/RequireAuth";
 
 function App() {
   return (
@@ -45,6 +49,30 @@ function App() {
               element={
                 <RequireAuth>
                   <TapshiriqlarPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/musteriler"
+              element={
+                <RequireAuth>
+                  <MusterilerPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/musteriler/:customerId"
+              element={
+                <RequireAuth>
+                  <MusteriDetailPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/ayarlar"
+              element={
+                  <RequireAuth>
+                  <AyarlarPage />
                 </RequireAuth>
               }
             />

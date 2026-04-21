@@ -10,8 +10,8 @@ import styles from "./login.module.css";
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [email, setEmail] = useState("ibrahim@gmail.com");
-  const [password, setPassword] = useState("1234");
+  const [email, setEmail] = useState("elmir.ahmadov2@gmail.com");
+  const [password, setPassword] = useState("Elmir123ase!");
   const { login } = useAuth();
   const navigate = useNavigate();
 
