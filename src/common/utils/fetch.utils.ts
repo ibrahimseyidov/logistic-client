@@ -4,6 +4,7 @@ const getApiBaseUrl = (): string => {
   let url = import.meta.env.VITE_API_URL;
   // Remove trailing slash for consistency
   if (url.endsWith("/")) url = url.slice(0, -1);
+  console.log("[API] Base URL:", url);
   return url;
 };
 
@@ -54,6 +55,7 @@ export const buildApiUrl = (
     });
   }
 
+  console.log("[API] buildApiUrl:", url.toString());
   return url.toString();
 };
 
@@ -78,7 +80,16 @@ export const fetchNoCache = async (
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
   }
+  console.log("[API] fetchNoCache input:", input);
   let response = await fetch(input, { ...init, headers, cache: "no-store" });
+  console.log("[API] fetchNoCache response status:", response.status);
+  try {
+    const clone = response.clone();
+    const text = await clone.text();
+    console.log("[API] fetchNoCache response body:", text);
+  } catch (e) {
+    console.log("[API] fetchNoCache response body read error:", e);
+  }
   if (response.status === 401 && retry) {
     // Refresh token ile yeni access token almayı dene
     let refreshToken = "";
