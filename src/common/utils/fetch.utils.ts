@@ -1,7 +1,7 @@
 import { refreshTokenAction } from "../actions/auth.actions";
 
 const getApiBaseUrl = (): string => {
-  let url = import.meta.env.VITE_API_URL;
+  let url = "api.ziyalog.com";
   // Remove trailing slash for consistency
   if (url.endsWith("/")) url = url.slice(0, -1);
   return url;
