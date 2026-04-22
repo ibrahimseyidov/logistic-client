@@ -9,8 +9,10 @@ import {
   FaSave,
   FaTimes,
 } from "react-icons/fa";
+import { FiCalendar, FiChevronDown, FiClock } from "react-icons/fi";
 import Select from "../../../common/components/select/Select";
 import type { SelectOption } from "../../../common/components/select/Select";
+import datePickerStyles from "./TaskFiltersDrawer.module.css";
 
 const PLACEHOLDER: SelectOption[] = [{ value: "", label: "Dəyəri seçin" }];
 
@@ -42,6 +44,21 @@ const DESTINATION_OPTS: SelectOption[] = [
   { value: "in-progress", label: "In Progress" },
   { value: "review", label: "Review" },
   { value: "done", label: "Done" },
+];
+
+const MONTH_NAMES = [
+  "Yanvar",
+  "Fevral",
+  "Mart",
+  "Aprel",
+  "May",
+  "İyun",
+  "İyul",
+  "Avqust",
+  "Sentyabr",
+  "Oktyabr",
+  "Noyabr",
+  "Dekabr",
 ];
 
 interface ChecklistItem {
@@ -80,7 +97,6 @@ export interface TaskModalInitialData {
 }
 
 const fieldBox = styles.fieldBox;
-const modalTransitionMs = 280;
 
 export default function TaskViewModal({
   isOpen,
@@ -88,8 +104,6 @@ export default function TaskViewModal({
   onSave,
   initialData,
 }: Props) {
-  const [mounted, setMounted] = useState(false);
-  const [visible, setVisible] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [kontragent, setKontragent] = useState("");
@@ -107,13 +121,29 @@ export default function TaskViewModal({
   const [deadlineDate, setDeadlineDate] = useState("");
   const [deadlineTime, setDeadlineTime] = useState("");
   const [deadlineUntil, setDeadlineUntil] = useState("");
+  const [deadlineTimeText, setDeadlineTimeText] = useState("");
+  const [deadlineUntilText, setDeadlineUntilText] = useState("");
+  const [activeTimePicker, setActiveTimePicker] = useState<"start" | "end" | null>(null);
+  const [timePickerDirection, setTimePickerDirection] = useState<{
+    start: "up" | "down";
+    end: "up" | "down";
+  }>({ start: "up", end: "up" });
+  const [timePickerAlign, setTimePickerAlign] = useState<{
+    start: "left" | "right";
+    end: "left" | "right";
+  }>({ start: "left", end: "left" });
   const [remindEnabled, setRemindEnabled] = useState(true);
   const [remindWhen, setRemindWhen] = useState("day");
   const [remindTime, setRemindTime] = useState("10:00");
   const [destinationColumn, setDestinationColumn] = useState("todo");
+  const [isDeadlineCalendarOpen, setIsDeadlineCalendarOpen] = useState(false);
+  const [manualDeadlineText, setManualDeadlineText] = useState("");
+  const deadlineCalendarRef = useRef<HTMLDivElement | null>(null);
+  const deadlineTriggerRef = useRef<HTMLDivElement | null>(null);
+  const deadlineTimeWrapRef = useRef<HTMLDivElement | null>(null);
+  const deadlineUntilWrapRef = useRef<HTMLDivElement | null>(null);
+  const [deadlineCalendarMonth, setDeadlineCalendarMonth] = useState(new Date());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const openAnimationFrameRef = useRef<number | null>(null);
-  const closeTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -150,55 +180,79 @@ export default function TaskViewModal({
   }, [isOpen, initialData]);
 
   useEffect(() => {
-    if (!mounted) return;
+    const formattedDeadline = deadlineDate
+      ? new Date(deadlineDate).toLocaleDateString("az-AZ", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        })
+      : "";
+    setManualDeadlineText(formattedDeadline);
+  }, [deadlineDate]);
+
+  useEffect(() => {
+    setDeadlineTimeText(deadlineTime);
+  }, [deadlineTime]);
+
+  useEffect(() => {
+    setDeadlineUntilText(deadlineUntil);
+  }, [deadlineUntil]);
+
+  useEffect(() => {
+    if (!isDeadlineCalendarOpen) return undefined;
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (deadlineCalendarRef.current?.contains(target)) return;
+      if (deadlineTriggerRef.current?.contains(target)) return;
+      setIsDeadlineCalendarOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsDeadlineCalendarOpen(false);
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isDeadlineCalendarOpen]);
+
+  useEffect(() => {
+    if (!activeTimePicker) return undefined;
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (deadlineTimeWrapRef.current?.contains(target)) return;
+      if (deadlineUntilWrapRef.current?.contains(target)) return;
+      setActiveTimePicker(null);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setActiveTimePicker(null);
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [activeTimePicker]);
+
+  useEffect(() => {
+    if (!isOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [mounted]);
-
-  useEffect(() => {
-    if (openAnimationFrameRef.current !== null) {
-      cancelAnimationFrame(openAnimationFrameRef.current);
-      openAnimationFrameRef.current = null;
-    }
-    if (closeTimeoutRef.current !== null) {
-      clearTimeout(closeTimeoutRef.current);
-      closeTimeoutRef.current = null;
-    }
-
-    if (isOpen) {
-      setMounted(true);
-      setVisible(false);
-      openAnimationFrameRef.current = requestAnimationFrame(() => {
-        openAnimationFrameRef.current = requestAnimationFrame(() => {
-          setVisible(true);
-          openAnimationFrameRef.current = null;
-        });
-      });
-      return;
-    }
-
-    setVisible(false);
-    closeTimeoutRef.current = window.setTimeout(() => {
-      setMounted(false);
-      closeTimeoutRef.current = null;
-    }, modalTransitionMs);
   }, [isOpen]);
 
-  useEffect(() => {
-    return () => {
-      if (openAnimationFrameRef.current !== null) {
-        cancelAnimationFrame(openAnimationFrameRef.current);
-      }
-      if (closeTimeoutRef.current !== null) {
-        clearTimeout(closeTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  if (!mounted) return null;
+  if (!isOpen) return null;
 
   const removeExecutorTag = (t: string) => {
     setExecutorTags((prev) => prev.filter((x) => x !== t));
@@ -267,17 +321,140 @@ export default function TaskViewModal({
     });
   };
 
+  const toYmd = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
+  const isSameDay = (a: Date | null, b: Date) =>
+    !!a &&
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+
+  const applyManualDeadlineDate = () => {
+    const raw = manualDeadlineText.trim();
+    if (!raw) {
+      setDeadlineDate("");
+      return;
+    }
+
+    const match = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (!match) return;
+
+    const [, dd, mm, yyyy] = match;
+    const day = Number(dd);
+    const month = Number(mm);
+    const year = Number(yyyy);
+    const parsed = new Date(year, month - 1, day);
+
+    const isValid =
+      parsed.getFullYear() === year &&
+      parsed.getMonth() === month - 1 &&
+      parsed.getDate() === day;
+    if (!isValid) return;
+
+    setDeadlineDate(toYmd(parsed));
+    setDeadlineCalendarMonth(new Date(year, month - 1, 1));
+  };
+
+  const deadlineSelectedDate = deadlineDate ? new Date(deadlineDate) : null;
+  const deadlineToday = new Date();
+  const deadlineMonthLabel = MONTH_NAMES[deadlineCalendarMonth.getMonth()];
+  const deadlineYearLabel = deadlineCalendarMonth.getFullYear();
+  const deadlineYearOptions = Array.from({ length: 21 }, (_, index) => {
+    const currentYear = new Date().getFullYear();
+    return currentYear - 10 + index;
+  });
+  const deadlineWeekDays = ["B.E", "Ç.A", "Ç", "C.A", "C", "Ş", "B"];
+  const deadlineDays = (() => {
+    const year = deadlineCalendarMonth.getFullYear();
+    const month = deadlineCalendarMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+
+    const startOffset = (firstDay.getDay() + 6) % 7;
+    const totalDays = lastDay.getDate();
+    const totalCells = Math.ceil((startOffset + totalDays) / 7) * 7;
+
+    return Array.from({ length: totalCells }, (_, index) => {
+      const dayNumber = index - startOffset + 1;
+      const date = new Date(year, month, dayNumber);
+      const inCurrentMonth = dayNumber >= 1 && dayNumber <= totalDays;
+      return { date, inCurrentMonth };
+    });
+  })();
+
+  const timeOptions: string[] = [];
+  for (let hour = 0; hour < 24; hour += 1) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      timeOptions.push(`${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`);
+    }
+  }
+
+  const parseTime = (value: string) => {
+    const normalized = value.trim();
+    if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(normalized)) return "";
+    return normalized;
+  };
+
+  const applyManualTime = (field: "start" | "end") => {
+    const raw = field === "start" ? deadlineTimeText : deadlineUntilText;
+    const parsed = parseTime(raw);
+    if (!parsed && raw.trim() !== "") return;
+    if (field === "start") setDeadlineTime(parsed);
+    else setDeadlineUntil(parsed);
+  };
+
+  const openTimePicker = (field: "start" | "end") => {
+    const targetRef = field === "start" ? deadlineTimeWrapRef.current : deadlineUntilWrapRef.current;
+    if (!targetRef) {
+      setActiveTimePicker(field);
+      return;
+    }
+
+    const rect = targetRef.getBoundingClientRect();
+    const estimatedPopoverHeight = 320;
+    const estimatedPopoverWidth = 300;
+    const spaceAbove = rect.top;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const direction: "up" | "down" =
+      spaceBelow < estimatedPopoverHeight && spaceAbove > spaceBelow ? "up" : "down";
+    const align: "left" | "right" =
+      rect.left + estimatedPopoverWidth > window.innerWidth - 12 ? "right" : "left";
+
+    setTimePickerDirection((prev) => ({ ...prev, [field]: direction }));
+    setTimePickerAlign((prev) => ({ ...prev, [field]: align }));
+    setActiveTimePicker(field);
+  };
+
   return (
     <div
-      className={`${styles.modalOverlay} ${visible ? styles.modalOverlayVisible : ""}`}
+      className={`${styles.modalOverlay} ${styles.modalOverlayVisible}`}
       role="dialog"
       aria-modal="true"
       aria-labelledby="task-modal-title"
-      onClick={onClose}
     >
       <div
-        className={`${styles.modalContainer} ${visible ? styles.modalContainerVisible : ""}`}
+        className={`${styles.modalContainer} ${styles.modalContainerVisible}`}
         onClick={(e) => e.stopPropagation()}
+        style={{
+          position: "absolute",
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: "min(100vw, 1120px)",
+          display: "flex",
+          flexDirection: "column",
+          background: "#f8fafc",
+          borderLeft: "1px solid #e2e8f0",
+          boxShadow: "0 24px 70px rgba(15, 23, 42, 0.18)",
+          overflowY: "auto",
+          transform: "translateX(0)",
+          opacity: 1,
+        }}
       >
         <div className={styles.header}>
           <h2 id="task-modal-title" className={styles.title}>
@@ -535,24 +712,300 @@ export default function TaskViewModal({
               <div className={styles.sectionBlock}>
                 <span className={styles.fieldLabel}>Son müddət</span>
                 <div className={styles.threeColGrid}>
-                  <input
-                    type="date"
-                    value={deadlineDate}
-                    onChange={(e) => setDeadlineDate(e.target.value)}
-                    className={styles.inputControl}
-                  />
-                  <input
-                    type="time"
-                    value={deadlineTime}
-                    onChange={(e) => setDeadlineTime(e.target.value)}
-                    className={styles.inputControl}
-                  />
-                  <input
-                    type="time"
-                    value={deadlineUntil}
-                    onChange={(e) => setDeadlineUntil(e.target.value)}
-                    className={styles.inputControl}
-                  />
+                  <div
+                    ref={deadlineTriggerRef}
+                    className={`${styles.datePickerWrap} ${datePickerStyles.dateFieldWrap}`}
+                  >
+                    <input
+                      type="text"
+                      value={manualDeadlineText}
+                      onChange={(event) => setManualDeadlineText(event.target.value)}
+                      onFocus={() => setIsDeadlineCalendarOpen(true)}
+                      onBlur={applyManualDeadlineDate}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          applyManualDeadlineDate();
+                        }
+                      }}
+                      className={`${styles.inputControl} ${datePickerStyles.manualDateInputSingle}`}
+                      placeholder="gg.aa.yyyy"
+                    />
+                    <button
+                      type="button"
+                      className={datePickerStyles.inlineCalendarButton}
+                      onClick={() => setIsDeadlineCalendarOpen((prev) => !prev)}
+                      aria-label="Tarix seç"
+                    >
+                      <FiCalendar />
+                    </button>
+                    {isDeadlineCalendarOpen ? (
+                      <div ref={deadlineCalendarRef} className={datePickerStyles.calendarPopover}>
+                        <div className={datePickerStyles.calendarHeader}>
+                          <button
+                            type="button"
+                            className={datePickerStyles.calendarNavButton}
+                            onClick={() =>
+                              setDeadlineCalendarMonth(
+                                (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
+                              )
+                            }
+                          >
+                            &lt;
+                          </button>
+                          <div className={datePickerStyles.calendarMonthMeta}>
+                            <span className={datePickerStyles.calendarMonthLabel}>{deadlineMonthLabel}</span>
+                            <div className={datePickerStyles.calendarYearSelectWrap}>
+                              <select
+                                className={datePickerStyles.calendarYearSelect}
+                                value={deadlineYearLabel}
+                                onChange={(event) =>
+                                  setDeadlineCalendarMonth(
+                                    new Date(
+                                      Number(event.target.value),
+                                      deadlineCalendarMonth.getMonth(),
+                                      1,
+                                    ),
+                                  )
+                                }
+                              >
+                                {deadlineYearOptions.map((year) => (
+                                  <option key={year} value={year}>
+                                    {year}
+                                  </option>
+                                ))}
+                              </select>
+                              <FiChevronDown className={datePickerStyles.calendarYearSelectIcon} />
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className={datePickerStyles.calendarNavButton}
+                            onClick={() =>
+                              setDeadlineCalendarMonth(
+                                (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
+                              )
+                            }
+                          >
+                            &gt;
+                          </button>
+                        </div>
+
+                        <div className={datePickerStyles.weekdayRow}>
+                          {deadlineWeekDays.map((day) => (
+                            <span key={day} className={datePickerStyles.weekdayCell}>
+                              {day}
+                            </span>
+                          ))}
+                        </div>
+
+                        <div className={datePickerStyles.daysGrid}>
+                          {deadlineDays.map(({ date, inCurrentMonth }) => {
+                            const selected = isSameDay(deadlineSelectedDate, date);
+                            const isToday = isSameDay(deadlineToday, date);
+                            return (
+                              <button
+                                key={date.toISOString()}
+                                type="button"
+                                className={`${datePickerStyles.dayCell} ${
+                                  inCurrentMonth ? "" : datePickerStyles.dayCellMuted
+                                } ${selected ? datePickerStyles.dayCellSelected : ""} ${
+                                  isToday ? datePickerStyles.dayCellToday : ""
+                                }`}
+                                onClick={() => {
+                                  setDeadlineDate(toYmd(date));
+                                  setIsDeadlineCalendarOpen(false);
+                                }}
+                              >
+                                {date.getDate()}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <div className={datePickerStyles.calendarFooter}>
+                          <button
+                            type="button"
+                            className={datePickerStyles.calendarFooterGhost}
+                            onClick={() => setDeadlineDate("")}
+                          >
+                            Təmizlə
+                          </button>
+                          <button
+                            type="button"
+                            className={datePickerStyles.calendarFooterPrimary}
+                            onClick={() => {
+                              setDeadlineDate(toYmd(deadlineToday));
+                              setDeadlineCalendarMonth(
+                                new Date(deadlineToday.getFullYear(), deadlineToday.getMonth(), 1),
+                              );
+                              setIsDeadlineCalendarOpen(false);
+                            }}
+                          >
+                            Bu gün
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div ref={deadlineTimeWrapRef} className={styles.timePickerWrap}>
+                    <input
+                      type="text"
+                      value={deadlineTimeText}
+                      onChange={(event) => setDeadlineTimeText(event.target.value)}
+                      onFocus={() => openTimePicker("start")}
+                      onBlur={() => applyManualTime("start")}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          applyManualTime("start");
+                        }
+                      }}
+                      className={`${styles.inputControl} ${styles.timeInputWithIcon}`}
+                      placeholder="ss:dd"
+                    />
+                    <button
+                      type="button"
+                      className={styles.timePickerIconButton}
+                      onClick={() =>
+                        setActiveTimePicker((prev) => {
+                          if (prev === "start") return null;
+                          openTimePicker("start");
+                          return "start";
+                        })
+                      }
+                      aria-label="Vaxt seç"
+                    >
+                      <FiClock />
+                    </button>
+                    {activeTimePicker === "start" ? (
+                      <div
+                        className={`${styles.timePopover} ${
+                          timePickerDirection.start === "up"
+                            ? styles.timePopoverUp
+                            : styles.timePopoverDown
+                        } ${
+                          timePickerAlign.start === "right"
+                            ? styles.timePopoverAlignRight
+                            : styles.timePopoverAlignLeft
+                        }`}
+                      >
+                        <div className={styles.timeGrid}>
+                          {timeOptions.map((time) => (
+                            <button
+                              key={`start-${time}`}
+                              type="button"
+                              className={`${styles.timeOptionButton} ${
+                                deadlineTime === time ? styles.timeOptionButtonActive : ""
+                              }`}
+                              onClick={() => {
+                                setDeadlineTime(time);
+                                setActiveTimePicker(null);
+                              }}
+                            >
+                              {time}
+                            </button>
+                          ))}
+                        </div>
+                        <div className={styles.timePopoverFooter}>
+                          <button type="button" className={styles.timeFooterGhost} onClick={() => setDeadlineTime("")}>
+                            Təmizlə
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.timeFooterPrimary}
+                            onClick={() => {
+                              const now = new Date();
+                              const current = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+                              setDeadlineTime(current);
+                              setActiveTimePicker(null);
+                            }}
+                          >
+                            İndi
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div ref={deadlineUntilWrapRef} className={styles.timePickerWrap}>
+                    <input
+                      type="text"
+                      value={deadlineUntilText}
+                      onChange={(event) => setDeadlineUntilText(event.target.value)}
+                      onFocus={() => openTimePicker("end")}
+                      onBlur={() => applyManualTime("end")}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          applyManualTime("end");
+                        }
+                      }}
+                      className={`${styles.inputControl} ${styles.timeInputWithIcon}`}
+                      placeholder="ss:dd"
+                    />
+                    <button
+                      type="button"
+                      className={styles.timePickerIconButton}
+                      onClick={() =>
+                        setActiveTimePicker((prev) => {
+                          if (prev === "end") return null;
+                          openTimePicker("end");
+                          return "end";
+                        })
+                      }
+                      aria-label="Bitmə vaxtı seç"
+                    >
+                      <FiClock />
+                    </button>
+                    {activeTimePicker === "end" ? (
+                      <div
+                        className={`${styles.timePopover} ${
+                          timePickerDirection.end === "up"
+                            ? styles.timePopoverUp
+                            : styles.timePopoverDown
+                        } ${
+                          timePickerAlign.end === "right"
+                            ? styles.timePopoverAlignRight
+                            : styles.timePopoverAlignLeft
+                        }`}
+                      >
+                        <div className={styles.timeGrid}>
+                          {timeOptions.map((time) => (
+                            <button
+                              key={`end-${time}`}
+                              type="button"
+                              className={`${styles.timeOptionButton} ${
+                                deadlineUntil === time ? styles.timeOptionButtonActive : ""
+                              }`}
+                              onClick={() => {
+                                setDeadlineUntil(time);
+                                setActiveTimePicker(null);
+                              }}
+                            >
+                              {time}
+                            </button>
+                          ))}
+                        </div>
+                        <div className={styles.timePopoverFooter}>
+                          <button type="button" className={styles.timeFooterGhost} onClick={() => setDeadlineUntil("")}>
+                            Təmizlə
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.timeFooterPrimary}
+                            onClick={() => {
+                              const now = new Date();
+                              const current = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+                              setDeadlineUntil(current);
+                              setActiveTimePicker(null);
+                            }}
+                          >
+                            İndi
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 

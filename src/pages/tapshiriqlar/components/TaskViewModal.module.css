@@ -1,12 +1,11 @@
 .modalOverlay {
   position: fixed;
   inset: 0;
-  z-index: 1100;
+  z-index: 5000;
   display: flex;
   justify-content: flex-end;
-  background: rgba(15, 23, 42, 0.2);
-  opacity: 0;
-  transition: opacity 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  background: rgba(15, 23, 42, 0.28);
+  opacity: 1;
 }
 
 .modalOverlayVisible {
@@ -24,11 +23,8 @@
   border-left: 1px solid #e2e8f0;
   background: #f8fafc;
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
-  transform: translateX(100%);
-  opacity: 0;
-  transition:
-    transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateX(0);
+  opacity: 1;
 }
 
 .modalContainerVisible {
@@ -378,6 +374,141 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.65rem;
+}
+
+.datePickerWrap {
+  position: relative;
+  min-width: 0;
+  overflow: visible;
+}
+
+.timePickerWrap {
+  position: relative;
+  min-width: 0;
+  overflow: visible;
+}
+
+.timeInputWithIcon {
+  padding-right: 2.6rem;
+}
+
+.timePickerIconButton {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.6rem;
+  background: #fff;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.timePickerIconButton:hover {
+  background: #f8fafc;
+}
+
+.timePopover {
+  position: absolute;
+  z-index: 35;
+  width: min(100%, 300px);
+  min-width: 250px;
+  max-height: min(320px, 48vh);
+  border: 1px solid #e2e8f0;
+  border-radius: 0.9rem;
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+  padding: 0.65rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.timePopoverAlignLeft {
+  left: 0;
+  right: auto;
+}
+
+.timePopoverAlignRight {
+  right: 0;
+  left: auto;
+}
+
+.timePopoverUp {
+  bottom: calc(100% + 0.45rem);
+}
+
+.timePopoverDown {
+  top: calc(100% + 0.45rem);
+}
+
+.timeGrid {
+  max-height: min(220px, calc(48vh - 3.2rem));
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.timeOptionButton {
+  border: 1px solid #dbe4f0;
+  border-radius: 0.55rem;
+  background: #fff;
+  color: #334155;
+  min-height: 2rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.timeOptionButton:hover {
+  background: #f8fafc;
+}
+
+.timeOptionButtonActive {
+  border-color: #1e293b;
+  background: #1e293b;
+  color: #fff;
+}
+
+.timePopoverFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+}
+
+.timeFooterGhost,
+.timeFooterPrimary {
+  border-radius: 0.6rem;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.timeFooterGhost {
+  border: 1px solid #dbe4f0;
+  background: #fff;
+  color: #334155;
+}
+
+.timeFooterGhost:hover {
+  background: #f8fafc;
+}
+
+.timeFooterPrimary {
+  border: 1px solid #cbd5e1;
+  background: #1e293b;
+  color: #fff;
+}
+
+.timeFooterPrimary:hover {
+  background: #334155;
 }
 
 .readOnlyInput {

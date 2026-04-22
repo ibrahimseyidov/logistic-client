@@ -1,0 +1,209 @@
+.dateFieldWrap {
+  position: relative;
+  min-width: 0;
+  overflow: visible;
+}
+
+.dateHint {
+  margin: 0.45rem 0 0;
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+.manualDateInputSingle {
+  padding-right: 2.7rem;
+}
+
+.inlineCalendarButton {
+  position: absolute;
+  right: 0.55rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.6rem;
+  background: #fff;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.inlineCalendarButton:hover {
+  background: #f8fafc;
+}
+
+.calendarPopover {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 30;
+  width: min(100%, 320px);
+  min-width: 280px;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  background: #ffffff;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.16);
+  padding: 0.8rem;
+}
+
+.calendarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.calendarMonthLabel {
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.calendarMonthMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.calendarYearSelectWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.calendarYearSelect {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 0.2rem 1.55rem 0.2rem 0.6rem;
+  color: #334155;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.2;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  cursor: pointer;
+}
+
+.calendarYearSelect:focus {
+  outline: none;
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.22);
+}
+
+.calendarYearSelect:hover {
+  border-color: #cbd5e1;
+}
+
+.calendarYearSelectIcon {
+  position: absolute;
+  right: 0.55rem;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  pointer-events: none;
+}
+
+.calendarNavButton {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid #dbe4f0;
+  border-radius: 0.65rem;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+}
+
+.calendarNavButton:hover {
+  background: #f8fafc;
+}
+
+.weekdayRow {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  margin-bottom: 0.35rem;
+}
+
+.weekdayCell {
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.25rem 0;
+}
+
+.daysGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.2rem;
+}
+
+.dayCell {
+  border: 1px solid transparent;
+  background: transparent;
+  color: #0f172a;
+  border-radius: 0.55rem;
+  min-height: 2rem;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.dayCell:hover {
+  background: #f8fafc;
+}
+
+.dayCellMuted {
+  color: #cbd5e1;
+}
+
+.dayCellToday {
+  border-color: #86efac;
+}
+
+.dayCellSelected {
+  background: #1e293b;
+  color: #fff;
+}
+
+.calendarFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.45rem;
+  margin-top: 0.7rem;
+}
+
+.calendarFooterGhost,
+.calendarFooterPrimary {
+  border-radius: 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+}
+
+.calendarFooterGhost {
+  border: 1px solid #dbe4f0;
+  background: #fff;
+  color: #334155;
+}
+
+.calendarFooterGhost:hover {
+  background: #f8fafc;
+}
+
+.calendarFooterPrimary {
+  border: 1px solid #cbd5e1;
+  background: #1e293b;
+  color: #fff;
+}
+
+.calendarFooterPrimary:hover {
+  background: #334155;
+}
