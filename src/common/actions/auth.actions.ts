@@ -1,4 +1,4 @@
-import axios from "axios";
+import { buildApiUrl } from "../utils/fetch.utils";
 
 interface LoginResponse {
   token: string;
@@ -72,7 +72,8 @@ export async function loginAction(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   try {
-    const response = await fetch("/api/auth/login", {
+    const url = buildApiUrl("/api/auth/login");
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
