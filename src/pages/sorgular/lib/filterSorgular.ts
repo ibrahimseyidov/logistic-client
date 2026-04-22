@@ -2,6 +2,7 @@ import type {
   FilterFormState,
   LogisticQueryRow,
   SorguSubTab,
+  SorguStatus,
 } from "../types/sorgu.types";
 
 function dayOnly(iso: string): string {
@@ -10,11 +11,7 @@ function dayOnly(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-function inRange(
-  value: string,
-  from: string,
-  to: string,
-): boolean {
+function inRange(value: string, from: string, to: string): boolean {
   if (!from && !to) return true;
   const v = value.slice(0, 10);
   if (from && v < from) return false;
@@ -26,9 +23,15 @@ export function filterByTab(
   rows: LogisticQueryRow[],
   tab: SorguSubTab,
 ): LogisticQueryRow[] {
-  if (tab === "active") return rows.filter((r) => !r.archived);
-  if (tab === "archive") return rows.filter((r) => r.archived);
-  return rows.filter((r) => !r.archived);
+  if (tab === "active") {
+    return rows.filter((r) => r.status === "pending");
+  }
+  if (tab === "archive") {
+    return rows.filter(
+      (r) => r.status === "cancelled" || r.status === "completed",
+    );
+  }
+  return rows;
 }
 
 export function applyFilters(
@@ -36,12 +39,17 @@ export function applyFilters(
   f: FilterFormState,
 ): LogisticQueryRow[] {
   return rows.filter((r) => {
-    if (f.queryNumber.trim() && !r.number.toLowerCase().includes(f.queryNumber.trim().toLowerCase())) {
+    if (
+      f.queryNumber.trim() &&
+      !r.number.toLowerCase().includes(f.queryNumber.trim().toLowerCase())
+    ) {
       return false;
     }
     if (
       f.customerOrderRef.trim() &&
-      !r.customerOrderRef.toLowerCase().includes(f.customerOrderRef.trim().toLowerCase())
+      !r.customerOrderRef
+        .toLowerCase()
+        .includes(f.customerOrderRef.trim().toLowerCase())
     ) {
       return false;
     }

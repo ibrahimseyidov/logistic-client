@@ -30,14 +30,18 @@ export async function fetchQueryDetailAction(
   return res.data;
 }
 
-export async function fetchQueriesAction(): Promise<LogisticQueryRow[]> {
+export async function fetchQueriesAction(
+  tab?: string,
+): Promise<LogisticQueryRow[]> {
   const token = getAuthToken();
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
-  console.log("[fetchQueriesAction] token:", token);
-  console.log("[fetchQueriesAction] headers:", headers);
-  const res = await axios.get(buildApiUrl("/api/query"), {
-    headers,
-  });
+  let url = "/api/query";
+  if (tab === "active") {
+    url = "/api/query?status=pending";
+  } else if (tab === "archive") {
+    url = "/api/query?status=cancelled,completed";
+  }
+  const res = await axios.get(buildApiUrl(url), { headers });
   if (Array.isArray(res.data)) {
     return res.data;
   } else if (res.data && Array.isArray(res.data.data)) {

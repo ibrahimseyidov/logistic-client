@@ -37,6 +37,7 @@ import { useSearchParams } from "react-router-dom";
 import { useAppDispatch } from "../../common/store/hooks";
 import { showNotification } from "../../common/store/modalSlice";
 import { NotificationModal } from "../../common/components/NotificationModal";
+import Loading from "../../common/components/loading/Loading";
 import type { SelectOption } from "../../common/components/select/Select";
 import {
   SifarisActionBar,
@@ -109,6 +110,8 @@ const EMEK_SAVE_SELECTED_OPTIONS: SelectOption[] = [
 ];
 
 export default function SifarislerPage() {
+  // Data yükleniyor state'i
+  const [loading, setLoading] = useState(true);
   const dispatch = useAppDispatch();
   const [searchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
@@ -712,93 +715,96 @@ export default function SifarislerPage() {
         )}
       </div>
 
-      {subTab === "orders" && (
-        <>
-          <div className={styles.tableBody}>
-            <SifarisTable
-              rows={paginatedRows}
-              selectedIds={selectedIds}
-              onToggleRow={toggleRow}
-              onToggleAllPage={toggleAllPage}
-            />
+      {/* Tablo gövdesi ve loading */}
+      <div className={styles.body}>
+        {loading ? (
+          <div className={styles.statePanel}>
+            <Loading />
           </div>
-
-          <div className={styles.footer}>
-            <SifarisPagination
-              totalRows={filteredRows.length}
-              currentPage={currentPage}
-              totalPages={totalPages}
-              getVisiblePages={getVisiblePages}
-              onPageChange={setCurrentPage}
-            />
-          </div>
-        </>
-      )}
-
-      {subTab === "voyages" && (
-        <>
-          <div className={styles.tableBody}>
-            <ReysTable rows={reysPaginated} />
-          </div>
-
-          <div className={styles.footer}>
-            <SifarisPagination
-              totalRows={reysFilteredRows.length}
-              currentPage={reysPage}
-              totalPages={reysTotalPages}
-              getVisiblePages={reysGetVisiblePages}
-              onPageChange={setReysPage}
-            />
-          </div>
-        </>
-      )}
-
-      {subTab === "loads" && (
-        <>
-          <div className={styles.tableBody}>
-            <YukTable
-              rows={yukPaginated}
-              selectedIds={yukSelectedIds}
-              onToggleRow={toggleYukRow}
-              onToggleAllPage={toggleYukAllPage}
-            />
-          </div>
-
-          <div className={styles.footer}>
-            <SifarisPagination
-              totalRows={yukFilteredRows.length}
-              currentPage={yukPage}
-              totalPages={yukTotalPages}
-              getVisiblePages={yukGetVisiblePages}
-              onPageChange={setYukPage}
-            />
-          </div>
-        </>
-      )}
-
-      {subTab === "payroll" && (
-        <>
-          <div className={styles.tableBody}>
-            <EmekTable
-              rows={emekPaginated}
-              selectedIds={emekSelectedIds}
-              onToggleRow={toggleEmekRow}
-              onToggleAllPage={toggleEmekAllPage}
-            />
-          </div>
-
-          <div className={styles.footer}>
-            <SifarisPagination
-              totalRows={emekFilteredRows.length}
-              currentPage={emekPage}
-              totalPages={emekTotalPages}
-              getVisiblePages={emekGetVisiblePages}
-              onPageChange={setEmekPage}
-            />
-          </div>
-        </>
-      )}
-
+        ) : (
+          <>
+            {subTab === "orders" && (
+              <>
+                <div className={styles.tableBody}>
+                  <SifarisTable
+                    rows={paginatedRows}
+                    selectedIds={selectedIds}
+                    onToggleRow={toggleRow}
+                    onToggleAllPage={toggleAllPage}
+                  />
+                </div>
+                <div className={styles.footer}>
+                  <SifarisPagination
+                    totalRows={filteredRows.length}
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    getVisiblePages={getVisiblePages}
+                    onPageChange={setCurrentPage}
+                  />
+                </div>
+              </>
+            )}
+            {subTab === "voyages" && (
+              <>
+                <div className={styles.tableBody}>
+                  <ReysTable rows={reysPaginated} />
+                </div>
+                <div className={styles.footer}>
+                  <SifarisPagination
+                    totalRows={reysFilteredRows.length}
+                    currentPage={reysPage}
+                    totalPages={reysTotalPages}
+                    getVisiblePages={reysGetVisiblePages}
+                    onPageChange={setReysPage}
+                  />
+                </div>
+              </>
+            )}
+            {subTab === "loads" && (
+              <>
+                <div className={styles.tableBody}>
+                  <YukTable
+                    rows={yukPaginated}
+                    selectedIds={yukSelectedIds}
+                    onToggleRow={toggleYukRow}
+                    onToggleAllPage={toggleYukAllPage}
+                  />
+                </div>
+                <div className={styles.footer}>
+                  <SifarisPagination
+                    totalRows={yukFilteredRows.length}
+                    currentPage={yukPage}
+                    totalPages={yukTotalPages}
+                    getVisiblePages={yukGetVisiblePages}
+                    onPageChange={setYukPage}
+                  />
+                </div>
+              </>
+            )}
+            {subTab === "payroll" && (
+              <>
+                <div className={styles.tableBody}>
+                  <EmekTable
+                    rows={emekPaginated}
+                    selectedIds={emekSelectedIds}
+                    onToggleRow={toggleEmekRow}
+                    onToggleAllPage={toggleEmekAllPage}
+                  />
+                </div>
+                <div className={styles.footer}>
+                  <SifarisPagination
+                    totalRows={emekFilteredRows.length}
+                    currentPage={emekPage}
+                    totalPages={emekTotalPages}
+                    getVisiblePages={emekGetVisiblePages}
+                    onPageChange={setEmekPage}
+                  />
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
       <SifarisNewModal
         isOpen={isSifarisNewOpen}
         onClose={() => setIsSifarisNewOpen(false)}

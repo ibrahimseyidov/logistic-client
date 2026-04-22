@@ -1,3 +1,12 @@
+// İngilizce status -> Azerice label çevirisi
+function statusLabelAz(value: string): string {
+  const v = value.toLowerCase();
+  if (v === "pending") return "Gözləmədə";
+  if (v === "completed") return "Tamamlandı";
+  if (v === "cancelled" || v === "canceled" || v.includes("cancel"))
+    return "Ləğv edildi";
+  return value;
+}
 type StatusTone =
   | "amber"
   | "cyan"
@@ -150,7 +159,7 @@ export default function StatusBadge({
   className = "",
 }: StatusBadgeProps) {
   const tone = getStatusTone(label, kind);
-
+  const displayLabel = statusLabelAz(label);
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${toneClasses[tone].badge} ${className}`.trim()}
@@ -159,7 +168,7 @@ export default function StatusBadge({
         className="h-1.5 w-1.5 rounded-full bg-current opacity-70"
         aria-hidden="true"
       />
-      {label}
+      {displayLabel}
     </span>
   );
 }

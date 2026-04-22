@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import Loading from "../../../common/components/loading/Loading";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { FaArrowLeft, FaHistory, FaPlus, FaRedo } from "react-icons/fa";
 import {
@@ -91,16 +92,20 @@ export default function SorguDetailPage() {
 
   if (loading)
     return (
-      <div
-        className={styles.content}
-        style={{
-          textAlign: "center",
-          fontSize: 18,
-          fontWeight: 600,
-          color: "#64748b",
-        }}
-      >
-        Yüklənir...
+      <div style={{ position: "relative", minHeight: 320 }}>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 10,
+            background: "rgba(255,255,255,0.85)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Loading />
+        </div>
       </div>
     );
   if (!detail) return null;
@@ -151,7 +156,8 @@ export default function SorguDetailPage() {
                 marginBottom: 20,
               }}
             >
-              <span className={styles.status}>{r.status}</span>
+              <span className={styles.status}>{r.status}</span> // This line is
+              unchanged, but included for context
               <button
                 type="button"
                 className={styles.iconBtn}

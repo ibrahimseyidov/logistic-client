@@ -10,6 +10,7 @@ import Select from "../../../common/components/select/Select";
 import type { SelectOption } from "../../../common/components/select/Select";
 import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
+import { SorguStatus } from "../types/sorgu.types";
 import styles from "./SorgularNewModal.module.css";
 
 // Zorunlu alanlar
@@ -350,7 +351,9 @@ export default function SorgularNewModal({
 
   // Query modelinde olup eksik olan state'ler (hepsi burada, blok dışında):
   const [createdAt, setCreatedAt] = useState(initialValues?.createdAt ?? "");
-  const [status, setStatus] = useState(initialValues?.status ?? "");
+  const [status, setStatus] = useState(
+    initialValues?.status ?? SorguStatus.Pending,
+  );
   const [transportType, setTransportType] = useState(
     initialValues?.transportType ?? "",
   );

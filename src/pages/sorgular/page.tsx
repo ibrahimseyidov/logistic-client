@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { NotificationModal } from "../../common/components/NotificationModal";
+import Loading from "../../common/components/loading/Loading";
 import type { SelectOption } from "../../common/components/select/Select";
 import { useAppDispatch } from "../../common/store/hooks";
 import { showNotification } from "../../common/store/modalSlice";
@@ -75,9 +76,8 @@ export default function SorgularPage() {
 
   useEffect(() => {
     let ignore = false;
-
     setLoading(true);
-    fetchQueriesAction()
+    fetchQueriesAction(subTab)
       .then((data) => {
         if (!ignore) {
           setRows(data);
@@ -99,11 +99,10 @@ export default function SorgularPage() {
           setLoading(false);
         }
       });
-
     return () => {
       ignore = true;
     };
-  }, [dispatch]);
+  }, [dispatch, subTab]);
 
   const toggleSection = useCallback((id: FilterSectionId) => {
     setActiveSections((prev) => {
@@ -244,11 +243,12 @@ export default function SorgularPage() {
         />
       </div>
 
-      <div className={styles.body}>
-        {loading ? (
-          <div className={styles.statePanel}>Sorğular yüklənir...</div>
-        ) : (
-          <SorgularTable rows={paginatedRows} />
+      <div className={styles.body} style={{ position: "relative" }}>
+        {!loading && <SorgularTable rows={paginatedRows} />}
+        {loading && (
+          <div className={styles.statePanel}>
+            <Loading />
+          </div>
         )}
       </div>
 

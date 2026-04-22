@@ -1,3 +1,8 @@
+export enum SorguStatus {
+  Pending = "pending",
+  Cancelled = "cancelled",
+  Completed = "completed",
+}
 export type SorguSubTab = "active" | "archive" | "offers";
 
 export type FilterSectionId =
@@ -16,7 +21,7 @@ export interface LogisticQueryRow {
   id: string;
   number: string;
   customerOrderRef: string;
-  status: string;
+  status: SorguStatus;
   statusAssignedAt: string;
   purpose: string;
   createdAt: string;

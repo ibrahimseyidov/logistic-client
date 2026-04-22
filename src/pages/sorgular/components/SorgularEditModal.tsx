@@ -1,3 +1,9 @@
+import { SorguStatus } from "../types/sorgu.types";
+const statusOptions: SelectOption[] = [
+  { value: SorguStatus.Pending, label: "Gözləmədə" },
+  { value: "completed", label: "Tamamlandı" },
+  { value: "cancelled", label: "Ləğv edildi" },
+];
 import {
   useCallback,
   useEffect,
@@ -162,9 +168,7 @@ function PlusButton({
       type="button"
       title={title}
       onClick={onClick}
-      className={`${styles.plusButton} ${
-        variant === "emerald" ? styles.plusButtonEmerald : ""
-      }`}
+      className={`${styles.plusButton} ${variant === "emerald" ? styles.plusButtonEmerald : ""}`}
       aria-label={title}
     >
       +
@@ -737,6 +741,18 @@ export default function SorgularNewModal({
                           value={company}
                           options={companyOptions}
                           onChange={setCompany}
+                          className={styles.selectControl}
+                        />
+                      </div>
+
+                      {/* STATUS FIELD ADDED HERE */}
+                      <div className={styles.fieldStack}>
+                        <Label required>Status</Label>
+                        <Select
+                          value={status}
+                          options={statusOptions}
+                          onChange={setStatus}
+                          placeholder="Status seçin"
                           className={styles.selectControl}
                         />
                       </div>

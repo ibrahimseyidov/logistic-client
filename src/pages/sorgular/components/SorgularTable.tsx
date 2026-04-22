@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { FaCheck, FaClipboard, FaMinus, FaEdit, FaTrash } from "react-icons/fa";
 import StatusBadge from "../../../common/components/StatusBadge";
-import type { LogisticQueryRow } from "../types/sorgu.types";
+import type { LogisticQueryRow, SorguStatus } from "../types/sorgu.types";
 import styles from "./SorgularTable.module.css";
 
 import React, { useState, useEffect } from "react";
@@ -171,7 +171,7 @@ export default function SorgularTable({ rows }: Props) {
                 <td
                   className={`${styles.cell} ${styles.nowrap} ${styles.min140} ${styles.center}`}
                 >
-                  {row.status ? (
+                  {row.status ? ( // This line is unchanged, but included for context
                     <StatusBadge label={row.status} />
                   ) : (
                     <FaMinus className={styles.mutedText} />
