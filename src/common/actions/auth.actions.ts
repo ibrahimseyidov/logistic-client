@@ -72,9 +72,19 @@ export async function loginAction(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   try {
-    const res = await axios.post("/api/auth/login", { email, password });
-    return res.data as LoginResponse;
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Login failed");
+    }
+    return (await response.json()) as LoginResponse;
   } catch (err: any) {
-    throw new Error(err.response?.data?.message || "Login failed");
+    throw new Error(err.message || "Login failed");
   }
 }

@@ -6,6 +6,8 @@ import {
   FaChevronLeft,
   FaShoppingCart,
   FaTasks,
+  FaUsers,
+  FaCog,
 } from "react-icons/fa";
 import { useSidebarLayout } from "../SidebarLayoutContext";
 import styles from "./sidebar.module.css";
@@ -173,6 +175,32 @@ export default function Sidebar() {
                 <FaTasks />
               </span>
               Tapşırıqlar
+            </NavLink>
+          </div>
+          <div className={styles.navItem}>
+            <NavLink
+              to="/musteriler"
+              className={({ isActive }) =>
+                `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`
+              }
+            >
+              <span className={styles.navIcon}>
+                <FaUsers />
+              </span>
+              Müştərilər
+            </NavLink>
+          </div>
+          <div className={styles.navItem}>
+            <NavLink
+              to="/ayarlar"
+              className={({ isActive }) =>
+                `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`
+              }
+            >
+              <span className={styles.navIcon}>
+                <FaCog />
+              </span>
+              Ayarlar
             </NavLink>
           </div>
         </nav>

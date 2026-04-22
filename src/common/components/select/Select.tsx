@@ -44,16 +44,26 @@ export default function Select({
     top: number;
     left: number;
     width: number;
-  }>({ top: 0, left: 0, width: 0 });
+    maxHeight: number;
+  }>({ top: 0, left: 0, width: 0, maxHeight: 260 });
 
   const updateMenuPosition = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const gap = 8;
+    const estimatedMenuHeight = 260;
+    const spaceBelow = viewportHeight - rect.bottom - gap;
+    const safeSpaceBelow = Math.max(0, spaceBelow);
+    const maxHeight = Math.max(90, Math.min(estimatedMenuHeight, safeSpaceBelow));
+    const top = rect.bottom + 6;
+
     setMenuBox({
-      top: rect.bottom + 6,
+      top,
       left: rect.left,
       width: rect.width,
+      maxHeight,
     });
   }, []);
 
@@ -165,6 +175,7 @@ export default function Select({
               top: menuBox.top,
               left: menuBox.left,
               width: menuBox.width,
+              maxHeight: menuBox.maxHeight,
               zIndex: 5000,
             }}
             role="listbox"
@@ -179,7 +190,7 @@ export default function Select({
             />
             <div className={styles.list}>
               {filteredOptions.length === 0 ? (
-                <div className={styles.empty}>Sonuc bulunamadi</div>
+                <div className={styles.empty}>Nəticə tapılmadı</div>
               ) : (
                 filteredOptions.map((option) => (
                   <div

@@ -1,56 +1,453 @@
-/* TaskViewModal.module.css */
-
-/* Example styles, move all className styles here and use as CSS modules */
 .modalOverlay {
   position: fixed;
   inset: 0;
-  z-index: 1200;
+  z-index: 1100;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
-  padding: 0.75rem;
+  justify-content: flex-end;
+  background: rgba(15, 23, 42, 0.2);
+  opacity: 0;
+  transition: opacity 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.modalOverlayVisible {
+  opacity: 1;
 }
 
 .modalContainer {
   position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
-  max-height: 92vh;
-  width: 100%;
-  max-width: 80rem;
-  overflow: hidden;
-  border-radius: 1rem;
-  background: #fff;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  width: min(100%, 1120px);
+  height: 100%;
+  overflow: hidden auto;
+  border-left: 1px solid #e2e8f0;
+  background: #f8fafc;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
+  transform: translateX(100%);
+  opacity: 0;
+  transition:
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 280ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.closeButton {
-  position: absolute;
-  right: 0.75rem;
-  top: 0.75rem;
-  border-radius: 0.375rem;
-  padding: 0.375rem;
-  color: #dc2626;
-  background: transparent;
-  transition: background 0.2s;
-}
-.closeButton:hover {
-  background: #fef2f2;
+.modalContainerVisible {
+  transform: translateX(0);
+  opacity: 1;
 }
 
 .header {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  border-bottom: 1px solid #f3f4f6;
-  padding: 0.75rem 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
 }
 
 .title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #111827;
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.4rem;
+  font-weight: 700;
 }
 
-/* Add more styles as needed */
+.closeButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.8rem;
+  height: 2.8rem;
+  border: 1px solid #dbe4f0;
+  border-radius: 0.85rem;
+  background: #fff;
+  color: #64748b;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.closeButton:hover {
+  background: #f8fafc;
+  color: #334155;
+}
+
+.body {
+  flex: 1 1 auto;
+  padding: 1.5rem;
+}
+
+.gridContainer {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 1rem;
+}
+
+.leftCol,
+.rightCol {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.labelBlock,
+.fieldBox,
+.sectionBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  background: #fff;
+  padding: 0.9rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.labelTitle,
+.fieldLabel,
+.sectionLabel {
+  color: #64748b;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.inputTitle,
+.textareaDesc,
+.inputControl {
+  width: 100%;
+  border: 1px solid #dbe4f0;
+  border-radius: 0.85rem;
+  background: #fff;
+  color: #334155;
+  font-size: 0.92rem;
+  box-sizing: border-box;
+}
+
+.inputTitle,
+.inputControl {
+  min-height: 2.8rem;
+  padding: 0.65rem 0.85rem;
+}
+
+.textareaDesc {
+  min-height: 8rem;
+  resize: vertical;
+  padding: 0.75rem 0.85rem;
+}
+
+.fileDropArea {
+  min-height: 140px;
+  border: 2px dashed #cbd5e1;
+  border-radius: 0.9rem;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #64748b;
+  gap: 0.45rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.fileDropArea:hover {
+  border-color: #94a3b8;
+}
+
+.hiddenFileInput {
+  display: none;
+}
+
+.fileDropIcon {
+  font-size: 1.45rem;
+  color: #94a3b8;
+}
+
+.fileList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.fileItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.65rem;
+  background: #fff;
+  padding: 0.45rem 0.6rem;
+}
+
+.fileName {
+  font-size: 0.84rem;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fileRemove {
+  border: 1px solid #fecaca;
+  border-radius: 999px;
+  width: 1.5rem;
+  height: 1.5rem;
+  background: #fff5f5;
+  color: #ef4444;
+  cursor: pointer;
+}
+
+.secondaryActionButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  align-self: flex-start;
+  border: 1px solid #d1d5db;
+  border-radius: 0.65rem;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.45rem 0.65rem;
+  cursor: pointer;
+}
+
+.buttonIconSmall {
+  font-size: 0.7rem;
+}
+
+.checklistList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.checklistRow {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.7rem;
+  background: #f8fafc;
+  padding: 0.45rem 0.55rem;
+}
+
+.checklistCheckbox {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: #2563eb;
+}
+
+.checklistRemove {
+  border: 1px solid #fecaca;
+  border-radius: 999px;
+  width: 1.45rem;
+  height: 1.45rem;
+  background: #fee2e2;
+  color: #ef4444;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+
+.checklistInput {
+  width: 100%;
+  border: 1px solid #dbe4f0;
+  border-radius: 0.6rem;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.86rem;
+  color: #334155;
+  background: #fff;
+}
+
+.executorInputRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+}
+
+.addMiniButton {
+  border: 1px solid #d1d5db;
+  border-radius: 0.7rem;
+  background: #f8fafc;
+  color: #334155;
+  width: 2.8rem;
+  min-height: 2.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.tagList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.tagItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1e3a8a;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.3rem 0.55rem;
+}
+
+.tagRemove {
+  border: 0;
+  background: transparent;
+  color: #1e3a8a;
+  padding: 0;
+  cursor: pointer;
+}
+
+.tagRemoveIcon {
+  font-size: 0.65rem;
+}
+
+.inlineField {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.checkboxRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #334155;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.checkbox {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #2563eb;
+}
+
+.infoIcon {
+  color: #2563eb;
+}
+
+.tooltipWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tooltipBubble {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.45rem);
+  width: 220px;
+  border-radius: 0.55rem;
+  background: #0f172a;
+  color: #fff;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  padding: 0.45rem 0.55rem;
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.tooltipWrap:hover .tooltipBubble {
+  opacity: 1;
+}
+
+.twoColGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.threeColGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.readOnlyInput {
+  width: 100%;
+  min-height: 2.8rem;
+  border: 1px solid #dbe4f0;
+  border-radius: 0.85rem;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.9rem;
+  padding: 0.65rem 0.85rem;
+  box-sizing: border-box;
+  cursor: not-allowed;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.saveButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.8rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0.7rem 1rem;
+  cursor: pointer;
+}
+
+.saveButton {
+  border: 1px solid #10b981;
+  background: #10b981;
+  color: #fff;
+}
+
+@media (max-width: 980px) {
+  .gridContainer {
+    grid-template-columns: 1fr;
+  }
+
+  .threeColGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .header,
+  .body,
+  .footer {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .twoColGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .footer {
+    flex-direction: column;
+  }
+
+  .saveButton {
+    width: 100%;
+    justify-content: center;
+  }
+}
