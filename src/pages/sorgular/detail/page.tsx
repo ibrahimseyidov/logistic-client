@@ -7,14 +7,9 @@ import {
   buildSorguDetailView,
   type SorguDetailTabId,
 } from "../lib/sorguDetailViewModel";
-import axios from "axios";
+import { fetchQueryDetailAction } from "../../../common/actions/query.actions";
 import type { LogisticQueryRow } from "../types/sorgu.types";
 import styles from "./page.module.css";
-
-const tabBase =
-  "px-3 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap";
-const tabActive = "border-indigo-600 text-indigo-700";
-const tabIdle = "border-transparent text-gray-500 hover:text-gray-700";
 
 function SectionCard({
   title,
@@ -86,9 +81,8 @@ export default function SorguDetailPage() {
   React.useEffect(() => {
     if (!sorguKey) return;
     setLoading(true);
-    axios
-      .get(`/api/query/${sorguKey}`)
-      .then((res) => setRow(res.data))
+    fetchQueryDetailAction(sorguKey)
+      .then((data) => setRow(data))
       .catch(() => setRow(null))
       .finally(() => setLoading(false));
   }, [sorguKey]);

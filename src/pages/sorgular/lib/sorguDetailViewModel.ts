@@ -132,9 +132,7 @@ export function buildSorguDetailView(
     toCity: unload.city || "—",
     toAddress: unload.address,
     cargoTitle: "Yük",
-    cargoBoxLines: row.cargoInfo
-      ? row.cargoInfo.split("\n").filter(Boolean)
-      : [],
+    cargoBoxLines: (row.cargoInfo || "").split("\n").filter(Boolean),
     inquiryDateLabel,
     commentsCount: 0,
     offersCount: row.priceOffers && row.priceOffers !== "—" ? 1 : 0,
