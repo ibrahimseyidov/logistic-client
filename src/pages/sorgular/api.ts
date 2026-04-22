@@ -8,7 +8,15 @@ import type { LogisticQueryRow } from "./types/sorgu.types";
 
 export async function fetchQueries(): Promise<LogisticQueryRow[]> {
   const res = await axios.get("/api/query");
-  return res.data;
+  // Eğer API'den obje gelirse ve içinde data varsa onu döndür
+  if (Array.isArray(res.data)) {
+    return res.data;
+  } else if (res.data && Array.isArray(res.data.data)) {
+    return res.data.data;
+  } else {
+    // Beklenmeyen bir veri yapısı gelirse boş dizi döndür
+    return [];
+  }
 }
 
 export async function createQuery(
