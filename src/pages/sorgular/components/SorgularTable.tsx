@@ -6,7 +6,11 @@ import styles from "./SorgularTable.module.css";
 
 import React, { useState, useEffect } from "react";
 import { SorgularEditModal } from "./index";
-import { updateQuery, deleteQuery, fetchQueryDetail } from "../api";
+import {
+  updateQueryAction,
+  deleteQueryAction,
+  fetchQueryDetailAction,
+} from "../../../common/actions/query.actions";
 
 interface Props {
   rows: LogisticQueryRow[];
@@ -48,7 +52,7 @@ export default function SorgularTable({ rows }: Props) {
   const handleEditClick = async (row: LogisticQueryRow) => {
     // Detay verisini backend'den çek
     try {
-      const detail = await fetchQueryDetail(row.id);
+      const detail = await fetchQueryDetailAction(row.id);
       setEditRow(detail);
       setEditModalOpen(true);
     } catch (e) {
@@ -59,7 +63,7 @@ export default function SorgularTable({ rows }: Props) {
   const handleEditSubmit = async (payload: any) => {
     if (!editRow) return;
     try {
-      const updated = await updateQuery(editRow.id, payload.fields);
+      const updated = await updateQueryAction(editRow.id, payload.fields);
       setLocalRows((prev) =>
         prev.map((r) => (r.id === updated.id ? updated : r)),
       );
@@ -73,7 +77,7 @@ export default function SorgularTable({ rows }: Props) {
   const handleDelete = async (row: LogisticQueryRow) => {
     if (!window.confirm("Bu sorgunu silmək istədiyinizə əminsiniz?")) return;
     try {
-      await deleteQuery(row.id);
+      await deleteQueryAction(row.id);
       setLocalRows((prev) => prev.filter((r) => r.id !== row.id));
     } catch (e) {
       // Hata yönetimi eklenebilir

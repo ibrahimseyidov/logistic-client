@@ -14,7 +14,10 @@ import {
   SorgularTable,
   type NewSorguFormPayload,
 } from "./components";
-import { createQuery, fetchQueries } from "./api";
+import {
+  createQueryAction,
+  fetchQueriesAction,
+} from "../../common/actions/query.actions";
 import { useSorgularPagination } from "./hooks/useSorgularPagination";
 import { applyFilters, filterByTab } from "./lib/filterSorgular";
 import styles from "./sorgular.module.css";
@@ -74,7 +77,7 @@ export default function SorgularPage() {
     let ignore = false;
 
     setLoading(true);
-    fetchQueries()
+    fetchQueriesAction()
       .then((data) => {
         if (!ignore) {
           setRows(data);
@@ -205,7 +208,7 @@ export default function SorgularPage() {
     setIsNewOpen(false);
 
     try {
-      const created = await createQuery(payload.fields);
+      const created = await createQueryAction(payload.fields);
       setRows((prev) => [created, ...prev]);
       dispatch(
         showNotification({
