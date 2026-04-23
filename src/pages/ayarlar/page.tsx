@@ -1,6 +1,11 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { FiFilePlus, FiFilter, FiX } from "react-icons/fi";
+import { FaEdit, FaTrash, FaUserShield } from "react-icons/fa";
+import sorguLayoutStyles from "../sorgular/sorgular.module.css";
+import sorguActionBarStyles from "../sorgular/components/SorgularActionBar.module.css";
+import sorguTableStyles from "../sorgular/components/SorgularTable.module.css";
 import styles from "./ayarlar.module.css";
 
 type UserRole = "admin" | "manager" | "operator" | "viewer";
@@ -46,10 +51,21 @@ const INITIAL_USERS: ManagedUser[] = [
 
 export default function AyarlarPage() {
   const [users, setUsers] = useState<ManagedUser[]>(INITIAL_USERS);
-  const [activeTab, setActiveTab] = useState<"moderation" | "general">("moderation");
+  const [activePanel, setActivePanel] = useState<"new" | "edit" | "filter" | null>(
+    null,
+  );
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [deletingUser, setDeletingUser] = useState<ManagedUser | null>(null);
   const [query, setQuery] = useState("");
+  const [filterDraft, setFilterDraft] = useState({
+    role: "",
+    status: "",
+    keyword: "",
+  });
+  const [appliedFilter, setAppliedFilter] = useState({
+    role: "",
+    status: "",
+    keyword: "",
+  });
   const [form, setForm] = useState({
     fullName: "",
     email: "",
@@ -58,27 +74,71 @@ export default function AyarlarPage() {
   });
 
   const filteredUsers = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return users;
-    return users.filter(
-      (user) =>
-        user.fullName.toLowerCase().includes(normalized) ||
-        user.email.toLowerCase().includes(normalized),
-    );
-  }, [query, users]);
+    const text = (appliedFilter.keyword || query).trim().toLowerCase();
+    return users.filter((user) => {
+      if (appliedFilter.role && user.role !== appliedFilter.role) return false;
+      if (appliedFilter.status && user.status !== appliedFilter.status) return false;
+      if (!text) return true;
+      return (
+        user.fullName.toLowerCase().includes(text) ||
+        user.email.toLowerCase().includes(text)
+      );
+    });
+  }, [users, appliedFilter, query]);
+
+  const activeFilterCount = useMemo(
+    () => Object.values(appliedFilter).filter((value) => value.trim() !== "").length,
+    [appliedFilter],
+  );
+
+  const activeUserCount = useMemo(
+    () => filteredUsers.filter((user) => user.status === "active").length,
+    [filteredUsers],
+  );
+
+  useEffect(() => {
+    if (!activePanel) return undefined;
+    const onEsc = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setActivePanel(null);
+    };
+    window.addEventListener("keydown", onEsc);
+    return () => window.removeEventListener("keydown", onEsc);
+  }, [activePanel]);
+
+  useEffect(() => {
+    if (!activePanel) return undefined;
+    const prevBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevBody;
+      document.documentElement.style.overflow = prevHtml;
+    };
+  }, [activePanel]);
 
   const resetForm = () => {
-    setForm({
-      fullName: "",
-      email: "",
-      role: "viewer",
-      status: "active",
-    });
+    setForm({ fullName: "", email: "", role: "viewer", status: "active" });
     setEditingUserId(null);
   };
 
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
+  const openNew = () => {
+    resetForm();
+    setActivePanel("new");
+  };
+
+  const openEdit = (user: ManagedUser) => {
+    setEditingUserId(user.id);
+    setForm({
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+    });
+    setActivePanel("edit");
+  };
+
+  const saveUser = () => {
     const fullName = form.fullName.trim();
     const email = form.email.trim();
     if (!fullName || !email) return;
@@ -89,93 +149,257 @@ export default function AyarlarPage() {
           user.id === editingUserId ? { ...user, ...form, fullName, email } : user,
         ),
       );
+      setActivePanel(null);
       resetForm();
       return;
     }
 
-    const newUser: ManagedUser = {
-      id: crypto.randomUUID(),
-      fullName,
-      email,
-      role: form.role,
-      status: form.status,
-    };
-    setUsers((prev) => [newUser, ...prev]);
+    setUsers((prev) => [
+      {
+        id: crypto.randomUUID(),
+        fullName,
+        email,
+        role: form.role,
+        status: form.status,
+      },
+      ...prev,
+    ]);
+    setActivePanel(null);
     resetForm();
   };
 
-  const handleEdit = (user: ManagedUser) => {
-    setEditingUserId(user.id);
-    setForm({
-      fullName: user.fullName,
-      email: user.email,
-      role: user.role,
-      status: user.status,
-    });
-  };
-
-  const handleDelete = (userId: string) => {
+  const deleteUser = (userId: string) => {
+    if (!window.confirm("Bu istifadəçini silmək istədiyinizə əminsiniz?")) return;
     setUsers((prev) => prev.filter((user) => user.id !== userId));
-    if (editingUserId === userId) resetForm();
   };
 
-  const openDeleteModal = (user: ManagedUser) => {
-    setDeletingUser(user);
+  const applyFilter = () => {
+    setAppliedFilter({ ...filterDraft });
+    setQuery(filterDraft.keyword);
+    setActivePanel(null);
   };
 
-  const closeDeleteModal = () => {
-    setDeletingUser(null);
-  };
-
-  const confirmDelete = () => {
-    if (!deletingUser) return;
-    handleDelete(deletingUser.id);
-    closeDeleteModal();
-  };
-
-  const handleRoleChange = (userId: string, role: UserRole) => {
-    setUsers((prev) => prev.map((user) => (user.id === userId ? { ...user, role } : user)));
+  const clearFilter = () => {
+    const empty = { role: "", status: "", keyword: "" };
+    setFilterDraft(empty);
+    setAppliedFilter(empty);
+    setQuery("");
   };
 
   return (
-    <div className={styles.page}>
-      <div className={styles.tabBar}>
-        <button
-          type="button"
-          onClick={() => setActiveTab("moderation")}
-          className={`${styles.tabButton} ${activeTab === "moderation" ? styles.tabButtonActive : ""}`}
-        >
-          Moderasiya
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("general")}
-          className={`${styles.tabButton} ${activeTab === "general" ? styles.tabButtonActive : ""}`}
-        >
-          Ümumi ayarlar
-        </button>
+    <div className={sorguLayoutStyles.container}>
+      <div className={sorguLayoutStyles.header}>
+        <section className={sorguActionBarStyles.wrapper}>
+          <div className={sorguActionBarStyles.group}>
+            <button
+              type="button"
+              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonPrimary}`}
+              onClick={openNew}
+            >
+              <FiFilePlus />
+              Yeni user
+            </button>
+            <button
+              type="button"
+              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonSecondary}`}
+              onClick={() => setActivePanel("filter")}
+            >
+              <FiFilter />
+              Filtrlər
+              {activeFilterCount > 0 ? (
+                <span className={sorguActionBarStyles.badge}>{activeFilterCount}</span>
+              ) : null}
+            </button>
+          </div>
+          <div className={sorguActionBarStyles.statsGroup}>
+            <span className={sorguActionBarStyles.statPill}>Cəmi: {filteredUsers.length}</span>
+            <span className={sorguActionBarStyles.statPill}>Aktiv: {activeUserCount}</span>
+          </div>
+          <div className={sorguActionBarStyles.group}>
+            <input
+              className={styles.searchInput}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="User axtar..."
+            />
+          </div>
+        </section>
       </div>
 
-      {activeTab === "general" ? (
-        <section className={styles.placeholderCard}>
-          <h3>Ümumi ayarlar</h3>
-          <p>Bu hissədə ümumi sistem parametrlərini sonradan genişləndirə bilərsiniz.</p>
+      <div className={sorguLayoutStyles.body}>
+        <section className={styles.tableCard}>
+          <div className={styles.tableWrap}>
+            <table className={sorguTableStyles.table}>
+              <thead className={sorguTableStyles.head}>
+                <tr>
+                  <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min180}`}>
+                    Ad soyad
+                  </th>
+                  <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min180}`}>
+                    Email
+                  </th>
+                  <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min140}`}>
+                    Yetki
+                  </th>
+                  <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>
+                    Status
+                  </th>
+                  <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>
+                    Əməliyyatlar
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredUsers.map((user, index) => (
+                  <tr
+                    key={user.id}
+                    className={index % 2 === 0 ? sorguTableStyles.rowEven : sorguTableStyles.rowOdd}
+                  >
+                    <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
+                      {user.fullName}
+                    </td>
+                    <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
+                      {user.email}
+                    </td>
+                    <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
+                      {ROLE_LABELS[user.role]}
+                    </td>
+                    <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
+                      <span
+                        className={`${styles.statusBadge} ${
+                          user.status === "active" ? styles.statusActive : styles.statusInactive
+                        }`}
+                      >
+                        {user.status === "active" ? "Aktiv" : "Deaktiv"}
+                      </span>
+                    </td>
+                    <td className={`${sorguTableStyles.actionCell} ${sorguTableStyles.center}`}>
+                      <div className={sorguTableStyles.actionRow} style={{ justifyContent: "center" }}>
+                        <button
+                          type="button"
+                          className={`${sorguTableStyles.iconButton} ${styles.guardButton}`}
+                          title="Yetkiləri idarə et"
+                          aria-label="Yetkiləri idarə et"
+                          onClick={() => openEdit(user)}
+                        >
+                          <FaUserShield />
+                        </button>
+                        <button
+                          type="button"
+                          className={`${sorguTableStyles.iconButton} ${sorguTableStyles.editButton}`}
+                          title="Düzəliş et"
+                          aria-label="Düzəliş et"
+                          onClick={() => openEdit(user)}
+                        >
+                          <FaEdit />
+                        </button>
+                        <button
+                          type="button"
+                          className={`${sorguTableStyles.iconButton} ${sorguTableStyles.deleteButton}`}
+                          title="Sil"
+                          aria-label="Sil"
+                          onClick={() => deleteUser(user.id)}
+                        >
+                          <FaTrash />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
-      ) : null}
+      </div>
 
-      {activeTab === "moderation" ? (
-        <>
-          <section className={styles.card}>
-            <div className={styles.cardHeader}>
-              <h3>User əlavə et / redaktə et</h3>
+      <div
+        className={`${sorguLayoutStyles.overlay} ${activePanel ? sorguLayoutStyles.overlayOpen : ""}`}
+        onClick={() => setActivePanel(null)}
+        aria-hidden={!activePanel}
+      />
+
+      <aside
+        className={`${sorguLayoutStyles.drawer} ${activePanel ? sorguLayoutStyles.drawerOpen : ""}`}
+        aria-hidden={!activePanel}
+      >
+        {activePanel === "filter" ? (
+          <div className={styles.drawerPanel}>
+            <div className={styles.drawerHeader}>
+              <h3>Filtrlər</h3>
+              <button type="button" onClick={() => setActivePanel(null)}>
+                <FiX />
+              </button>
             </div>
-            <form className={styles.formGrid} onSubmit={handleSubmit}>
+            <div className={styles.drawerBody}>
+              <label className={styles.field}>
+                <span>Yetki</span>
+                <select
+                  value={filterDraft.role}
+                  onChange={(e) => setFilterDraft((p) => ({ ...p, role: e.target.value }))}
+                  className={styles.input}
+                >
+                  <option value="">Hamısı</option>
+                  {Object.entries(ROLE_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>Status</span>
+                <select
+                  value={filterDraft.status}
+                  onChange={(e) => setFilterDraft((p) => ({ ...p, status: e.target.value }))}
+                  className={styles.input}
+                >
+                  <option value="">Hamısı</option>
+                  <option value="active">Aktiv</option>
+                  <option value="inactive">Deaktiv</option>
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>Axtarış</span>
+                <input
+                  value={filterDraft.keyword}
+                  onChange={(e) => setFilterDraft((p) => ({ ...p, keyword: e.target.value }))}
+                  className={styles.input}
+                  placeholder="Ad və ya email"
+                />
+              </label>
+            </div>
+            <div className={styles.drawerFooter}>
+              <button type="button" className={styles.secondary} onClick={clearFilter}>
+                Təmizlə
+              </button>
+              <button type="button" className={styles.primary} onClick={applyFilter}>
+                Filterdən keçir
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {activePanel === "new" || activePanel === "edit" ? (
+          <div className={styles.drawerPanel}>
+            <div className={styles.drawerHeader}>
+              <h3>{activePanel === "new" ? "Yeni user" : "User redaktəsi"}</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setActivePanel(null);
+                  resetForm();
+                }}
+              >
+                <FiX />
+              </button>
+            </div>
+            <div className={styles.drawerBody}>
               <label className={styles.field}>
                 <span>Ad soyad</span>
                 <input
                   value={form.fullName}
                   onChange={(e) => setForm((prev) => ({ ...prev, fullName: e.target.value }))}
-                  placeholder="Ad Soyad"
+                  className={styles.input}
                 />
               </label>
               <label className={styles.field}>
@@ -184,16 +408,15 @@ export default function AyarlarPage() {
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
-                  placeholder="example@company.com"
+                  className={styles.input}
                 />
               </label>
               <label className={styles.field}>
                 <span>Yetki</span>
                 <select
                   value={form.role}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, role: e.target.value as UserRole }))
-                  }
+                  onChange={(e) => setForm((prev) => ({ ...prev, role: e.target.value as UserRole }))}
+                  className={styles.input}
                 >
                   {Object.entries(ROLE_LABELS).map(([value, label]) => (
                     <option key={value} value={value}>
@@ -212,124 +435,31 @@ export default function AyarlarPage() {
                       status: e.target.value as ManagedUser["status"],
                     }))
                   }
+                  className={styles.input}
                 >
                   <option value="active">Aktiv</option>
                   <option value="inactive">Deaktiv</option>
                 </select>
               </label>
-              <div className={styles.formActions}>
-                <button className={styles.saveButton} type="submit">
-                  {editingUserId ? "Yenilə" : "Yadda saxla"}
-                </button>
-                <button className={styles.cancelButton} type="button" onClick={resetForm}>
-                  Təmizlə
-                </button>
-              </div>
-            </form>
-          </section>
-
-          <section className={styles.card}>
-            <div className={styles.cardHeader}>
-              <h3>User moderasiyası</h3>
-              <input
-                className={styles.searchInput}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="User axtar..."
-              />
             </div>
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Ad soyad</th>
-                    <th>Email</th>
-                    <th>Yetki</th>
-                    <th>Status</th>
-                    <th>Əməliyyat</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredUsers.map((user) => (
-                    <tr key={user.id}>
-                      <td>{user.fullName}</td>
-                      <td>{user.email}</td>
-                      <td>
-                        <select
-                          className={styles.roleSelect}
-                          value={user.role}
-                          onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
-                        >
-                          {Object.entries(ROLE_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <span
-                          className={`${styles.statusBadge} ${
-                            user.status === "active" ? styles.statusActive : styles.statusInactive
-                          }`}
-                        >
-                          {user.status === "active" ? "Aktiv" : "Deaktiv"}
-                        </span>
-                      </td>
-                      <td className={styles.actionCell}>
-                        <button type="button" onClick={() => handleEdit(user)}>
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.deleteButton}
-                          onClick={() => openDeleteModal(user)}
-                        >
-                          Sil
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </>
-      ) : null}
-
-      {deletingUser ? (
-        <div className={styles.modalOverlay} role="dialog" aria-modal="true">
-          <div className={styles.modalCard}>
-            <div className={styles.modalTop}>
-              <div className={styles.modalIcon} aria-hidden>
-                !
-              </div>
-              <h4>User silinsin?</h4>
-            </div>
-            <p>
-              <strong>{deletingUser.fullName}</strong> istifadəçisini silmək istədiyinizə
-              əminsiniz? Bu əməliyyatı geri qaytarmaq mümkün olmayacaq.
-            </p>
-            <div className={styles.modalActions}>
+            <div className={styles.drawerFooter}>
               <button
                 type="button"
-                className={styles.modalCancelButton}
-                onClick={closeDeleteModal}
+                className={styles.secondary}
+                onClick={() => {
+                  setActivePanel(null);
+                  resetForm();
+                }}
               >
-                Ləğv et
+                Bağla
               </button>
-              <button
-                type="button"
-                className={styles.modalDeleteButton}
-                onClick={confirmDelete}
-              >
-                Sil
+              <button type="button" className={styles.primary} onClick={saveUser}>
+                {activePanel === "new" ? "Yadda saxla" : "Yenilə"}
               </button>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </aside>
     </div>
   );
 }
-

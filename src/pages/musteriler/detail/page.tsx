@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { FiArrowLeft } from "react-icons/fi";
 import { MOCK_ROWS } from "../data";
 import styles from "./musteriDetail.module.css";
 
@@ -226,6 +227,18 @@ export default function MusteriDetailPage() {
     setActiveAccountIndex((prev) => (prev > 0 ? prev - 1 : 0));
   };
 
+  useEffect(() => {
+    if (!isEditOpen) return undefined;
+    const prevBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevBody;
+      document.documentElement.style.overflow = prevHtml;
+    };
+  }, [isEditOpen]);
+
   return (
     <div className={styles.page}>
       <div className={styles.topBar}>
@@ -244,6 +257,10 @@ export default function MusteriDetailPage() {
       </div>
 
       <div className={styles.quickActions}>
+        <button type="button" className={styles.backButton} onClick={() => navigate("/musteriler")}>
+          <FiArrowLeft />
+          Geri
+        </button>
         <button type="button">Yenilə</button>
         <button type="button" onClick={openEditModal}>
           + Redaktə et
@@ -317,9 +334,16 @@ export default function MusteriDetailPage() {
         </section>
       </div>
 
-      {isEditOpen ? (
-        <div className={styles.editModalOverlay} role="dialog" aria-modal="true">
-          <div className={styles.editModalCard}>
+      <div
+        className={`${styles.editModalOverlay} ${isEditOpen ? styles.editModalOverlayOpen : ""}`}
+        onClick={() => setIsEditOpen(false)}
+        aria-hidden={!isEditOpen}
+      />
+      <aside
+        className={`${styles.editDrawer} ${isEditOpen ? styles.editDrawerOpen : ""}`}
+        aria-hidden={!isEditOpen}
+      >
+        <div className={styles.editModalCard} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <div className={styles.editModalHeader}>
               <h3>Müştərini redaktə et</h3>
               <button type="button" onClick={() => setIsEditOpen(false)}>
@@ -723,9 +747,8 @@ export default function MusteriDetailPage() {
                 Yaddaşda saxlamaq
               </button>
             </div>
-          </div>
         </div>
-      ) : null}
+      </aside>
 
       {bankModalTarget ? (
         <div className={styles.bankModalOverlay} role="dialog" aria-modal="true">
