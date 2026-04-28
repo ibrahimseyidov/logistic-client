@@ -33,6 +33,10 @@ export async function fetchQueryDetailAction(
 export async function fetchQueriesAction(
   tab?: string,
 ): Promise<LogisticQueryRow[]> {
+  if (tab === "offers") {
+    return [];
+  }
+
   const token = getAuthToken();
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
   let url = "/api/query";

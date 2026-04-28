@@ -16,7 +16,7 @@ interface Props {
   rows: LogisticQueryRow[];
 }
 
-const COLUMN_COUNT = 17;
+const COLUMN_COUNT = 13;
 
 function formatCreated(iso: string) {
   const d = new Date(iso);
@@ -28,6 +28,93 @@ function formatCreated(iso: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatDateOnly(value: string) {
+  const d = new Date(value);
+  if (!Number.isNaN(d.getTime())) {
+    return d.toLocaleDateString("az-AZ", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
+
+  const datePart = value.split("T")[0]?.trim();
+  if (!datePart) return "—";
+
+  const fallback = new Date(datePart);
+  if (!Number.isNaN(fallback.getTime())) {
+    return fallback.toLocaleDateString("az-AZ", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
+
+  return datePart;
+}
+
+function getCustomerFullName(row: LogisticQueryRow) {
+  const anyRow = row as any;
+  const customer = anyRow.customer;
+  const toText = (value: unknown) =>
+    typeof value === "string" ? value.trim() : "";
+  const joinName = (first: unknown, last: unknown) =>
+    `${toText(first)} ${toText(last)}`.trim();
+  const looksLikeFullName = (value: string) => value.split(/\s+/).length >= 2;
+
+  if (customer && typeof customer === "object") {
+    const fullName =
+      joinName(
+        customer.firstName ??
+          customer.firstname ??
+          customer.name ??
+          customer.givenName ??
+          customer.ad,
+        customer.lastName ??
+          customer.lastname ??
+          customer.surname ??
+          customer.familyName ??
+          customer.soyad,
+      ) ||
+      toText(customer.fullName) ||
+      toText(customer.displayName);
+    if (fullName) return fullName;
+  }
+
+  const fullName =
+    joinName(
+      anyRow.customerFirstName ??
+        anyRow.customerFirstname ??
+        anyRow.firstName ??
+        anyRow.firstname ??
+        anyRow.name ??
+        anyRow.givenName ??
+        anyRow.ad,
+      anyRow.customerLastName ??
+        anyRow.customerLastname ??
+        anyRow.lastName ??
+        anyRow.lastname ??
+        anyRow.surname ??
+        anyRow.familyName ??
+        anyRow.soyad,
+    ) ||
+    toText(anyRow.customerFullName) ||
+    toText(anyRow.fullName) ||
+    toText(anyRow.customerName);
+  if (fullName) return fullName;
+
+  const customerText = toText(customer);
+  if (customerText && looksLikeFullName(customerText)) return customerText;
+
+  const contactPerson = toText(anyRow.contactPerson);
+  if (contactPerson && looksLikeFullName(contactPerson)) return contactPerson;
+
+  if (customerText) return customerText;
+  if (contactPerson) return contactPerson;
+
+  return "";
 }
 
 export default function SorgularTable({ rows }: Props) {
@@ -95,27 +182,14 @@ export default function SorgularTable({ rows }: Props) {
             <th className={`${styles.headerCell} ${styles.min140}`}>
               Sorğunun statusu
             </th>
-            <th className={`${styles.headerCell} ${styles.min170}`}>
-              Sorğunun məqsədi
-            </th>
             <th className={`${styles.headerCell} ${styles.min160}`}>
               Yaradıldı
-            </th>
-            <th className={`${styles.headerCell} ${styles.min140}`}>
-              Nəqliyyatın tipi
             </th>
             <th className={`${styles.headerCell} ${styles.min240}`}>
               Yük haqqında məlumat
             </th>
             <th className={`${styles.headerCell} ${styles.min150}`}>
               Göndərən
-            </th>
-            <th className={`${styles.headerCell} ${styles.min170}`}>
-              Yükləmə yeri
-            </th>
-            <th className={`${styles.headerCell} ${styles.min150}`}>Alıcı</th>
-            <th className={`${styles.headerCell} ${styles.min170}`}>
-              Boşaltma yeri
             </th>
             <th className={`${styles.headerCell} ${styles.min140}`}>
               Yükləmə tarixi
@@ -172,15 +246,10 @@ export default function SorgularTable({ rows }: Props) {
                   className={`${styles.cell} ${styles.nowrap} ${styles.min140} ${styles.center}`}
                 >
                   {row.status ? ( // This line is unchanged, but included for context
-                    <StatusBadge label={row.status} />
+                    <StatusBadge label={row.status} className={styles.statusBadge} />
                   ) : (
                     <FaMinus className={styles.mutedText} />
                   )}
-                </td>
-                <td
-                  className={`${styles.cell} ${styles.bodyText} ${styles.nowrap} ${styles.min170} ${styles.center}`}
-                >
-                  {row.purpose || <FaMinus className={styles.mutedText} />}
                 </td>
                 <td
                   className={`${styles.cell} ${styles.mutedText} ${styles.nowrap} ${styles.min160} ${styles.center}`}
@@ -188,13 +257,6 @@ export default function SorgularTable({ rows }: Props) {
                   {row.createdAt ? (
                     formatCreated(row.createdAt)
                   ) : (
-                    <FaMinus className={styles.mutedText} />
-                  )}
-                </td>
-                <td
-                  className={`${styles.cell} ${styles.center} ${styles.nowrap} ${styles.min140}`}
-                >
-                  {row.transportType || (
                     <FaMinus className={styles.mutedText} />
                   )}
                 </td>
@@ -234,34 +296,29 @@ export default function SorgularTable({ rows }: Props) {
                   {row.sender || <FaMinus className={styles.mutedText} />}
                 </td>
                 <td
-                  className={`${styles.cell} ${styles.bodyText} ${styles.nowrap} ${styles.min170} ${styles.center}`}
+                  className={`${styles.cell} ${styles.mutedText} ${styles.nowrap} ${styles.min140} ${styles.center}`}
                 >
-                  {row.loadPlace || <FaMinus className={styles.mutedText} />}
-                </td>
-                <td
-                  className={`${styles.cell} ${styles.bodyText} ${styles.min150} ${styles.center}`}
-                >
-                  {row.recipient || <FaMinus className={styles.mutedText} />}
-                </td>
-                <td
-                  className={`${styles.cell} ${styles.bodyText} ${styles.nowrap} ${styles.min170} ${styles.center}`}
-                >
-                  {row.unloadPlace || <FaMinus className={styles.mutedText} />}
+                  {row.loadDate ? (
+                    formatDateOnly(row.loadDate)
+                  ) : (
+                    <FaMinus className={styles.mutedText} />
+                  )}
                 </td>
                 <td
                   className={`${styles.cell} ${styles.mutedText} ${styles.nowrap} ${styles.min140} ${styles.center}`}
                 >
-                  {row.loadDate || <FaMinus className={styles.mutedText} />}
-                </td>
-                <td
-                  className={`${styles.cell} ${styles.mutedText} ${styles.nowrap} ${styles.min140} ${styles.center}`}
-                >
-                  {row.unloadDate || <FaMinus className={styles.mutedText} />}
+                  {row.unloadDate ? (
+                    formatDateOnly(row.unloadDate)
+                  ) : (
+                    <FaMinus className={styles.mutedText} />
+                  )}
                 </td>
                 <td
                   className={`${styles.cell} ${styles.bodyText} ${styles.min160} ${styles.center}`}
                 >
-                  {row.customer || <FaMinus className={styles.mutedText} />}
+                  {getCustomerFullName(row) || (
+                    <FaMinus className={styles.mutedText} />
+                  )}
                 </td>
                 <td
                   className={`${styles.cell} ${styles.bodyText} ${styles.nowrap} ${styles.min140} ${styles.center}`}

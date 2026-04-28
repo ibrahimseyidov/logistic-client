@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiFilePlus, FiFilter, FiX } from "react-icons/fi";
 import { FaEdit, FaTrash, FaUserShield } from "react-icons/fa";
+import StatusBadge from "../../common/components/StatusBadge";
 import sorguLayoutStyles from "../sorgular/sorgular.module.css";
 import sorguActionBarStyles from "../sorgular/components/SorgularActionBar.module.css";
 import sorguTableStyles from "../sorgular/components/SorgularTable.module.css";
@@ -216,100 +217,96 @@ export default function AyarlarPage() {
             <span className={sorguActionBarStyles.statPill}>Aktiv: {activeUserCount}</span>
           </div>
           <div className={sorguActionBarStyles.group}>
-            <input
-              className={styles.searchInput}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="User axtar..."
-            />
+            <button
+              type="button"
+              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonSecondary}`}
+            >
+              Excel-dən idxal et
+            </button>
+            <button
+              type="button"
+              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonSecondary}`}
+            >
+              Excel-ə ixrac et
+            </button>
           </div>
         </section>
       </div>
 
       <div className={sorguLayoutStyles.body}>
-        <section className={styles.tableCard}>
-          <div className={styles.tableWrap}>
-            <table className={sorguTableStyles.table}>
-              <thead className={sorguTableStyles.head}>
-                <tr>
-                  <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min180}`}>
-                    Ad soyad
-                  </th>
-                  <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min180}`}>
-                    Email
-                  </th>
-                  <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min140}`}>
-                    Yetki
-                  </th>
-                  <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>
-                    Status
-                  </th>
-                  <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>
-                    Əməliyyatlar
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.map((user, index) => (
-                  <tr
-                    key={user.id}
-                    className={index % 2 === 0 ? sorguTableStyles.rowEven : sorguTableStyles.rowOdd}
-                  >
-                    <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                      {user.fullName}
-                    </td>
-                    <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                      {user.email}
-                    </td>
-                    <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                      {ROLE_LABELS[user.role]}
-                    </td>
-                    <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                      <span
-                        className={`${styles.statusBadge} ${
-                          user.status === "active" ? styles.statusActive : styles.statusInactive
-                        }`}
-                      >
-                        {user.status === "active" ? "Aktiv" : "Deaktiv"}
-                      </span>
-                    </td>
-                    <td className={`${sorguTableStyles.actionCell} ${sorguTableStyles.center}`}>
-                      <div className={sorguTableStyles.actionRow} style={{ justifyContent: "center" }}>
-                        <button
-                          type="button"
-                          className={`${sorguTableStyles.iconButton} ${styles.guardButton}`}
-                          title="Yetkiləri idarə et"
-                          aria-label="Yetkiləri idarə et"
-                          onClick={() => openEdit(user)}
-                        >
-                          <FaUserShield />
-                        </button>
-                        <button
-                          type="button"
-                          className={`${sorguTableStyles.iconButton} ${sorguTableStyles.editButton}`}
-                          title="Düzəliş et"
-                          aria-label="Düzəliş et"
-                          onClick={() => openEdit(user)}
-                        >
-                          <FaEdit />
-                        </button>
-                        <button
-                          type="button"
-                          className={`${sorguTableStyles.iconButton} ${sorguTableStyles.deleteButton}`}
-                          title="Sil"
-                          aria-label="Sil"
-                          onClick={() => deleteUser(user.id)}
-                        >
-                          <FaTrash />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <table className={sorguTableStyles.table}>
+          <thead className={sorguTableStyles.head}>
+            <tr>
+              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min180}`}>
+                Ad soyad
+              </th>
+              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min180}`}>
+                Email
+              </th>
+              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min140}`}>
+                Yetki
+              </th>
+              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>
+                Status
+              </th>
+              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>
+                Əməliyyatlar
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredUsers.map((user, index) => (
+              <tr
+                key={user.id}
+                className={index % 2 === 0 ? sorguTableStyles.rowEven : sorguTableStyles.rowOdd}
+              >
+                <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
+                  {user.fullName}
+                </td>
+                <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
+                  {user.email}
+                </td>
+                <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
+                  {ROLE_LABELS[user.role]}
+                </td>
+                <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
+                  <StatusBadge label={user.status === "active" ? "Aktiv" : "Deaktiv"} />
+                </td>
+                <td className={`${sorguTableStyles.actionCell} ${sorguTableStyles.center}`}>
+                  <div className={sorguTableStyles.actionRow} style={{ justifyContent: "center" }}>
+                    <button
+                      type="button"
+                      className={`${sorguTableStyles.iconButton} ${sorguTableStyles.detailsButton}`}
+                      title="Yetkiləri idarə et"
+                      aria-label="Yetkiləri idarə et"
+                      onClick={() => openEdit(user)}
+                    >
+                      <FaUserShield />
+                    </button>
+                    <button
+                      type="button"
+                      className={`${sorguTableStyles.iconButton} ${sorguTableStyles.detailsButton}`}
+                      title="Düzəliş et"
+                      aria-label="Düzəliş et"
+                      onClick={() => openEdit(user)}
+                    >
+                      <FaEdit />
+                    </button>
+                    <button
+                      type="button"
+                      className={`${sorguTableStyles.iconButton} ${sorguTableStyles.deleteButton}`}
+                      title="Sil"
+                      aria-label="Sil"
+                      onClick={() => deleteUser(user.id)}
+                    >
+                      <FaTrash />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       <div

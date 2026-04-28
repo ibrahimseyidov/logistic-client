@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import styles from "./musteriler.module.css";
 import sorguLayoutStyles from "../sorgular/sorgular.module.css";
 import sorguActionBarStyles from "../sorgular/components/SorgularActionBar.module.css";
@@ -28,7 +28,6 @@ const TYPE_OPTIONS: SelectOption[] = [
 ];
 
 export default function MusterilerPage() {
-  const navigate = useNavigate();
   const PAGE_SIZE = 12;
   const [rows, setRows] = useState<CustomerRow[]>(MOCK_ROWS);
   const [activePanel, setActivePanel] = useState<"filter" | "new" | "edit" | null>(null);
@@ -313,9 +312,7 @@ export default function MusterilerPage() {
       </div>
 
       <div className={sorguLayoutStyles.body}>
-        <section className={styles.tableCard}>
-          <div className={styles.tableWrap}>
-            <table className={sorguTableStyles.table}>
+        <table className={sorguTableStyles.table}>
             <thead className={sorguTableStyles.head}>
               <tr>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min180}`}>Şirkətin adı</th>
@@ -338,14 +335,15 @@ export default function MusterilerPage() {
                   key={row.id}
                   className={index % 2 === 0 ? sorguTableStyles.rowEven : sorguTableStyles.rowOdd}
                 >
-                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                    <button
-                      type="button"
-                      className={styles.companyNameButton}
-                      onClick={() => navigate(`/musteriler/${row.id}`)}
+                  <td
+                    className={`${sorguTableStyles.cell} ${sorguTableStyles.nowrap} ${sorguTableStyles.center}`}
+                  >
+                    <Link
+                      to={`/musteriler/${row.id}`}
+                      className={sorguTableStyles.link}
                     >
                       {row.company}
-                    </button>
+                    </Link>
                   </td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.customerType}</td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.contactPerson}</td>
@@ -358,10 +356,10 @@ export default function MusterilerPage() {
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.orderCount}</td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.salesGroup}</td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                    <div className={styles.tableActions}>
+                    <div className={sorguTableStyles.actionRow}>
                       <button
                         type="button"
-                        className={styles.editIconButton}
+                        className={`${sorguTableStyles.iconButton} ${sorguTableStyles.detailsButton}`}
                         onClick={() => openEditModal(row)}
                         aria-label="Redaktə et"
                         title="Redaktə et"
@@ -370,7 +368,7 @@ export default function MusterilerPage() {
                       </button>
                       <button
                         type="button"
-                        className={styles.deleteIconButton}
+                        className={`${sorguTableStyles.iconButton} ${sorguTableStyles.deleteButton}`}
                         onClick={() => handleDeleteCustomer(row.id)}
                         aria-label="Sil"
                         title="Sil"
@@ -382,9 +380,7 @@ export default function MusterilerPage() {
                 </tr>
               ))}
             </tbody>
-            </table>
-          </div>
-        </section>
+          </table>
       </div>
 
       <div className={sorguLayoutStyles.footer}>

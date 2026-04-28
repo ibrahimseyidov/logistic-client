@@ -436,6 +436,7 @@ export default function TaskViewModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="task-modal-title"
+      onClick={onClose}
     >
       <div
         className={`${styles.modalContainer} ${styles.modalContainerVisible}`}

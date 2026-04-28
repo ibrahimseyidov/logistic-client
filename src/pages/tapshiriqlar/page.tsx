@@ -7,8 +7,10 @@ import {
 } from "react";
 import styles from "./tapshiriqlar.module.css";
 import {
+  FaEdit,
+  FaMinus,
   FaPlus,
-  FaTasks,
+  FaTrash,
 } from "react-icons/fa";
 import { FiFilter } from "react-icons/fi";
 import { useAppDispatch } from "../../common/store/hooks";
@@ -22,6 +24,9 @@ import type {
 } from "./components/TaskViewModal";
 import TaskFiltersDrawer from "./components/TaskFiltersDrawer";
 import type { TaskFilterState } from "./components/TaskFiltersDrawer";
+import sorguLayoutStyles from "../sorgular/sorgular.module.css";
+import sorguActionBarStyles from "../sorgular/components/SorgularActionBar.module.css";
+import sorguTableStyles from "../sorgular/components/SorgularTable.module.css";
 
 const PLACEHOLDER_OPTS: SelectOption[] = [{ value: "", label: "Dəyəri seçin" }];
 
@@ -300,7 +305,7 @@ export default function TapshiriqlarPage() {
   const allFilteredCards = allCardsWithColumn.filter(matchesFilters);
 
   return (
-    <div className={styles.container}>
+    <div className={sorguLayoutStyles.container}>
       <NotificationModal />
 
       <TaskViewModal
@@ -313,13 +318,13 @@ export default function TapshiriqlarPage() {
         initialData={editingTaskInitialData}
       />
 
-      <div className={styles.header}>
-        <div className={styles.headerRow}>
-          <div className={styles.actionGroup}>
+      <div className={sorguLayoutStyles.header}>
+        <section className={sorguActionBarStyles.wrapper}>
+          <div className={sorguActionBarStyles.group}>
             <button
               type="button"
               onClick={handleOpenCreateTask}
-              className={styles.addButton}
+              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonPrimary}`}
             >
               <FaPlus aria-hidden />
               Yeni tapşırıq
@@ -327,54 +332,138 @@ export default function TapshiriqlarPage() {
             <button
               type="button"
               onClick={() => setIsFilterPanelOpen(true)}
-              className={styles.filterButton}
+              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonSecondary}`}
             >
               <FiFilter aria-hidden />
               Filtrlər
               {activeFilterCount > 0 ? (
-                <span className={styles.filterBadge}>{activeFilterCount}</span>
+                <span className={sorguActionBarStyles.badge}>{activeFilterCount}</span>
               ) : null}
             </button>
           </div>
-        </div>
-
+          <div className={sorguActionBarStyles.statsGroup}>
+            <span className={sorguActionBarStyles.statPill}>
+              Cəmi: {allFilteredCards.length}
+            </span>
+          </div>
+          <div className={sorguActionBarStyles.group}>
+            <button
+              type="button"
+              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonSecondary}`}
+            >
+              Excel-dən idxal et
+            </button>
+            <button
+              type="button"
+              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonSecondary}`}
+            >
+              Excel-ə ixrac et
+            </button>
+          </div>
+        </section>
       </div>
 
-      <div className={styles.contentPanel}>
-        {allFilteredCards.length ? (
-            <div className={styles.listContainer}>
-              {allFilteredCards.map((card) => (
-                <article
-                  key={card.id}
-                  className={styles.listItem}
-                  onClick={() => handleOpenEditTask(card.id, card.columnId)}
+      <div className={sorguLayoutStyles.body}>
+        <table className={sorguTableStyles.table}>
+          <thead className={sorguTableStyles.head}>
+            <tr>
+              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min240}`}>
+                Tapşırıq
+              </th>
+              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min150}`}>
+                Müəllif
+              </th>
+              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min170}`}>
+                İcraçı
+              </th>
+              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min150}`}>
+                Kontragent
+              </th>
+              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min140}`}>
+                Son tarix
+              </th>
+              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min140}`}>
+                Bölmə
+              </th>
+              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>
+                Əməliyyatlar
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {allFilteredCards.length === 0 ? (
+              <tr className={sorguTableStyles.rowEven}>
+                <td
+                  className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}
+                  colSpan={7}
                 >
-                  <div className={styles.listItemMain}>
-                    <p className={styles.listItemTitle}>{card.title}</p>
-                    <p className={styles.listItemMeta}>
-                      {card.author || "Müəllif seçilməyib"} ·{" "}
-                      {card.executor || "İcraçı seçilməyib"} ·{" "}
-                      {card.counterparty || "Kontragent seçilməyib"}
-                    </p>
-                  </div>
-                  <div className={styles.listItemBadges}>
-                    <span className={styles.listBadge}>{card.columnTitle}</span>
-                    {card.deadline ? (
-                      <span className={styles.listBadge}>{card.deadline}</span>
-                    ) : null}
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className={styles.emptyState}>
-              <FaTasks className={styles.emptyStateIcon} aria-hidden />
-              <p className={styles.emptyStateTitle}>Tapşırıq siyahısı boşdur</p>
-              <p className={styles.emptyStateText}>
-                Yeni tapşırıq əlavə edərək iş axınını başlayın.
-              </p>
-            </div>
-        )}
+                  Tapşırıq siyahısı boşdur
+                </td>
+              </tr>
+            ) : (
+              allFilteredCards.map((card, index) => (
+                <tr
+                  key={card.id}
+                  className={index % 2 === 0 ? sorguTableStyles.rowEven : sorguTableStyles.rowOdd}
+                >
+                  <td
+                    className={`${sorguTableStyles.cell} ${sorguTableStyles.bodyText} ${sorguTableStyles.center}`}
+                  >
+                    {card.title}
+                  </td>
+                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
+                    {card.author || <FaMinus className={sorguTableStyles.mutedText} />}
+                  </td>
+                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
+                    {card.executor || <FaMinus className={sorguTableStyles.mutedText} />}
+                  </td>
+                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
+                    {card.counterparty || <FaMinus className={sorguTableStyles.mutedText} />}
+                  </td>
+                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
+                    {card.deadline || <FaMinus className={sorguTableStyles.mutedText} />}
+                  </td>
+                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
+                    {card.columnTitle}
+                  </td>
+                  <td className={`${sorguTableStyles.actionCell} ${sorguTableStyles.center}`}>
+                    <div className={sorguTableStyles.actionRow}>
+                      <button
+                        type="button"
+                        className={`${sorguTableStyles.iconButton} ${sorguTableStyles.detailsButton}`}
+                        onClick={() => handleOpenEditTask(card.id, card.columnId)}
+                        title="Düzəliş et"
+                        aria-label="Düzəliş et"
+                      >
+                        <FaEdit />
+                      </button>
+                      <button
+                        type="button"
+                        className={`${sorguTableStyles.iconButton} ${sorguTableStyles.deleteButton}`}
+                        title="Sil"
+                        aria-label="Sil"
+                        onClick={() => {
+                          setKanbanColumns((prev) =>
+                            prev.map((column) =>
+                              column.id === card.columnId
+                                ? {
+                                    ...column,
+                                    cards: column.cards.filter((item) => item.id !== card.id),
+                                  }
+                                : column,
+                            ),
+                          );
+                        }}
+                      >
+                        <FaTrash />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
 
       <div
@@ -401,7 +490,7 @@ export default function TapshiriqlarPage() {
         />
       </aside>
 
-      <footer className={styles.footer}>
+      <footer className={sorguLayoutStyles.footer}>
         <p className={styles.footerText}>Logistra Copyright © 2013-2026</p>
       </footer>
     </div>

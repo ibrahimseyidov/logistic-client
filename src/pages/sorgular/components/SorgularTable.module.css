@@ -1,6 +1,7 @@
 .table {
   width: 100%;
-  min-width: max-content;
+  min-width: 0;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.875rem;
 }
@@ -17,37 +18,37 @@
   color: #374151;
   padding: 0.5rem;
   text-align: center;
-  white-space: nowrap;
+  white-space: normal;
   font-size: 0.75rem;
   font-weight: 600;
 }
 
 .min120 {
-  min-width: 7.5rem;
+  min-width: 0;
 }
 
 .min140 {
-  min-width: 8.75rem;
+  min-width: 0;
 }
 
 .min150 {
-  min-width: 9.375rem;
+  min-width: 0;
 }
 
 .min160 {
-  min-width: 10rem;
+  min-width: 0;
 }
 
 .min170 {
-  min-width: 10.625rem;
+  min-width: 0;
 }
 
 .min180 {
-  min-width: 11.25rem;
+  min-width: 0;
 }
 
 .min240 {
-  min-width: 15rem;
+  min-width: 0;
 }
 
 .rowEven {
@@ -58,9 +59,16 @@
   background: rgba(249, 250, 251, 0.8);
 }
 
+.rowEven td,
+.rowOdd td {
+  border-top: 0;
+}
+
 .cell {
   padding: 0.5rem;
   vertical-align: top;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .emptyCell {
@@ -158,4 +166,56 @@
 
 .deleteButton:hover {
   background: #fecaca;
+}
+
+.statusBadge {
+  text-align: center;
+}
+
+@media (max-width: 1500px) {
+  .table {
+    font-size: 0.7rem;
+  }
+
+  .headerCell,
+  .cell,
+  .actionCell {
+    padding: 0.35rem;
+  }
+
+  .headerCell {
+    white-space: normal;
+    font-size: 0.68rem;
+    line-height: 1.2;
+  }
+
+  .cell,
+  .actionCell {
+    font-size: 0.72rem;
+    line-height: 1.25;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .nowrap {
+    white-space: normal;
+  }
+
+  .actionRow {
+    flex-wrap: wrap;
+  }
+
+  .link {
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .statusBadge {
+    white-space: normal !important;
+    justify-content: center;
+    line-height: 1.15;
+    padding: 0.2rem 0.45rem;
+    gap: 0.2rem;
+  }
 }
