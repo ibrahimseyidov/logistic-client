@@ -8,9 +8,22 @@ import {
   buildSorguDetailView,
   type SorguDetailTabId,
 } from "../lib/sorguDetailViewModel";
-import { fetchQueryDetailAction } from "../../../common/actions/query.actions";
+import {
+  fetchQueryDetailAction,
+  fetchCommentsAction,
+  addCommentAction,
+  fetchDocumentsAction,
+  uploadDocumentAction,
+  deleteDocumentAction
+} from "../../../common/actions/query.actions";
 import type { LogisticQueryRow } from "../types/sorgu.types";
 import styles from "./page.module.css";
+import { QueryOffersList } from "./components/QueryOffersList";
+import { QueryCommentsList } from "./components/QueryCommentsList";
+import { QueryDocumentsList } from "./components/QueryDocumentsList";
+import { showNotification } from "../../../common/store/modalSlice";
+import { useAppDispatch } from "../../../common/store/hooks";
+import { ConfirmModal } from "../../../common/components/ConfirmModal";
 
 function SectionCard({
   title,
@@ -21,19 +34,8 @@ function SectionCard({
 }) {
   return (
     <section className={styles.card}>
-      <div
-        style={{
-          fontWeight: 600,
-          fontSize: 15,
-          color: "#334155",
-          borderBottom: "1px solid #e5e7eb",
-          background: "#f1f5f9",
-          padding: "0.5rem 1rem",
-        }}
-      >
-        {title}
-      </div>
-      <div style={{ padding: "1rem 0.5rem", fontSize: 14 }}>{children}</div>
+      <div className={styles.sectionHeader}>{title}</div>
+      <div style={{ padding: "0.5rem 0", fontSize: 14 }}>{children}</div>
     </section>
   );
 }
@@ -48,20 +50,20 @@ function DlRow({
 }) {
   return (
     <div
-      style={{ display: "flex", alignItems: "start", gap: 8, padding: "2px 0" }}
+      style={{ display: "flex", alignItems: "start", gap: 12, padding: "4px 0" }}
     >
       <dt
         style={{
-          minWidth: 110,
+          minWidth: 120,
           color: "#64748b",
-          fontWeight: 500,
+          fontWeight: 600,
           fontSize: 12,
         }}
       >
         {label}:
       </dt>
-      <dd style={{ color: "#0f172a", fontSize: 13, wordBreak: "break-all" }}>
-        {value === undefined || value === null || value === "" ? (
+      <dd style={{ color: "#1e293b", fontSize: 13, fontWeight: 500, flex: 1 }}>
+        {value === undefined || value === null || value === "" || value === "—" ? (
           <span style={{ color: "#cbd5e1" }}>—</span>
         ) : (
           value
@@ -74,21 +76,90 @@ function DlRow({
 export default function SorguDetailPage() {
   const { sorguKey } = useParams<{ sorguKey: string }>();
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const [tab, setTab] = useState<SorguDetailTabId>("main");
   const [row, setRow] = useState<LogisticQueryRow | null>(null);
   const [loading, setLoading] = useState(false);
+  
+  const [comments, setComments] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [docToDelete, setDocToDelete] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Detay verisini backend'den çek
-  React.useEffect(() => {
+  const loadDetail = async () => {
     if (!sorguKey) return;
     setLoading(true);
-    fetchQueryDetailAction(sorguKey)
-      .then((data) => setRow(data))
-      .catch(() => setRow(null))
-      .finally(() => setLoading(false));
+    try {
+      const data = await fetchQueryDetailAction(sorguKey);
+      setRow(data);
+      if (data.comments) setComments(data.comments);
+      if (data.documents) setDocuments(data.documents);
+    } catch (error) {
+      setRow(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    loadDetail();
   }, [sorguKey]);
 
+  // Tab değişiminde veri çekme (gerekirse)
+  React.useEffect(() => {
+    if (tab === "comments" && row) {
+      fetchCommentsAction(row.id).then(setComments);
+    } else if (tab === "documents" && row) {
+      fetchDocumentsAction(row.id).then(setDocuments);
+    }
+  }, [tab, row?.id]);
+
   const detail = useMemo(() => (row ? buildSorguDetailView(row) : null), [row]);
+
+  const handleAddComment = async (text: string) => {
+    if (!row) return;
+    try {
+      const comment = await addCommentAction(row.id, text);
+      setComments([comment, ...comments]);
+      dispatch(showNotification({ message: "Şərh əlavə edildi", type: "success" }));
+    } catch (error) {
+      dispatch(showNotification({ message: "Xəta baş verdi", type: "error" }));
+    }
+  };
+
+  const handleUploadDocument = async (file: File) => {
+    if (!row) return;
+    try {
+      const doc = await uploadDocumentAction(row.id, file);
+      setDocuments([doc, ...documents]);
+      dispatch(showNotification({ message: "Sənəd yükləndi", type: "success" }));
+    } catch (error) {
+      dispatch(showNotification({ message: "Yüklənərkən xəta", type: "error" }));
+    }
+  };
+
+  const handleDeleteDocument = (docId: number) => {
+    setDocToDelete(docId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDeleteDoc = async () => {
+    if (!row || docToDelete === null) return;
+    setIsDeleting(true);
+    try {
+      await deleteDocumentAction(row.id, docToDelete);
+      setDocuments(documents.filter((d) => d.id !== docToDelete));
+      dispatch(showNotification({ message: "Sənəd silindi", type: "success" }));
+      setDeleteConfirmOpen(false);
+      setDocToDelete(null);
+    } catch (error) {
+      dispatch(showNotification({ message: "Silinərkən xəta", type: "error" }));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   if (loading)
     return (
@@ -121,7 +192,7 @@ export default function SorguDetailPage() {
     },
     {
       id: "documents",
-      label: `Sənədlər (${detail.documentsCount})`,
+      label: `Sənədlər (${documents.length})`,
     },
     { id: "tasks", label: "Tapşırıqlar" },
   ];
@@ -134,46 +205,44 @@ export default function SorguDetailPage() {
           onClick={() => navigate(-1)}
           className={styles.backBtn}
         >
-          <FaArrowLeft style={{ fontSize: 18 }} aria-hidden />
+          <FaArrowLeft />
           Geri
         </button>
-        <h1 className={styles.title}>Sorğu detallı</h1>
+        <h1 className={styles.title}>Sorğu detalı: {r.number}</h1>
       </div>
 
       <div className={styles.layout}>
         <aside className={styles.sidebar}>
           <div className={styles.card}>
             <button type="button" className={styles.editBtn}>
-              <FaPlus style={{ fontSize: 14 }} aria-hidden />
-              Redaktə et
+              <FaPlus /> Redaktə et
             </button>
             <div
               style={{
                 display: "flex",
-                flexWrap: "wrap",
                 alignItems: "center",
-                gap: 8,
+                justifyContent: "space-between",
                 marginBottom: 20,
               }}
             >
-              <span className={styles.status}>{r.status}</span> // This line is
-              unchanged, but included for context
-              <button
-                type="button"
-                className={styles.iconBtn}
-                title="Yenilə"
-                aria-label="Yenilə"
-              >
-                <FaRedo style={{ fontSize: 16 }} />
-              </button>
-              <button
-                type="button"
-                className={styles.iconBtn}
-                title="Tarixçə"
-                aria-label="Tarixçə"
-              >
-                <FaHistory style={{ fontSize: 16 }} />
-              </button>
+              <span className={styles.status}>{r.status}</span>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button
+                  type="button"
+                  className={styles.iconBtn}
+                  onClick={loadDetail}
+                  title="Yenilə"
+                >
+                  <FaRedo />
+                </button>
+                <button
+                  type="button"
+                  className={styles.iconBtn}
+                  title="Tarixçə"
+                >
+                  <FaHistory />
+                </button>
+              </div>
             </div>
             <div className={styles.dlList}>
               <DlRow label="Satıcı" value={detail.seller} />
@@ -189,8 +258,8 @@ export default function SorguDetailPage() {
               <DlRow label="Ümumi çəki" value={detail.weightTotal} />
               <DlRow label="Ümumi həcm" value={detail.volumeLabel} />
               <DlRow label="Incoterms" value={detail.incoterms} />
-              <DlRow label="Cargo Specifications" value={detail.cargoSpecs} />
-              <DlRow label="Sorğunun alınması mənbəyi" value={detail.source} />
+              <DlRow label="Cargo Specs" value={detail.cargoSpecs} />
+              <DlRow label="Mənbə" value={detail.source} />
             </div>
           </div>
         </aside>
@@ -202,7 +271,6 @@ export default function SorguDetailPage() {
             display: "flex",
             flexDirection: "column",
             gap: 16,
-            minHeight: 0,
           }}
         >
           <div className={styles.tabs}>
@@ -216,7 +284,6 @@ export default function SorguDetailPage() {
                     ? `${styles.tabBtn} ${styles.tabBtnActive}`
                     : styles.tabBtn
                 }
-                tabIndex={0}
               >
                 {t.label}
               </button>
@@ -231,10 +298,9 @@ export default function SorguDetailPage() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
                     gap: 24,
                   }}
-                  className="lg:grid-cols-2"
                 >
                   <SectionCard title="Haradan">
                     <div className={styles.dlList}>
@@ -256,188 +322,106 @@ export default function SorguDetailPage() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(2, 1fr)",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
                       gap: 16,
-                      marginBottom: 16,
+                      marginBottom: 20,
                     }}
-                    className="sm:grid-cols-4"
                   >
-                    <div>
-                      <p
-                        style={{
-                          fontSize: 12,
-                          color: "#64748b",
-                          fontWeight: 500,
-                        }}
-                      >
-                        Miqdarı
-                      </p>
-                      <p
-                        style={{
-                          color: "#0f172a",
-                          fontWeight: 600,
-                          fontSize: 18,
-                        }}
-                      >
-                        {detail.quantityTotal}
-                      </p>
+                    <div style={{ background: "#f8fafc", padding: "1rem", borderRadius: "0.5rem" }}>
+                      <p style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Miqdarı</p>
+                      <p style={{ color: "#0f172a", fontWeight: 700, fontSize: 18 }}>{detail.quantityTotal}</p>
                     </div>
-                    <div>
-                      <p
-                        style={{
-                          fontSize: 12,
-                          color: "#64748b",
-                          fontWeight: 500,
-                        }}
-                      >
-                        LDM
-                      </p>
-                      <p
-                        style={{
-                          color: "#0f172a",
-                          fontWeight: 600,
-                          fontSize: 18,
-                        }}
-                      >
-                        {detail.ldmTotal}
-                      </p>
+                    <div style={{ background: "#f8fafc", padding: "1rem", borderRadius: "0.5rem" }}>
+                      <p style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>LDM</p>
+                      <p style={{ color: "#0f172a", fontWeight: 700, fontSize: 18 }}>{detail.ldmTotal}</p>
                     </div>
-                    <div>
-                      <p
-                        style={{
-                          fontSize: 12,
-                          color: "#64748b",
-                          fontWeight: 500,
-                        }}
-                      >
-                        Çəkisi
-                      </p>
-                      <p
-                        style={{
-                          color: "#0f172a",
-                          fontWeight: 600,
-                          fontSize: 18,
-                        }}
-                      >
-                        {detail.weightTotal}
-                      </p>
+                    <div style={{ background: "#f8fafc", padding: "1rem", borderRadius: "0.5rem" }}>
+                      <p style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Çəkisi (kq)</p>
+                      <p style={{ color: "#0f172a", fontWeight: 700, fontSize: 18 }}>{detail.weightTotal}</p>
                     </div>
-                    <div>
-                      <p
-                        style={{
-                          fontSize: 12,
-                          color: "#64748b",
-                          fontWeight: 500,
-                        }}
-                      >
-                        Həcmi
-                      </p>
-                      <p
-                        style={{
-                          color: "#0f172a",
-                          fontWeight: 600,
-                          fontSize: 18,
-                        }}
-                      >
-                        {detail.volumeLabel}
-                      </p>
+                    <div style={{ background: "#f8fafc", padding: "1rem", borderRadius: "0.5rem" }}>
+                      <p style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Həcmi (m³)</p>
+                      <p style={{ color: "#0f172a", fontWeight: 700, fontSize: 18 }}>{detail.volumeLabel}</p>
                     </div>
                   </div>
-                  <p
-                    style={{
-                      fontSize: 12,
-                      color: "#64748b",
-                      fontWeight: 500,
-                      marginBottom: 4,
-                    }}
-                  >
-                    Nəqliyyatın tipi
-                  </p>
-                  <p style={{ color: "#0f172a", fontWeight: 600 }}>
-                    {r.transportType}
-                  </p>
+                  <DlRow label="Nəqliyyatın tipi" value={r.transportType} />
                 </SectionCard>
 
                 <SectionCard title="Yük haqqında əlavə məlumat">
                   {detail.cargoBoxLines.length > 0 ? (
                     <ul
                       style={{
-                        listStyle: "disc",
-                        paddingLeft: 20,
-                        color: "#334155",
+                        listStyle: "none",
+                        padding: 0,
+                        margin: 0,
                         display: "flex",
                         flexDirection: "column",
-                        gap: 4,
+                        gap: 8,
                       }}
                     >
                       {detail.cargoBoxLines.map((line, i) => (
-                        <li key={i}>{line}</li>
+                        <li key={i} style={{ 
+                          padding: "8px 12px", 
+                          background: "#f8fafc", 
+                          borderRadius: "4px",
+                          fontSize: 13,
+                          color: "#334155",
+                          borderLeft: "3px solid #cbd5e1"
+                        }}>{line}</li>
                       ))}
                     </ul>
                   ) : (
-                    <p style={{ color: "#64748b" }}>Məlumat yoxdur.</p>
+                    <p style={{ color: "#cbd5e1", fontSize: 13, fontStyle: "italic" }}>Məlumat yoxdur.</p>
                   )}
                 </SectionCard>
 
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
                     gap: 24,
                   }}
-                  className="sm:grid-cols-2"
                 >
-                  <div>
-                    <p
-                      style={{
-                        fontSize: 12,
-                        color: "#64748b",
-                        fontWeight: 500,
-                        marginBottom: 4,
-                      }}
-                    >
-                      Incoterms
-                    </p>
-                    <p style={{ color: "#0f172a", fontWeight: 600 }}>
-                      {detail.incoterms}
-                    </p>
-                  </div>
-                  <div>
-                    <p
-                      style={{
-                        fontSize: 12,
-                        color: "#64748b",
-                        fontWeight: 500,
-                        marginBottom: 4,
-                      }}
-                    >
-                      Cargo Specifications
-                    </p>
-                    <p style={{ color: "#0f172a", fontWeight: 600 }}>
-                      {detail.cargoSpecs}
-                    </p>
-                  </div>
+                  <SectionCard title="Şərtlər">
+                    <div className={styles.dlList}>
+                      <DlRow label="Incoterms" value={detail.incoterms} />
+                      <DlRow label="Cargo Specs" value={detail.cargoSpecs} />
+                    </div>
+                  </SectionCard>
                 </div>
               </div>
             )}
 
             {tab === "comments" && (
-              <p style={{ fontSize: 16, color: "#64748b" }}>
-                Şərhlər tezliklə əlavə olunacaq.
-              </p>
+              <QueryCommentsList 
+                comments={comments.map(c => ({
+                  id: c.id,
+                  text: c.text,
+                  userName: c.user?.name || "Bilinməyən",
+                  createdAt: c.createdAt
+                }))} 
+                onAddComment={handleAddComment} 
+              />
             )}
             {tab === "offers" && (
-              <p style={{ fontSize: 16, color: "#64748b" }}>
-                Qiymət təklifləri siyahısı tezliklə.
-              </p>
+              <QueryOffersList offers={detail.priceOfferItems} />
             )}
             {tab === "documents" && (
-              <p style={{ fontSize: 16, color: "#64748b" }}>
-                Sənədlər tezliklə.
-              </p>
+              <QueryDocumentsList 
+                documents={documents.map(d => ({
+                  id: d.id,
+                  name: d.name,
+                  type: d.type,
+                  size: d.size,
+                  createdAt: d.createdAt,
+                  url: d.url.startsWith("http") ? d.url : `http://localhost:5000${d.url}`
+                }))} 
+                onUpload={handleUploadDocument}
+                onDelete={handleDeleteDocument}
+              />
             )}
             {tab === "tasks" && (
-              <p style={{ fontSize: 16, color: "#64748b" }}>
+              <p style={{ fontSize: 14, color: "#64748b", textAlign: "center", padding: "2rem" }}>
                 Tapşırıqlar tezliklə.
               </p>
             )}
@@ -446,6 +430,18 @@ export default function SorguDetailPage() {
       </div>
 
       <footer className={styles.footer}>Logistra Copyright © 2013-2026</footer>
+
+      <ConfirmModal
+        isOpen={deleteConfirmOpen}
+        title="Sənədi sil"
+        message="Bu sənədi silmək istədiyinizə əminsiniz?"
+        onConfirm={handleConfirmDeleteDoc}
+        onCancel={() => {
+          setDeleteConfirmOpen(false);
+          setDocToDelete(null);
+        }}
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

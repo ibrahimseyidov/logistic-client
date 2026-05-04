@@ -5,4 +5,6 @@ export { default as SorgularTable } from "./SorgularTable";
 export { default as SorgularPagination } from "./SorgularPagination";
 export { default as SorgularNewModal } from "./SorgularNewModal";
 export { default as SorgularEditModal } from "./SorgularEditModal";
+export { default as SorgularOfferModal } from "./SorgularOfferModal";
+export { default as SorgularOffersTable } from "./SorgularOffersTable";
 export type { NewSorguFormPayload } from "./SorgularNewModal";

@@ -15,7 +15,6 @@ import {
 import { FiFilter } from "react-icons/fi";
 import { useAppDispatch } from "../../common/store/hooks";
 import { showNotification } from "../../common/store/modalSlice";
-import { NotificationModal } from "../../common/components/NotificationModal";
 import type { SelectOption } from "../../common/components/select/Select";
 import TaskViewModal from "./components/TaskViewModal";
 import type {
@@ -24,6 +23,7 @@ import type {
 } from "./components/TaskViewModal";
 import TaskFiltersDrawer from "./components/TaskFiltersDrawer";
 import type { TaskFilterState } from "./components/TaskFiltersDrawer";
+import { ConfirmModal } from "../../common/components/ConfirmModal";
 import sorguLayoutStyles from "../sorgular/sorgular.module.css";
 import sorguActionBarStyles from "../sorgular/components/SorgularActionBar.module.css";
 import sorguTableStyles from "../sorgular/components/SorgularTable.module.css";
@@ -79,6 +79,8 @@ export default function TapshiriqlarPage() {
     columnId: string;
   } | null>(null);
   const [appliedFilters, setAppliedFilters] = useState<TaskFilterState>(emptyTaskFilter);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<{ id: string; columnId: string } | null>(null);
 
   const authorOptions = DEMO_OPTS([
     { value: "u1", label: "Ulvi Adilzadə" },
@@ -306,7 +308,6 @@ export default function TapshiriqlarPage() {
 
   return (
     <div className={sorguLayoutStyles.container}>
-      <NotificationModal />
 
       <TaskViewModal
         isOpen={taskModalOpen}
@@ -443,16 +444,8 @@ export default function TapshiriqlarPage() {
                         title="Sil"
                         aria-label="Sil"
                         onClick={() => {
-                          setKanbanColumns((prev) =>
-                            prev.map((column) =>
-                              column.id === card.columnId
-                                ? {
-                                    ...column,
-                                    cards: column.cards.filter((item) => item.id !== card.id),
-                                  }
-                                : column,
-                            ),
-                          );
+                          setTaskToDelete({ id: card.id, columnId: card.columnId });
+                          setDeleteConfirmOpen(true);
                         }}
                       >
                         <FaTrash />
@@ -493,6 +486,32 @@ export default function TapshiriqlarPage() {
       <footer className={sorguLayoutStyles.footer}>
         <p className={styles.footerText}>Logistra Copyright © 2013-2026</p>
       </footer>
+
+      <ConfirmModal
+        isOpen={deleteConfirmOpen}
+        title="Tapşırığı sil"
+        message="Bu tapşırığı silmək istədiyinizə əminsiniz?"
+        onConfirm={() => {
+          if (taskToDelete) {
+            setKanbanColumns((prev) =>
+              prev.map((column) =>
+                column.id === taskToDelete.columnId
+                  ? {
+                      ...column,
+                      cards: column.cards.filter((item) => item.id !== taskToDelete.id),
+                    }
+                  : column,
+              ),
+            );
+          }
+          setDeleteConfirmOpen(false);
+          setTaskToDelete(null);
+        }}
+        onCancel={() => {
+          setDeleteConfirmOpen(false);
+          setTaskToDelete(null);
+        }}
+      />
     </div>
   );
 }

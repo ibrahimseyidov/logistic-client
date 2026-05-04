@@ -36,7 +36,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAppDispatch } from "../../common/store/hooks";
 import { showNotification } from "../../common/store/modalSlice";
-import { NotificationModal } from "../../common/components/NotificationModal";
 import Loading from "../../common/components/loading/Loading";
 import type { SelectOption } from "../../common/components/select/Select";
 import {
@@ -664,7 +663,6 @@ export default function SifarislerPage() {
 
   return (
     <div className={styles.container}>
-      <NotificationModal />
       <div className={styles.header}>
         {subTab === "payroll" && (
           <EmekSummaryBar

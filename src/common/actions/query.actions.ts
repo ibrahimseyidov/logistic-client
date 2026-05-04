@@ -33,17 +33,16 @@ export async function fetchQueryDetailAction(
 export async function fetchQueriesAction(
   tab?: string,
 ): Promise<LogisticQueryRow[]> {
-  if (tab === "offers") {
-    return [];
-  }
-
   const token = getAuthToken();
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
   let url = "/api/query";
   if (tab === "active") {
     url = "/api/query?status=pending";
   } else if (tab === "archive") {
     url = "/api/query?status=cancelled,completed";
+  } else if (tab === "offers") {
+    url = "/api/query";
   }
   const res = await axios.get(buildApiUrl(url), { headers });
   if (Array.isArray(res.data)) {
@@ -90,4 +89,41 @@ export async function deleteQueryAction(id: string | number): Promise<void> {
   await axios.delete(buildApiUrl(`/api/query/${id}`), {
     headers,
   });
+}
+export async function fetchCommentsAction(queryId: string | number): Promise<any[]> {
+  const token = getAuthToken();
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const res = await axios.get(buildApiUrl(`/api/query/${queryId}/comments`), { headers });
+  return res.data;
+}
+
+export async function addCommentAction(queryId: string | number, text: string): Promise<any> {
+  const token = getAuthToken();
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const res = await axios.post(buildApiUrl(`/api/query/${queryId}/comments`), { text }, { headers });
+  return res.data;
+}
+
+export async function fetchDocumentsAction(queryId: string | number): Promise<any[]> {
+  const token = getAuthToken();
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const res = await axios.get(buildApiUrl(`/api/query/${queryId}/documents`), { headers });
+  return res.data;
+}
+
+export async function uploadDocumentAction(queryId: string | number, file: File): Promise<any> {
+  const token = getAuthToken();
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await axios.post(buildApiUrl(`/api/query/${queryId}/documents`), formData, {
+    headers: { ...headers, "Content-Type": "multipart/form-data" }
+  });
+  return res.data;
+}
+
+export async function deleteDocumentAction(queryId: string | number, docId: number): Promise<void> {
+  const token = getAuthToken();
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  await axios.delete(buildApiUrl(`/api/query/${queryId}/documents/${docId}`), { headers });
 }

@@ -1,9 +1,11 @@
-"use client";
-
+import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { SidebarLayoutProvider } from "../SidebarLayoutContext";
 import Sidebar from "../sidebar/sidebar";
 import Header from "../header/Header";
+import { NotificationModal } from "../../NotificationModal";
+import { useAppDispatch } from "../../../store/hooks";
+import { hideNotification } from "../../../store/modalSlice";
 import styles from "./appShell.module.css";
 
 const headerTitles: Record<string, string> = {
@@ -35,6 +37,7 @@ function AppShellInner({
 }) {
   return (
     <div className={styles.shell}>
+      <NotificationModal />
       <Sidebar />
       <div className={styles.contentArea}>
         <Header title={title} />
@@ -46,7 +49,12 @@ function AppShellInner({
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
+  const dispatch = useAppDispatch();
   const pathname = location.pathname;
+
+  useEffect(() => {
+    dispatch(hideNotification());
+  }, [location.pathname, dispatch]);
 
   if (pathname === "/login") {
     return <>{children}</>;

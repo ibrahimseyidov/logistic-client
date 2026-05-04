@@ -11,6 +11,15 @@ import type { SelectOption } from "../../common/components/select/Select";
 import { MOCK_ROWS, type CustomerRow } from "./data";
 import { FiFilePlus, FiFilter, FiX } from "react-icons/fi";
 import { FaEdit, FaTrash } from "react-icons/fa";
+import {
+  fetchCustomersAction,
+  createCustomerAction,
+  updateCustomerAction,
+  deleteCustomerAction,
+} from "../../common/actions/customer.actions";
+import { useAppDispatch } from "../../common/store/hooks";
+import { showNotification } from "../../common/store/modalSlice";
+import { ConfirmModal } from "../../common/components/ConfirmModal";
 
 const PLACEHOLDER: SelectOption[] = [{ value: "", label: "Dəyəri seçin" }];
 
@@ -28,9 +37,14 @@ const TYPE_OPTIONS: SelectOption[] = [
 ];
 
 export default function MusterilerPage() {
+  const dispatch = useAppDispatch();
   const PAGE_SIZE = 12;
-  const [rows, setRows] = useState<CustomerRow[]>(MOCK_ROWS);
+  const [rows, setRows] = useState<CustomerRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activePanel, setActivePanel] = useState<"filter" | "new" | "edit" | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [customerIdToDelete, setCustomerIdToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [newForm, setNewForm] = useState({
     company: "",
     customerType: "",
@@ -132,6 +146,42 @@ export default function MusterilerPage() {
   );
 
   useEffect(() => {
+    loadCustomers();
+  }, []);
+
+  const loadCustomers = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchCustomersAction();
+      // Backend datalarını frontend formatına çevir
+      const mapped: CustomerRow[] = data.map((c: any) => ({
+        id: String(c.id),
+        company: c.name || c.company || "-",
+        customerType: c.customerType || "Yeni müştəri",
+        contactPerson: c.contactPerson || "-",
+        contactInfo: c.phone || "-",
+        address: c.address || "-",
+        country: c.country || "AZ",
+        manager: c.manager || "-",
+        creditLimit: c.creditLimit || "0",
+        daysSinceLastContact: 0,
+        orderCount: 0,
+        salesGroup: c.company || "-",
+      }));
+      setRows(mapped);
+    } catch (error) {
+      dispatch(
+        showNotification({
+          message: "Müştərilər yüklənərkən xata baş verdi",
+          type: "error",
+        }),
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     if (!activePanel) return undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -182,38 +232,46 @@ export default function MusterilerPage() {
     setAppliedFilter(empty);
   };
 
-  const handleCreateCustomer = () => {
+  const handleCreateCustomer = async () => {
     if (!newForm.company.trim()) return;
-    const customerTypeLabel =
-      TYPE_OPTIONS.find((x) => x.value === newForm.customerType)?.label ||
-      "Yeni müştəri";
-    setRows((prev) => [
-      {
-        id: crypto.randomUUID(),
+    try {
+      const payload = {
+        name: newForm.company.trim(),
+        customerType: TYPE_OPTIONS.find((x) => x.value === newForm.customerType)?.label || "Yeni müştəri",
+        manager: newForm.manager.trim(),
+        contactPerson: newForm.contactPerson.trim(),
+        phone: newForm.contactInfo.trim(),
+        address: newForm.address.trim(),
         company: newForm.company.trim(),
-        customerType: customerTypeLabel,
-        contactPerson: newForm.contactPerson.trim() || "-",
-        contactInfo: newForm.contactInfo.trim() || "-",
-        address: newForm.address.trim() || "-",
         country: "AZ",
-        manager: newForm.manager.trim() || "-",
         creditLimit: "0",
-        daysSinceLastContact: 0,
-        orderCount: 0,
-        salesGroup: "Gözləmədə",
-      },
-      ...prev,
-    ]);
-    setActivePanel(null);
-    setNewCustomerTab("main");
-    setNewForm({
-      company: "",
-      customerType: "",
-      manager: "",
-      contactPerson: "",
-      contactInfo: "",
-      address: "",
-    });
+      };
+      await createCustomerAction(payload);
+      dispatch(
+        showNotification({
+          message: "Müştəri uğurla yaradıldı",
+          type: "success",
+        }),
+      );
+      loadCustomers();
+      setActivePanel(null);
+      setNewCustomerTab("main");
+      setNewForm({
+        company: "",
+        customerType: "",
+        manager: "",
+        contactPerson: "",
+        contactInfo: "",
+        address: "",
+      });
+    } catch (error) {
+      dispatch(
+        showNotification({
+          message: "Müştəri yaradılarkən xata baş verdi",
+          type: "error",
+        }),
+      );
+    }
   };
 
   const openEditModal = (customer: CustomerRow) => {
@@ -239,29 +297,65 @@ export default function MusterilerPage() {
     setActivePanel(null);
   };
 
-  const saveEditedCustomer = () => {
+  const saveEditedCustomer = async () => {
     if (!editingCustomerId) return;
-    setRows((prev) =>
-      prev.map((row) =>
-        row.id === editingCustomerId
-          ? {
-              ...row,
-              company: editForm.company.trim() || row.company,
-              customerType: editForm.customerType.trim() || row.customerType,
-              manager: editForm.manager.trim() || row.manager,
-              contactPerson: editForm.contactPerson.trim() || row.contactPerson,
-              contactInfo: editForm.contactInfo.trim() || row.contactInfo,
-              address: editForm.address.trim() || row.address,
-            }
-          : row,
-      ),
-    );
-    closeEditModal();
+    try {
+      const payload = {
+        name: editForm.company.trim(),
+        customerType: editForm.customerType.trim(),
+        manager: editForm.manager.trim(),
+        contactPerson: editForm.contactPerson.trim(),
+        phone: editForm.contactInfo.trim(),
+        address: editForm.address.trim(),
+      };
+      await updateCustomerAction(editingCustomerId, payload);
+      dispatch(
+        showNotification({
+          message: "Müştəri məlumatları yeniləndi",
+          type: "success",
+        }),
+      );
+      loadCustomers();
+      closeEditModal();
+    } catch (error) {
+      dispatch(
+        showNotification({
+          message: "Müştəri yenilənərkən xata baş verdi",
+          type: "error",
+        }),
+      );
+    }
   };
 
-  const handleDeleteCustomer = (customerId: string) => {
-    if (!window.confirm("Bu müştərini silmək istədiyinizə əminsiniz?")) return;
-    setRows((prev) => prev.filter((row) => row.id !== customerId));
+  const handleDeleteCustomerClick = (customerId: string) => {
+    setCustomerIdToDelete(customerId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!customerIdToDelete) return;
+    setIsDeleting(true);
+    try {
+      await deleteCustomerAction(customerIdToDelete);
+      dispatch(
+        showNotification({
+          message: "Müştəri silindi",
+          type: "success",
+        }),
+      );
+      loadCustomers();
+      setDeleteConfirmOpen(false);
+      setCustomerIdToDelete(null);
+    } catch (error) {
+      dispatch(
+        showNotification({
+          message: "Müştəri silinərkən xata baş verdi",
+          type: "error",
+        }),
+      );
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -369,7 +463,7 @@ export default function MusterilerPage() {
                       <button
                         type="button"
                         className={`${sorguTableStyles.iconButton} ${sorguTableStyles.deleteButton}`}
-                        onClick={() => handleDeleteCustomer(row.id)}
+                        onClick={() => handleDeleteCustomerClick(row.id)}
                         aria-label="Sil"
                         title="Sil"
                       >
@@ -379,6 +473,20 @@ export default function MusterilerPage() {
                   </td>
                 </tr>
               ))}
+              {loading && (
+                <tr>
+                  <td colSpan={12} className={sorguTableStyles.center} style={{ padding: "40px" }}>
+                    Yüklənir...
+                  </td>
+                </tr>
+              )}
+              {!loading && rows.length === 0 && (
+                <tr>
+                  <td colSpan={12} className={sorguTableStyles.center} style={{ padding: "40px" }}>
+                    Müştəri tapılmadı
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
       </div>
@@ -769,6 +877,17 @@ export default function MusterilerPage() {
           </div>
         ) : null}
       </aside>
+      <ConfirmModal
+        isOpen={deleteConfirmOpen}
+        title="Müştərini sil"
+        message="Bu müştərini silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarıla bilməz."
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          setDeleteConfirmOpen(false);
+          setCustomerIdToDelete(null);
+        }}
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

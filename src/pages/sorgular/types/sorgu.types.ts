@@ -41,6 +41,8 @@ export interface LogisticQueryRow {
   archived: boolean;
   contactPerson: string;
   cargoItems?: any[]; // API'den gelen yükler
+  comments?: any[];
+  documents?: any[];
 }
 
 export interface FilterFormState {

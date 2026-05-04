@@ -272,7 +272,7 @@
 
 .textarea {
   min-height: 6.25rem;
-  resize: vertical;
+  resize: none;
   padding: 0.8rem 0.95rem;
   font-size: 0.92rem;
 }

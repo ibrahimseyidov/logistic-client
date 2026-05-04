@@ -14,14 +14,18 @@
 
 .headerCell {
   border-bottom: 1px solid #e5e7eb;
-  background: #f3f4f6;
-  color: #374151;
-  padding: 0.5rem;
+  background: #f8fafc;
+  color: #475569;
+  padding: 0.75rem 0.5rem;
   text-align: center;
+  vertical-align: middle;
   white-space: normal;
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
 }
+
 
 .min120 {
   min-width: 0;
@@ -65,10 +69,12 @@
 }
 
 .cell {
-  padding: 0.5rem;
+  padding: 0.75rem 0.5rem;
   vertical-align: top;
   word-break: break-word;
   overflow-wrap: anywhere;
+  color: #334155;
+  font-weight: 500;
 }
 
 .emptyCell {
@@ -218,4 +224,74 @@
     padding: 0.2rem 0.45rem;
     gap: 0.2rem;
   }
+}
+
+.tableWrapper {
+  width: 100%;
+  overflow-x: auto;
+  background: white;
+  margin-top: 1rem;
+}
+
+.tableContainer {
+  min-width: 1000px;
+}
+
+.offersHead th {
+  background: #f8fafc !important;
+  color: #475569 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  font-size: 0.75rem !important;
+  padding: 1rem !important;
+  border-bottom: 2px solid #e2e8f0 !important;
+  text-align: left !important;
+}
+
+.offerRow:hover {
+  background-color: #f1f5f9 !important;
+}
+
+.offerRow td {
+  padding: 1rem !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  vertical-align: middle !important;
+  text-align: left !important;
+}
+
+.priceText {
+  color: #059669;
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.carrierText {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.queryLink {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.queryLink:hover {
+  text-decoration: underline;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.editButton {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.editButton:hover {
+  background: #e2e8f0;
+  color: #1e293b;
 }

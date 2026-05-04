@@ -7,13 +7,14 @@ interface ModalState {
     type: "error" | "success" | "info";
     autoCloseDuration?: number;
   };
-  delete: {
+  confirm: {
     open: boolean;
-    categoryId: number | null;
-    categoryName: string;
-    level: number | null;
-    isLoading: boolean;
-    error: string | null;
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    onConfirmKey?: string; // We'll use a key to identify the action
+    isLoading?: boolean;
   };
 }
 
@@ -24,13 +25,14 @@ const initialState: ModalState = {
     type: "info",
     autoCloseDuration: 4000,
   },
-  delete: {
+  confirm: {
     open: false,
-    categoryId: null,
-    categoryName: "",
-    level: null,
+    title: "",
+    message: "",
+    confirmLabel: "Bəli",
+    cancelLabel: "Ləğv et",
+    onConfirmKey: "",
     isLoading: false,
-    error: null,
   },
 };
 
@@ -51,34 +53,23 @@ const modalSlice = createSlice({
     hideNotification(state) {
       state.notification.open = false;
     },
-    showDeleteModal(
+    showConfirm(
       state,
       action: PayloadAction<{
-        categoryId: number;
-        categoryName: string;
-        level: number;
+        title: string;
+        message: string;
+        confirmLabel?: string;
+        cancelLabel?: string;
+        onConfirmKey?: string;
       }>,
     ) {
-      state.delete.open = true;
-      state.delete.categoryId = action.payload.categoryId;
-      state.delete.categoryName = action.payload.categoryName || "";
-      state.delete.level = action.payload.level;
-      state.delete.isLoading = false;
-      state.delete.error = null;
+      state.confirm = { ...initialState.confirm, open: true, ...action.payload };
     },
-    hideDeleteModal(state) {
-      state.delete.open = false;
-      state.delete.categoryId = null;
-      state.delete.categoryName = "";
-      state.delete.level = null;
-      state.delete.isLoading = false;
-      state.delete.error = null;
+    hideConfirm(state) {
+      state.confirm.open = false;
     },
-    setDeleteModalLoading(state, action: PayloadAction<boolean>) {
-      state.delete.isLoading = action.payload;
-    },
-    setDeleteModalError(state, action: PayloadAction<string | null>) {
-      state.delete.error = action.payload;
+    setConfirmLoading(state, action: PayloadAction<boolean>) {
+      state.confirm.isLoading = action.payload;
     },
   },
 });
@@ -86,10 +77,9 @@ const modalSlice = createSlice({
 export const {
   showNotification,
   hideNotification,
-  showDeleteModal,
-  hideDeleteModal,
-  setDeleteModalLoading,
-  setDeleteModalError,
+  showConfirm,
+  hideConfirm,
+  setConfirmLoading,
 } = modalSlice.actions;
 
 export default modalSlice.reducer;

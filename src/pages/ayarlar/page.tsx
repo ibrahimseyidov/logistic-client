@@ -1,462 +1,155 @@
-"use client";
+import React, { useState, useEffect } from "react";
+import { UsersTable } from "./components/UsersTable";
+import { UserModal } from "./components/UserModal";
+import { UserRow } from "./types/user.types";
+import { 
+  fetchUsersAction, 
+  createUserAction, 
+  updateUserAction, 
+  deleteUserAction 
+} from "../../common/actions/user.actions";
+import styles from "../sorgular/sorgular.module.css";
+import actionStyles from "../sorgular/components/SorgularActionBar.module.css";
+import { useAppDispatch } from "../../common/store/hooks";
+import { showNotification } from "../../common/store/modalSlice";
+import { FiFilePlus, FiFilter, FiUpload, FiDownload } from "react-icons/fi";
+import { ConfirmModal } from "../../common/components/ConfirmModal";
 
-import { useEffect, useMemo, useState } from "react";
-import { FiFilePlus, FiFilter, FiX } from "react-icons/fi";
-import { FaEdit, FaTrash, FaUserShield } from "react-icons/fa";
-import StatusBadge from "../../common/components/StatusBadge";
-import sorguLayoutStyles from "../sorgular/sorgular.module.css";
-import sorguActionBarStyles from "../sorgular/components/SorgularActionBar.module.css";
-import sorguTableStyles from "../sorgular/components/SorgularTable.module.css";
-import styles from "./ayarlar.module.css";
+const AyarlarPage: React.FC = () => {
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const dispatch = useAppDispatch();
 
-type UserRole = "admin" | "manager" | "operator" | "viewer";
-
-interface ManagedUser {
-  id: string;
-  fullName: string;
-  email: string;
-  role: UserRole;
-  status: "active" | "inactive";
-}
-
-const ROLE_LABELS: Record<UserRole, string> = {
-  admin: "Admin",
-  manager: "Menecer",
-  operator: "Operator",
-  viewer: "Müşahidəçi",
-};
-
-const INITIAL_USERS: ManagedUser[] = [
-  {
-    id: "u1",
-    fullName: "Ulvi Azizov",
-    email: "ulvi@logistra.az",
-    role: "admin",
-    status: "active",
-  },
-  {
-    id: "u2",
-    fullName: "Sindu Ahmed",
-    email: "sindu@logistra.az",
-    role: "manager",
-    status: "active",
-  },
-  {
-    id: "u3",
-    fullName: "Fazil Ismayilzade",
-    email: "fazil@logistra.az",
-    role: "operator",
-    status: "inactive",
-  },
-];
-
-export default function AyarlarPage() {
-  const [users, setUsers] = useState<ManagedUser[]>(INITIAL_USERS);
-  const [activePanel, setActivePanel] = useState<"new" | "edit" | "filter" | null>(
-    null,
-  );
-  const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
-  const [filterDraft, setFilterDraft] = useState({
-    role: "",
-    status: "",
-    keyword: "",
-  });
-  const [appliedFilter, setAppliedFilter] = useState({
-    role: "",
-    status: "",
-    keyword: "",
-  });
-  const [form, setForm] = useState({
-    fullName: "",
-    email: "",
-    role: "viewer" as UserRole,
-    status: "active" as ManagedUser["status"],
-  });
-
-  const filteredUsers = useMemo(() => {
-    const text = (appliedFilter.keyword || query).trim().toLowerCase();
-    return users.filter((user) => {
-      if (appliedFilter.role && user.role !== appliedFilter.role) return false;
-      if (appliedFilter.status && user.status !== appliedFilter.status) return false;
-      if (!text) return true;
-      return (
-        user.fullName.toLowerCase().includes(text) ||
-        user.email.toLowerCase().includes(text)
-      );
-    });
-  }, [users, appliedFilter, query]);
-
-  const activeFilterCount = useMemo(
-    () => Object.values(appliedFilter).filter((value) => value.trim() !== "").length,
-    [appliedFilter],
-  );
-
-  const activeUserCount = useMemo(
-    () => filteredUsers.filter((user) => user.status === "active").length,
-    [filteredUsers],
-  );
-
-  useEffect(() => {
-    if (!activePanel) return undefined;
-    const onEsc = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setActivePanel(null);
-    };
-    window.addEventListener("keydown", onEsc);
-    return () => window.removeEventListener("keydown", onEsc);
-  }, [activePanel]);
-
-  useEffect(() => {
-    if (!activePanel) return undefined;
-    const prevBody = document.body.style.overflow;
-    const prevHtml = document.documentElement.style.overflow;
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prevBody;
-      document.documentElement.style.overflow = prevHtml;
-    };
-  }, [activePanel]);
-
-  const resetForm = () => {
-    setForm({ fullName: "", email: "", role: "viewer", status: "active" });
-    setEditingUserId(null);
-  };
-
-  const openNew = () => {
-    resetForm();
-    setActivePanel("new");
-  };
-
-  const openEdit = (user: ManagedUser) => {
-    setEditingUserId(user.id);
-    setForm({
-      fullName: user.fullName,
-      email: user.email,
-      role: user.role,
-      status: user.status,
-    });
-    setActivePanel("edit");
-  };
-
-  const saveUser = () => {
-    const fullName = form.fullName.trim();
-    const email = form.email.trim();
-    if (!fullName || !email) return;
-
-    if (editingUserId) {
-      setUsers((prev) =>
-        prev.map((user) =>
-          user.id === editingUserId ? { ...user, ...form, fullName, email } : user,
-        ),
-      );
-      setActivePanel(null);
-      resetForm();
-      return;
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchUsersAction();
+      setUsers(data);
+    } catch (error) {
+      dispatch(showNotification({ message: "İstifadəçilər yüklənərkən xəta!", type: "error" }));
+    } finally {
+      setLoading(false);
     }
-
-    setUsers((prev) => [
-      {
-        id: crypto.randomUUID(),
-        fullName,
-        email,
-        role: form.role,
-        status: form.status,
-      },
-      ...prev,
-    ]);
-    setActivePanel(null);
-    resetForm();
   };
 
-  const deleteUser = (userId: string) => {
-    if (!window.confirm("Bu istifadəçini silmək istədiyinizə əminsiniz?")) return;
-    setUsers((prev) => prev.filter((user) => user.id !== userId));
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const handleCreate = () => {
+    setSelectedUser(null);
+    setIsModalOpen(true);
   };
 
-  const applyFilter = () => {
-    setAppliedFilter({ ...filterDraft });
-    setQuery(filterDraft.keyword);
-    setActivePanel(null);
+  const handleEdit = (user: UserRow) => {
+    setSelectedUser(user);
+    setIsModalOpen(true);
   };
 
-  const clearFilter = () => {
-    const empty = { role: "", status: "", keyword: "" };
-    setFilterDraft(empty);
-    setAppliedFilter(empty);
-    setQuery("");
+  const handleDelete = (id: number) => {
+    setUserToDelete(id);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (userToDelete === null) return;
+    setIsDeleting(true);
+    try {
+      await deleteUserAction(userToDelete);
+      setUsers(users.filter((u) => u.id !== userToDelete));
+      dispatch(
+        showNotification({ message: "İstifadəçi silindi", type: "success" }),
+      );
+      setDeleteConfirmOpen(false);
+      setUserToDelete(null);
+    } catch (error) {
+      dispatch(showNotification({ message: "Silinərkən xəta!", type: "error" }));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleSubmit = async (data: any) => {
+    try {
+      if (selectedUser) {
+        const updated = await updateUserAction(selectedUser.id, data);
+        setUsers(users.map(u => u.id === selectedUser.id ? updated : u));
+        dispatch(showNotification({ message: "İstifadəçi yeniləndi", type: "success" }));
+      } else {
+        const created = await createUserAction(data);
+        setUsers([created, ...users]);
+        dispatch(showNotification({ message: "Yeni istifadəçi yaradıldı", type: "success" }));
+      }
+      setIsModalOpen(false);
+    } catch (error: any) {
+       dispatch(showNotification({ message: error.response?.data?.error || "Xəta baş verdi!", type: "error" }));
+    }
   };
 
   return (
-    <div className={sorguLayoutStyles.container}>
-      <div className={sorguLayoutStyles.header}>
-        <section className={sorguActionBarStyles.wrapper}>
-          <div className={sorguActionBarStyles.group}>
-            <button
-              type="button"
-              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonPrimary}`}
-              onClick={openNew}
-            >
-              <FiFilePlus />
-              Yeni user
-            </button>
-            <button
-              type="button"
-              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonSecondary}`}
-              onClick={() => setActivePanel("filter")}
-            >
-              <FiFilter />
-              Filtrlər
-              {activeFilterCount > 0 ? (
-                <span className={sorguActionBarStyles.badge}>{activeFilterCount}</span>
-              ) : null}
-            </button>
-          </div>
-          <div className={sorguActionBarStyles.statsGroup}>
-            <span className={sorguActionBarStyles.statPill}>Cəmi: {filteredUsers.length}</span>
-            <span className={sorguActionBarStyles.statPill}>Aktiv: {activeUserCount}</span>
-          </div>
-          <div className={sorguActionBarStyles.group}>
-            <button
-              type="button"
-              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonSecondary}`}
-            >
-              Excel-dən idxal et
-            </button>
-            <button
-              type="button"
-              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonSecondary}`}
-            >
-              Excel-ə ixrac et
-            </button>
-          </div>
-        </section>
+    <div className={styles.container}>
+      <div className={styles.header}>
+        <h1 className={styles.title} style={{ display: "none" }}>İstifadəçi İdarəetməsi</h1>
       </div>
 
-      <div className={sorguLayoutStyles.body}>
-        <table className={sorguTableStyles.table}>
-          <thead className={sorguTableStyles.head}>
-            <tr>
-              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min180}`}>
-                Ad soyad
-              </th>
-              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min180}`}>
-                Email
-              </th>
-              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min140}`}>
-                Yetki
-              </th>
-              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>
-                Status
-              </th>
-              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>
-                Əməliyyatlar
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredUsers.map((user, index) => (
-              <tr
-                key={user.id}
-                className={index % 2 === 0 ? sorguTableStyles.rowEven : sorguTableStyles.rowOdd}
-              >
-                <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                  {user.fullName}
-                </td>
-                <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                  {user.email}
-                </td>
-                <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                  {ROLE_LABELS[user.role]}
-                </td>
-                <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                  <StatusBadge label={user.status === "active" ? "Aktiv" : "Deaktiv"} />
-                </td>
-                <td className={`${sorguTableStyles.actionCell} ${sorguTableStyles.center}`}>
-                  <div className={sorguTableStyles.actionRow} style={{ justifyContent: "center" }}>
-                    <button
-                      type="button"
-                      className={`${sorguTableStyles.iconButton} ${sorguTableStyles.detailsButton}`}
-                      title="Yetkiləri idarə et"
-                      aria-label="Yetkiləri idarə et"
-                      onClick={() => openEdit(user)}
-                    >
-                      <FaUserShield />
-                    </button>
-                    <button
-                      type="button"
-                      className={`${sorguTableStyles.iconButton} ${sorguTableStyles.detailsButton}`}
-                      title="Düzəliş et"
-                      aria-label="Düzəliş et"
-                      onClick={() => openEdit(user)}
-                    >
-                      <FaEdit />
-                    </button>
-                    <button
-                      type="button"
-                      className={`${sorguTableStyles.iconButton} ${sorguTableStyles.deleteButton}`}
-                      title="Sil"
-                      aria-label="Sil"
-                      onClick={() => deleteUser(user.id)}
-                    >
-                      <FaTrash />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className={actionStyles.wrapper} style={{ padding: "0.5rem 1rem" }}>
+        <div className={actionStyles.group}>
+          <button className={`${actionStyles.buttonBase} ${actionStyles.buttonPrimary}`} onClick={handleCreate}>
+            <FiFilePlus /> Yeni user
+          </button>
+          <button className={`${actionStyles.buttonBase} ${actionStyles.buttonSecondary}`}>
+            <FiFilter /> Filtrlər
+          </button>
+        </div>
+        
+        <div className={actionStyles.statsGroup}>
+          <span className={actionStyles.statPill}>Cəmi: {users.length}</span>
+          <span className={actionStyles.statPill}>Aktiv: {users.filter(u => u.status === "active").length}</span>
+        </div>
+
+        <div className={actionStyles.group}>
+          <button className={`${actionStyles.buttonBase} ${actionStyles.buttonSecondary}`}>
+            <FiUpload /> Excel-dən idxal et
+          </button>
+          <button className={`${actionStyles.buttonBase} ${actionStyles.buttonSecondary}`}>
+            <FiDownload /> Excel-ə ixrac et
+          </button>
+        </div>
       </div>
 
-      <div
-        className={`${sorguLayoutStyles.overlay} ${activePanel ? sorguLayoutStyles.overlayOpen : ""}`}
-        onClick={() => setActivePanel(null)}
-        aria-hidden={!activePanel}
+      <div className={styles.body}>
+        {loading ? (
+          <div style={{ padding: "2rem", textAlign: "center" }}>Yüklənir...</div>
+        ) : (
+          <UsersTable rows={users} onEdit={handleEdit} onDelete={handleDelete} />
+        )}
+      </div>
+
+      <UserModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSubmit={handleSubmit}
+        initialValues={selectedUser}
       />
 
-      <aside
-        className={`${sorguLayoutStyles.drawer} ${activePanel ? sorguLayoutStyles.drawerOpen : ""}`}
-        aria-hidden={!activePanel}
-      >
-        {activePanel === "filter" ? (
-          <div className={styles.drawerPanel}>
-            <div className={styles.drawerHeader}>
-              <h3>Filtrlər</h3>
-              <button type="button" onClick={() => setActivePanel(null)}>
-                <FiX />
-              </button>
-            </div>
-            <div className={styles.drawerBody}>
-              <label className={styles.field}>
-                <span>Yetki</span>
-                <select
-                  value={filterDraft.role}
-                  onChange={(e) => setFilterDraft((p) => ({ ...p, role: e.target.value }))}
-                  className={styles.input}
-                >
-                  <option value="">Hamısı</option>
-                  {Object.entries(ROLE_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className={styles.field}>
-                <span>Status</span>
-                <select
-                  value={filterDraft.status}
-                  onChange={(e) => setFilterDraft((p) => ({ ...p, status: e.target.value }))}
-                  className={styles.input}
-                >
-                  <option value="">Hamısı</option>
-                  <option value="active">Aktiv</option>
-                  <option value="inactive">Deaktiv</option>
-                </select>
-              </label>
-              <label className={styles.field}>
-                <span>Axtarış</span>
-                <input
-                  value={filterDraft.keyword}
-                  onChange={(e) => setFilterDraft((p) => ({ ...p, keyword: e.target.value }))}
-                  className={styles.input}
-                  placeholder="Ad və ya email"
-                />
-              </label>
-            </div>
-            <div className={styles.drawerFooter}>
-              <button type="button" className={styles.secondary} onClick={clearFilter}>
-                Təmizlə
-              </button>
-              <button type="button" className={styles.primary} onClick={applyFilter}>
-                Filterdən keçir
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {activePanel === "new" || activePanel === "edit" ? (
-          <div className={styles.drawerPanel}>
-            <div className={styles.drawerHeader}>
-              <h3>{activePanel === "new" ? "Yeni user" : "User redaktəsi"}</h3>
-              <button
-                type="button"
-                onClick={() => {
-                  setActivePanel(null);
-                  resetForm();
-                }}
-              >
-                <FiX />
-              </button>
-            </div>
-            <div className={styles.drawerBody}>
-              <label className={styles.field}>
-                <span>Ad soyad</span>
-                <input
-                  value={form.fullName}
-                  onChange={(e) => setForm((prev) => ({ ...prev, fullName: e.target.value }))}
-                  className={styles.input}
-                />
-              </label>
-              <label className={styles.field}>
-                <span>Email</span>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
-                  className={styles.input}
-                />
-              </label>
-              <label className={styles.field}>
-                <span>Yetki</span>
-                <select
-                  value={form.role}
-                  onChange={(e) => setForm((prev) => ({ ...prev, role: e.target.value as UserRole }))}
-                  className={styles.input}
-                >
-                  {Object.entries(ROLE_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className={styles.field}>
-                <span>Status</span>
-                <select
-                  value={form.status}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      status: e.target.value as ManagedUser["status"],
-                    }))
-                  }
-                  className={styles.input}
-                >
-                  <option value="active">Aktiv</option>
-                  <option value="inactive">Deaktiv</option>
-                </select>
-              </label>
-            </div>
-            <div className={styles.drawerFooter}>
-              <button
-                type="button"
-                className={styles.secondary}
-                onClick={() => {
-                  setActivePanel(null);
-                  resetForm();
-                }}
-              >
-                Bağla
-              </button>
-              <button type="button" className={styles.primary} onClick={saveUser}>
-                {activePanel === "new" ? "Yadda saxla" : "Yenilə"}
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </aside>
+      <ConfirmModal
+        isOpen={deleteConfirmOpen}
+        title="İstifadəçini sil"
+        message="Bu istifadəçini silmək istədiyinizə əminsiniz?"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          setDeleteConfirmOpen(false);
+          setUserToDelete(null);
+        }}
+        isLoading={isDeleting}
+      />
     </div>
   );
-}
+};
+
+export default AyarlarPage;

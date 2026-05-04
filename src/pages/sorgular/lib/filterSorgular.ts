@@ -31,6 +31,27 @@ export function filterByTab(
       (r) => r.status === "cancelled" || r.status === "completed",
     );
   }
+  if (tab === "offers") {
+    const offerRows: LogisticQueryRow[] = [];
+    rows.forEach((r) => {
+      const items = (r as any).priceOfferItems;
+      if (Array.isArray(items) && items.length > 0) {
+        items.forEach((off, idx) => {
+          offerRows.push({
+            ...r,
+            // Virtual ID to avoid duplicate keys in table
+            id: `${r.id}-off-${idx}`,
+            // Override priceOffers to show specific offer info
+            priceOffers: `${off.carrierName}: ${off.price} ${off.currency}`,
+            // Store original ID and offer item for specialized table
+            originalId: r.id,
+            offerItem: off,
+          } as any);
+        });
+      }
+    });
+    return offerRows;
+  }
   return rows;
 }
 

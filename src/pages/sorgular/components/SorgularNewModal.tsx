@@ -12,6 +12,18 @@ import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
 import { SorguStatus } from "../types/sorgu.types";
 import styles from "./SorgularNewModal.module.css";
+import {
+  CARGO_CURRENCY_OPTIONS,
+  CARGO_TRANSPORT_OPTIONS,
+  COMPANY_OPTIONS,
+  COUNTRY_OPTIONS,
+  CUSTOMER_OPTIONS,
+  DEPT_OPTIONS,
+  INCOTERMS_OPTIONS,
+  PACKAGING_TYPE_OPTIONS,
+  PERSON_OPTIONS,
+  TRANSPORT_PARENT_KIND_OPTIONS,
+} from "../constants/options.constants";
 
 // Zorunlu alanlar
 const requiredFields = [
@@ -45,69 +57,20 @@ const placeholderOpts = (extra: SelectOption[] = []): SelectOption[] => [
   ...extra,
 ];
 
-const companyOptions = placeholderOpts([
-  { value: "ziyafreight", label: "Ziyafreight" },
-  { value: "elmry", label: "Elmry ERP" },
-]);
-
-const personOptions = placeholderOpts([
-  { value: "ulvi", label: "Ulvi Adilzade" },
-  { value: "nargiz", label: "Nərgiz K." },
-]);
-
-const deptOptions = placeholderOpts([
-  { value: "logistics", label: "Logistika" },
-  { value: "sales", label: "Satış" },
-]);
-
-const customerOptions = placeholderOpts([
-  { value: "mm", label: "M&M Militzer & Munch" },
-  { value: "caspian", label: "Caspian Trade" },
-]);
-
+const companyOptions = placeholderOpts(COMPANY_OPTIONS);
+const personOptions = placeholderOpts(PERSON_OPTIONS);
+const deptOptions = placeholderOpts(DEPT_OPTIONS);
+const customerOptions = placeholderOpts(CUSTOMER_OPTIONS);
 const contractOptions = placeholderOpts([
   { value: "ctr-2026-01", label: "CTR-2026/01" },
 ]);
-
 const simpleSelect = placeholderOpts();
-
-const incotermsOptions = placeholderOpts([
-  { value: "EXW", label: "EXW" },
-  { value: "FOB", label: "FOB" },
-  { value: "CIF", label: "CIF" },
-]);
-
-const countryOptions = placeholderOpts([
-  { value: "AZ", label: "Azərbaycan" },
-  { value: "TR", label: "Türkiyə" },
-  { value: "CN", label: "Çin" },
-  { value: "DE", label: "Almaniya" },
-]);
-
-const cargoTransportOptions = placeholderOpts([
-  { value: "air", label: "Hava" },
-  { value: "sea", label: "Dəniz" },
-  { value: "road", label: "Quru" },
-  { value: "rail", label: "Dəmir yolu" },
-]);
-
-const transportParentKindOptions = placeholderOpts([
-  { value: "avtoreys", label: "Avtoreyslər" },
-  { value: "konteyner", label: "Konteynerlər" },
-  { value: "tanker", label: "Tankerlər" },
-]);
-
-const cargoCurrencyOptions = placeholderOpts([
-  { value: "AZN", label: "AZN" },
-  { value: "USD", label: "USD" },
-  { value: "EUR", label: "EUR" },
-]);
-
-const packagingTypeOptions = placeholderOpts([
-  { value: "pallet", label: "Palet" },
-  { value: "box", label: "Qutu" },
-  { value: "crate", label: "Taxta qutu" },
-]);
+const incotermsOptions = placeholderOpts(INCOTERMS_OPTIONS);
+const countryOptions = placeholderOpts(COUNTRY_OPTIONS);
+const cargoTransportOptions = placeholderOpts(CARGO_TRANSPORT_OPTIONS);
+const transportParentKindOptions = placeholderOpts(TRANSPORT_PARENT_KIND_OPTIONS);
+const cargoCurrencyOptions = placeholderOpts(CARGO_CURRENCY_OPTIONS);
+const packagingTypeOptions = placeholderOpts(PACKAGING_TYPE_OPTIONS);
 
 export interface CargoPackagingRow {
   id: string;
@@ -178,10 +141,12 @@ function PlusButton({
   title,
   onClick,
   variant = "default",
+  className = "",
 }: {
   title: string;
   onClick: () => void;
   variant?: "default" | "emerald";
+  className?: string;
 }) {
   return (
     <button
@@ -190,7 +155,7 @@ function PlusButton({
       onClick={onClick}
       className={`${styles.plusButton} ${
         variant === "emerald" ? styles.plusButtonEmerald : ""
-      }`}
+      } ${className}`}
       aria-label={title}
     >
       +
@@ -476,8 +441,8 @@ export default function SorgularNewModal({
 
   const resetForm = useCallback(() => {
     setTab("main");
-    setCompany("ziyafreight");
-    setManager("ulvi");
+    setCompany("Ziyafreight");
+    setManager("Ulvi Adilzade");
     setLogist("");
     setDepartment("");
     setCustomer("");
@@ -634,7 +599,7 @@ export default function SorgularNewModal({
     value: string,
     options: SelectOption[],
     onChange: (nextValue: string) => void,
-    plus?: { title: string },
+    plus?: { title: string; className?: string },
   ) => (
     <div className={styles.fieldStack}>
       {label}
@@ -645,7 +610,7 @@ export default function SorgularNewModal({
             options={options}
             onChange={onChange}
             placeholder="Dəyəri seçin"
-            className={styles.selectControl}
+            className={`${styles.selectControl} ${plus?.className || ""}`}
           />
         </div>
         {plus ? (

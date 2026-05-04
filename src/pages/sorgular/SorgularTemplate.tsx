@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { NotificationModal } from "../../common/components/NotificationModal";
 import Loading from "../../common/components/loading/Loading";
 import type { SelectOption } from "../../common/components/select/Select";
 import { useAppDispatch } from "../../common/store/hooks";
@@ -12,18 +12,14 @@ import {
   SorgularNewModal,
   SorgularPagination,
   SorgularTable,
-  SorgularOffersTable,
-  SorgularEditModal,
   type NewSorguFormPayload,
 } from "./components";
 import {
   createQueryAction,
   fetchQueriesAction,
-  updateQueryAction,
 } from "../../common/actions/query.actions";
 import { useSorgularPagination } from "./hooks/useSorgularPagination";
 import { applyFilters, filterByTab } from "./lib/filterSorgular";
-import { exportSorgularToExcel } from "./lib/exportExcel";
 import styles from "./sorgular.module.css";
 import type {
   FilterFormState,
@@ -33,16 +29,16 @@ import type {
 } from "./types/sorgu.types";
 import { emptyFilterForm } from "./types/sorgu.types";
 
-export default function SorgularPage() {
-  const dispatch = useAppDispatch();
-  const [searchParams] = useSearchParams();
-  const requestedTab = searchParams.get("tab");
-  const initialTab: SorguSubTab =
-    requestedTab === "archive" || requestedTab === "offers"
-      ? requestedTab
-      : "active";
+interface SorgularTemplateProps {
+  subTab: SorguSubTab;
+  customFetch?: () => Promise<LogisticQueryRow[]>;
+}
 
-  const [subTab, setSubTab] = useState<SorguSubTab>(initialTab);
+export default function SorgularTemplate({ 
+  subTab, 
+  customFetch 
+}: SorgularTemplateProps) {
+  const dispatch = useAppDispatch();
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [activeSections, setActiveSections] = useState<Set<FilterSectionId>>(
     () => new Set(["id", "dates"]),
@@ -54,17 +50,6 @@ export default function SorgularPage() {
   const [isNewOpen, setIsNewOpen] = useState(false);
   const [rows, setRows] = useState<LogisticQueryRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editRow, setEditRow] = useState<LogisticQueryRow | null>(null);
-  const [isEditOpen, setIsEditOpen] = useState(false);
-
-  useEffect(() => {
-    const nextTab: SorguSubTab =
-      requestedTab === "archive" || requestedTab === "offers"
-        ? requestedTab
-        : "active";
-
-    setSubTab((prev) => (prev === nextTab ? prev : nextTab));
-  }, [requestedTab]);
 
   useEffect(() => {
     if (!isFilterPanelOpen) return undefined;
@@ -82,7 +67,10 @@ export default function SorgularPage() {
   useEffect(() => {
     let ignore = false;
     setLoading(true);
-    fetchQueriesAction(subTab)
+    
+    const fetchFn = customFetch ? customFetch : () => fetchQueriesAction(subTab);
+
+    fetchFn()
       .then((data) => {
         if (!ignore) {
           setRows(data);
@@ -107,7 +95,7 @@ export default function SorgularPage() {
     return () => {
       ignore = true;
     };
-  }, [dispatch, subTab]);
+  }, [dispatch, subTab, customFetch]);
 
   const toggleSection = useCallback((id: FilterSectionId) => {
     setActiveSections((prev) => {
@@ -199,24 +187,11 @@ export default function SorgularPage() {
   };
 
   const handleExportExcel = () => {
-    if (filteredRows.length === 0) {
-      dispatch(
-        showNotification({
-          message: "İxrac etmək üçün məlumat yoxdur.",
-          type: "error",
-          autoCloseDuration: 3000,
-        }),
-      );
-      return;
-    }
-    
-    exportSorgularToExcel(filteredRows);
-    
     dispatch(
       showNotification({
-        message: "Excel faylı hazırlandı və endirilir.",
-        type: "success",
-        autoCloseDuration: 3000,
+        message: "Excel ixrac tezliklə əlavə olunacaq.",
+        type: "info",
+        autoCloseDuration: 3500,
       }),
     );
   };
@@ -253,54 +228,9 @@ export default function SorgularPage() {
     setRows((prev) => prev.filter((r) => r.id !== id));
   };
 
-  const handleEditQuery = (id: number) => {
-    const row = rows.find((r) => r.id === id);
-    if (row) {
-      setEditRow(row);
-      setIsEditOpen(true);
-    }
-  };
-
-  const handleDeleteOffer = async (queryId: number, offerId: string) => {
-    if (!window.confirm("Bu təklifi silmək istədiyinizə əminsiniz?")) return;
-    try {
-      const query = rows.find((r) => r.id === queryId);
-      if (!query) return;
-      const currentOffers = (query as any).priceOfferItems || [];
-      const updatedOffers = currentOffers.filter((o: any) => o.id !== offerId);
-
-      const payload = {
-        priceOffersJson: JSON.stringify(updatedOffers),
-        priceOffers:
-          updatedOffers.length > 0
-            ? `${updatedOffers[0].carrierName}: ${updatedOffers[0].price} ${updatedOffers[0].currency}`
-            : "",
-      };
-
-      const updated = await updateQueryAction(queryId, payload);
-      setRows((prev) =>
-        prev.map((r) => (r.id === queryId ? updated : r)),
-      );
-      dispatch(
-        showNotification({
-          message: "Qiymət təklifi silindi.",
-          type: "success",
-          autoCloseDuration: 2500,
-        }),
-      );
-    } catch (e) {
-      dispatch(
-        showNotification({
-          message: "Xəta baş verdi.",
-          type: "error",
-          autoCloseDuration: 3000,
-        }),
-      );
-    }
-  };
-
   return (
     <div className={styles.container}>
+      <NotificationModal />
 
       <div className={styles.header}>
         <SorgularActionBar
@@ -316,19 +246,11 @@ export default function SorgularPage() {
 
       <div className={styles.body} style={{ position: "relative" }}>
         {!loading && (
-          subTab === "offers" ? (
-            <SorgularOffersTable 
-              rows={paginatedRows} 
-              onDeleteOffer={handleDeleteOffer}
-              onEditQuery={handleEditQuery}
-            />
-          ) : (
-            <SorgularTable 
-              rows={paginatedRows} 
-              onUpdate={handleRowUpdate}
-              onDelete={handleRowDelete}
-            />
-          )
+          <SorgularTable
+            rows={paginatedRows}
+            onUpdate={handleRowUpdate}
+            onDelete={handleRowDelete}
+          />
         )}
         {loading && (
           <div className={styles.statePanel}>
@@ -353,15 +275,6 @@ export default function SorgularPage() {
         isOpen={isNewOpen}
         onClose={() => setIsNewOpen(false)}
         onSubmit={handleNewSubmit}
-      />
-
-      <SorgularEditModal
-        isOpen={isEditOpen}
-        onClose={() => {
-          setIsEditOpen(false);
-          setEditRow(null);
-        }}
-        initialValues={editRow}
       />
 
       <div

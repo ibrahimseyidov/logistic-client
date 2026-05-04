@@ -1,19 +1,29 @@
 import { Link } from "react-router-dom";
-import { FaCheck, FaClipboard, FaMinus, FaEdit, FaTrash } from "react-icons/fa";
+import { FaCheck, FaClipboard, FaMinus, FaEdit, FaTrash, FaHandHoldingUsd, FaCheckCircle } from "react-icons/fa";
 import StatusBadge from "../../../common/components/StatusBadge";
 import type { LogisticQueryRow, SorguStatus } from "../types/sorgu.types";
 import styles from "./SorgularTable.module.css";
 
 import React, { useState, useEffect } from "react";
-import { SorgularEditModal } from "./index";
+import { SorgularEditModal, SorgularOfferModal } from "./index";
 import {
   updateQueryAction,
   deleteQueryAction,
   fetchQueryDetailAction,
 } from "../../../common/actions/query.actions";
+import { ConfirmModal } from "../../../common/components/ConfirmModal";
+import {
+  CARGO_TRANSPORT_OPTIONS,
+  COMPANY_OPTIONS,
+  CUSTOMER_OPTIONS,
+  PACKAGING_TYPE_OPTIONS,
+  PERSON_OPTIONS,
+} from "../constants/options.constants";
 
 interface Props {
   rows: LogisticQueryRow[];
+  onUpdate?: (updated: LogisticQueryRow) => void;
+  onDelete?: (id: string | number) => void;
 }
 
 const COLUMN_COUNT = 13;
@@ -111,13 +121,37 @@ function getCustomerFullName(row: LogisticQueryRow) {
   const contactPerson = toText(anyRow.contactPerson);
   if (contactPerson && looksLikeFullName(contactPerson)) return contactPerson;
 
+  // CUSTOMER_OPTIONS üzerinden eşleştirme yap
+  const matched = CUSTOMER_OPTIONS.find((opt) => opt.value === customerText);
+  if (matched) return matched.label;
+
   if (customerText) return customerText;
   if (contactPerson) return contactPerson;
 
   return "";
 }
 
-export default function SorgularTable({ rows }: Props) {
+function getCompanyLabel(value: string) {
+  const matched = COMPANY_OPTIONS.find((opt) => opt.value === value);
+  return matched ? matched.label : value;
+}
+
+function getPersonLabel(value: string) {
+  const matched = PERSON_OPTIONS.find((opt) => opt.value === value);
+  return matched ? matched.label : value;
+}
+
+function getCargoTransportLabel(value: string) {
+  const matched = CARGO_TRANSPORT_OPTIONS.find((opt) => opt.value === value);
+  return matched ? matched.label : value;
+}
+
+function getPackagingLabel(value: string) {
+  const matched = PACKAGING_TYPE_OPTIONS.find((opt) => opt.value === value);
+  return matched ? matched.label : value;
+}
+
+export default function SorgularTable({ rows, onUpdate, onDelete }: Props) {
   // Modalı kapatmak için fonksiyon
   const handleEditClose = () => {
     setEditModalOpen(false);
@@ -130,6 +164,11 @@ export default function SorgularTable({ rows }: Props) {
   }
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editRow, setEditRow] = useState<LogisticQueryRow | null>(null);
+  const [offerModalOpen, setOfferModalOpen] = useState(false);
+  const [offerRow, setOfferRow] = useState<LogisticQueryRow | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [rowToDelete, setRowToDelete] = useState<LogisticQueryRow | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [localRows, setLocalRows] = useState<LogisticQueryRow[]>([]);
   // Sync localRows with props.rows
   useEffect(() => {
@@ -137,9 +176,10 @@ export default function SorgularTable({ rows }: Props) {
   }, [rows]);
 
   const handleEditClick = async (row: LogisticQueryRow) => {
+    const actualId = (row as any).originalId || row.id;
     // Detay verisini backend'den çek
     try {
-      const detail = await fetchQueryDetailAction(row.id);
+      const detail = await fetchQueryDetailAction(actualId);
       setEditRow(detail);
       setEditModalOpen(true);
     } catch (e) {
@@ -154,6 +194,7 @@ export default function SorgularTable({ rows }: Props) {
       setLocalRows((prev) =>
         prev.map((r) => (r.id === updated.id ? updated : r)),
       );
+      if (onUpdate) onUpdate(updated);
     } catch (e) {
       // Hata yönetimi eklenebilir
     }
@@ -161,13 +202,54 @@ export default function SorgularTable({ rows }: Props) {
     setEditRow(null);
   };
 
-  const handleDelete = async (row: LogisticQueryRow) => {
-    if (!window.confirm("Bu sorgunu silmək istədiyinizə əminsiniz?")) return;
+  const handleOfferClick = (row: LogisticQueryRow) => {
+    setOfferRow(row);
+    setOfferModalOpen(true);
+  };
+
+  const handleOfferSubmit = async (offers: any[]) => {
+    if (!offerRow) return;
+    const actualId = (offerRow as any).originalId || offerRow.id;
     try {
-      await deleteQueryAction(row.id);
-      setLocalRows((prev) => prev.filter((r) => r.id !== row.id));
+      const payload = {
+        priceOffersJson: JSON.stringify(offers),
+        // priceOffers alanını da ilk teklifin özeti olarak güncelleyelim
+        priceOffers:
+          offers.length > 0
+            ? `${offers[0].carrierName}: ${offers[0].price} ${offers[0].currency}`
+            : "",
+      };
+      const updated = await updateQueryAction(actualId, payload);
+      setLocalRows((prev) =>
+        prev.map((r) => (r.id === updated.id ? updated : r)),
+      );
+      if (onUpdate) onUpdate(updated);
     } catch (e) {
-      // Hata yönetimi eklenebilir
+      // Hata yönetimi
+    }
+    setOfferModalOpen(false);
+    setOfferRow(null);
+  };
+
+  const handleDeleteClick = (row: LogisticQueryRow) => {
+    setRowToDelete(row);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!rowToDelete) return;
+    setIsDeleting(true);
+    const actualId = (rowToDelete as any).originalId || rowToDelete.id;
+    try {
+      await deleteQueryAction(actualId);
+      setLocalRows((prev) => prev.filter((r) => r.id !== rowToDelete.id));
+      if (onDelete) onDelete(rowToDelete.id);
+      setDeleteConfirmOpen(false);
+      setRowToDelete(null);
+    } catch (e) {
+      // Hata yönetimi
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -261,34 +343,86 @@ export default function SorgularTable({ rows }: Props) {
                   )}
                 </td>
                 <td
-                  className={`${styles.cell} ${styles.bodyText} ${styles.preLine} ${styles.smallText} ${styles.min240} ${styles.center}`}
+                  className={`${styles.cell} ${styles.bodyText} ${styles.preLine} ${styles.smallText} ${styles.min240}`}
                 >
-                  {/* cargoItemsJson içindeki yükleri alt alta və nəqliyyat tipiyle göster */}
-                  {(() => {
-                    {
-                      /* cargoItems array içindeki yükleri alt alta və nəqliyyat tipiyle göster */
-                    }
-                    {
-                      Array.isArray(row.cargoItems) &&
-                      row.cargoItems.length > 0 ? (
-                        <div style={{ textAlign: "left" }}>
-                          {row.cargoItems.map((item: any, idx: number) => (
-                            <div key={item.id || idx}>
-                              <b>{item.name}</b>
-                              {item.transportType ? (
-                                <span style={{ color: "#888" }}>
-                                  {" "}
-                                  — {item.transportType}
-                                </span>
-                              ) : null}
+                  {Array.isArray(row.cargoItems) && row.cargoItems.length > 0 ? (
+                    <div style={{ textAlign: "left" }}>
+                      {row.cargoItems.map((item: any, idx: number) => (
+                        <div
+                          key={item.id || idx}
+                          style={{
+                            marginBottom:
+                              idx < row.cargoItems!.length - 1 ? "8px" : 0,
+                            paddingBottom:
+                              idx < row.cargoItems!.length - 1
+                                ? "6px"
+                                : 0,
+                            borderBottom:
+                              idx < row.cargoItems!.length - 1
+                                ? "1px dashed #e2e8f0"
+                                : "none",
+                          }}
+                        >
+                          <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                            {item.name || "Adsız yük"}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "0.75rem",
+                              color: "#64748b",
+                              marginTop: "2px",
+                            }}
+                          >
+                            {item.weight ? `${item.weight} kq` : ""}
+                            {item.ldm ? ` | LDM: ${item.ldm}` : ""}
+                            {item.transportType
+                              ? ` | ${getCargoTransportLabel(item.transportType)}`
+                              : ""}
+                          </div>
+                          {(item.cargoValue || item.currency) && (
+                            <div
+                              style={{
+                                fontSize: "0.72rem",
+                                color: "#2563eb",
+                                marginTop: "2px",
+                                fontWeight: 500,
+                              }}
+                            >
+                              {item.cargoValue || "0"} {item.currency || ""}
                             </div>
-                          ))}
+                          )}
+                          {Array.isArray(item.packagingRows) &&
+                            item.packagingRows.length > 0 && (
+                              <div
+                                style={{
+                                  fontSize: "0.68rem",
+                                  color: "#94a3b8",
+                                  marginTop: "3px",
+                                  backgroundColor: "#f8fafc",
+                                  padding: "2px 4px",
+                                  borderRadius: "4px",
+                                }}
+                              >
+                                {item.packagingRows.map(
+                                  (p: any, pIdx: number) => (
+                                    <div key={p.id || pIdx}>
+                                      {p.packagingType
+                                        ? `${getPackagingLabel(p.packagingType)}: `
+                                        : ""}
+                                      {p.lengthM || 0}x{p.widthM || 0}x
+                                      {p.heightM || 0}m
+                                      {p.volumeM3 ? ` | ${p.volumeM3}m³` : ""}
+                                    </div>
+                                  ),
+                                )}
+                              </div>
+                            )}
                         </div>
-                      ) : (
-                        <FaMinus className={styles.mutedText} />
-                      );
-                    }
-                  })()}
+                      ))}
+                    </div>
+                  ) : (
+                    <FaMinus className={styles.mutedText} />
+                  )}
                 </td>
                 <td
                   className={`${styles.cell} ${styles.bodyText} ${styles.min150} ${styles.center}`}
@@ -323,17 +457,35 @@ export default function SorgularTable({ rows }: Props) {
                 <td
                   className={`${styles.cell} ${styles.bodyText} ${styles.nowrap} ${styles.min140} ${styles.center}`}
                 >
-                  {row.company || <FaMinus className={styles.mutedText} />}
+                  {getCompanyLabel(row.company) || (
+                    <FaMinus className={styles.mutedText} />
+                  )}
                 </td>
                 <td
                   className={`${styles.cell} ${styles.mutedText} ${styles.min140} ${styles.center}`}
                 >
-                  {row.seller || <FaMinus className={styles.mutedText} />}
+                  {getPersonLabel(row.seller) || (
+                    <FaMinus className={styles.mutedText} />
+                  )}
                 </td>
                 <td
                   className={`${styles.cell} ${styles.bodyText} ${styles.min180} ${styles.center}`}
                 >
-                  {row.priceOffers || <FaMinus className={styles.mutedText} />}
+                  {row.priceOffers ? (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#059669",
+                      }}
+                      title={row.priceOffers} // Keep the text as a tooltip
+                    >
+                      <FaCheckCircle style={{ fontSize: "1.1rem" }} />
+                    </div>
+                  ) : (
+                    <FaMinus className={styles.mutedText} />
+                  )}
                 </td>
                 <td
                   className={`${styles.cell} ${styles.bodyText} ${styles.min170} ${styles.center}`}
@@ -351,20 +503,30 @@ export default function SorgularTable({ rows }: Props) {
                     style={{ justifyContent: "center" }}
                   >
                     <button
-                      type="button"
-                      title="Düzəliş et"
-                      className={`${styles.iconButton} ${styles.editButton}`}
-                      aria-label="Düzəliş et"
-                      onClick={() => handleEditClick(row)}
-                    >
-                      <FaEdit />
-                    </button>
+                        type="button"
+                        className={`${styles.iconButton} ${styles.detailsButton}`}
+                        onClick={() => handleOfferClick(row)}
+                        aria-label="Qiymət təklifi ver"
+                        title="Qiymət təklifi ver"
+                        style={{ color: "#059669", backgroundColor: "#ecfdf5" }}
+                      >
+                        <FaHandHoldingUsd />
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.iconButton} ${styles.editButton}`}
+                        onClick={() => handleEditClick(row)}
+                        aria-label="Redaktə et"
+                        title="Redaktə et"
+                      >
+                        <FaEdit />
+                      </button>
                     <button
                       type="button"
                       title="Sil"
                       className={`${styles.iconButton} ${styles.deleteButton}`}
                       aria-label="Sil"
-                      onClick={() => handleDelete(row)}
+                      onClick={() => handleDeleteClick(row)}
                     >
                       <FaTrash />
                     </button>
@@ -383,6 +545,27 @@ export default function SorgularTable({ rows }: Props) {
           initialValues={editRow}
         />
       )}
+      <SorgularOfferModal
+        isOpen={offerModalOpen}
+        onClose={() => {
+          setOfferModalOpen(false);
+          setOfferRow(null);
+        }}
+        onSubmit={handleOfferSubmit}
+        initialOffers={(offerRow as any)?.priceOfferItems || []}
+        queryNumber={offerRow?.number}
+      />
+      <ConfirmModal
+        isOpen={deleteConfirmOpen}
+        title="Sorğunu sil"
+        message="Bu sorğunu silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarıla bilməz."
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          setDeleteConfirmOpen(false);
+          setRowToDelete(null);
+        }}
+        isLoading={isDeleting}
+      />
     </>
   );
 }
