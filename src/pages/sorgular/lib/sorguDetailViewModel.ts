@@ -33,6 +33,7 @@ export interface SorguDetailViewModel {
   offersCount: number;
   documentsCount: number;
   tasksCount: number;
+  priceOfferItems: any[];
 }
 
 function parsePlace(place: string): { country: string; city: string } {
@@ -138,6 +139,7 @@ export function buildSorguDetailView(
     offersCount: row.priceOffers && row.priceOffers !== "—" ? 1 : 0,
     documentsCount: 0,
     tasksCount: 0,
+    priceOfferItems: (row as any).priceOfferItems || [],
   };
 
   if (!o) return base;

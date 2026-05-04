@@ -40,6 +40,18 @@ export interface LogisticQueryRow {
   confirmed: boolean;
   archived: boolean;
   contactPerson: string;
+  customerFirstName?: string;
+  customerFirstname?: string;
+  firstName?: string;
+  customerLastName?: string;
+  customerLastname?: string;
+  lastName?: string;
+  loadCity?: string;
+  loadAddress?: string;
+  loadCountry?: string;
+  unloadCity?: string;
+  unloadAddress?: string;
+  unloadCountry?: string;
   cargoItems?: any[]; // API'den gelen yükler
   comments?: any[];
   documents?: any[];

@@ -246,15 +246,42 @@ export default function SorgularPage() {
   };
 
   const handleRowUpdate = (updated: LogisticQueryRow) => {
-    setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+    setRows((prev) =>
+      prev.map((r) => (String(r.id) === String(updated.id) ? updated : r)),
+    );
+  };
+
+  const handleEditSubmit = async (payload: any) => {
+    if (!editRow) return;
+    try {
+      const updated = await updateQueryAction(editRow.id, payload.fields);
+      handleRowUpdate(updated);
+      setIsEditOpen(false);
+      setEditRow(null);
+      dispatch(
+        showNotification({
+          message: "Sorğu yeniləndi.",
+          type: "success",
+          autoCloseDuration: 2500,
+        }),
+      );
+    } catch {
+      dispatch(
+        showNotification({
+          message: "Xəta baş verdi.",
+          type: "error",
+          autoCloseDuration: 3000,
+        }),
+      );
+    }
   };
 
   const handleRowDelete = (id: string | number) => {
-    setRows((prev) => prev.filter((r) => r.id !== id));
+    setRows((prev) => prev.filter((r) => String(r.id) !== String(id)));
   };
 
   const handleEditQuery = (id: number) => {
-    const row = rows.find((r) => r.id === id);
+    const row = rows.find((r) => String(r.id) === String(id));
     if (row) {
       setEditRow(row);
       setIsEditOpen(true);
@@ -264,7 +291,7 @@ export default function SorgularPage() {
   const handleDeleteOffer = async (queryId: number, offerId: string) => {
     if (!window.confirm("Bu təklifi silmək istədiyinizə əminsiniz?")) return;
     try {
-      const query = rows.find((r) => r.id === queryId);
+      const query = rows.find((r) => String(r.id) === String(queryId));
       if (!query) return;
       const currentOffers = (query as any).priceOfferItems || [];
       const updatedOffers = currentOffers.filter((o: any) => o.id !== offerId);
@@ -279,7 +306,7 @@ export default function SorgularPage() {
 
       const updated = await updateQueryAction(queryId, payload);
       setRows((prev) =>
-        prev.map((r) => (r.id === queryId ? updated : r)),
+        prev.map((r) => (String(r.id) === String(queryId) ? updated : r)),
       );
       dispatch(
         showNotification({
@@ -361,7 +388,8 @@ export default function SorgularPage() {
           setIsEditOpen(false);
           setEditRow(null);
         }}
-        initialValues={editRow}
+        onSubmit={handleEditSubmit}
+        initialValues={editRow || undefined}
       />
 
       <div
