@@ -755,26 +755,6 @@ export default function SorgularEditModal({
                       </div>
 
                       {rowSelect(
-                        <Label required>Müştəri</Label>,
-                        customer,
-                        customerOptions,
-                        setCustomer,
-                        { title: "Yeni müştəri" },
-                      )}
-
-                      <div className={styles.fieldStack}>
-                        <Label>Müştəri ilə müqavilənin nömrəsi</Label>
-                        <Select
-                          value={contractNumber}
-                          options={contractOptions}
-                          onChange={setContractNumber}
-                          className={styles.selectControl}
-                        />
-                      </div>
-                    </div>
-
-                    <div className={styles.verticalStack}>
-                      {rowSelect(
                         <Label>Əlaqədar şəxs</Label>,
                         contactPerson,
                         personOptions,
@@ -803,6 +783,26 @@ export default function SorgularEditModal({
                         setTags,
                         { title: "Yeni teq" },
                       )}
+                    </div>
+
+                    <div className={styles.verticalStack}>
+                      {rowSelect(
+                        <Label required>Müştəri</Label>,
+                        customer,
+                        customerOptions,
+                        setCustomer,
+                        { title: "Yeni müştəri" },
+                      )}
+
+                      <div className={styles.fieldStack}>
+                        <Label>Müştəri ilə müqavilənin nömrəsi</Label>
+                        <Select
+                          value={contractNumber}
+                          options={contractOptions}
+                          onChange={setContractNumber}
+                          className={styles.selectControl}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

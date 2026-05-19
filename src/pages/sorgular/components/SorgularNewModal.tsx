@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { FaInfoCircle, FaMapMarkerAlt } from "react-icons/fa";
+import { FaInfoCircle } from "react-icons/fa";
 import Select from "../../../common/components/select/Select";
 import type { SelectOption } from "../../../common/components/select/Select";
 import { useAppDispatch } from "../../../common/store/hooks";
@@ -24,6 +24,7 @@ import {
   PERSON_OPTIONS,
   TRANSPORT_PARENT_KIND_OPTIONS,
 } from "../constants/options.constants";
+import { calcCargoMetrics } from "../lib/cargoCalculations";
 
 // Zorunlu alanlar
 const requiredFields = [
@@ -76,6 +77,7 @@ export interface CargoPackagingRow {
   id: string;
   packagingType: string;
   packagingExtra: string;
+  packagingCount: string;
   lengthM: string;
   widthM: string;
   heightM: string;
@@ -86,6 +88,7 @@ export interface CargoItemForm {
   id: string;
   name: string;
   weight: string;
+  volumeM3: string;
   ldm: string;
   transportType: string;
   cargoValue: string;
@@ -100,6 +103,7 @@ function createPackagingRow(): CargoPackagingRow {
     id: crypto.randomUUID(),
     packagingType: "",
     packagingExtra: "",
+    packagingCount: "1",
     lengthM: "",
     widthM: "",
     heightM: "",
@@ -112,6 +116,7 @@ function createCargoItem(): CargoItemForm {
     id: crypto.randomUUID(),
     name: "",
     weight: "",
+    volumeM3: "",
     ldm: "",
     transportType: "",
     cargoValue: "",
@@ -120,6 +125,33 @@ function createCargoItem(): CargoItemForm {
     incompleteLoad: false,
     additionalInfo: "",
   };
+}
+
+function normalizePackagingRow(row: CargoPackagingRow): CargoPackagingRow {
+  return {
+    ...row,
+    packagingCount: row.packagingCount ?? "1",
+  };
+}
+
+function applyCargoMetrics(cargo: CargoItemForm): CargoItemForm {
+  const metrics = calcCargoMetrics({
+    weight: cargo.weight,
+    packagingRows: cargo.packagingRows.map(normalizePackagingRow),
+  });
+  return {
+    ...cargo,
+    packagingRows: metrics.packagingRows as CargoPackagingRow[],
+    volumeM3: metrics.totalVolumeM3,
+    ldm: metrics.ldm,
+  };
+}
+
+function normalizeCargoItem(cargo: CargoItemForm): CargoItemForm {
+  return applyCargoMetrics({
+    ...cargo,
+    packagingRows: cargo.packagingRows.map(normalizePackagingRow),
+  });
 }
 
 export interface NewSorguFormPayload {
@@ -263,12 +295,8 @@ export default function SorgularNewModal({
     initialValues?.loadPlaceCompany ?? "",
   );
   const [loadCity, setLoadCity] = useState(initialValues?.loadCity ?? "");
-  const [loadPostal, setLoadPostal] = useState(initialValues?.loadPostal ?? "");
   const [loadAddress, setLoadAddress] = useState(
     initialValues?.loadAddress ?? "",
-  );
-  const [loadCoordinates, setLoadCoordinates] = useState(
-    initialValues?.loadCoordinates ?? "",
   );
   const [loadSaveTerminal, setLoadSaveTerminal] = useState(
     initialValues?.loadSaveTerminal ?? false,
@@ -277,14 +305,8 @@ export default function SorgularNewModal({
     initialValues?.unloadPlaceCompany ?? "",
   );
   const [unloadCity, setUnloadCity] = useState(initialValues?.unloadCity ?? "");
-  const [unloadPostal, setUnloadPostal] = useState(
-    initialValues?.unloadPostal ?? "",
-  );
   const [unloadAddress, setUnloadAddress] = useState(
     initialValues?.unloadAddress ?? "",
-  );
-  const [unloadCoordinates, setUnloadCoordinates] = useState(
-    initialValues?.unloadCoordinates ?? "",
   );
   const [unloadSaveTerminal, setUnloadSaveTerminal] = useState(
     initialValues?.unloadSaveTerminal ?? false,
@@ -294,8 +316,8 @@ export default function SorgularNewModal({
   const [additionalInfo, setAdditionalInfo] = useState(
     initialValues?.additionalInfo ?? "",
   );
-  const [cargoItems, setCargoItems] = useState<CargoItemForm[]>(
-    initialValues?.cargoItems
+  const [cargoItems, setCargoItems] = useState<CargoItemForm[]>(() => {
+    const raw: CargoItemForm[] = initialValues?.cargoItems
       ? initialValues.cargoItems
       : initialValues?.cargoItemsJson
         ? (() => {
@@ -306,8 +328,9 @@ export default function SorgularNewModal({
               return [createCargoItem()];
             }
           })()
-        : [createCargoItem()],
-  );
+        : [createCargoItem()];
+    return raw.map(normalizeCargoItem);
+  });
   const [transportTypeModalOpen, setTransportTypeModalOpen] = useState(false);
   const [newTransportName, setNewTransportName] = useState("");
   const [newTransportParentKind, setNewTransportParentKind] =
@@ -377,7 +400,9 @@ export default function SorgularNewModal({
     (cargoId: string, patch: Partial<CargoItemForm>) => {
       setCargoItems((prev) =>
         prev.map((cargo) =>
-          cargo.id === cargoId ? { ...cargo, ...patch } : cargo,
+          cargo.id === cargoId
+            ? applyCargoMetrics({ ...cargo, ...patch })
+            : cargo,
         ),
       );
     },
@@ -389,12 +414,12 @@ export default function SorgularNewModal({
       setCargoItems((prev) =>
         prev.map((cargo) => {
           if (cargo.id !== cargoId) return cargo;
-          return {
+          return applyCargoMetrics({
             ...cargo,
             packagingRows: cargo.packagingRows.map((row) =>
               row.id === rowId ? { ...row, ...patch } : row,
             ),
-          };
+          });
         }),
       );
     },
@@ -408,7 +433,7 @@ export default function SorgularNewModal({
           if (cargo.id !== cargoId) return cargo;
           const next = [...cargo.packagingRows];
           next.splice(afterIndex + 1, 0, createPackagingRow());
-          return { ...cargo, packagingRows: next };
+          return applyCargoMetrics({ ...cargo, packagingRows: next });
         }),
       );
     },
@@ -421,10 +446,10 @@ export default function SorgularNewModal({
         if (cargo.id !== cargoId || cargo.packagingRows.length <= 1) {
           return cargo;
         }
-        return {
+        return applyCargoMetrics({
           ...cargo,
           packagingRows: cargo.packagingRows.filter((row) => row.id !== rowId),
-        };
+        });
       }),
     );
   }, []);
@@ -436,7 +461,7 @@ export default function SorgularNewModal({
   }, []);
 
   const addCargo = useCallback(() => {
-    setCargoItems((prev) => [...prev, createCargoItem()]);
+    setCargoItems((prev) => [...prev, normalizeCargoItem(createCargoItem())]);
   }, []);
 
   const resetForm = useCallback(() => {
@@ -458,21 +483,17 @@ export default function SorgularNewModal({
     setLoadPlaceCompany("");
     setLoadCity("");
     setLoadCountry("");
-    setLoadPostal("");
     setLoadAddress("");
-    setLoadCoordinates("");
     setLoadSaveTerminal(false);
     setUnloadPlaceCompany("");
     setUnloadCity("");
     setUnloadCountry("");
-    setUnloadPostal("");
     setUnloadAddress("");
-    setUnloadCoordinates("");
     setUnloadSaveTerminal(false);
     setSender("");
     setReceiver("");
     setAdditionalInfo("");
-    setCargoItems([createCargoItem()]);
+    setCargoItems([normalizeCargoItem(createCargoItem())]);
   }, []);
 
   useEffect(() => {
@@ -577,16 +598,12 @@ export default function SorgularNewModal({
       loadPlaceCompany,
       loadCity,
       loadCountry,
-      loadPostal,
       loadAddress,
-      loadCoordinates,
       loadSaveTerminal,
       unloadPlaceCompany,
       unloadCity,
       unloadCountry,
-      unloadPostal,
       unloadAddress,
-      unloadCoordinates,
       unloadSaveTerminal,
       additionalInfo,
       cargoItemsJson: JSON.stringify(cargoItems),
@@ -734,32 +751,6 @@ export default function SorgularNewModal({
                       </div>
 
                       {rowSelect(
-                        <Label required>Müştəri</Label>,
-                        customer,
-                        customerOptions,
-                        setCustomer,
-                        {
-                          title: "Yeni müştəri",
-                          className:
-                            showErrors && errors.customer
-                              ? styles.inputError
-                              : undefined,
-                        },
-                      )}
-
-                      <div className={styles.fieldStack}>
-                        <Label>Müştəri ilə müqavilənin nömrəsi</Label>
-                        <Select
-                          value={contractNumber}
-                          options={contractOptions}
-                          onChange={setContractNumber}
-                          className={styles.selectControl}
-                        />
-                      </div>
-                    </div>
-
-                    <div className={styles.verticalStack}>
-                      {rowSelect(
                         <Label>Əlaqədar şəxs</Label>,
                         contactPerson,
                         personOptions,
@@ -788,6 +779,32 @@ export default function SorgularNewModal({
                         setTags,
                         { title: "Yeni teq" },
                       )}
+                    </div>
+
+                    <div className={styles.verticalStack}>
+                      {rowSelect(
+                        <Label required>Müştəri</Label>,
+                        customer,
+                        customerOptions,
+                        setCustomer,
+                        {
+                          title: "Yeni müştəri",
+                          className:
+                            showErrors && errors.customer
+                              ? styles.inputError
+                              : undefined,
+                        },
+                      )}
+
+                      <div className={styles.fieldStack}>
+                        <Label>Müştəri ilə müqavilənin nömrəsi</Label>
+                        <Select
+                          value={contractNumber}
+                          options={contractOptions}
+                          onChange={setContractNumber}
+                          className={styles.selectControl}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -874,16 +891,6 @@ export default function SorgularNewModal({
                               : undefined,
                         },
                       )}
-                      <div className={styles.fieldStack}>
-                        <Label>Poçt kodu</Label>
-                        <input
-                          className={styles.input}
-                          value={loadPostal}
-                          onChange={(event) =>
-                            setLoadPostal(event.target.value)
-                          }
-                        />
-                      </div>
                       <button
                         type="button"
                         className={styles.inlineTextButton}
@@ -903,20 +910,6 @@ export default function SorgularNewModal({
                           }
                           rows={3}
                         />
-                      </div>
-                      <div className={styles.fieldStack}>
-                        <Label>Coordinates</Label>
-                        <div className={styles.coordinatesWrap}>
-                          <input
-                            className={`${styles.input} ${styles.coordinatesInput}`}
-                            value={loadCoordinates}
-                            onChange={(event) =>
-                              setLoadCoordinates(event.target.value)
-                            }
-                            placeholder="En, uzunluq"
-                          />
-                          <FaMapMarkerAlt className={styles.mapIcon} />
-                        </div>
                       </div>
                       <label className={styles.checkboxRow}>
                         <input
@@ -971,16 +964,6 @@ export default function SorgularNewModal({
                               : undefined,
                         },
                       )}
-                      <div className={styles.fieldStack}>
-                        <Label>Poçt kodu</Label>
-                        <input
-                          className={styles.input}
-                          value={unloadPostal}
-                          onChange={(event) =>
-                            setUnloadPostal(event.target.value)
-                          }
-                        />
-                      </div>
                       <button
                         type="button"
                         className={styles.inlineTextButton}
@@ -1000,20 +983,6 @@ export default function SorgularNewModal({
                           }
                           rows={3}
                         />
-                      </div>
-                      <div className={styles.fieldStack}>
-                        <Label>Coordinates</Label>
-                        <div className={styles.coordinatesWrap}>
-                          <input
-                            className={`${styles.input} ${styles.coordinatesInput}`}
-                            value={unloadCoordinates}
-                            onChange={(event) =>
-                              setUnloadCoordinates(event.target.value)
-                            }
-                            placeholder="En, uzunluq"
-                          />
-                          <FaMapMarkerAlt className={styles.mapIcon} />
-                        </div>
                       </div>
                       <label className={styles.checkboxRow}>
                         <input
@@ -1102,13 +1071,21 @@ export default function SorgularNewModal({
                           />
                         </div>
                         <div className={styles.fieldNarrow}>
+                          <Label>Həcm (m³)</Label>
+                          <input
+                            className={styles.input}
+                            value={cargo.volumeM3 ?? ""}
+                            readOnly
+                            title="Qablaşdırmalardan avtomatik hesablanır"
+                          />
+                        </div>
+                        <div className={styles.fieldNarrow}>
                           <Label>LDM (m)</Label>
                           <input
                             className={styles.input}
                             value={cargo.ldm}
-                            onChange={(event) =>
-                              patchCargo(cargo.id, { ldm: event.target.value })
-                            }
+                            readOnly
+                            title="max(yuvarlaq çəki, həcm × 167) — avtomatik"
                           />
                         </div>
                         <div className={styles.fieldWide}>
@@ -1225,26 +1202,21 @@ export default function SorgularNewModal({
                                     />
                                   </div>
                                 </div>
-                                <div
-                                  className={`${styles.packagingExtraField} ${styles.fieldStack}`}
-                                >
-                                  <span className={styles.packagingSpacer}>
-                                    &nbsp;
-                                  </span>
-                                  <input
-                                    className={styles.input}
-                                    value={row.packagingExtra}
-                                    onChange={(event) =>
-                                      updatePackagingRow(cargo.id, row.id, {
-                                        packagingExtra: event.target.value,
-                                      })
-                                    }
-                                    placeholder="…"
-                                    aria-label="Qablaşdırma əlavə"
-                                  />
-                                </div>
                               </div>
 
+                              <div className={styles.fieldTiny}>
+                                <Label>Sayı</Label>
+                                <input
+                                  className={styles.input}
+                                  value={row.packagingCount ?? "1"}
+                                  onChange={(event) =>
+                                    updatePackagingRow(cargo.id, row.id, {
+                                      packagingCount: event.target.value,
+                                    })
+                                  }
+                                  inputMode="numeric"
+                                />
+                              </div>
                               <div className={styles.fieldTiny}>
                                 <Label>Uzunluğu (m)</Label>
                                 <input
@@ -1286,11 +1258,8 @@ export default function SorgularNewModal({
                                 <input
                                   className={styles.input}
                                   value={row.volumeM3}
-                                  onChange={(event) =>
-                                    updatePackagingRow(cargo.id, row.id, {
-                                      volumeM3: event.target.value,
-                                    })
-                                  }
+                                  readOnly
+                                  title="(uzunluq × en × hündürlük × say) — avtomatik"
                                 />
                               </div>
 

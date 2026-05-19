@@ -21,6 +21,9 @@ export default function Sidebar() {
   const isSifarislerSection = location.pathname.startsWith("/sifarisler");
   const sifarislerTab =
     new URLSearchParams(location.search).get("tab") ?? "orders";
+  const isAyarlarSection = location.pathname.startsWith("/ayarlar");
+  const ayarlarTab =
+    new URLSearchParams(location.search).get("tab") ?? "users";
 
   return (
     <aside
@@ -202,6 +205,45 @@ export default function Sidebar() {
               </span>
               Ayarlar
             </NavLink>
+
+            <div
+              className={`${styles.subMenu} ${
+                isAyarlarSection ? styles.subMenuOpen : ""
+              }`}
+            >
+              <div className={styles.subMenuInner}>
+                <Link
+                  to="/ayarlar?tab=users"
+                  className={`${styles.subItem} ${
+                    isAyarlarSection && ayarlarTab === "users"
+                      ? styles.subItemActive
+                      : ""
+                  }`}
+                >
+                  İstifadəçilər
+                </Link>
+                <Link
+                  to="/ayarlar?tab=cargo-specs"
+                  className={`${styles.subItem} ${
+                    isAyarlarSection && ayarlarTab === "cargo-specs"
+                      ? styles.subItemActive
+                      : ""
+                  }`}
+                >
+                  Cargo specifications
+                </Link>
+                <Link
+                  to="/ayarlar?tab=incoterms"
+                  className={`${styles.subItem} ${
+                    isAyarlarSection && ayarlarTab === "incoterms"
+                      ? styles.subItemActive
+                      : ""
+                  }`}
+                >
+                  Incoterms
+                </Link>
+              </div>
+            </div>
           </div>
         </nav>
       </div>
