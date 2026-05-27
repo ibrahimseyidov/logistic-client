@@ -197,7 +197,7 @@ export default function YukTable({
             <td
               className={`${styles.cell} ${styles.mutedText} ${styles.preLine} ${styles.smallText} ${styles.max280}`}
             >
-              {row.cargoParams}
+              {row.cargoParams ? row.cargoParams.replace(/\n?Say:\s*\d+/gi, "") : ""}
             </td>
             <td
               className={`${styles.cell} ${styles.softText} ${styles.smallText}`}

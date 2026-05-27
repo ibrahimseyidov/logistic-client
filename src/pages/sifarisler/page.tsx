@@ -53,6 +53,8 @@ import {
   EmekFilters,
   EmekSummaryBar,
   EmekTable,
+  SifarisCopyModal,
+  SifarisDeleteModal,
   type NewSifarisFormPayload,
 } from "./components";
 import styles from "./sifarisler.module.css";
@@ -79,6 +81,8 @@ import type {
   SifarisFilterFormState,
   SifarisFilterSectionId,
   SifarisSubTab,
+  SifarisOrderRow,
+  OrderStatusKind,
 } from "./types/sifaris.types";
 import { emptySifarisFilter } from "./types/sifaris.types";
 import type { YukFilterFormState, YukFilterSectionId } from "./types/yuk.types";
@@ -126,6 +130,38 @@ export default function SifarislerPage() {
   );
   const [isSifarisNewOpen, setIsSifarisNewOpen] = useState(false);
 
+  const [orders, setOrders] = useState<SifarisOrderRow[]>(() => {
+    try {
+      const saved = localStorage.getItem("logistic_sifarisler");
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return MOCK_SIFARISLER;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("logistic_sifarisler", JSON.stringify(orders));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [orders]);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [duplicateTargetId, setDuplicateTargetId] = useState<string | null>(null);
+
+  const deleteTargetOrder = useMemo(() => {
+    if (!deleteTargetId) return null;
+    return orders.find((o) => o.id === deleteTargetId) || null;
+  }, [deleteTargetId, orders]);
+
+  const duplicateTargetOrder = useMemo(() => {
+    if (!duplicateTargetId) return null;
+    return orders.find((o) => o.id === duplicateTargetId) || null;
+  }, [duplicateTargetId, orders]);
+
   const [activeSections, setActiveSections] = useState<
     Set<SifarisFilterSectionId>
   >(() => new Set(["id", "dates"]));
@@ -134,6 +170,36 @@ export default function SifarislerPage() {
   const [appliedFilter, setAppliedFilter] =
     useState<SifarisFilterFormState>(emptySifarisFilter);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+
+  const [templates, setTemplates] = useState<Array<{ name: string; filter: SifarisFilterFormState; activeSections: SifarisFilterSectionId[] }>>(() => {
+    try {
+      const saved = localStorage.getItem("logistic_sifaris_templates");
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return [
+      {
+        name: "Davam edən sifarişlər",
+        filter: {
+          ...emptySifarisFilter(),
+          status: "progress",
+        },
+        activeSections: ["id" as SifarisFilterSectionId],
+      },
+      {
+        name: "Planlaşdırılmış Ziyafreight sifarişləri",
+        filter: {
+          ...emptySifarisFilter(),
+          status: "planned",
+          company: "Ziyafreight",
+        },
+        activeSections: ["id" as SifarisFilterSectionId],
+      },
+    ];
+  });
 
   const [yukActiveSections, setYukActiveSections] = useState<
     Set<YukFilterSectionId>
@@ -168,6 +234,14 @@ export default function SifarislerPage() {
     () => new Set(),
   );
   const [emekSaveSelected, setEmekSaveSelected] = useState("");
+  
+  // Verilerin yüklendiğini simüle eden efekt
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const nextTab: SifarisSubTab =
@@ -258,12 +332,12 @@ export default function SifarislerPage() {
   );
 
   const companyOptions: SelectOption[] = useMemo(() => {
-    const names = [...new Set(MOCK_SIFARISLER.map((r) => r.company))].sort();
+    const names = [...new Set(orders.map((r) => r.company))].sort();
     return [
       { value: "", label: "Hamısı" },
       ...names.map((n) => ({ value: n, label: n })),
     ];
-  }, []);
+  }, [orders]);
 
   const reysCompanyOptions: SelectOption[] = useMemo(() => {
     const names = [...new Set(MOCK_REYSLER.map((r) => r.company))].sort();
@@ -298,8 +372,8 @@ export default function SifarislerPage() {
   }, []);
 
   const filteredRows = useMemo(
-    () => applySifarisFilters(MOCK_SIFARISLER, appliedFilter),
-    [appliedFilter],
+    () => applySifarisFilters(orders, appliedFilter),
+    [orders, appliedFilter],
   );
 
   const stats = useMemo(
@@ -309,8 +383,9 @@ export default function SifarislerPage() {
 
   const sifarisActiveFilterCount = useMemo(
     () =>
-      Object.values(appliedFilter).filter((value) => value.trim() !== "")
-        .length,
+      Object.values(appliedFilter).filter((value) =>
+        typeof value === "string" ? value.trim() !== "" : !!value,
+      ).length,
     [appliedFilter],
   );
 
@@ -522,15 +597,49 @@ export default function SifarislerPage() {
     );
   };
 
-  const handleSaveTemplate = () => {
+  const handleSaveTemplate = useCallback((name: string) => {
+    if (!name.trim()) return;
+    setTemplates((prev) => {
+      const next = prev.filter((t) => t.name !== name);
+      const newTemplate = {
+        name,
+        filter: { ...filterDraft },
+        activeSections: Array.from(activeSections),
+      };
+      const updated = [...next, newTemplate];
+      try {
+        localStorage.setItem("logistic_sifaris_templates", JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
     dispatch(
       showNotification({
-        message: "Filtr şablonu yadda saxlanıldı (demo).",
+        message: `"${name}" şablonu uğurla yadda saxlanıldı.`,
         type: "success",
         autoCloseDuration: 3000,
       }),
     );
-  };
+  }, [filterDraft, activeSections, dispatch]);
+
+  const handleLoadTemplate = useCallback((name: string) => {
+    const found = templates.find((t) => t.name === name);
+    if (found) {
+      setFilterDraft({
+        ...emptySifarisFilter(),
+        ...found.filter,
+      });
+      setActiveSections(new Set(found.activeSections));
+      dispatch(
+        showNotification({
+          message: `"${name}" şablonu yükləndi.`,
+          type: "info",
+          autoCloseDuration: 2000,
+        }),
+      );
+    }
+  }, [templates, dispatch]);
 
   const handleYukSaveTemplate = () => {
     dispatch(
@@ -560,16 +669,133 @@ export default function SifarislerPage() {
     // Tüm alanları string'e çevir, boş/undefined ise "" gönder
     const fields = _payload.fields || {};
     const fixedFields = toStringFields(fields);
-    // Sifarişler sayfasında sadece demo bildirim
     setIsSifarisNewOpen(false);
+
+    const newOrder: SifarisOrderRow = {
+      id: `order_${Date.now()}`,
+      orderNumber: fixedFields.number || `SF-${Math.floor(1000 + Math.random() * 9000)}`,
+      queryNumber: `SQ-${Math.floor(100 + Math.random() * 900)}`,
+      queryDate: new Date().toLocaleDateString("az-AZ").split("T")[0],
+      orderDate: new Date().toLocaleDateString("az-AZ").split("T")[0],
+      actCreatedAt: "",
+      actDate: "",
+      cmrUnloadDate: "",
+      invoicedDate: "",
+      statusKind: (fixedFields.status as any) || "planned",
+      statusLabel: fixedFields.status === "progress" ? "Davam edir" : fixedFields.status === "completed" ? "Tamamlanıb" : "Planlaşdırılır",
+      customer: fixedFields.recipient || "Demo Müştəri",
+      customerRefs: fixedFields.customerOrderRef || "",
+      customerOrderRef: fixedFields.customerOrderRef || "",
+      carriers: "Daşıyıcı A",
+      voyageNumber: `VOY-${Math.floor(100 + Math.random() * 900)}`,
+      route: `${fixedFields.loadPlace || "Bakı"} → ${fixedFields.unloadPlace || "Sumqayıt"}`,
+      cargoParams: fixedFields.cargoInfo || "1 x 20ft Container",
+      freight: "2,500 AZN",
+      extraCosts: "100 AZN",
+      profit: "2,400 AZN",
+      documents: "1 sənəd",
+      company: fixedFields.seller || "Ziyafreight",
+      weightKg: 1000,
+      volumeM3: 10,
+      ldm: 0.5,
+      freightAzn: 2500,
+      profitAzn: 2400,
+      hasSentInvoice: false,
+      hasReceivedInvoice: false,
+      hasTransportDoc: false,
+      hasHandoverAct: false,
+    };
+
+    setOrders((prev) => [newOrder, ...prev]);
+
     dispatch(
       showNotification({
-        message: "Yeni sifariş yaradıldı (demo).",
+        message: "Yeni sifariş uğurla yaradıldı.",
         type: "success",
         autoCloseDuration: 3000,
       }),
     );
   };
+
+  const handleDeleteOrder = useCallback(() => {
+    if (!deleteTargetId) return;
+    setOrders((prev) => prev.filter((o) => o.id !== deleteTargetId));
+    setDeleteTargetId(null);
+    dispatch(
+      showNotification({
+        message: "Sifariş uğurla silindi.",
+        type: "success",
+        autoCloseDuration: 3000,
+      }),
+    );
+  }, [deleteTargetId, dispatch]);
+
+  const handleDuplicateOrder = useCallback((newNumber: string, checkedOptions: Record<string, boolean>) => {
+    if (!duplicateTargetId || !duplicateTargetOrder) return;
+    
+    const newOrder: SifarisOrderRow = {
+      ...duplicateTargetOrder,
+      id: `order_${Date.now()}`,
+      orderNumber: newNumber,
+      customerOrderRef: checkedOptions.customerOrderRef ? duplicateTargetOrder.customerOrderRef : "",
+      statusKind: checkedOptions.status ? duplicateTargetOrder.statusKind : "planned",
+      statusLabel: checkedOptions.status ? duplicateTargetOrder.statusLabel : "Planlaşdırılır",
+      carriers: checkedOptions.expeditor ? duplicateTargetOrder.carriers : "",
+      voyageNumber: checkedOptions.voyages ? duplicateTargetOrder.voyageNumber : "",
+      cargoParams: checkedOptions.loads ? duplicateTargetOrder.cargoParams : "",
+      extraCosts: checkedOptions.expenses ? duplicateTargetOrder.extraCosts : "",
+      profit: checkedOptions.expenses ? duplicateTargetOrder.profit : duplicateTargetOrder.freight,
+      profitAzn: checkedOptions.expenses ? duplicateTargetOrder.profitAzn : duplicateTargetOrder.freightAzn,
+    };
+
+    setOrders((prev) => [newOrder, ...prev]);
+    setDuplicateTargetId(null);
+
+    dispatch(
+      showNotification({
+        message: `Sifarişin surəti "${newNumber}" adı ilə yaradıldı.`,
+        type: "success",
+        autoCloseDuration: 3000,
+      }),
+    );
+  }, [duplicateTargetId, duplicateTargetOrder, dispatch]);
+
+  const handleStatusChange = useCallback((id: string, nextStatus: OrderStatusKind) => {
+    let label = "Planlaşdırılıb";
+    if (nextStatus === "progress") label = "Davam edir";
+    else if (nextStatus === "completed") label = "Tamamlandı";
+    else if (nextStatus === "finance_closed") label = "Maliyyə cəhətdən bağlandı";
+    else if (nextStatus === "cancelled") label = "Sifariş ləğv edildi";
+    
+    setOrders((prev) => 
+      prev.map((o) => {
+        if (o.id === id) {
+          const nextHistory = [
+            ...(o.statusHistory || []),
+            { 
+              status: label, 
+              date: `${new Date().toLocaleString("az-AZ", { hour12: false }).replace(/\//g, ".")} (tərəfindən: Ulvi Adilzade)` 
+            }
+          ];
+          return {
+            ...o,
+            statusKind: nextStatus,
+            statusLabel: label,
+            statusHistory: nextHistory
+          };
+        }
+        return o;
+      })
+    );
+
+    dispatch(
+      showNotification({
+        message: "Sifarişin statusu yeniləndi.",
+        type: "success",
+        autoCloseDuration: 2500,
+      }),
+    );
+  }, [dispatch]);
 
   const handleYukTrackingImport = () => {
     dispatch(
@@ -729,6 +955,9 @@ export default function SifarislerPage() {
                     selectedIds={selectedIds}
                     onToggleRow={toggleRow}
                     onToggleAllPage={toggleAllPage}
+                    onDeleteClick={setDeleteTargetId}
+                    onDuplicateClick={setDuplicateTargetId}
+                    onStatusChange={handleStatusChange}
                   />
                 </div>
                 <div className={styles.footer}>
@@ -809,6 +1038,24 @@ export default function SifarislerPage() {
         onSubmit={handleNewOrderSubmit}
       />
 
+      {deleteTargetOrder && (
+        <SifarisDeleteModal
+          isOpen={!!deleteTargetId}
+          onClose={() => setDeleteTargetId(null)}
+          onConfirm={handleDeleteOrder}
+          orderNumber={deleteTargetOrder.orderNumber}
+        />
+      )}
+
+      {duplicateTargetOrder && (
+        <SifarisCopyModal
+          isOpen={!!duplicateTargetId}
+          onClose={() => setDuplicateTargetId(null)}
+          onConfirm={handleDuplicateOrder}
+          order={duplicateTargetOrder}
+        />
+      )}
+
       <div
         className={`${styles.overlay} ${
           openFilterPanel ? styles.overlayOpen : ""
@@ -834,6 +1081,8 @@ export default function SifarislerPage() {
             onClear={handleClear}
             onApplyFilter={handleApplyFilter}
             onSaveTemplate={handleSaveTemplate}
+            templates={templates}
+            onLoadTemplate={handleLoadTemplate}
           />
         ) : null}
 

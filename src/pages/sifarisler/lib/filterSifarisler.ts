@@ -35,6 +35,12 @@ export function applySifarisFilters(
     ) {
       return false;
     }
+    if (
+      (f.carrier || "").trim() &&
+      !r.carriers.toLowerCase().includes((f.carrier || "").trim().toLowerCase())
+    ) {
+      return false;
+    }
     if (!inRange(r.orderDate, f.orderDateFrom, f.orderDateTo)) return false;
     if (!inRange(r.actCreatedAt, f.actCreatedFrom, f.actCreatedTo)) return false;
     if (!inRange(r.actDate, f.actDateFrom, f.actDateTo)) return false;

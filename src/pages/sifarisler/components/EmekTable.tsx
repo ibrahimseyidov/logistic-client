@@ -79,7 +79,7 @@ export default function EmekTable({
           <th className={styles.headerCell}>Marşrut</th>
           <th className={styles.headerCell}>Daşıyıcı</th>
           <th className={styles.headerCell}>Natamam yük</th>
-          <th className={styles.headerCell}>Reysin nömrəsi</th>
+
           <th className={`${styles.headerCell} ${styles.min120}`}>
             Reys / Terminal qiyməti
           </th>
@@ -123,6 +123,7 @@ export default function EmekTable({
               <StatusBadge
                 label={row.orderStatus}
                 className={styles.badgeText}
+                history={row.statusHistory}
               />
             </td>
             <td
@@ -203,11 +204,7 @@ export default function EmekTable({
             <td className={`${styles.cell} ${styles.textMuted}`}>
               {row.incompleteLoad}
             </td>
-            <td
-              className={`${styles.cell} ${styles.textPrimary} ${styles.nowrap}`}
-            >
-              {row.tripNumber}
-            </td>
+
             <td
               className={`${styles.cell} ${styles.textPrimary} ${styles.nowrap}`}
             >

@@ -69,8 +69,6 @@ export default function SifarisActionBar({
 
       <div className={styles.statsRow}>
         <span className={styles.statPill}>Sifarişlər: {stats.orders}</span>
-        <span className={styles.statPill}>Yüklər: {stats.loads}</span>
-        <span className={styles.statPill}>Reyslər: {stats.voyages}</span>
         <span className={styles.statPill}>Çəki (kq): {fmt(stats.weight)}</span>
         <span className={styles.statPill}>Həcm (m³): {fmt(stats.volume)}</span>
         <span className={styles.statPill}>LDM: {fmt(stats.ldm)}</span>

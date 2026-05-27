@@ -7,6 +7,7 @@ import AppShell from "./common/components/layout/appShell/AppShell";
 import SorgularPage from "./pages/sorgular/page";
 import SorguDetailPage from "./pages/sorgular/detail/page";
 import SifarislerPage from "./pages/sifarisler/page";
+import SifarisDetailPage from "./pages/sifarisler/detail/page";
 import TapshiriqlarPage from "./pages/tapshiriqlar/page";
 import MusterilerPage from "./pages/musteriler/page";
 import MusteriDetailPage from "./pages/musteriler/detail/page";
@@ -41,6 +42,14 @@ function App() {
               element={
                 <RequireAuth>
                   <SifarislerPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/sifarisler/:orderId"
+              element={
+                <RequireAuth>
+                  <SifarisDetailPage />
                 </RequireAuth>
               }
             />

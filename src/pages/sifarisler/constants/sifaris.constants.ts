@@ -7,11 +7,9 @@ export const FILTER_SECTIONS: { id: SifarisFilterSectionId; label: string }[] = 
   { id: "dates", label: "Tarixlər" },
   { id: "customers", label: "Müştərilər" },
   { id: "loads", label: "Yüklər" },
-  { id: "voyages", label: "Reyslər" },
   { id: "users", label: "İstifadəçilər" },
   { id: "documents", label: "Sənədlər" },
   { id: "transport", label: "Nəqliyyat" },
-  { id: "other", label: "Digəri" },
   { id: "sort", label: "Çeşidləmə" },
   { id: "templates", label: "Şablonlar" },
 ];

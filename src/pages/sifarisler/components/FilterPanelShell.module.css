@@ -111,8 +111,14 @@
 }
 
 .sectionButtonActive {
-  border-color: #1e293b;
-  background: #1e293b;
+  border-color: #16a34a;
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.sectionButtonActive:hover {
+  background: #15803d;
+  border-color: #15803d;
   color: #ffffff;
 }
 

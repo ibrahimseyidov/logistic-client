@@ -13,6 +13,10 @@ function row(i: number, partial: Partial<EmekRow> & Pick<EmekRow, "orderNumber">
     orderDate: `${od}.04.2026`,
     orderDateIso: iso,
     orderStatus: i % 3 === 0 ? "Tamamlandı" : "Davam edir",
+    statusHistory: [
+      { status: "Planlaşdırılıb", date: "2026-03-20 09:00" },
+      { status: i % 3 === 0 ? "Tamamlandı" : "Davam edir", date: "2026-04-01 11:30" },
+    ],
     customer: partial.customer ?? (i % 2 === 0 ? "Karat MMC" : "Ziya Freight"),
     employee: partial.employee ?? (i % 2 === 0 ? "Ulvi Adilzadə" : "Nərgiz K."),
     employeeRequired: partial.employeeRequired ?? i % 5 === 0,

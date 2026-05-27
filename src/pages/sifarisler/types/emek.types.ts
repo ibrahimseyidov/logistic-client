@@ -36,6 +36,7 @@ export interface EmekRow {
   amountRed: boolean;
   paidAmountRed: boolean;
   company: string;
+  statusHistory?: { status: string; date: string }[];
 }
 
 export interface EmekFilterFormState {
