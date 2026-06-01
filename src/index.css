@@ -59,3 +59,21 @@ textarea {
   transform-origin: top right;
 }
 
+/* Center all modal titles and descriptions as requested */
+[class*="dialogTitle"],
+[class*="dialogDescription"],
+[class*="newPanelTitle"],
+[class*="newPanelDescription"],
+[class*="Modal_title"],
+[class*="Modal_message"],
+[class*="Modal_header"] {
+  text-align: center !important;
+  justify-content: center !important;
+}
+
+[role="dialog"] h2,
+[role="dialog"] h3,
+[role="dialog"] p {
+  text-align: center;
+}
+

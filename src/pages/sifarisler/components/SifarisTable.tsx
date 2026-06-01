@@ -5,6 +5,7 @@ import { Link, useNavigate } from "react-router-dom";
 import * as Popover from "@radix-ui/react-popover";
 import StatusBadge from "../../../common/components/StatusBadge";
 import type { OrderStatusKind, SifarisOrderRow } from "../types/sifaris.types";
+import { CUSTOMER_OPTIONS } from "../../sorgular/constants/options.constants";
 import styles from "./SifarisTable.module.css";
 
 
@@ -19,6 +20,14 @@ function rowTone(kind: OrderStatusKind): string {
     default:
       return styles.rowDefault;
   }
+}
+
+function getCustomerLabel(val: string): string {
+  if (!val) return "";
+  const matched = CUSTOMER_OPTIONS.find(
+    (opt) => opt.value.toLowerCase() === val.trim().toLowerCase()
+  );
+  return matched ? matched.label : val;
 }
 
 interface Props {
@@ -348,7 +357,7 @@ export default function SifarisTable({
             <td
               className={`${styles.cell} ${styles.bodyText} ${styles.smallText}`}
             >
-              <div style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.customer}>{row.customer}</div>
+              <div style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getCustomerLabel(row.customer)}>{getCustomerLabel(row.customer)}</div>
               <div className={`${styles.softText} ${styles.customerMeta}`} style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.customerRefs}>
                 {row.customerRefs}
               </div>

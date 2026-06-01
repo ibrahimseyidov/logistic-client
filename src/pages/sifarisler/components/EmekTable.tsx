@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import StatusBadge from "../../../common/components/StatusBadge";
 import type { EmekRow } from "../types/emek.types";
+import { CUSTOMER_OPTIONS } from "../../sorgular/constants/options.constants";
 import styles from "./EmekTable.module.css";
 
 interface Props {
@@ -15,6 +16,14 @@ function fmt(n: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n);
+}
+
+function getCustomerLabel(val: string | undefined): string {
+  if (!val) return "";
+  const matched = CUSTOMER_OPTIONS.find(
+    (opt) => opt.value.toLowerCase() === val.trim().toLowerCase()
+  );
+  return matched ? matched.label : val;
 }
 
 export default function EmekTable({
@@ -129,7 +138,7 @@ export default function EmekTable({
             <td
               className={`${styles.cell} ${styles.textPrimary} ${styles.max120}`}
             >
-              <div style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.customer}>{row.customer}</div>
+              <div style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getCustomerLabel(row.customer)}>{getCustomerLabel(row.customer)}</div>
             </td>
             <td className={`${styles.cell} ${styles.textPrimary}`}>
               {row.employee}

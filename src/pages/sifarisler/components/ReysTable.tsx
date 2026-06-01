@@ -1,10 +1,19 @@
 import { FaClipboard, FaEdit, FaEye, FaFileAlt, FaMinus } from "react-icons/fa";
 import StatusBadge from "../../../common/components/StatusBadge";
 import type { ReysRow, ReysTripStatusKind } from "../types/reys.types";
+import { CUSTOMER_OPTIONS } from "../../sorgular/constants/options.constants";
 import styles from "./ReysTable.module.css";
 
 interface Props {
   rows: ReysRow[];
+}
+
+function getCustomerLabel(val: string | undefined): string {
+  if (!val) return "";
+  const matched = CUSTOMER_OPTIONS.find(
+    (opt) => opt.value.toLowerCase() === val.trim().toLowerCase()
+  );
+  return matched ? matched.label : val;
 }
 
 export default function ReysTable({ rows }: Props) {
@@ -61,7 +70,7 @@ export default function ReysTable({ rows }: Props) {
             <td
               className={`${styles.cell} ${styles.bodyText} ${styles.cellXs}`}
             >
-              <div style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.customer}>{row.customer}</div>
+              <div style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getCustomerLabel(row.customer)}>{getCustomerLabel(row.customer)}</div>
             </td>
             <td
               className={`${styles.cell} ${styles.bodyText} ${styles.cellXs} ${styles.nowrap}`}

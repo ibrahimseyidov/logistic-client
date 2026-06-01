@@ -3,6 +3,7 @@ import { FaChartBar, FaCut, FaEdit, FaEye, FaMinus } from "react-icons/fa";
 import { getStatusTone } from "../../../common/components/StatusBadge";
 import { YUK_CARGO_STATUS_OPTIONS } from "../constants/yuk.constants";
 import type { YukLoadRow } from "../types/yuk.types";
+import { CUSTOMER_OPTIONS } from "../../sorgular/constants/options.constants";
 import styles from "./YukTable.module.css";
 
 interface Props {
@@ -10,6 +11,14 @@ interface Props {
   selectedIds: Set<string>;
   onToggleRow: (id: string) => void;
   onToggleAllPage: (ids: string[], checked: boolean) => void;
+}
+
+function getCustomerLabel(val: string | undefined): string {
+  if (!val) return "";
+  const matched = CUSTOMER_OPTIONS.find(
+    (opt) => opt.value.toLowerCase() === val.trim().toLowerCase()
+  );
+  return matched ? matched.label : val;
 }
 
 export default function YukTable({
@@ -121,7 +130,7 @@ export default function YukTable({
             <td
               className={`${styles.cell} ${styles.bodyText} ${styles.smallText}`}
             >
-              <div style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.customer}>{row.customer}</div>
+              <div style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getCustomerLabel(row.customer)}>{getCustomerLabel(row.customer)}</div>
             </td>
             <td
               className={`${styles.cell} ${styles.dateText} ${styles.nowrap}`}

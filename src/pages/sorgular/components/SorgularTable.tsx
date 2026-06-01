@@ -123,7 +123,9 @@ function getCustomerFullName(row: LogisticQueryRow) {
   if (contactPerson && looksLikeFullName(contactPerson)) return contactPerson;
 
   // CUSTOMER_OPTIONS üzerinden eşleştirme yap
-  const matched = CUSTOMER_OPTIONS.find((opt) => opt.value === customerText);
+  const matched = CUSTOMER_OPTIONS.find(
+    (opt) => opt.value.toLowerCase() === customerText.toLowerCase()
+  );
   if (matched) return matched.label;
 
   if (customerText) return customerText;
