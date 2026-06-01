@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Navigate } from "react-router-dom";
+import { useAuth } from "../../common/contexts/AuthContext";
 import { INCOTERMS_OPTIONS } from "../sorgular/constants/options.constants";
 import {
   parseAyarlarTab,
@@ -20,10 +21,22 @@ const AyarlarPage: React.FC = () => {
   const initialTab = parseAyarlarTab(requestedTab);
   const [activeTab, setActiveTab] = useState<AyarlarTab>(initialTab);
 
+  const { user } = useAuth();
+
   useEffect(() => {
     const nextTab = parseAyarlarTab(requestedTab);
     setActiveTab((prev) => (prev === nextTab ? prev : nextTab));
   }, [requestedTab]);
+
+  if (user && user.roleId !== 1) {
+    return <Navigate to="/" replace />;
+  }
+
+  // If user is null (still loading bootstrap data), we could show a loader, but AppShell handles the main layout.
+  // We can just return null or let it render (it will redirect once user is loaded).
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className={styles.container}>

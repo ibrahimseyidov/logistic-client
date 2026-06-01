@@ -129,7 +129,7 @@ export default function EmekTable({
             <td
               className={`${styles.cell} ${styles.textPrimary} ${styles.max120}`}
             >
-              {row.customer}
+              <div style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.customer}>{row.customer}</div>
             </td>
             <td className={`${styles.cell} ${styles.textPrimary}`}>
               {row.employee}

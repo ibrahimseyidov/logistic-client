@@ -1,7 +1,8 @@
 import type { SifarisFilterFormState, SifarisOrderRow } from "../types/sifaris.types";
 
-function inRange(value: string, from: string, to: string): boolean {
+function inRange(value: string | null | undefined, from: string, to: string): boolean {
   if (!from && !to) return true;
+  if (!value) return false;
   const v = value.slice(0, 10);
   if (from && v < from) return false;
   if (to && v > to) return false;
@@ -13,7 +14,7 @@ export function applySifarisFilters(
   f: SifarisFilterFormState,
 ): SifarisOrderRow[] {
   return rows.filter((r) => {
-    if (f.orderNumber.trim() && !r.orderNumber.toLowerCase().includes(f.orderNumber.trim().toLowerCase())) {
+    if (f.orderNumber.trim() && !(r.orderNumber || "").toLowerCase().includes(f.orderNumber.trim().toLowerCase())) {
       return false;
     }
     if (f.status === "planned" && r.statusKind !== "planned") return false;
@@ -22,22 +23,22 @@ export function applySifarisFilters(
     if (f.company && r.company !== f.company) return false;
     if (
       f.customerOrderRef.trim() &&
-      !r.customerOrderRef.toLowerCase().includes(f.customerOrderRef.trim().toLowerCase())
+      !(r.customerOrderRef || "").toLowerCase().includes(f.customerOrderRef.trim().toLowerCase())
     ) {
       return false;
     }
-    if (f.tags.trim() && !r.documents.toLowerCase().includes(f.tags.trim().toLowerCase())) {
+    if (f.tags.trim() && !(r.tags || r.documents || "").toLowerCase().includes(f.tags.trim().toLowerCase())) {
       return false;
     }
     if (
       f.customerName.trim() &&
-      !r.customer.toLowerCase().includes(f.customerName.trim().toLowerCase())
+      !(r.customer || (r as any).customerName || "").toLowerCase().includes(f.customerName.trim().toLowerCase())
     ) {
       return false;
     }
     if (
       (f.carrier || "").trim() &&
-      !r.carriers.toLowerCase().includes((f.carrier || "").trim().toLowerCase())
+      !(r.carriers || "").toLowerCase().includes((f.carrier || "").trim().toLowerCase())
     ) {
       return false;
     }

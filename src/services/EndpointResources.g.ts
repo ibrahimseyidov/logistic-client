@@ -1,4 +1,4 @@
-const API = import.meta.env.VITE_API_URL?.replace(/\/$/, "");
+const API = import.meta.env.VITE_API_URL?.replace(/\/$/, "") + "/api";
 
 export const ENDPOINTS = {
   AUTH: {
@@ -39,5 +39,29 @@ export const ENDPOINTS = {
     BY_COMPANY: (companyId: number) => `${API}/branches/company/${companyId}`,
     WAREHOUSES_BY_BRANCH: (branchId: number) =>
       `${API}/branches/${branchId}/warehouses`,
+  },
+  ORDERS: {
+    BASE: `${API}/orders`,
+    BY_ID: (id: number | string) => `${API}/orders/${id}`,
+  },
+  VOYAGES: {
+    BASE: `${API}/voyages`,
+    BY_ID: (id: number) => `${API}/voyages/${id}`,
+  },
+  LOADS: {
+    BASE: `${API}/loads`,
+    BY_ID: (id: number) => `${API}/loads/${id}`,
+  },
+  PAYROLLS: {
+    BASE: `${API}/payrolls`,
+    BY_ID: (id: number) => `${API}/payrolls/${id}`,
+  },
+  FINANCE: {
+    BASE: `${API}/finance`,
+    BY_ID: (id: number) => `${API}/finance/${id}`,
+  },
+  INVOICES: {
+    BASE: `${API}/invoices`,
+    BY_ID: (id: number) => `${API}/invoices/${id}`,
   },
 } as const;

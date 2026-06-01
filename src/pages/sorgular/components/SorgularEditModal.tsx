@@ -3,6 +3,7 @@ const statusOptions: SelectOption[] = [
   { value: SorguStatus.Pending, label: "Gözləmədə" },
   { value: "completed", label: "Tamamlandı" },
   { value: "cancelled", label: "Ləğv edildi" },
+  { value: SorguStatus.Approved, label: "Təsdiq edildi" },
 ];
 import {
   useCallback,

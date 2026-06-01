@@ -1,0 +1,164 @@
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modalContent {
+  background: white;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.closeIcon {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.closeIcon:hover {
+  color: #0f172a;
+}
+
+.desc {
+  padding: 1.25rem 1.5rem 0;
+  margin: 0;
+  font-size: 0.875rem;
+  color: #475569;
+}
+
+.offersList {
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.noOffers {
+  font-size: 0.875rem;
+  color: #f59e0b;
+  background: #fef3c7;
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 0;
+}
+
+.offerItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.offerItem:hover {
+  border-color: #cbd5e1;
+  background-color: #f8fafc;
+}
+
+.offerItem.selected {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+}
+
+.radioInput {
+  margin-top: 0.25rem;
+  cursor: pointer;
+}
+
+.offerDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.offerProvider {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.offerStats {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8125rem;
+  color: #475569;
+}
+
+.actions {
+  padding: 1.25rem 1.5rem;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  background: #f8fafc;
+}
+
+.cancelBtn {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #475569;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancelBtn:hover {
+  background: #f1f5f9;
+}
+
+.approveBtn {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: white;
+  background: #3b82f6;
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.approveBtn:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+}

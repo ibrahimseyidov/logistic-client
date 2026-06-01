@@ -95,11 +95,6 @@ export async function loginAction(formData: FormData) {
     }
     return (await response.json()) as LoginResponse;
   } catch (err: any) {
-    // 2. Fallback to mock session if the API is offline / down / Failed to fetch
-    console.warn("API Login failed, logging in with fallback local-demo-token:", err);
-    return {
-      token: LOCAL_ACCESS_TOKEN,
-      refreshToken: LOCAL_REFRESH_TOKEN,
-    } satisfies LoginResponse;
+    throw err;
   }
 }

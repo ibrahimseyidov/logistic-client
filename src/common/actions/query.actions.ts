@@ -40,7 +40,7 @@ export async function fetchQueriesAction(
   if (tab === "active") {
     url = "/api/query?status=pending";
   } else if (tab === "archive") {
-    url = "/api/query?status=cancelled,completed";
+    url = "/api/query?status=cancelled,completed,approved";
   } else if (tab === "offers") {
     url = "/api/query";
   }
@@ -126,4 +126,11 @@ export async function deleteDocumentAction(queryId: string | number, docId: numb
   const token = getAuthToken();
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
   await axios.delete(buildApiUrl(`/api/query/${queryId}/documents/${docId}`), { headers });
+}
+
+export async function approveQueryAction(queryId: string | number, selectedOffer: any): Promise<any> {
+  const token = getAuthToken();
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const res = await axios.post(buildApiUrl(`/api/query/${queryId}/approve`), selectedOffer, { headers });
+  return res.data;
 }

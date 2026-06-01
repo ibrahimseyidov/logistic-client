@@ -24,6 +24,7 @@ interface Props {
   rows: LogisticQueryRow[];
   onUpdate?: (updated: LogisticQueryRow) => void;
   onDelete?: (id: string | number) => void;
+  onApproveStatus?: (row: LogisticQueryRow, payload: any) => void;
 }
 
 const COLUMN_COUNT = 13;
@@ -151,7 +152,7 @@ function getPackagingLabel(value: string) {
   return matched ? matched.label : value;
 }
 
-export default function SorgularTable({ rows, onUpdate, onDelete }: Props) {
+export default function SorgularTable({ rows, onUpdate, onDelete, onApproveStatus }: Props) {
   // Modalı kapatmak için fonksiyon
   const handleEditClose = () => {
     setEditModalOpen(false);
@@ -189,6 +190,14 @@ export default function SorgularTable({ rows, onUpdate, onDelete }: Props) {
   };
   const handleEditSubmit = async (payload: any) => {
     if (!editRow) return;
+    
+    if (payload.fields.status === "approved" && onApproveStatus) {
+      setEditModalOpen(false);
+      onApproveStatus(editRow, payload.fields);
+      setEditRow(null);
+      return;
+    }
+
     try {
       const updated = await updateQueryAction(editRow.id, payload.fields);
       setLocalRows((prev) =>

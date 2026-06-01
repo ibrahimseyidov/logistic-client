@@ -6,6 +6,7 @@ function statusLabelAz(value: string): string {
   const v = value.toLowerCase();
   if (v === "pending") return "Gözləmədə";
   if (v === "completed") return "Tamamlandı";
+  if (v === "approved") return "Təsdiq edildi";
   if (v === "cancelled" || v === "canceled" || v.includes("cancel"))
     return "Ləğv edildi";
   return value;
@@ -70,7 +71,8 @@ const toneClasses: Record<
   },
 };
 
-function normalizeStatus(value: string) {
+function normalizeStatus(value: string | undefined | null) {
+  if (!value) return "";
   return value
     .toLocaleLowerCase("az")
     .replace(/ə/g, "e")
@@ -90,7 +92,9 @@ export function getStatusTone(value: string, kind?: string): StatusTone {
 
   if (
     normalizedKind.includes("completed") ||
-    normalizedValue.includes("tamam")
+    normalizedValue.includes("tamam") ||
+    normalizedValue.includes("tesdiq") ||
+    normalizedValue.includes("approved")
   ) {
     return "emerald";
   }

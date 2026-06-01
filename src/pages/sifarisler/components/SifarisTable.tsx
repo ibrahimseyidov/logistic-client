@@ -348,8 +348,8 @@ export default function SifarisTable({
             <td
               className={`${styles.cell} ${styles.bodyText} ${styles.smallText}`}
             >
-              <div>{row.customer}</div>
-              <div className={`${styles.softText} ${styles.customerMeta}`}>
+              <div style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.customer}>{row.customer}</div>
+              <div className={`${styles.softText} ${styles.customerMeta}`} style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.customerRefs}>
                 {row.customerRefs}
               </div>
             </td>

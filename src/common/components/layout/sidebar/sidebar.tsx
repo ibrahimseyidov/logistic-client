@@ -10,10 +10,12 @@ import {
   FaCog,
 } from "react-icons/fa";
 import { useSidebarLayout } from "../SidebarLayoutContext";
+import { useAuth } from "../../../contexts/AuthContext";
 import styles from "./sidebar.module.css";
 
 export default function Sidebar() {
   const { collapsed, toggleSidebar } = useSidebarLayout();
+  const { user } = useAuth();
   const location = useLocation();
   const isSorgularSection = location.pathname.startsWith("/sorgular");
   const sorgularTab =
@@ -193,58 +195,60 @@ export default function Sidebar() {
               Müştərilər
             </NavLink>
           </div>
-          <div className={styles.navItem}>
-            <NavLink
-              to="/ayarlar"
-              className={({ isActive }) =>
-                `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`
-              }
-            >
-              <span className={styles.navIcon}>
-                <FaCog />
-              </span>
-              Ayarlar
-            </NavLink>
+          {user?.roleId === 1 && (
+            <div className={styles.navItem}>
+              <NavLink
+                to="/ayarlar"
+                className={({ isActive }) =>
+                  `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`
+                }
+              >
+                <span className={styles.navIcon}>
+                  <FaCog />
+                </span>
+                Ayarlar
+              </NavLink>
 
-            <div
-              className={`${styles.subMenu} ${
-                isAyarlarSection ? styles.subMenuOpen : ""
-              }`}
-            >
-              <div className={styles.subMenuInner}>
-                <Link
-                  to="/ayarlar?tab=users"
-                  className={`${styles.subItem} ${
-                    isAyarlarSection && ayarlarTab === "users"
-                      ? styles.subItemActive
-                      : ""
-                  }`}
-                >
-                  İstifadəçilər
-                </Link>
-                <Link
-                  to="/ayarlar?tab=cargo-specs"
-                  className={`${styles.subItem} ${
-                    isAyarlarSection && ayarlarTab === "cargo-specs"
-                      ? styles.subItemActive
-                      : ""
-                  }`}
-                >
-                  Cargo specifications
-                </Link>
-                <Link
-                  to="/ayarlar?tab=incoterms"
-                  className={`${styles.subItem} ${
-                    isAyarlarSection && ayarlarTab === "incoterms"
-                      ? styles.subItemActive
-                      : ""
-                  }`}
-                >
-                  Incoterms
-                </Link>
+              <div
+                className={`${styles.subMenu} ${
+                  isAyarlarSection ? styles.subMenuOpen : ""
+                }`}
+              >
+                <div className={styles.subMenuInner}>
+                  <Link
+                    to="/ayarlar?tab=users"
+                    className={`${styles.subItem} ${
+                      isAyarlarSection && ayarlarTab === "users"
+                        ? styles.subItemActive
+                        : ""
+                    }`}
+                  >
+                    İstifadəçilər
+                  </Link>
+                  <Link
+                    to="/ayarlar?tab=cargo-specs"
+                    className={`${styles.subItem} ${
+                      isAyarlarSection && ayarlarTab === "cargo-specs"
+                        ? styles.subItemActive
+                        : ""
+                    }`}
+                  >
+                    Cargo specifications
+                  </Link>
+                  <Link
+                    to="/ayarlar?tab=incoterms"
+                    className={`${styles.subItem} ${
+                      isAyarlarSection && ayarlarTab === "incoterms"
+                        ? styles.subItemActive
+                        : ""
+                    }`}
+                  >
+                    Incoterms
+                  </Link>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </nav>
       </div>
     </aside>

@@ -20,7 +20,9 @@ import {
   createQueryAction,
   fetchQueriesAction,
   updateQueryAction,
+  approveQueryAction,
 } from "../../common/actions/query.actions";
+import PriceOfferSelectionModal from "./components/PriceOfferSelectionModal";
 import { useSorgularPagination } from "./hooks/useSorgularPagination";
 import { applyFilters, filterByTab } from "./lib/filterSorgular";
 import { exportSorgularToExcel } from "./lib/exportExcel";
@@ -56,6 +58,10 @@ export default function SorgularPage() {
   const [loading, setLoading] = useState(true);
   const [editRow, setEditRow] = useState<LogisticQueryRow | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  
+  const [isPriceOfferModalOpen, setIsPriceOfferModalOpen] = useState(false);
+  const [queryToApprove, setQueryToApprove] = useState<LogisticQueryRow | null>(null);
+  const [pendingPayloadFields, setPendingPayloadFields] = useState<any>(null);
 
   useEffect(() => {
     const nextTab: SorguSubTab =
@@ -253,6 +259,15 @@ export default function SorgularPage() {
 
   const handleEditSubmit = async (payload: any) => {
     if (!editRow) return;
+
+    if (payload.fields.status === "approved") {
+      setQueryToApprove(editRow);
+      setPendingPayloadFields(payload.fields);
+      setIsEditOpen(false);
+      setIsPriceOfferModalOpen(true);
+      return;
+    }
+
     try {
       const updated = await updateQueryAction(editRow.id, payload.fields);
       handleRowUpdate(updated);
@@ -269,6 +284,39 @@ export default function SorgularPage() {
       dispatch(
         showNotification({
           message: "Xəta baş verdi.",
+          type: "error",
+          autoCloseDuration: 3000,
+        }),
+      );
+    }
+  };
+
+  const handleApproveSubmit = async (selectedOffer: any) => {
+    if (!queryToApprove) return;
+    try {
+      // If there were other changes in the edit form, save them first
+      if (pendingPayloadFields) {
+         await updateQueryAction(queryToApprove.id, { ...pendingPayloadFields, status: "approved" });
+      }
+      
+      const res = await approveQueryAction(queryToApprove.id, selectedOffer);
+      
+      handleRowUpdate(res.query);
+      setIsPriceOfferModalOpen(false);
+      setQueryToApprove(null);
+      setPendingPayloadFields(null);
+
+      dispatch(
+        showNotification({
+          message: "Sorğu uğurla təsdiqləndi və Sifarişlər səhifəsinə köçürüldü.",
+          type: "success",
+          autoCloseDuration: 4000,
+        }),
+      );
+    } catch {
+      dispatch(
+        showNotification({
+          message: "Sorğunu təsdiqləyərkən xəta baş verdi.",
           type: "error",
           autoCloseDuration: 3000,
         }),
@@ -326,6 +374,12 @@ export default function SorgularPage() {
     }
   };
 
+  const handleApproveRequest = (row: LogisticQueryRow, payloadFields: any) => {
+    setQueryToApprove(row);
+    setPendingPayloadFields(payloadFields);
+    setIsPriceOfferModalOpen(true);
+  };
+
   return (
     <div className={styles.container}>
 
@@ -354,6 +408,7 @@ export default function SorgularPage() {
               rows={paginatedRows} 
               onUpdate={handleRowUpdate}
               onDelete={handleRowDelete}
+              onApproveStatus={handleApproveRequest}
             />
           )
         )}
@@ -390,6 +445,17 @@ export default function SorgularPage() {
         }}
         onSubmit={handleEditSubmit}
         initialValues={editRow || undefined}
+      />
+
+      <PriceOfferSelectionModal
+        isOpen={isPriceOfferModalOpen}
+        onClose={() => {
+          setIsPriceOfferModalOpen(false);
+          setQueryToApprove(null);
+          setPendingPayloadFields(null);
+        }}
+        query={queryToApprove}
+        onApprove={handleApproveSubmit}
       />
 
       <div

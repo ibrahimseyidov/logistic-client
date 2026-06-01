@@ -25,7 +25,7 @@ export default function YukTable({
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
 
   const statusFor = useCallback(
-    (row: YukLoadRow) => statusMap[row.id] ?? row.cargoStatus,
+    (row: YukLoadRow) => statusMap[row.id] ?? (row.cargoStatus || (row as any).status || ""),
     [statusMap],
   );
 
@@ -121,7 +121,7 @@ export default function YukTable({
             <td
               className={`${styles.cell} ${styles.bodyText} ${styles.smallText}`}
             >
-              {row.customer}
+              <div style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.customer}>{row.customer}</div>
             </td>
             <td
               className={`${styles.cell} ${styles.dateText} ${styles.nowrap}`}

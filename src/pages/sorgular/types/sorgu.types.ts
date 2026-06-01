@@ -2,6 +2,7 @@ export enum SorguStatus {
   Pending = "pending",
   Cancelled = "cancelled",
   Completed = "completed",
+  Approved = "approved",
 }
 export type SorguSubTab = "active" | "archive" | "offers";
 
@@ -37,6 +38,8 @@ export interface LogisticQueryRow {
   company: string;
   seller: string;
   priceOffers: string;
+  priceOffersJson?: string;
+  priceOfferItems?: any[];
   confirmed: boolean;
   archived: boolean;
   contactPerson: string;

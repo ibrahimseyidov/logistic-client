@@ -58,10 +58,7 @@ import {
   type NewSifarisFormPayload,
 } from "./components";
 import styles from "./sifarisler.module.css";
-import { MOCK_SIFARISLER } from "./data/mockSifarisler";
-import { MOCK_YUKLER } from "./data/mockYukler";
-import { MOCK_REYSLER } from "./data/mockReysler";
-import { MOCK_EMEK } from "./data/mockEmek";
+import { ENDPOINTS } from "../../services/EndpointResources.g";
 import {
   aggregateSifarisStats,
   applySifarisFilters,
@@ -130,36 +127,70 @@ export default function SifarislerPage() {
   );
   const [isSifarisNewOpen, setIsSifarisNewOpen] = useState(false);
 
-  const [orders, setOrders] = useState<SifarisOrderRow[]>(() => {
-    try {
-      const saved = localStorage.getItem("logistic_sifarisler");
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return MOCK_SIFARISLER;
-  });
+  const [orders, setOrders] = useState<SifarisOrderRow[]>([]);
+  const [reysler, setReysler] = useState<any[]>([]);
+  const [yukler, setYukler] = useState<any[]>([]);
+  const [emekler, setEmekler] = useState<any[]>([]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem("logistic_sifarisler", JSON.stringify(orders));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [orders]);
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        if (subTab === "orders") {
+          const res = await axios.get(ENDPOINTS.ORDERS.BASE, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } }).catch(() => ({ data: [] }));
+          const mapped = (res.data || []).map((o: any) => ({
+            ...o,
+            queryNumber: o.query?.number || "—",
+            queryDate: o.query?.createdAt ? new Date(o.query.createdAt).toLocaleDateString("az-AZ") : "—",
+            customer: o.customerName || "—"
+          }));
+          setOrders(mapped);
+        } else if (subTab === "voyages") {
+          const res = await axios.get(ENDPOINTS.VOYAGES.BASE, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } }).catch(() => ({ data: [] }));
+          const mapped = (res.data || []).map((v: any) => ({
+            ...v,
+            orderRef: v.order?.orderNumber || "—",
+            orderDate: v.order?.orderDate ? new Date(v.order.orderDate).toLocaleDateString("az-AZ") : "—"
+          }));
+          setReysler(mapped);
+        } else if (subTab === "loads") {
+          const res = await axios.get(ENDPOINTS.LOADS.BASE, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } }).catch(() => ({ data: [] }));
+          const mapped = (res.data || []).map((l: any) => ({
+            ...l,
+            orderRef: l.order?.orderNumber || "—",
+            tripId: l.voyage?.tripRef || l.voyage?.id || "—",
+            cargoStatus: l.status || "—",
+            recipient: l.receiver || "—",
+            cargoNumber: l.id ? `Y-${l.id}` : "—",
+            company: l.order?.company || "—",
+            customer: l.order?.customerName || "—",
+            carrier: l.voyage?.carrier || "—"
+          }));
+          setYukler(mapped);
+        } else if (subTab === "payroll") {
+          const res = await axios.get(ENDPOINTS.PAYROLLS.BASE, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } }).catch(() => ({ data: [] }));
+          setEmekler(res.data || []);
+        }
+      } catch (e) {
+        console.error("Data fetch error:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [subTab]);
+
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [duplicateTargetId, setDuplicateTargetId] = useState<string | null>(null);
 
   const deleteTargetOrder = useMemo(() => {
     if (!deleteTargetId) return null;
-    return orders.find((o) => o.id === deleteTargetId) || null;
+    return orders.find((o) => String(o.id) === String(deleteTargetId)) || null;
   }, [deleteTargetId, orders]);
 
   const duplicateTargetOrder = useMemo(() => {
     if (!duplicateTargetId) return null;
-    return orders.find((o) => o.id === duplicateTargetId) || null;
+    return orders.find((o) => String(o.id) === String(duplicateTargetId)) || null;
   }, [duplicateTargetId, orders]);
 
   const [activeSections, setActiveSections] = useState<
@@ -235,13 +266,8 @@ export default function SifarislerPage() {
   );
   const [emekSaveSelected, setEmekSaveSelected] = useState("");
   
-  // Verilerin yüklendiğini simüle eden efekt
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 800);
-    return () => clearTimeout(timer);
-  }, []);
+  
+  // Məlumatlar artıq useEffect daxilində API-dən gəlir, bu dummy useEffect-ə ehtiyac qalmır.
 
   useEffect(() => {
     const nextTab: SifarisSubTab =
@@ -340,36 +366,36 @@ export default function SifarislerPage() {
   }, [orders]);
 
   const reysCompanyOptions: SelectOption[] = useMemo(() => {
-    const names = [...new Set(MOCK_REYSLER.map((r) => r.company))].sort();
+    const names = [...new Set(reysler.map((r) => r.company))].sort();
     return [
       { value: "", label: "Hamısı" },
       ...names.map((n) => ({ value: n, label: n })),
     ];
-  }, []);
+  }, [reysler]);
 
   const emekCompanyOptions: SelectOption[] = useMemo(() => {
-    const names = [...new Set(MOCK_EMEK.map((r) => r.company))].sort();
+    const names = [...new Set(emekler.map((r) => r.company))].sort();
     return [
       { value: "", label: "Hamısı" },
       ...names.map((n) => ({ value: n, label: n })),
     ];
-  }, []);
+  }, [emekler]);
 
   const emekCustomerOptions: SelectOption[] = useMemo(() => {
-    const names = [...new Set(MOCK_EMEK.map((r) => r.customer))].sort();
+    const names = [...new Set(emekler.map((r) => r.customer))].sort();
     return [
       { value: "", label: "Hamısı" },
       ...names.map((n) => ({ value: n, label: n })),
     ];
-  }, []);
+  }, [emekler]);
 
   const emekCarrierOptions: SelectOption[] = useMemo(() => {
-    const names = [...new Set(MOCK_EMEK.map((r) => r.carrier))].sort();
+    const names = [...new Set(emekler.map((r) => r.carrier))].sort();
     return [
       { value: "", label: "Hamısı" },
       ...names.map((n) => ({ value: n, label: n })),
     ];
-  }, []);
+  }, [emekler]);
 
   const filteredRows = useMemo(
     () => applySifarisFilters(orders, appliedFilter),
@@ -398,8 +424,8 @@ export default function SifarislerPage() {
   } = useSifarisPagination(filteredRows);
 
   const yukFilteredRows = useMemo(
-    () => applyYukFilters(MOCK_YUKLER, yukAppliedFilter),
-    [yukAppliedFilter],
+    () => applyYukFilters(yukler as any, yukAppliedFilter),
+    [yukler, yukAppliedFilter],
   );
 
   const yukStats = useMemo(
@@ -423,9 +449,9 @@ export default function SifarislerPage() {
   } = useYukPagination(yukFilteredRows);
 
   const reysFilteredRows = useMemo(() => {
-    const after = applyReysFilters(MOCK_REYSLER, reysAppliedFilter);
+    const after = applyReysFilters(reysler as any, reysAppliedFilter);
     return filterByTransport(after, reysTransportMode);
-  }, [reysAppliedFilter, reysTransportMode]);
+  }, [reysler, reysAppliedFilter, reysTransportMode]);
 
   const reysStats = useMemo(
     () => aggregateReysStats(reysFilteredRows),
@@ -448,8 +474,8 @@ export default function SifarislerPage() {
   } = useReysPagination(reysFilteredRows);
 
   const emekFilteredRows = useMemo(
-    () => applyEmekFilters(MOCK_EMEK, emekAppliedFilter),
-    [emekAppliedFilter],
+    () => applyEmekFilters(emekler as any, emekAppliedFilter),
+    [emekler, emekAppliedFilter],
   );
 
   const emekStats = useMemo(
@@ -665,7 +691,7 @@ export default function SifarislerPage() {
     setIsSifarisNewOpen(true);
   };
 
-  const handleNewOrderSubmit = (_payload: NewSifarisFormPayload) => {
+  const handleNewOrderSubmit = async (_payload: NewSifarisFormPayload) => {
     // Tüm alanları string'e çevir, boş/undefined ise "" gönder
     const fields = _payload.fields || {};
     const fixedFields = toStringFields(fields);
@@ -706,36 +732,60 @@ export default function SifarislerPage() {
       hasHandoverAct: false,
     };
 
-    setOrders((prev) => [newOrder, ...prev]);
-
-    dispatch(
-      showNotification({
-        message: "Yeni sifariş uğurla yaradıldı.",
-        type: "success",
-        autoCloseDuration: 3000,
-      }),
-    );
+    try {
+      const res = await axios.post(ENDPOINTS.ORDERS.BASE, newOrder, {
+        headers: { Authorization: "Bearer " + localStorage.getItem("token") }
+      });
+      setOrders((prev) => [res.data, ...prev]);
+      dispatch(
+        showNotification({
+          message: "Yeni sifariş uğurla yaradıldı.",
+          type: "success",
+          autoCloseDuration: 3000,
+        }),
+      );
+    } catch (error) {
+      dispatch(
+        showNotification({
+          message: "Sifariş yaradılarkən xəta baş verdi.",
+          type: "error",
+          autoCloseDuration: 3000,
+        }),
+      );
+    }
   };
 
-  const handleDeleteOrder = useCallback(() => {
+  const handleDeleteOrder = useCallback(async () => {
     if (!deleteTargetId) return;
-    setOrders((prev) => prev.filter((o) => o.id !== deleteTargetId));
-    setDeleteTargetId(null);
-    dispatch(
-      showNotification({
-        message: "Sifariş uğurla silindi.",
-        type: "success",
-        autoCloseDuration: 3000,
-      }),
-    );
+    try {
+      await axios.delete(ENDPOINTS.ORDERS.BY_ID(deleteTargetId), {
+        headers: { Authorization: "Bearer " + localStorage.getItem("token") }
+      });
+      setOrders((prev) => prev.filter((o) => String(o.id) !== String(deleteTargetId)));
+      setDeleteTargetId(null);
+      dispatch(
+        showNotification({
+          message: "Sifariş uğurla silindi.",
+          type: "success",
+          autoCloseDuration: 3000,
+        }),
+      );
+    } catch (e) {
+      dispatch(
+        showNotification({
+          message: "Sifariş silinərkən xəta baş verdi.",
+          type: "error",
+          autoCloseDuration: 3000,
+        }),
+      );
+    }
   }, [deleteTargetId, dispatch]);
 
-  const handleDuplicateOrder = useCallback((newNumber: string, checkedOptions: Record<string, boolean>) => {
+  const handleDuplicateOrder = useCallback(async (newNumber: string, checkedOptions: Record<string, boolean>) => {
     if (!duplicateTargetId || !duplicateTargetOrder) return;
     
-    const newOrder: SifarisOrderRow = {
+    const newOrderPayload: any = {
       ...duplicateTargetOrder,
-      id: `order_${Date.now()}`,
       orderNumber: newNumber,
       customerOrderRef: checkedOptions.customerOrderRef ? duplicateTargetOrder.customerOrderRef : "",
       statusKind: checkedOptions.status ? duplicateTargetOrder.statusKind : "planned",
@@ -747,54 +797,78 @@ export default function SifarislerPage() {
       profit: checkedOptions.expenses ? duplicateTargetOrder.profit : duplicateTargetOrder.freight,
       profitAzn: checkedOptions.expenses ? duplicateTargetOrder.profitAzn : duplicateTargetOrder.freightAzn,
     };
+    
+    // Remove the original ID before sending to the backend so it creates a new one
+    delete newOrderPayload.id;
 
-    setOrders((prev) => [newOrder, ...prev]);
-    setDuplicateTargetId(null);
+    try {
+      const res = await axios.post(ENDPOINTS.ORDERS.BASE, newOrderPayload, {
+        headers: { Authorization: "Bearer " + localStorage.getItem("token") }
+      });
 
-    dispatch(
-      showNotification({
-        message: `Sifarişin surəti "${newNumber}" adı ilə yaradıldı.`,
-        type: "success",
-        autoCloseDuration: 3000,
-      }),
-    );
+      setOrders((prev) => [res.data, ...prev]);
+      setDuplicateTargetId(null);
+
+      dispatch(
+        showNotification({
+          message: `Sifarişin surəti "${newNumber}" adı ilə yaradıldı.`,
+          type: "success",
+          autoCloseDuration: 3000,
+        }),
+      );
+    } catch (e) {
+      dispatch(
+        showNotification({
+          message: "Surət yaradılarkən xəta baş verdi.",
+          type: "error",
+          autoCloseDuration: 3000,
+        }),
+      );
+    }
   }, [duplicateTargetId, duplicateTargetOrder, dispatch]);
 
-  const handleStatusChange = useCallback((id: string, nextStatus: OrderStatusKind) => {
+  const handleStatusChange = useCallback(async (id: string, nextStatus: OrderStatusKind) => {
     let label = "Planlaşdırılıb";
     if (nextStatus === "progress") label = "Davam edir";
     else if (nextStatus === "completed") label = "Tamamlandı";
     else if (nextStatus === "finance_closed") label = "Maliyyə cəhətdən bağlandı";
     else if (nextStatus === "cancelled") label = "Sifariş ləğv edildi";
     
-    setOrders((prev) => 
-      prev.map((o) => {
-        if (o.id === id) {
-          const nextHistory = [
-            ...(o.statusHistory || []),
-            { 
-              status: label, 
-              date: `${new Date().toLocaleString("az-AZ", { hour12: false }).replace(/\//g, ".")} (tərəfindən: Ulvi Adilzade)` 
-            }
-          ];
-          return {
-            ...o,
-            statusKind: nextStatus,
-            statusLabel: label,
-            statusHistory: nextHistory
-          };
-        }
-        return o;
-      })
-    );
+    try {
+      const res = await axios.put(ENDPOINTS.ORDERS.BY_ID(id), { statusKind: nextStatus, statusLabel: label }, {
+        headers: { Authorization: "Bearer " + localStorage.getItem("token") }
+      });
+      
+      setOrders((prev) => 
+        prev.map((o) => {
+          if (String(o.id) === String(id)) {
+            return {
+              ...o,
+              statusKind: res.data.statusKind || nextStatus,
+              statusLabel: res.data.statusLabel || label,
+              statusHistory: res.data.statusHistory || []
+            };
+          }
+          return o;
+        })
+      );
 
-    dispatch(
-      showNotification({
-        message: "Sifarişin statusu yeniləndi.",
-        type: "success",
-        autoCloseDuration: 2500,
-      }),
-    );
+      dispatch(
+        showNotification({
+          message: "Sifarişin statusu yeniləndi.",
+          type: "success",
+          autoCloseDuration: 2500,
+        }),
+      );
+    } catch (error) {
+      dispatch(
+        showNotification({
+          message: "Status yenilənərkən xəta baş verdi.",
+          type: "error",
+          autoCloseDuration: 3000,
+        }),
+      );
+    }
   }, [dispatch]);
 
   const handleYukTrackingImport = () => {

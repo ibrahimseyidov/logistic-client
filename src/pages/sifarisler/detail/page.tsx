@@ -24,7 +24,8 @@ import {
   FiCalendar,
   FiX
 } from "react-icons/fi";
-import { MOCK_SIFARISLER } from "../data/mockSifarisler";
+import axios from "axios";
+import { ENDPOINTS } from "../../../services/EndpointResources.g";
 import type { SifarisOrderRow, OrderStatusKind } from "../types/sifaris.types";
 import SifarisEditModal from "../components/SifarisEditModal";
 import YukNewModal from "../components/YukNewModal";
@@ -117,28 +118,7 @@ export default function SifarisDetailPage() {
     invoiceWritten: boolean;
     invoiceReceived: boolean;
     costDate: string;
-  }>>([
-    {
-      id: "1",
-      name: "Başlanğıc tarif",
-      partner: "Limon Dental MMC",
-      tarifPrice: "1450",
-      tarifCurrency: "USD",
-      tarifAzn: "2465",
-      edvliTarifPrice: "1450",
-      edvliTarifCurrency: "USD",
-      edvliTarifAzn: "2465",
-      mesarifPrice: "",
-      mesarifCurrency: "",
-      edvliMesarifPrice: "",
-      edvliMesarifCurrency: "",
-      profit: "2465 AZN",
-      user: "Ulvi Adilzade",
-      invoiceWritten: true,
-      invoiceReceived: false,
-      costDate: ""
-    }
-  ]);
+  }>>([]);
 
   const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] = useState(false);
   const [selectedTxForEdit, setSelectedTxForEdit] = useState<any | null>(null);
@@ -490,46 +470,52 @@ export default function SifarisDetailPage() {
     profitVal = revAzn - expAzn;
 
     if (selectedTxForEdit) {
-      setFinanceTransactions(financeTransactions.map(t => t.id === selectedTxForEdit.id ? {
-        ...t,
+      const updateData = {
         name: txName,
         user: txUser,
         tarifPrice: txRevTarif,
         tarifCurrency: txRevCurrency,
-        tarifAzn: revAzn.toFixed(0),
+        tarifAzn: revAzn.toFixed(2),
         edvliTarifPrice: txRevTarif,
         edvliTarifCurrency: txRevCurrency,
-        edvliTarifAzn: revAzn.toFixed(0),
+        edvliTarifAzn: revAzn.toFixed(2),
         mesarifPrice: txExpMesarif !== "0.00" ? txExpMesarif : "",
         mesarifCurrency: txExpMesarif !== "0.00" ? txExpCurrency : "",
         edvliMesarifPrice: txExpMesarif !== "0.00" ? txExpMesarif : "",
         edvliMesarifCurrency: txExpMesarif !== "0.00" ? txExpCurrency : "",
-        profit: `${profitVal.toFixed(0)} AZN`,
-        invoiceWritten: t.invoiceWritten,
-        invoiceReceived: t.invoiceReceived,
-      } : t));
+        profit: `${profitVal.toFixed(2)} AZN`,
+      };
+      axios.put(ENDPOINTS.FINANCE.BASE + "/" + selectedTxForEdit.id, updateData, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
+        .then(res => {
+          setFinanceTransactions(financeTransactions.map(t => t.id === selectedTxForEdit.id ? res.data : t));
+        })
+        .catch(console.error);
     } else {
       const newTx = {
-        id: String(Date.now()),
+        orderId: order.id,
         name: txName,
         partner: "Müştəri",
         tarifPrice: txRevTarif,
         tarifCurrency: txRevCurrency,
-        tarifAzn: revAzn.toFixed(0),
+        tarifAzn: revAzn.toFixed(2),
         edvliTarifPrice: txRevTarif,
         edvliTarifCurrency: txRevCurrency,
-        edvliTarifAzn: revAzn.toFixed(0),
+        edvliTarifAzn: revAzn.toFixed(2),
         mesarifPrice: txExpMesarif !== "0.00" ? txExpMesarif : "",
         mesarifCurrency: txExpMesarif !== "0.00" ? txExpCurrency : "",
         edvliMesarifPrice: txExpMesarif !== "0.00" ? txExpMesarif : "",
         edvliMesarifCurrency: txExpMesarif !== "0.00" ? txExpCurrency : "",
-        profit: `${profitVal.toFixed(0)} AZN`,
+        profit: `${profitVal.toFixed(2)} AZN`,
         user: txUser,
         invoiceWritten: false,
         invoiceReceived: false,
         costDate: new Date().toLocaleDateString("az-AZ")
       };
-      setFinanceTransactions([...financeTransactions, newTx]);
+      axios.post(ENDPOINTS.FINANCE.BASE, newTx, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
+        .then(res => {
+          setFinanceTransactions([...financeTransactions, res.data]);
+        })
+        .catch(console.error);
     }
 
     setIsAddTransactionModalOpen(false);
@@ -571,133 +557,108 @@ export default function SifarisDetailPage() {
   const [isVoyageDeleteOpen, setIsVoyageDeleteOpen] = useState(false);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("logistic_sifarisler");
-      if (saved) {
-        setOrders(JSON.parse(saved) as SifarisOrderRow[]);
-      } else {
-        setOrders(MOCK_SIFARISLER);
+    const fetchOrders = async () => {
+      try {
+        const res = await axios.get(ENDPOINTS.ORDERS.BASE, {
+          headers: { Authorization: "Bearer " + localStorage.getItem("token") }
+        });
+        const mapped = (res.data || []).map((o: any) => ({
+          ...o,
+          queryNumber: o.query?.number || "—",
+          queryDate: o.query?.createdAt ? new Date(o.query.createdAt).toLocaleDateString("az-AZ") : "—",
+          customer: o.customerName || "—"
+        }));
+        setOrders(mapped);
+      } catch (e) {
+        console.error("Order load error:", e);
       }
-    } catch (e) {
-      console.error(e);
-    }
+    };
+    fetchOrders();
   }, []);
 
   const order = useMemo(() => {
-    return orders.find((o) => o.id === orderId || o.orderNumber === orderId) || null;
+    return orders.find((o) => String(o.id) === String(orderId) || o.orderNumber === orderId) || null;
   }, [orders, orderId]);
 
   useEffect(() => {
     if (order) {
-      const cacheKey = `logistic_loads_${order.id}`;
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        setLoadsList(JSON.parse(cached));
-      } else {
-        setLoadsList([
-          {
-            id: "1",
-            number: `${order.orderNumber}-1`,
-            name: "General cargo",
-            containerNumber: "—",
-            params: order.cargoParams || "Tip: Palet\nLDM: 13.6\nHəcm: 68 m³\nÇəki: 12 t\nSay: 12",
-            sender: "—",
-            loadPlace: "Germany, Rexhem-Welheim, DE 78604 Rexhem-Welheim",
-            loadDate: "—",
-            receiver: "—",
-            unloadPlace: "Azerbaijan, Baku",
-            unloadDate: "—",
-            voyage: order.voyageNumber || "ZF26003-2"
-          }
-        ]);
-      }
+      const fetchAll = async () => {
+        try {
+          const headers = { Authorization: "Bearer " + localStorage.getItem("token") };
+          const [finRes, loadRes, voyRes, invRes] = await Promise.all([
+            axios.get(ENDPOINTS.FINANCE.BASE + "?orderId=" + order.id, { headers }).catch(() => ({ data: [] })),
+            axios.get(ENDPOINTS.LOADS.BASE + "?orderId=" + order.id, { headers }).catch(() => ({ data: [] })),
+            axios.get(ENDPOINTS.VOYAGES.BASE + "?orderId=" + order.id, { headers }).catch(() => ({ data: [] })),
+            axios.get(ENDPOINTS.INVOICES.BASE + "?orderId=" + order.id, { headers }).catch(() => ({ data: [] }))
+          ]);
+          setFinanceTransactions(finRes.data || []);
+          
+          const mappedLoads = (loadRes.data || []).map((l: any) => ({
+            ...l,
+            number: l.id ? `Y-${l.id}` : "—",
+            name: l.cargoName || "—",
+            orderRef: l.order?.orderNumber || "—"
+          }));
+          setLoadsList(mappedLoads);
+          
+          const mappedVoyages = (voyRes.data || []).map((v: any) => ({
+            ...v,
+            number: v.tripRef || (v.id ? `R-${v.id}` : "—"),
+            loadPlace: v.loading || "—",
+            unloadPlace: v.unloading || "—",
+            status: v.tripStatus || "—",
+            price: v.tripPrice || "—"
+          }));
+          setVoyagesList(mappedVoyages);
+          
+          setInvoicesList(invRes.data || []);
+        } catch (e) {
+          console.error(e);
+        }
+      };
+      fetchAll();
     }
   }, [order]);
 
-  const saveLoadsList = (newList: typeof loadsList) => {
-    setLoadsList(newList);
+  const saveFinanceTransactions = (newList: typeof financeTransactions) => {
+    setFinanceTransactions(newList);
     if (order) {
-      localStorage.setItem(`logistic_loads_${order.id}`, JSON.stringify(newList));
+      localStorage.setItem(`logistic_finance_${order.id}`, JSON.stringify(newList));
     }
   };
 
-  useEffect(() => {
-    if (order) {
-      const cacheKey = `logistic_voyages_${order.id}`;
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        setVoyagesList(JSON.parse(cached));
-      } else {
-        setVoyagesList([
-          {
-            id: "v-1",
-            number: order.voyageNumber || "ZF26094-1",
-            tags: "",
-            sender: "",
-            loadPlace: "",
-            receiver: "",
-            unloadPlace: "",
-            status: "Planlaşdırılıb",
-            loadDate: "",
-            unloadDate: "",
-            price: "1205 USD ƏDV ilə (2048.50 AZN ƏDV ilə)",
-            carrier: "Makeasy",
-            carNumber: "",
-            expeditor: order.manager || "Ulvi Adilzade",
-            invoices: "",
-            loads: `${order.voyageNumber || "ZF26094-1"} - Dental Goods`,
-            rawPayload: {
-              expeditor: order.manager || "Ulvi Adilzade",
-              voyageNumber: order.voyageNumber || "ZF26094-1",
-              tags: "Dəyəri seçin",
-              carrierCompany: "Makeasy",
-              contactPerson: "Dəyəri seçin",
-              carrierContract: "Dəyəri seçin",
-              price: "1205",
-              currency: "USD",
-              exchangeDate: "25.05.2026",
-              priceWithVat: "1205",
-              vatRate: "0%",
-              paymentTerms: "Dəyəri seçin",
-              paymentDelay: "",
-              vehicleNumber: "",
-              trailerNumber: "",
-              vehicleType: "Dəyəri seçin",
-              loadingMethod: "Dəyəri seçin",
-              driverName: "",
-              driverSurname: "",
-              driverPhone: "",
-              driverPassport: "",
-              comments: "",
-              loadingPlaces: [
-                {
-                  id: "lp-1",
-                  startDate: "", endDate: "", startTime: "", endTime: "", coords: "",
-                  company: "", country: "Dəyəri seçin", sender: "Dəyəri seçin",
-                  city: "", postal: "", address: "", contact: "", saveTerminal: false
-                }
-              ],
-              unloadingPlaces: [
-                {
-                  id: "up-1",
-                  startDate: "", endDate: "", startTime: "", endTime: "", coords: "",
-                  company: "", country: "Dəyəri seçin", receiver: "Dəyəri seçin",
-                  city: "", postal: "", address: "", contact: "", saveTerminal: false
-                }
-              ]
-            }
-          }
-        ]);
-      }
-    }
-  }, [order]);
+  const financeTotals = useMemo(() => {
+    let totalRevAzn = 0;
+    let totalExpAzn = 0;
+    financeTransactions.forEach(t => {
+       if (t.tarifAzn) totalRevAzn += parseFloat(t.tarifAzn) || 0;
+       
+       if (t.mesarifPrice && t.mesarifCurrency) {
+          const exp = parseFloat(t.mesarifPrice) || 0;
+          const azn = t.mesarifCurrency === "USD" ? exp * 1.7 : t.mesarifCurrency === "EUR" ? exp * 1.85 : exp;
+          totalExpAzn += azn;
+       }
+    });
 
-  const saveVoyagesList = (newList: typeof voyagesList) => {
-    setVoyagesList(newList);
-    if (order) {
-      localStorage.setItem(`logistic_voyages_${order.id}`, JSON.stringify(newList));
-    }
-  };
+    voyagesList.forEach(v => {
+       if (v.rawPayload && v.rawPayload.price) {
+          const exp = parseFloat(v.rawPayload.price) || 0;
+          const curr = v.rawPayload.currency || "AZN";
+          const azn = curr === "USD" ? exp * 1.7 : curr === "EUR" ? exp * 1.85 : exp;
+          totalExpAzn += azn;
+       }
+    });
+
+    return {
+      totalRevAzn,
+      totalExpAzn,
+      profitAzn: totalRevAzn - totalExpAzn
+    };
+  }, [financeTransactions, voyagesList]);
+
+  // Removed previous unused useEffects
+
+  // Removed previous unused useEffects
 
   // Tab State
   type SifarisTabId = "loads" | "voyages" | "finance" | "documents" | "invoices" | "comments";
@@ -1130,128 +1091,84 @@ export default function SifarisDetailPage() {
     setIsEditModalOpen(false);
   };
 
-  const handleYukAdd = (payload: {
-    name: string;
-    containerNumber: string;
-    loadingNumber: string;
-    temperature: string;
-    isIncomplete: boolean;
-    loadPlace: string;
-    unloadPlace: string;
-    weight: string;
-    packagingType: string;
-    quantity: string;
-    ldm: string;
-    volume: string;
-    sender?: string;
-    receiver?: string;
-    loadDate?: string;
-    unloadDate?: string;
-    rawPayload?: any;
-  }) => {
-    const nextIdx = loadsList.length + 1;
-    const formattedParams = `${payload.name || "General cargo"}\nLDM ${payload.ldm || "4"}\nHəcmi ${payload.volume || "0.0219"}\nÇəkisi ${payload.weight || "4"}\nMiqdarı ${payload.quantity || "1"}`;
+  const handleYukAdd = (payload: any) => {
     const newLoad = {
-      id: String(Date.now()),
-      number: `${order?.orderNumber || "ZF26000"}-${nextIdx}`,
-      name: payload.name || "General cargo",
-      containerNumber: payload.containerNumber,
-      params: formattedParams,
+      orderId: order.id,
+      cargoName: payload.name || "General cargo",
       sender: payload.sender || "—",
-      loadPlace: payload.loadPlace,
-      loadDate: payload.loadDate || "—",
       receiver: payload.receiver || "—",
-      unloadPlace: payload.unloadPlace,
-      unloadDate: payload.unloadDate || "—",
-      voyage: order?.voyageNumber || "ZF26003-2",
-      rawPayload: payload.rawPayload
+      weightKg: parseFloat(payload.weight) || null,
+      volumeM3: parseFloat(payload.volume) || null,
+      ldm: parseFloat(payload.ldm) || null,
+      status: "Gözləmədə",
     };
-
-    const newList = [...loadsList, newLoad];
-    saveLoadsList(newList);
-    setIsYukModalOpen(false);
+    axios.post(ENDPOINTS.LOADS.BASE, newLoad, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
+      .then(res => {
+        setLoadsList([...loadsList, res.data]);
+        setIsYukModalOpen(false);
+      })
+      .catch(console.error);
   };
 
   const handleYukEdit = (payload: any) => {
     if (!selectedLoadForEdit) return;
-    const formattedParams = `${payload.name || "General cargo"}\nLDM ${payload.ldm || "4"}\nHəcmi ${payload.volume || "0.0219"}\nÇəkisi ${payload.weight || "4"}\nMiqdarı ${payload.quantity || "1"}`;
-
-    const updatedList = loadsList.map((load) => {
-      if (load.id === selectedLoadForEdit.id) {
-        return {
-          ...load,
-          name: payload.name || "General cargo",
-          containerNumber: payload.containerNumber,
-          params: formattedParams,
-          sender: payload.sender || "—",
-          loadPlace: payload.loadPlace,
-          loadDate: payload.loadDate || "—",
-          receiver: payload.receiver || "—",
-          unloadPlace: payload.unloadPlace,
-          unloadDate: payload.unloadDate || "—",
-          rawPayload: payload.rawPayload,
-        };
-      }
-      return load;
-    });
-
-    saveLoadsList(updatedList);
-    setIsYukEditModalOpen(false);
-    setSelectedLoadForEdit(null);
+    const updateData = {
+      cargoName: payload.name || "General cargo",
+      sender: payload.sender || "—",
+      receiver: payload.receiver || "—",
+      weightKg: parseFloat(payload.weight) || null,
+      volumeM3: parseFloat(payload.volume) || null,
+      ldm: parseFloat(payload.ldm) || null,
+    };
+    axios.put(ENDPOINTS.LOADS.BASE + "/" + selectedLoadForEdit.id, updateData, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
+      .then(res => {
+        setLoadsList(loadsList.map(load => load.id === selectedLoadForEdit.id ? res.data : load));
+        setIsYukEditModalOpen(false);
+        setSelectedLoadForEdit(null);
+      })
+      .catch(console.error);
   };
 
   const handleVoyageAddOrEdit = (payload: any) => {
     if (selectedVoyageForEdit) {
       // Edit
-      const updatedList = voyagesList.map((v) => {
-        if (v.id === selectedVoyageForEdit.id) {
-          return {
-            ...v,
-            number: payload.number,
-            tags: payload.tags,
-            sender: payload.sender,
-            loadPlace: payload.loadPlace,
-            receiver: payload.receiver,
-            unloadPlace: payload.unloadPlace,
-            loadDate: payload.loadDate,
-            unloadDate: payload.unloadDate,
-            price: payload.price,
-            carrier: payload.carrier,
-            carNumber: payload.carNumber,
-            expeditor: payload.expeditor,
-            loads: payload.loads,
-            rawPayload: payload.rawPayload,
-          };
-        }
-        return v;
-      });
-      saveVoyagesList(updatedList);
-      setIsVoyageEditOpen(false);
-      setSelectedVoyageForEdit(null);
+      const updateData = {
+        tripStatus: payload.status || "Planlaşdırılıb",
+        carrier: payload.carrier,
+        tripPrice: payload.price,
+        sender: payload.sender,
+        loading: payload.loadPlace,
+        receiver: payload.receiver,
+        unloading: payload.unloadPlace,
+        tags: payload.tags,
+      };
+      axios.put(ENDPOINTS.VOYAGES.BASE + "/" + selectedVoyageForEdit.id, updateData, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
+        .then(res => {
+          setVoyagesList(voyagesList.map(v => v.id === selectedVoyageForEdit.id ? res.data : v));
+          setIsVoyageEditOpen(false);
+          setSelectedVoyageForEdit(null);
+        })
+        .catch(console.error);
     } else {
       // Add new
       const newVoyage = {
-        id: `voyage-${Date.now()}`,
-        number: payload.number,
-        tags: payload.tags,
-        sender: payload.sender,
-        loadPlace: payload.loadPlace,
-        receiver: payload.receiver,
-        unloadPlace: payload.unloadPlace,
-        status: payload.status || "Planlaşdırılıb",
-        loadDate: payload.loadDate,
-        unloadDate: payload.unloadDate,
-        price: payload.price,
+        orderId: order.id,
+        tripStatus: payload.status || "Planlaşdırılıb",
+        customer: order.customerName || "",
         carrier: payload.carrier,
-        carNumber: payload.carNumber,
-        expeditor: payload.expeditor,
-        invoices: "",
-        loads: payload.loads,
-        rawPayload: payload.rawPayload,
+        tripPrice: payload.price,
+        sender: payload.sender,
+        loading: payload.loadPlace,
+        receiver: payload.receiver,
+        unloading: payload.unloadPlace,
+        tags: payload.tags,
       };
-      const newList = [...voyagesList, newVoyage];
-      saveVoyagesList(newList);
-      setIsVoyageEditOpen(false);
+      axios.post(ENDPOINTS.VOYAGES.BASE, newVoyage, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
+        .then(res => {
+          setVoyagesList([...voyagesList, res.data]);
+          setIsVoyageEditOpen(false);
+        })
+        .catch(console.error);
     }
   };
 
@@ -1509,11 +1426,11 @@ export default function SifarisDetailPage() {
             {/* Fields List */}
             <div className={styles.dlList}>
               <DlRow label="Sorğu" value={`${order.queryNumber}, ${order.queryDate || "20.05.2026"}\nTəsdiq edilmişdir: Vaxtında`} />
-              <DlRow label="Müştəri üçün başlanğıc tarif" value={`${order.freight || "190 EUR"}`} />
-              <DlRow label="Fraxt" value={order.freight} />
-              <DlRow label="Fraxt ƏDV ilə" value={`${order.freightWithVat || order.freight || "—"}`} />
-              <DlRow label="Xərclər" value={<span className={styles.accentYellow}>{order.extraCosts || "—"}</span>} />
-              <DlRow label="Mənfəət" value={<span className={styles.accentGreen}>{order.profit || "—"}</span>} />
+              <DlRow label="Müştəri üçün başlanğıc tarif" value={`${order.freight || "—"}`} />
+              <DlRow label="Fraxt" value={`${financeTotals.totalRevAzn.toFixed(2)} AZN`} />
+              <DlRow label="Fraxt ƏDV ilə" value={`${financeTotals.totalRevAzn.toFixed(2)} AZN`} />
+              <DlRow label="Xərclər" value={<span className={styles.accentYellow}>{financeTotals.totalExpAzn.toFixed(2)} AZN</span>} />
+              <DlRow label="Mənfəət" value={<span className={styles.accentGreen}>{financeTotals.profitAzn.toFixed(2)} AZN</span>} />
               <DlRow label="Şirkət" value={order.company} />
               <DlRow label="Menecer" value={order.manager || "Ulvi Adilzade"} />
               <DlRow label="Əlavə menecerlər" value={order.extraManagers || "Ulvi Adilzade"} />
@@ -1612,7 +1529,7 @@ export default function SifarisDetailPage() {
                           <td className={`${styles.td} ${styles.tdNowrap}`}>{load.containerNumber}</td>
                           <td className={`${styles.td} ${styles.cargoParamsCol}`}>
                             <div className={styles.cargoDetailsBox}>
-                              {load.params}
+                              {`Tip: Palet\nLDM: ${load.ldm || "—"}\nHəcm: ${load.volumeM3 || "—"} m³\nÇəki: ${load.weightKg || "—"} t`}
                             </div>
                           </td>
                           <td className={`${styles.td} ${styles.tdNowrap}`}>{load.sender}</td>
@@ -1623,7 +1540,11 @@ export default function SifarisDetailPage() {
                           <td className={`${styles.td} ${styles.tdNowrap}`}>{load.unloadDate}</td>
                           <td className={`${styles.td} ${styles.tdNowrap}`}>
                             <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
-                              <span style={{ fontWeight: 600 }}>{load.voyage}</span>
+                              <span style={{ fontWeight: 600 }}>
+                                {typeof load.voyage === "object" && load.voyage !== null 
+                                  ? (load.voyage.tripRef || "—") 
+                                  : (load.voyage || "—")}
+                              </span>
                               <div style={{ display: "flex", gap: "0.25rem" }}>
                                 <button
                                   type="button"
@@ -1654,13 +1575,11 @@ export default function SifarisDetailPage() {
                                   className={styles.iconBtn}
                                   title="Kopyalamaq"
                                   onClick={() => {
-                                    const nextIdx = loadsList.length + 1;
-                                    const cloned = {
-                                      ...load,
-                                      id: String(Date.now()),
-                                      number: `${order?.orderNumber || "ZF26000"}-${nextIdx}`,
-                                    };
-                                    saveLoadsList([...loadsList, cloned]);
+                                    const cloned = { ...load };
+                                    delete cloned.id;
+                                    axios.post(ENDPOINTS.LOADS.BASE, cloned, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
+                                      .then(res => setLoadsList([...loadsList, res.data]))
+                                      .catch(console.error);
                                   }}
                                 >
                                   <FiCopy style={{ color: "#10b981", fontSize: "0.85rem" }} />
@@ -1669,7 +1588,11 @@ export default function SifarisDetailPage() {
                                   type="button"
                                   className={styles.iconBtn}
                                   title="Silmək"
-                                  onClick={() => saveLoadsList(loadsList.filter((l) => l.id !== load.id))}
+                                  onClick={() => {
+                                    axios.delete(ENDPOINTS.LOADS.BASE + "/" + load.id, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
+                                      .then(() => setLoadsList(loadsList.filter((l) => l.id !== load.id)))
+                                      .catch(console.error);
+                                  }}
                                 >
                                   <FiTrash2 style={{ color: "#ef4444", fontSize: "0.85rem" }} />
                                 </button>
@@ -1743,7 +1666,10 @@ export default function SifarisDetailPage() {
                               value={v.status}
                               onChange={(e) => {
                                 const val = e.target.value;
-                                saveVoyagesList(voyagesList.map(item => item.id === v.id ? { ...item, status: val } : item));
+                                const updateData = { status: val };
+                                axios.put(ENDPOINTS.VOYAGES.BASE + "/" + v.id, updateData, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
+                                  .then(res => setVoyagesList(voyagesList.map(item => item.id === v.id ? res.data : item)))
+                                  .catch(console.error);
                               }}
                               style={{
                                 border: "1px solid #cbd5e1",
@@ -1774,7 +1700,9 @@ export default function SifarisDetailPage() {
                           <td className={`${styles.td} ${styles.tdNowrap}`}>{v.invoices || "—"}</td>
                           <td className={`${styles.td} ${styles.tdNowrap}`}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem" }}>
-                              <span style={{ fontSize: "0.8rem", color: "#475569" }}>{v.loads}</span>
+                              <span style={{ fontSize: "0.8rem", color: "#475569" }}>
+                                {Array.isArray(v.loads) ? (v.loads.length + " yük") : (v.loads || "—")}
+                              </span>
                               <div style={{ display: "flex", gap: "0.35rem" }}>
                                 <button
                                   type="button"

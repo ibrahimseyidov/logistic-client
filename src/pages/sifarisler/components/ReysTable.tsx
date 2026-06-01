@@ -61,7 +61,7 @@ export default function ReysTable({ rows }: Props) {
             <td
               className={`${styles.cell} ${styles.bodyText} ${styles.cellXs}`}
             >
-              {row.customer}
+              <div style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.customer}>{row.customer}</div>
             </td>
             <td
               className={`${styles.cell} ${styles.bodyText} ${styles.cellXs} ${styles.nowrap}`}

@@ -28,7 +28,7 @@ export function filterByTab(
   }
   if (tab === "archive") {
     return rows.filter(
-      (r) => r.status === "cancelled" || r.status === "completed",
+      (r) => r.status === "cancelled" || r.status === "completed" || r.status === "approved",
     );
   }
   if (tab === "offers") {
