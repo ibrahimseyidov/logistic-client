@@ -1,6 +1,5 @@
 export const COMPANY_OPTIONS = [
-  { value: "ziyafreight", label: "Ziyafreight" },
-  { value: "elmry", label: "Elmry ERP" },
+  { value: "ziyafreight", label: "Ziyafreight" }
 ];
 
 export const PERSON_OPTIONS = [

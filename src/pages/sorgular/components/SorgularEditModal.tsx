@@ -25,11 +25,15 @@ import {
   COUNTRY_OPTIONS,
   CUSTOMER_OPTIONS,
   DEPT_OPTIONS,
-  INCOTERMS_OPTIONS,
   PACKAGING_TYPE_OPTIONS,
-  PERSON_OPTIONS,
   TRANSPORT_PARENT_KIND_OPTIONS,
 } from "../constants/options.constants";
+import { useAuth } from "../../../common/contexts/AuthContext";
+import { fetchUsersAction } from "../../../common/actions/user.actions";
+import { fetchContactPersonsAction } from "../../../common/actions/contact.actions";
+import { fetchLookupAction, createLookupAction } from "../../../common/actions/lookup.actions";
+import { fetchCustomersAction } from "../../../common/actions/customer.actions";
+import { LookupManagerModal } from "../../../common/components/modal/LookupManagerModal";
 
 const panelTransitionMs = 320;
 
@@ -39,14 +43,9 @@ const placeholderOpts = (extra: SelectOption[] = []): SelectOption[] => [
 ];
 
 const companyOptions = placeholderOpts(COMPANY_OPTIONS);
-const personOptions = placeholderOpts(PERSON_OPTIONS);
 const deptOptions = placeholderOpts(DEPT_OPTIONS);
 const customerOptions = placeholderOpts(CUSTOMER_OPTIONS);
-const contractOptions = placeholderOpts([
-  { value: "ctr-2026-01", label: "CTR-2026/01" },
-]);
 const simpleSelect = placeholderOpts();
-const incotermsOptions = placeholderOpts(INCOTERMS_OPTIONS);
 const countryOptions = placeholderOpts(COUNTRY_OPTIONS);
 const cargoTransportOptions = placeholderOpts(CARGO_TRANSPORT_OPTIONS);
 const transportParentKindOptions = placeholderOpts(TRANSPORT_PARENT_KIND_OPTIONS);
@@ -187,12 +186,32 @@ export default function SorgularEditModal({
   const [tab, setTab] = useState<"main" | "cargo">("main");
   const openAnimationFrameRef = useRef<number | null>(null);
   const closeTimeoutRef = useRef<number | null>(null);
+  const { user } = useAuth();
+
+  // Real data states
+  const [usersData, setUsersData] = useState<any[]>([]);
+  const [contactsData, setContactsData] = useState<any[]>([]);
+  const [customersData, setCustomersData] = useState<any[]>([]);
+  const [tagsData, setTagsData] = useState<any[]>([]);
+  const [sourcesData, setSourcesData] = useState<any[]>([]);
+  const [purposesData, setPurposesData] = useState<any[]>([]);
+  const [specsData, setSpecsData] = useState<any[]>([]);
+  const [incotermsData, setIncotermsData] = useState<any[]>([]);
+
+  // Lookup Modal States
+  const [lookupModalOpen, setLookupModalOpen] = useState(false);
+  const [lookupModalType, setLookupModalType] = useState("");
+  const [lookupModalTitle, setLookupModalTitle] = useState("");
+
+  const [isNewContactModalOpen, setIsNewContactModalOpen] = useState(false);
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
 
   // Ana form state'leri
   const [company, setCompany] = useState("ziyafreight");
-  const [manager, setManager] = useState("ulvi");
+  const [manager, setManager] = useState(user?.id?.toString() ?? "");
   const [logist, setLogist] = useState("");
-  const [department, setDepartment] = useState("");
   const [customer, setCustomer] = useState("");
   const [contractNumber, setContractNumber] = useState("");
   const [contactPerson, setContactPerson] = useState("");
@@ -222,9 +241,6 @@ export default function SorgularEditModal({
   const [unloadCoordinates, setUnloadCoordinates] = useState("");
   const [unloadSaveTerminal, setUnloadSaveTerminal] = useState(false);
 
-  // Göndərən/Alıcı
-  const [sender, setSender] = useState("");
-  const [receiver, setReceiver] = useState("");
   const [additionalInfo, setAdditionalInfo] = useState("");
 
   // Yük məlumatları
@@ -238,6 +254,13 @@ export default function SorgularEditModal({
   const [newTransportParentKind, setNewTransportParentKind] =
     useState("avtoreys");
   const [newTransportActive, setNewTransportActive] = useState(true);
+
+  const [customerModalOpen, setCustomerModalOpen] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerManager, setNewCustomerManager] = useState("");
+  const [newCustomerContact, setNewCustomerContact] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [newCustomerAddress, setNewCustomerAddress] = useState("");
 
   // Query modelindən gələn əlavə state'lər
   const [createdAt, setCreatedAt] = useState("");
@@ -264,9 +287,8 @@ export default function SorgularEditModal({
 
       // Ana alanlar
       setCompany(data.company || "ziyafreight");
-      setManager(data.manager || "ulvi");
+      setManager(data.manager || "");
       setLogist(data.logist || "");
-      setDepartment(data.department || "");
       setCustomer(data.customer || "");
       setContractNumber(data.contractNumber || "");
       setContactPerson(data.contactPerson || "");
@@ -296,9 +318,7 @@ export default function SorgularEditModal({
       setUnloadCoordinates(data.unloadCoordinates || "");
       setUnloadSaveTerminal(data.unloadSaveTerminal === true);
 
-      // Göndərən/Alıcı
-      setSender(data.sender || "");
-      setReceiver(data.receiver || "");
+      // Göndərən/Alıcı (Silindi)
       setAdditionalInfo(data.additionalInfo || "");
 
       // Yük məlumatları
@@ -339,9 +359,8 @@ export default function SorgularEditModal({
   const resetFormStates = useCallback(() => {
     setTab("main");
     setCompany("ziyafreight");
-    setManager("ulvi");
+    setManager(user?.id?.toString() ?? "");
     setLogist("");
-    setDepartment("");
     setCustomer("");
     setContractNumber("");
     setContactPerson("");
@@ -366,8 +385,6 @@ export default function SorgularEditModal({
     setUnloadAddress("");
     setUnloadCoordinates("");
     setUnloadSaveTerminal(false);
-    setSender("");
-    setReceiver("");
     setAdditionalInfo("");
     setCargoItems([createCargoItem()]);
     setCreatedAt("");
@@ -407,6 +424,80 @@ export default function SorgularEditModal({
     );
     setTransportTypeModalOpen(false);
   }, [dispatch]);
+
+  const openNewCustomerModal = useCallback(() => {
+    setNewCustomerName("");
+    setNewCustomerManager("");
+    setNewCustomerContact("");
+    setNewCustomerPhone("");
+    setNewCustomerAddress("");
+    setCustomerModalOpen(true);
+  }, []);
+
+  const closeNewCustomerModal = useCallback(() => {
+    setCustomerModalOpen(false);
+  }, []);
+
+  const saveNewCustomerModal = useCallback(() => {
+    dispatch(
+      showNotification({
+        message: "Yeni müştəri yadda saxlanıldı (demo).",
+        type: "success",
+        autoCloseDuration: 3200,
+      }),
+    );
+    setCustomerModalOpen(false);
+  }, [dispatch]);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [u, c, cust, t, s, p, sp, inc] = await Promise.all([
+        fetchUsersAction(),
+        fetchContactPersonsAction(),
+        fetchCustomersAction(),
+        fetchLookupAction("tags"),
+        fetchLookupAction("inquiry-sources"),
+        fetchLookupAction("inquiry-purposes"),
+        fetchLookupAction("cargo-specs"),
+        fetchLookupAction("incoterms")
+      ]);
+      setUsersData(u);
+      setContactsData(c);
+      setCustomersData(cust);
+      setTagsData(t);
+      setSourcesData(s);
+      setPurposesData(p);
+      setSpecsData(sp);
+      setIncotermsData(inc);
+      if (!manager && user?.id) {
+        setManager(user.id.toString());
+      }
+    } catch (e) {
+      console.error("Data load failed", e);
+    }
+  }, [manager, user]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadData();
+    }
+  }, [isOpen, loadData]);
+
+  const openLookupModal = (type: string, title: string) => {
+    setLookupModalType(type);
+    setLookupModalTitle(title);
+    setLookupModalOpen(true);
+  };
+
+  const handleLookupDataChanged = (newData: any[]) => {
+    switch (lookupModalType) {
+      case "tags": setTagsData(newData); break;
+      case "inquiry-sources": setSourcesData(newData); break;
+      case "inquiry-purposes": setPurposesData(newData); break;
+      case "cargo-specs": setSpecsData(newData); break;
+      case "incoterms": setIncotermsData(newData); break;
+    }
+  };
 
   const notifyPlus = useCallback(
     (label: string) => {
@@ -531,21 +622,25 @@ export default function SorgularEditModal({
   }, []);
 
   useEffect(() => {
-    if (!isOpen) setTransportTypeModalOpen(false);
+    if (!isOpen) {
+      setTransportTypeModalOpen(false);
+      setCustomerModalOpen(false);
+    }
   }, [isOpen]);
 
   useEffect(() => {
-    if (!transportTypeModalOpen) return undefined;
+    if (!transportTypeModalOpen && !customerModalOpen) return undefined;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setTransportTypeModalOpen(false);
+        setCustomerModalOpen(false);
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [transportTypeModalOpen]);
+  }, [transportTypeModalOpen, customerModalOpen]);
 
   if (!mounted) return null;
 
@@ -560,7 +655,6 @@ export default function SorgularEditModal({
       purpose,
       transportType,
       cargoInfo,
-      sender,
       loadPlace,
       recipient,
       unloadPlace,
@@ -574,7 +668,6 @@ export default function SorgularEditModal({
       // Əlaqə məlumatları
       manager,
       logist: logist || undefined,
-      department: department || undefined,
       contractNumber: contractNumber || undefined,
       contactPerson: contactPerson || undefined,
       extremelyUrgent,
@@ -613,12 +706,21 @@ export default function SorgularEditModal({
     },
   });
 
+  const userOpts = placeholderOpts(usersData.map((u: any) => ({ value: u.id?.toString(), label: u.name })));
+  const contactOpts = placeholderOpts(contactsData.map((c: any) => ({ value: c.id?.toString(), label: c.fullName })));
+  const customerOpts = placeholderOpts(customersData.map((c: any) => ({ value: c.id?.toString(), label: c.name || c.companyName || c.fullName })));
+  const tagOpts = placeholderOpts(tagsData.map((t: any) => ({ value: t.value, label: t.value })));
+  const sourceOpts = placeholderOpts(sourcesData.map((s: any) => ({ value: s.value, label: s.value })));
+  const purposeOpts = placeholderOpts(purposesData.map((p: any) => ({ value: p.value, label: p.value })));
+  const specsOpts = placeholderOpts(specsData.map((s: any) => ({ value: s.value, label: s.value })));
+  const incotermOpts = placeholderOpts(incotermsData.map((i: any) => ({ value: i.value, label: i.value })));
+
   const rowSelect = (
     label: ReactNode,
     value: string,
     options: SelectOption[],
     onChange: (nextValue: string) => void,
-    plus?: { title: string; className?: string },
+    plus?: { title: string; className?: string; onClick?: () => void },
   ) => (
     <div className={styles.fieldStack}>
       {label}
@@ -635,7 +737,7 @@ export default function SorgularEditModal({
         {plus ? (
           <PlusButton
             title={plus.title}
-            onClick={() => notifyPlus(plus.title)}
+            onClick={plus.onClick ? plus.onClick : () => notifyPlus(plus.title)}
             className={plus.className}
           />
         ) : null}
@@ -729,7 +831,7 @@ export default function SorgularEditModal({
                           <Label required>Menecer</Label>
                           <Select
                             value={manager}
-                            options={personOptions}
+                            options={userOpts}
                             onChange={setManager}
                             className={styles.selectControl}
                           />
@@ -738,51 +840,18 @@ export default function SorgularEditModal({
                           <Label>Logist</Label>
                           <Select
                             value={logist}
-                            options={personOptions}
+                            options={userOpts}
                             onChange={setLogist}
                             className={styles.selectControl}
                           />
                         </div>
                       </div>
-
-                      <div className={styles.fieldStack}>
-                        <Label>Şöbə</Label>
-                        <Select
-                          value={department}
-                          options={deptOptions}
-                          onChange={setDepartment}
-                          className={styles.selectControl}
-                        />
-                      </div>
-
-                      {rowSelect(
-                        <Label>Əlaqədar şəxs</Label>,
-                        contactPerson,
-                        personOptions,
-                        setContactPerson,
-                        { title: "Yeni əlaqədar şəxs" },
-                      )}
-
-                      <label className={styles.checkboxRow}>
-                        <input
-                          type="checkbox"
-                          className={styles.checkbox}
-                          checked={extremelyUrgent}
-                          onChange={(event) =>
-                            setExtremelyUrgent(event.target.checked)
-                          }
-                        />
-                        <span className={styles.helperText}>
-                          Son dərəcə təcilidir
-                        </span>
-                      </label>
-
                       {rowSelect(
                         <Label>Teqlər</Label>,
                         tags,
-                        simpleSelect,
+                        tagOpts,
                         setTags,
-                        { title: "Yeni teq" },
+                        { title: "Teqlər", onClick: () => openLookupModal("tags", "Teqlər") },
                       )}
                     </div>
 
@@ -790,20 +859,27 @@ export default function SorgularEditModal({
                       {rowSelect(
                         <Label required>Müştəri</Label>,
                         customer,
-                        customerOptions,
+                        customerOpts,
                         setCustomer,
-                        { title: "Yeni müştəri" },
+                        { title: "Yeni müştəri", onClick: openNewCustomerModal },
                       )}
 
                       <div className={styles.fieldStack}>
                         <Label>Müştəri ilə müqavilənin nömrəsi</Label>
-                        <Select
+                        <input
+                          className={styles.input}
                           value={contractNumber}
-                          options={contractOptions}
-                          onChange={setContractNumber}
-                          className={styles.selectControl}
+                          onChange={(e) => setContractNumber(e.target.value)}
                         />
                       </div>
+
+                      {rowSelect(
+                        <Label>Əlaqədar şəxs</Label>,
+                        contactPerson,
+                        contactOpts,
+                        setContactPerson,
+                        { title: "Yeni əlaqədar şəxs", onClick: () => { setContactName(""); setContactPhone(""); setContactEmail(""); setIsNewContactModalOpen(true); } },
+                      )}
                     </div>
                   </div>
                 </div>
@@ -813,16 +889,16 @@ export default function SorgularEditModal({
                     {rowSelect(
                       <Label>Sorğunun mənbəyi</Label>,
                       inquirySource,
-                      simpleSelect,
+                      sourceOpts,
                       setInquirySource,
-                      { title: "Yeni mənbə" },
+                      { title: "Sorğunun mənbəyi", onClick: () => openLookupModal("inquiry-sources", "Sorğunun mənbəyi") },
                     )}
                     {rowSelect(
                       <Label>Sorğunun məqsədi</Label>,
                       inquiryPurpose,
-                      simpleSelect,
+                      purposeOpts,
                       setInquiryPurpose,
-                      { title: "Yeni məqsəd" },
+                      { title: "Sorğunun məqsədi", onClick: () => openLookupModal("inquiry-purposes", "Sorğunun məqsədi") },
                     )}
                     <div className={styles.fieldStack}>
                       <Label>Cargo Composition</Label>
@@ -836,21 +912,37 @@ export default function SorgularEditModal({
                     </div>
                     <div className={styles.fieldStack}>
                       <Label>Cargo Specifications</Label>
-                      <Select
-                        value={cargoSpecs}
-                        options={simpleSelect}
-                        onChange={setCargoSpecs}
-                        className={styles.selectControl}
-                      />
+                      <div className={styles.inlineControlRow}>
+                        <div className={styles.grow}>
+                          <Select
+                            value={cargoSpecs}
+                            options={specsOpts}
+                            onChange={setCargoSpecs}
+                            className={styles.selectControl}
+                          />
+                        </div>
+                        <PlusButton
+                          title="Cargo Specifications"
+                          onClick={() => openLookupModal("cargo-specs", "Cargo Specifications")}
+                        />
+                      </div>
                     </div>
                     <div className={styles.fieldStack}>
                       <Label>Incoterms</Label>
-                      <Select
-                        value={incoterms}
-                        options={incotermsOptions}
-                        onChange={setIncoterms}
-                        className={styles.selectControl}
-                      />
+                      <div className={styles.inlineControlRow}>
+                        <div className={styles.grow}>
+                          <Select
+                            value={incoterms}
+                            options={incotermOpts}
+                            onChange={setIncoterms}
+                            className={styles.selectControl}
+                          />
+                        </div>
+                        <PlusButton
+                          title="Incoterms"
+                          onClick={() => openLookupModal("incoterms", "Incoterms")}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1039,20 +1131,6 @@ export default function SorgularEditModal({
 
                 <div className={styles.subtleCard}>
                   <div className={styles.verticalStack}>
-                    {rowSelect(
-                      <Label>Göndərən</Label>,
-                      sender,
-                      simpleSelect,
-                      setSender,
-                      { title: "Yeni göndərən" },
-                    )}
-                    {rowSelect(
-                      <Label>Alıcı</Label>,
-                      receiver,
-                      simpleSelect,
-                      setReceiver,
-                      { title: "Yeni alıcı" },
-                    )}
                     <div className={styles.fieldStack}>
                       <Label>Əlavə məlumat</Label>
                       <textarea
@@ -1463,6 +1541,179 @@ export default function SorgularEditModal({
           </div>
         </div>
       ) : null}
+
+      {customerModalOpen ? (
+        <div
+          className={styles.nestedRoot}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="customer-new-title"
+        >
+          <button
+            type="button"
+            className={styles.nestedBackdrop}
+            aria-label="Bağla"
+            onClick={closeNewCustomerModal}
+          />
+          <div
+            className={styles.nestedCard}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={styles.nestedHeader}>
+              <h2 id="customer-new-title" className={styles.nestedTitle}>
+                Yeni müştəri
+              </h2>
+              <button
+                type="button"
+                className={styles.nestedCloseButton}
+                onClick={closeNewCustomerModal}
+                aria-label="Bağla"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className={styles.nestedBody}>
+              <div className={styles.verticalStack}>
+                <div className={styles.fieldStack}>
+                  <ModalSentenceLabel required>Şirkətin adı</ModalSentenceLabel>
+                  <input
+                    className={styles.input}
+                    value={newCustomerName}
+                    onChange={(event) => setNewCustomerName(event.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+                <div className={styles.fieldStack}>
+                  <ModalSentenceLabel>Menecer</ModalSentenceLabel>
+                  <input
+                    className={styles.input}
+                    value={newCustomerManager}
+                    onChange={(event) => setNewCustomerManager(event.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+                <div className={styles.fieldStack}>
+                  <ModalSentenceLabel>Əlaqədar şəxs</ModalSentenceLabel>
+                  <input
+                    className={styles.input}
+                    value={newCustomerContact}
+                    onChange={(event) => setNewCustomerContact(event.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+                <div className={styles.fieldStack}>
+                  <ModalSentenceLabel>Əlaqə nömrəsi</ModalSentenceLabel>
+                  <input
+                    className={styles.input}
+                    value={newCustomerPhone}
+                    onChange={(event) => setNewCustomerPhone(event.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+                <div className={styles.fieldStack}>
+                  <ModalSentenceLabel>Ünvan</ModalSentenceLabel>
+                  <input
+                    className={styles.input}
+                    value={newCustomerAddress}
+                    onChange={(event) => setNewCustomerAddress(event.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.nestedFooter}>
+              <button
+                type="button"
+                className={styles.nestedPrimaryButton}
+                onClick={saveNewCustomerModal}
+              >
+                Yaddaşda saxlamaq
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isNewContactModalOpen ? (
+        <div className={styles.nestedRoot}>
+          <div
+            className={styles.nestedBackdrop}
+            onClick={() => setIsNewContactModalOpen(false)}
+            aria-hidden="true"
+          />
+          <div className={styles.nestedCard}>
+            <div className={styles.nestedHeader}>
+              <h3 className={styles.nestedTitle}>Yeni əlaqədar şəxs</h3>
+              <button
+                type="button"
+                className={styles.nestedCloseButton}
+                onClick={() => setIsNewContactModalOpen(false)}
+                aria-label="Bağla"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className={styles.nestedBody}>
+              <div className={styles.verticalStack}>
+                <div className={styles.fieldStack}>
+                  <ModalSentenceLabel required>Tam adı</ModalSentenceLabel>
+                  <input
+                    className={styles.input}
+                    value={contactName}
+                    onChange={(event) => setContactName(event.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+                <div className={styles.fieldStack}>
+                  <ModalSentenceLabel>Telefon nömrələri</ModalSentenceLabel>
+                  <input
+                    className={styles.input}
+                    value={contactPhone}
+                    onChange={(event) => setContactPhone(event.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+                <div className={styles.fieldStack}>
+                  <ModalSentenceLabel>El.poçtu</ModalSentenceLabel>
+                  <input
+                    className={styles.input}
+                    value={contactEmail}
+                    onChange={(event) => setContactEmail(event.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.nestedFooter}>
+              <button
+                type="button"
+                className={styles.nestedPrimaryButton}
+                onClick={() => {
+                  if (!contactName.trim()) {
+                    alert("Lütfən tam adı daxil edin!");
+                    return;
+                  }
+                  dispatch(showNotification({ message: "Əlaqədar şəxs yadda saxlanıldı (demo).", type: "success", autoCloseDuration: 3200 }));
+                  setIsNewContactModalOpen(false);
+                }}
+              >
+                Yaddaşda saxlamaq
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      <LookupManagerModal
+        isOpen={lookupModalOpen}
+        onClose={() => setLookupModalOpen(false)}
+        lookupType={lookupModalType}
+        title={lookupModalTitle}
+        onDataChanged={handleLookupDataChanged}
+      />
     </>
   );
 }

@@ -245,6 +245,16 @@ export default function Sidebar() {
                   >
                     Incoterms
                   </Link>
+                  <Link
+                    to="/ayarlar?tab=contact-persons"
+                    className={`${styles.subItem} ${
+                      isAyarlarSection && ayarlarTab === "contact-persons"
+                        ? styles.subItemActive
+                        : ""
+                    }`}
+                  >
+                    Əlaqədar şəxslər
+                  </Link>
                 </div>
               </div>
             </div>

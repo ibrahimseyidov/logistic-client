@@ -14,7 +14,8 @@ import {
   addCommentAction,
   fetchDocumentsAction,
   uploadDocumentAction,
-  deleteDocumentAction
+  deleteDocumentAction,
+  updateQueryAction
 } from "../../../common/actions/query.actions";
 import type { LogisticQueryRow } from "../types/sorgu.types";
 import styles from "./page.module.css";
@@ -158,6 +159,31 @@ export default function SorguDetailPage() {
       dispatch(showNotification({ message: "Silinərkən xəta", type: "error" }));
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleAddOffer = async (offer: any) => {
+    if (!row) return;
+    try {
+      let currentOffers = [];
+      if (row.priceOffers) {
+        try {
+          currentOffers = JSON.parse(row.priceOffers);
+        } catch(e) {}
+      } else if (row.priceOfferItems) {
+        currentOffers = row.priceOfferItems;
+      }
+      
+      const newOffers = [...currentOffers, offer];
+      const priceOffersStr = JSON.stringify(newOffers);
+      
+      await updateQueryAction(row.id, { priceOffers: priceOffersStr });
+      
+      // Update local state by re-fetching detail
+      await loadDetail();
+      dispatch(showNotification({ message: "Qiymət təklifi əlavə edildi", type: "success" }));
+    } catch (error) {
+      dispatch(showNotification({ message: "Xəta baş verdi", type: "error" }));
     }
   };
 
@@ -404,7 +430,7 @@ export default function SorguDetailPage() {
               />
             )}
             {tab === "offers" && (
-              <QueryOffersList offers={detail.priceOfferItems} />
+              <QueryOffersList offers={detail.priceOfferItems} onAddOffer={handleAddOffer} />
             )}
             {tab === "documents" && (
               <QueryDocumentsList 

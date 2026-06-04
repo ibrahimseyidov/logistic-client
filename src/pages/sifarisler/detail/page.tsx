@@ -89,8 +89,11 @@ export default function SifarisDetailPage() {
     receiver: string;
     unloadPlace: string;
     unloadDate: string;
-    voyage: string;
+    voyage: any;
     rawPayload?: any;
+    ldm?: number;
+    volumeM3?: number;
+    weightKg?: number;
   }>>([]);
 
   const [selectedLoadForView, setSelectedLoadForView] = useState<any | null>(null);
@@ -492,7 +495,7 @@ export default function SifarisDetailPage() {
         .catch(console.error);
     } else {
       const newTx = {
-        orderId: order.id,
+        orderId: order?.id,
         name: txName,
         partner: "Müştəri",
         tarifPrice: txRevTarif,
@@ -1093,7 +1096,7 @@ export default function SifarisDetailPage() {
 
   const handleYukAdd = (payload: any) => {
     const newLoad = {
-      orderId: order.id,
+      orderId: order?.id,
       cargoName: payload.name || "General cargo",
       sender: payload.sender || "—",
       receiver: payload.receiver || "—",
@@ -1152,9 +1155,9 @@ export default function SifarisDetailPage() {
     } else {
       // Add new
       const newVoyage = {
-        orderId: order.id,
+        orderId: order?.id,
         tripStatus: payload.status || "Planlaşdırılıb",
-        customer: order.customerName || "",
+        customer: order?.customer || "",
         carrier: payload.carrier,
         tripPrice: payload.price,
         sender: payload.sender,
@@ -1576,7 +1579,7 @@ export default function SifarisDetailPage() {
                                   title="Kopyalamaq"
                                   onClick={() => {
                                     const cloned = { ...load };
-                                    delete cloned.id;
+                                    delete (cloned as any).id;
                                     axios.post(ENDPOINTS.LOADS.BASE, cloned, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
                                       .then(res => setLoadsList([...loadsList, res.data]))
                                       .catch(console.error);
@@ -2878,7 +2881,7 @@ export default function SifarisDetailPage() {
         }}
         onConfirm={() => {
           if (selectedVoyageForDelete) {
-            saveVoyagesList(voyagesList.filter((item) => item.id !== selectedVoyageForDelete.id));
+            setVoyagesList(voyagesList.filter((item) => item.id !== selectedVoyageForDelete.id));
           }
           setIsVoyageDeleteOpen(false);
           setSelectedVoyageForDelete(null);

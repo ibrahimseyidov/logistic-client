@@ -2,6 +2,10 @@ import React, { useState, useEffect } from "react";
 import { FiX, FiCalendar, FiSearch, FiPlus } from "react-icons/fi";
 import type { SifarisOrderRow } from "../types/sifaris.types";
 import styles from "../../sorgular/components/SorgularNewModal.module.css";
+import { fetchUsersAction } from "../../../common/actions/user.actions";
+import { fetchContactPersonsAction } from "../../../common/actions/contact.actions";
+import { fetchCustomersAction } from "../../../common/actions/customer.actions";
+import { fetchLookupAction, createLookupAction } from "../../../common/actions/lookup.actions";
 
 interface Props {
   isOpen: boolean;
@@ -56,16 +60,21 @@ export default function SifarisEditModal({
   const [newTagActive, setNewTagActive] = useState(true);
 
   // Dynamic Options lists for Select inputs
-  const [customerOptions, setCustomerOptions] = useState<string[]>([
-    "M&M Militzer & Munch",
-    "Libero S.A.",
-    "Grand-Logistics LLC"
-  ]);
+  const [usersData, setUsersData] = useState<any[]>([]);
+  const [contactsData, setContactsData] = useState<any[]>([]);
+  const [customersData, setCustomersData] = useState<any[]>([]);
 
-  const [contactPersonOptions, setContactPersonOptions] = useState<string[]>([
-    "Nijat Shabanly (+994 50 2053030)",
-    "Orkhan Aliyev (+994 77 3450912)"
-  ]);
+  useEffect(() => {
+    if (isOpen) {
+      Promise.all([fetchUsersAction(), fetchContactPersonsAction(), fetchCustomersAction()])
+        .then(([u, c, cust]) => {
+          setUsersData(u);
+          setContactsData(c);
+          setCustomersData(cust);
+        })
+        .catch((e) => console.error(e));
+    }
+  }, [isOpen]);
   
   // Contacts column ("Əlaqələr")
   const [customer, setCustomer] = useState("");
@@ -463,8 +472,11 @@ export default function SifarisEditModal({
                       cursor: "pointer",
                     }}
                   >
-                    {customerOptions.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
+                    <option value="">Dəyəri seçin</option>
+                    {customersData.map((opt) => (
+                      <option key={opt.id} value={opt.id?.toString()}>
+                        {opt.name || opt.companyName || opt.fullName}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -475,24 +487,20 @@ export default function SifarisEditModal({
                     Müştəri ilə müqavilənin nömrəsi
                   </label>
                   <div style={{ position: "relative", display: "flex" }}>
-                    <select
+                    <input
                       value={contractNumber}
                       onChange={(e) => setContractNumber(e.target.value)}
                       style={{
                         border: "1px solid #cbd5e1",
                         borderRadius: "0.5rem",
-                        padding: "0.625rem 2rem 0.625rem 0.85rem",
+                        padding: "0.625rem 0.85rem",
                         fontSize: "0.875rem",
                         color: "#1e293b",
                         outline: "none",
                         width: "100%",
                         background: "#ffffff",
-                        cursor: "pointer",
                       }}
-                    >
-                      <option value="13.01.2026 - ZFAZ02/26 - Müqavilə">13.01.2026 - ZFAZ02/26 - Müqavilə</option>
-                      <option value="01.03.2026 - CTR-9942/26 - Müqavilə">01.03.2026 - CTR-9942/26 - Müqavilə</option>
-                    </select>
+                    />
                   </div>
                 </div>
 
@@ -537,8 +545,9 @@ export default function SifarisEditModal({
                       cursor: "pointer",
                     }}
                   >
-                    {contactPersonOptions.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
+                    <option value="">Dəyəri seçin</option>
+                    {contactsData.map((c: any) => (
+                      <option key={c.id} value={c.id?.toString()}>{c.fullName}</option>
                     ))}
                   </select>
                 </div>
@@ -560,8 +569,10 @@ export default function SifarisEditModal({
                       cursor: "pointer",
                     }}
                   >
-                    <option value="Ulvi Adilzade">Ulvi Adilzade</option>
-                    <option value="Nijat Shabanly">Nijat Shabanly</option>
+                    <option value="">Dəyəri seçin</option>
+                    {usersData.map((u: any) => (
+                      <option key={u.id} value={u.id?.toString()}>{u.name}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -582,8 +593,10 @@ export default function SifarisEditModal({
                       cursor: "pointer",
                     }}
                   >
-                    <option value="Ulvi Adilzade">Ulvi Adilzade</option>
-                    <option value="Nijat Shabanly">Nijat Shabanly</option>
+                    <option value="">Dəyəri seçin</option>
+                    {usersData.map((u: any) => (
+                      <option key={u.id} value={u.id?.toString()}>{u.name}</option>
+                    ))}
                   </select>
                 </div>
 

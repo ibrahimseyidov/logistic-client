@@ -138,12 +138,21 @@ export default function SifarislerPage() {
       try {
         if (subTab === "orders") {
           const res = await axios.get(ENDPOINTS.ORDERS.BASE, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } }).catch(() => ({ data: [] }));
-          const mapped = (res.data || []).map((o: any) => ({
-            ...o,
-            queryNumber: o.query?.number || "—",
-            queryDate: o.query?.createdAt ? new Date(o.query.createdAt).toLocaleDateString("az-AZ") : "—",
-            customer: o.customerName || "—"
-          }));
+          const mapped = (res.data || []).map((o: any) => {
+            const voyages = o.voyages || [];
+            const loads = o.loads || [];
+            return {
+              ...o,
+              queryNumber: o.query?.number || "—",
+              queryDate: o.query?.createdAt ? new Date(o.query.createdAt).toLocaleDateString("az-AZ") : "—",
+              customer: o.customerName || "—",
+              voyageNumber: voyages.length > 0 ? voyages.map((v: any) => v.tripRef || (v.id ? `R-${v.id}` : "—")).join(", ") : "—",
+              carriers: voyages.length > 0 ? voyages.map((v: any) => v.carrier || "—").join(", ") : "—",
+              route: voyages.length > 0 ? voyages.map((v: any) => `${v.loading || "—"} → ${v.unloading || "—"}`).join(" | ") : "—",
+              cargoParams: loads.length > 0 ? loads.map((l: any) => l.cargoName || "—").join(", ") : "—",
+              freight: o.freight ? o.freight.split(" + ")[0] : "—"
+            };
+          });
           setOrders(mapped);
         } else if (subTab === "voyages") {
           const res = await axios.get(ENDPOINTS.VOYAGES.BASE, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } }).catch(() => ({ data: [] }));

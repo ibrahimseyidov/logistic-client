@@ -8,6 +8,7 @@ import {
 } from "./constants/ayarlar.constants";
 import { LookupOptionsSection } from "./components/LookupOptionsSection";
 import { UsersSection } from "./components/UsersSection";
+import { ContactPersonsSection } from "./components/ContactPersonsSection";
 import styles from "../sorgular/sorgular.module.css";
 
 const CARGO_SPECS_SEED = [
@@ -63,6 +64,8 @@ const AyarlarPage: React.FC = () => {
           seed={INCOTERMS_OPTIONS}
         />
       )}
+
+      {activeTab === "contact-persons" && <ContactPersonsSection />}
     </div>
   );
 };

@@ -37,7 +37,7 @@ const DEMO_PASSWORD = "1234";
 
 const LOCAL_AUTH_BOOTSTRAP: AuthBootstrapData = {
   user: {
-    id: "local-user-1",
+    id: "1",
     name: "Ibrahim",
     email: DEMO_EMAIL,
     companyId: 1,
