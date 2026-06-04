@@ -27,7 +27,7 @@ interface Props {
   onApproveStatus?: (row: LogisticQueryRow, payload: any) => void;
 }
 
-const COLUMN_COUNT = 13;
+const COLUMN_COUNT = 11;
 
 function formatCreated(iso: string) {
   const d = new Date(iso);
@@ -284,12 +284,6 @@ export default function SorgularTable({ rows, onUpdate, onDelete, onApproveStatu
             <th className={`${styles.headerCell} ${styles.min150}`}>
               Göndərən
             </th>
-            <th className={`${styles.headerCell} ${styles.min140}`}>
-              Yükləmə tarixi
-            </th>
-            <th className={`${styles.headerCell} ${styles.min140}`}>
-              Boşaltma tarixi
-            </th>
             <th className={`${styles.headerCell} ${styles.min160}`}>Müştəri</th>
             <th className={`${styles.headerCell} ${styles.min140}`}>Şirkət</th>
             <th className={`${styles.headerCell} ${styles.min140}`}>Satıcı</th>
@@ -439,24 +433,6 @@ export default function SorgularTable({ rows, onUpdate, onDelete, onApproveStatu
                   className={`${styles.cell} ${styles.bodyText} ${styles.min150} ${styles.center}`}
                 >
                   {row.sender || <FaMinus className={styles.mutedText} />}
-                </td>
-                <td
-                  className={`${styles.cell} ${styles.mutedText} ${styles.nowrap} ${styles.min140} ${styles.center}`}
-                >
-                  {row.loadDate ? (
-                    formatDateOnly(row.loadDate)
-                  ) : (
-                    <FaMinus className={styles.mutedText} />
-                  )}
-                </td>
-                <td
-                  className={`${styles.cell} ${styles.mutedText} ${styles.nowrap} ${styles.min140} ${styles.center}`}
-                >
-                  {row.unloadDate ? (
-                    formatDateOnly(row.unloadDate)
-                  ) : (
-                    <FaMinus className={styles.mutedText} />
-                  )}
                 </td>
                 <td
                   className={`${styles.cell} ${styles.bodyText} ${styles.min160} ${styles.center}`}
