@@ -30,9 +30,9 @@ import {
 } from "../constants/options.constants";
 import { useAuth } from "../../../common/contexts/AuthContext";
 import { fetchUsersAction } from "../../../common/actions/user.actions";
-import { fetchContactPersonsAction } from "../../../common/actions/contact.actions";
+import { fetchContactPersonsAction, createContactPersonAction } from "../../../common/actions/contact.actions";
 import { fetchLookupAction, createLookupAction } from "../../../common/actions/lookup.actions";
-import { fetchCustomersAction } from "../../../common/actions/customer.actions";
+import { createCustomerAction, fetchCustomersAction } from "../../../common/actions/customer.actions";
 import { LookupManagerModal } from "../../../common/components/modal/LookupManagerModal";
 
 const panelTransitionMs = 320;
@@ -438,16 +438,51 @@ export default function SorgularEditModal({
     setCustomerModalOpen(false);
   }, []);
 
-  const saveNewCustomerModal = useCallback(() => {
-    dispatch(
-      showNotification({
-        message: "Yeni müştəri yadda saxlanıldı (demo).",
-        type: "success",
-        autoCloseDuration: 3200,
-      }),
-    );
-    setCustomerModalOpen(false);
-  }, [dispatch]);
+  const saveNewCustomerModal = useCallback(async () => {
+    if (!newCustomerName) {
+      alert("Şirkətin adı mütləqdir!");
+      return;
+    }
+    try {
+      const payload = {
+        name: newCustomerName,
+        manager: newCustomerManager,
+        contactPerson: newCustomerContact,
+        phone: newCustomerPhone,
+        address: newCustomerAddress,
+      };
+      await createCustomerAction(payload);
+      
+      const cust = await fetchCustomersAction();
+      setCustomersData(cust);
+      setCustomer(newCustomerName);
+      
+      dispatch(
+        showNotification({
+          message: "Müştəri uğurla əlavə edildi.",
+          type: "success",
+          autoCloseDuration: 3200,
+        }),
+      );
+      setCustomerModalOpen(false);
+    } catch (e) {
+      console.error(e);
+      dispatch(
+        showNotification({
+          message: "Xəta baş verdi.",
+          type: "error",
+          autoCloseDuration: 3200,
+        }),
+      );
+    }
+  }, [
+    newCustomerName,
+    newCustomerManager,
+    newCustomerContact,
+    newCustomerPhone,
+    newCustomerAddress,
+    dispatch
+  ]);
 
   const loadData = useCallback(async () => {
     try {
@@ -1692,13 +1727,27 @@ export default function SorgularEditModal({
               <button
                 type="button"
                 className={styles.nestedPrimaryButton}
-                onClick={() => {
+                onClick={async () => {
                   if (!contactName.trim()) {
                     alert("Lütfən tam adı daxil edin!");
                     return;
                   }
-                  dispatch(showNotification({ message: "Əlaqədar şəxs yadda saxlanıldı (demo).", type: "success", autoCloseDuration: 3200 }));
-                  setIsNewContactModalOpen(false);
+                  try {
+                    await createContactPersonAction({
+                      fullName: contactName,
+                      phone: contactPhone,
+                      email: contactEmail,
+                      position: "",
+                      company: ""
+                    });
+                    const c = await fetchContactPersonsAction();
+                    setContactsData(c);
+                    setContactPerson(contactName);
+                    dispatch(showNotification({ message: "Əlaqədar şəxs uğurla əlavə edildi.", type: "success", autoCloseDuration: 3200 }));
+                    setIsNewContactModalOpen(false);
+                  } catch (e) {
+                    dispatch(showNotification({ message: "Xəta baş verdi.", type: "error", autoCloseDuration: 3200 }));
+                  }
                 }}
               >
                 Yaddaşda saxlamaq

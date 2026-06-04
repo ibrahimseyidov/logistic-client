@@ -61,7 +61,7 @@ export const LookupManagerModal: React.FC<LookupManagerModalProps> = ({
   const handleAdd = async () => {
     if (!newValue.trim()) return;
     try {
-      await createLookupAction(lookupType, { value: newValue.trim() });
+      await createLookupAction(lookupType, { value: newValue.trim(), label: newValue.trim() });
       setNewValue("");
       loadData();
     } catch (e) {
@@ -78,7 +78,7 @@ export const LookupManagerModal: React.FC<LookupManagerModalProps> = ({
   const handleSaveEdit = async (id: string | number) => {
     if (!editingValue.trim()) return;
     try {
-      await updateLookupAction(lookupType, id, { value: editingValue.trim() });
+      await updateLookupAction(lookupType, id, { value: editingValue.trim(), label: editingValue.trim() });
       setEditingId(null);
       setEditingValue("");
       loadData();

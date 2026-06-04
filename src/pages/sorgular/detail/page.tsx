@@ -177,7 +177,7 @@ export default function SorguDetailPage() {
       const newOffers = [...currentOffers, offer];
       const priceOffersStr = JSON.stringify(newOffers);
       
-      await updateQueryAction(row.id, { priceOffers: priceOffersStr });
+      await updateQueryAction(row.id, { priceOffersJson: priceOffersStr });
       
       // Update local state by re-fetching detail
       await loadDetail();
