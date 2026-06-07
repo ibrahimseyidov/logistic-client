@@ -1,11 +1,13 @@
 import { Link } from "react-router-dom";
 import { FaCheck, FaClipboard, FaMinus, FaEdit, FaTrash, FaHandHoldingUsd, FaCheckCircle } from "react-icons/fa";
-import StatusBadge from "../../../common/components/StatusBadge";
-import type { LogisticQueryRow, SorguStatus } from "../types/sorgu.types";
+import { statusLabelAz } from "../../../common/components/StatusBadge";
+import { type LogisticQueryRow, SorguStatus } from "../types/sorgu.types";
 import styles from "./SorgularTable.module.css";
 
 import React, { useState, useEffect } from "react";
-import { SorgularEditModal, SorgularOfferModal } from "./index";
+import { SorgularEditModal, SorgularOfferModal, SorguStatusDropdown } from "./index";
+import { useAppDispatch } from "../../../common/store/hooks";
+import { showNotification } from "../../../common/store/modalSlice";
 import {
   updateQueryAction,
   deleteQueryAction,
@@ -22,6 +24,7 @@ import {
 
 interface Props {
   rows: LogisticQueryRow[];
+  customers?: any[];
   onUpdate?: (updated: LogisticQueryRow) => void;
   onDelete?: (id: string | number) => void;
   onApproveStatus?: (row: LogisticQueryRow, payload: any) => void;
@@ -66,34 +69,34 @@ function formatDateOnly(value: string) {
   return datePart;
 }
 
-function getCustomerFullName(row: LogisticQueryRow) {
+function getCustomerFullName(row: LogisticQueryRow, customers?: any[]) {
   const anyRow = row as any;
   const customer = anyRow.customer;
   const toText = (value: unknown) =>
     typeof value === "string" ? value.trim() : "";
-  const joinName = (first: unknown, last: unknown) =>
-    `${toText(first)} ${toText(last)}`.trim();
-  const looksLikeFullName = (value: string) => value.split(/\s+/).length >= 2;
 
   if (customer && typeof customer === "object") {
-    const fullName =
-      joinName(
-        customer.firstName ??
-          customer.firstname ??
-          customer.name ??
-          customer.givenName ??
-          customer.ad,
-        customer.lastName ??
-          customer.lastname ??
-          customer.surname ??
-          customer.familyName ??
-          customer.soyad,
-      ) ||
-      toText(customer.fullName) ||
-      toText(customer.displayName);
-    if (fullName) return fullName;
+    const name = customer.name || customer.companyName || customer.company || customer.fullName || customer.displayName;
+    if (name) return name;
   }
 
+  if (anyRow.customerName) return anyRow.customerName;
+
+  const customerText = toText(customer);
+  if (customerText) {
+    if (Array.isArray(customers)) {
+      const found = customers.find(c => c.id?.toString() === customerText);
+      if (found) return found.name || found.companyName || found.fullName || found.company;
+    }
+    const matched = CUSTOMER_OPTIONS.find(
+      (opt) => opt.value.toLowerCase() === customerText.toLowerCase()
+    );
+    if (matched) return matched.label;
+    return customerText;
+  }
+
+  const joinName = (first: unknown, last: unknown) =>
+    `${toText(first)} ${toText(last)}`.trim();
   const fullName =
     joinName(
       anyRow.customerFirstName ??
@@ -112,23 +115,10 @@ function getCustomerFullName(row: LogisticQueryRow) {
         anyRow.soyad,
     ) ||
     toText(anyRow.customerFullName) ||
-    toText(anyRow.fullName) ||
-    toText(anyRow.customerName);
+    toText(anyRow.fullName);
   if (fullName) return fullName;
 
-  const customerText = toText(customer);
-  if (customerText && looksLikeFullName(customerText)) return customerText;
-
   const contactPerson = toText(anyRow.contactPerson);
-  if (contactPerson && looksLikeFullName(contactPerson)) return contactPerson;
-
-  // CUSTOMER_OPTIONS üzerinden eşleştirme yap
-  const matched = CUSTOMER_OPTIONS.find(
-    (opt) => opt.value.toLowerCase() === customerText.toLowerCase()
-  );
-  if (matched) return matched.label;
-
-  if (customerText) return customerText;
   if (contactPerson) return contactPerson;
 
   return "";
@@ -154,7 +144,8 @@ function getPackagingLabel(value: string) {
   return matched ? matched.label : value;
 }
 
-export default function SorgularTable({ rows, onUpdate, onDelete, onApproveStatus }: Props) {
+export default function SorgularTable({ rows, customers, onUpdate, onDelete, onApproveStatus }: Props) {
+  const dispatch = useAppDispatch();
   // Modalı kapatmak için fonksiyon
   const handleEditClose = () => {
     setEditModalOpen(false);
@@ -266,7 +257,9 @@ export default function SorgularTable({ rows, onUpdate, onDelete, onApproveStatu
 
   return (
     <>
-      <table className={styles.table}>
+      <div className={styles.tableWrapper}>
+        <div className={styles.tableContainer} style={{ minWidth: "1650px" }}>
+          <table className={styles.table}>
         <thead className={styles.head}>
           <tr>
             <th className={`${styles.headerCell} ${styles.min150}`}>
@@ -332,8 +325,40 @@ export default function SorgularTable({ rows, onUpdate, onDelete, onApproveStatu
                 <td
                   className={`${styles.cell} ${styles.nowrap} ${styles.min140} ${styles.center}`}
                 >
-                  {row.status ? ( // This line is unchanged, but included for context
-                    <StatusBadge label={row.status} className={styles.statusBadge} />
+                  {row.status ? (
+                    <SorguStatusDropdown
+                      status={row.status}
+                      onStatusChange={async (newStatus) => {
+                        if (newStatus === SorguStatus.Approved) {
+                          if (onApproveStatus) {
+                            onApproveStatus(row, { status: "approved" });
+                          }
+                          return;
+                        }
+                        try {
+                          const updated = await updateQueryAction(row.id, { status: newStatus });
+                          setLocalRows((prev) =>
+                            prev.map((r) => (r.id === updated.id ? updated : r)),
+                          );
+                          if (onUpdate) onUpdate(updated);
+                          dispatch(
+                            showNotification({
+                              message: `Sorğunun statusu "${statusLabelAz(newStatus)}" olaraq dəyişdirildi.`,
+                              type: "success",
+                              autoCloseDuration: 2500,
+                            }),
+                          );
+                        } catch (e) {
+                          dispatch(
+                            showNotification({
+                              message: "Status dəyişdirilərkən xəta baş verdi.",
+                              type: "error",
+                              autoCloseDuration: 3000,
+                            }),
+                          );
+                        }
+                      }}
+                    />
                   ) : (
                     <FaMinus className={styles.mutedText} />
                   )}
@@ -432,12 +457,12 @@ export default function SorgularTable({ rows, onUpdate, onDelete, onApproveStatu
                 <td
                   className={`${styles.cell} ${styles.bodyText} ${styles.min150} ${styles.center}`}
                 >
-                  {row.sender || <FaMinus className={styles.mutedText} />}
+                  {row.loadPlaceCompany || row.sender || <FaMinus className={styles.mutedText} />}
                 </td>
                 <td
                   className={`${styles.cell} ${styles.bodyText} ${styles.min160} ${styles.center}`}
                 >
-                  {getCustomerFullName(row) || (
+                  {getCustomerFullName(row, customers) || (
                     <FaMinus className={styles.mutedText} />
                   )}
                 </td>
@@ -456,19 +481,47 @@ export default function SorgularTable({ rows, onUpdate, onDelete, onApproveStatu
                   )}
                 </td>
                 <td
-                  className={`${styles.cell} ${styles.bodyText} ${styles.min180} ${styles.center}`}
+                  className={`${styles.cell} ${styles.bodyText} ${styles.min180}`}
                 >
-                  {row.priceOffers ? (
+                  {Array.isArray(row.priceOfferItems) && row.priceOfferItems.length > 0 ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "2px 0" }}>
+                      {row.priceOfferItems.map((offer: any, oIdx: number) => (
+                        <div
+                          key={offer.id || oIdx}
+                          style={{
+                            fontSize: "0.75rem",
+                            background: "#f0fdf4",
+                            borderRadius: 4,
+                            padding: "3px 6px",
+                            borderLeft: "3px solid #059669",
+                          }}
+                        >
+                          <div style={{ fontWeight: 600, color: "#334155", marginBottom: 1 }}>
+                            {offer.carrierName}
+                          </div>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            <span style={{ color: "#059669", fontWeight: 700 }}>
+                              Alış: {offer.price} {offer.currency}
+                            </span>
+                            {offer.totalPrice && (
+                              <span style={{ color: "#7c3aed", fontWeight: 700 }}>
+                                Total: {offer.totalPrice} {offer.totalCurrency || offer.currency}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : row.priceOffers ? (
                     <div
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
+                        fontSize: "0.8rem",
                         color: "#059669",
+                        fontWeight: 600,
+                        textAlign: "center",
                       }}
-                      title={row.priceOffers} // Keep the text as a tooltip
                     >
-                      <FaCheckCircle style={{ fontSize: "1.1rem" }} />
+                      {row.priceOffers}
                     </div>
                   ) : (
                     <FaMinus className={styles.mutedText} />
@@ -524,6 +577,8 @@ export default function SorgularTable({ rows, onUpdate, onDelete, onApproveStatu
           )}
         </tbody>
       </table>
+      </div>
+      </div>
       {editModalOpen && editRow && (
         <SorgularEditModal
           isOpen={editModalOpen}

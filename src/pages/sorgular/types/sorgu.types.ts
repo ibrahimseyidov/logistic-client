@@ -58,6 +58,7 @@ export interface LogisticQueryRow {
   cargoItems?: any[]; // API'den gelen yükler
   comments?: any[];
   documents?: any[];
+  loadPlaceCompany?: string;
 }
 
 export interface FilterFormState {

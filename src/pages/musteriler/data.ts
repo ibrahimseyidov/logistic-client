@@ -10,6 +10,7 @@ export interface CustomerRow {
   creditLimit: string;
   daysSinceLastContact: number;
   orderCount: number;
+  queriesCount: number;
   salesGroup: string;
 }
 
@@ -26,6 +27,7 @@ export const MOCK_ROWS: CustomerRow[] = [
     creditLimit: "102",
     daysSinceLastContact: 0,
     orderCount: 0,
+    queriesCount: 0,
     salesGroup: "Bilikis",
   },
   {
@@ -40,6 +42,7 @@ export const MOCK_ROWS: CustomerRow[] = [
     creditLimit: "13",
     daysSinceLastContact: 18,
     orderCount: 0,
+    queriesCount: 0,
     salesGroup: "Status yoxdur",
   },
   {
@@ -54,6 +57,7 @@ export const MOCK_ROWS: CustomerRow[] = [
     creditLimit: "140",
     daysSinceLastContact: 14,
     orderCount: 4,
+    queriesCount: 0,
     salesGroup: "Status yoxdur",
   },
 ];

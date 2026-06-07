@@ -7,38 +7,39 @@ import { CUSTOMER_OPTIONS } from "../constants/options.constants";
 
 interface Props {
   rows: LogisticQueryRow[];
+  customers?: any[];
   onDeleteOffer: (queryId: number, offerId: string) => void;
   onEditQuery: (queryId: number) => void;
 }
 
-function getCustomerFullName(row: LogisticQueryRow) {
+function getCustomerFullName(row: LogisticQueryRow, customers?: any[]) {
   const anyRow = row as any;
   const customer = anyRow.customer;
   const toText = (value: unknown) =>
     typeof value === "string" ? value.trim() : "";
-  const joinName = (first: unknown, last: unknown) =>
-    `${toText(first)} ${toText(last)}`.trim();
-  const looksLikeFullName = (value: string) => value.split(/\s+/).length >= 2;
 
   if (customer && typeof customer === "object") {
-    const fullName =
-      joinName(
-        customer.firstName ??
-          customer.firstname ??
-          customer.name ??
-          customer.givenName ??
-          customer.ad,
-        customer.lastName ??
-          customer.lastname ??
-          customer.surname ??
-          customer.familyName ??
-          customer.soyad,
-      ) ||
-      toText(customer.fullName) ||
-      toText(customer.displayName);
-    if (fullName) return fullName;
+    const name = customer.name || customer.companyName || customer.company || customer.fullName || customer.displayName;
+    if (name) return name;
   }
 
+  if (anyRow.customerName) return anyRow.customerName;
+
+  const customerText = toText(customer);
+  if (customerText) {
+    if (Array.isArray(customers)) {
+      const found = customers.find(c => c.id?.toString() === customerText);
+      if (found) return found.name || found.companyName || found.fullName || found.company;
+    }
+    const matched = CUSTOMER_OPTIONS.find(
+      (opt) => opt.value.toLowerCase() === customerText.toLowerCase()
+    );
+    if (matched) return matched.label;
+    return customerText;
+  }
+
+  const joinName = (first: unknown, last: unknown) =>
+    `${toText(first)} ${toText(last)}`.trim();
   const fullName =
     joinName(
       anyRow.customerFirstName ??
@@ -57,28 +58,16 @@ function getCustomerFullName(row: LogisticQueryRow) {
         anyRow.soyad,
     ) ||
     toText(anyRow.customerFullName) ||
-    toText(anyRow.fullName) ||
-    toText(anyRow.customerName);
+    toText(anyRow.fullName);
   if (fullName) return fullName;
 
-  const customerText = toText(customer);
-  if (customerText && looksLikeFullName(customerText)) return customerText;
-
   const contactPerson = toText(anyRow.contactPerson);
-  if (contactPerson && looksLikeFullName(contactPerson)) return contactPerson;
-
-  const matched = CUSTOMER_OPTIONS.find(
-    (opt) => opt.value.toLowerCase() === customerText.toLowerCase()
-  );
-  if (matched) return matched.label;
-
-  if (customerText) return customerText;
   if (contactPerson) return contactPerson;
 
   return "";
 }
 
-export const SorgularOffersTable: React.FC<Props> = ({ rows, onDeleteOffer, onEditQuery }) => {
+export const SorgularOffersTable: React.FC<Props> = ({ rows, customers, onDeleteOffer, onEditQuery }) => {
   return (
     <div className={styles.tableWrapper}>
       <div className={styles.tableContainer}>
@@ -87,9 +76,9 @@ export const SorgularOffersTable: React.FC<Props> = ({ rows, onDeleteOffer, onEd
             <tr>
               <th className={styles.headerCell}>Sorğu №</th>
               <th className={styles.headerCell}>Daşıyıcı</th>
-              <th className={styles.headerCell}>Qiymət</th>
+              <th className={styles.headerCell}>Alış</th>
               <th className={styles.headerCell}>Valyuta</th>
-              <th className={styles.headerCell}>Qeyd</th>
+              <th className={styles.headerCell}>Satış qiyməti</th>
               <th className={styles.headerCell}>Müştəri</th>
               <th className={styles.headerCell}>Satıcı</th>
               <th className={styles.headerCell}>Yükləmə / Boşaltma</th>
@@ -110,8 +99,8 @@ export const SorgularOffersTable: React.FC<Props> = ({ rows, onDeleteOffer, onEd
                   <td className={styles.cell} style={{ textAlign: "center", fontWeight: 600 }}>{row.offerItem?.carrierName || "—"}</td>
                   <td className={styles.cell} style={{ textAlign: "center", color: "#059669", fontWeight: 700 }}>{row.offerItem?.price || "—"}</td>
                   <td className={styles.cell} style={{ textAlign: "center" }}>{row.offerItem?.currency || "—"}</td>
-                  <td className={styles.cell} style={{ fontSize: "0.85rem", color: "#64748b", maxWidth: "200px", textAlign: "center" }}>{row.offerItem?.notes || "—"}</td>
-                  <td className={styles.cell} style={{ textAlign: "center" }}>{getCustomerFullName(row)}</td>
+                  <td className={styles.cell} style={{ textAlign: "center", color: "#2563eb", fontWeight: 700 }}>{row.offerItem?.salesPrice || "—"}</td>
+                  <td className={styles.cell} style={{ textAlign: "center" }}>{getCustomerFullName(row, customers)}</td>
                   <td className={styles.cell} style={{ textAlign: "center" }}>{row.seller || row.createdByName || "—"}</td>
                   <td className={styles.cell} style={{ textAlign: "center" }}>
                     <div style={{ fontSize: "0.85rem" }}>

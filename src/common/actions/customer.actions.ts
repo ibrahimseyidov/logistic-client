@@ -23,6 +23,13 @@ export async function fetchCustomersAction(): Promise<any[]> {
   return res.data;
 }
 
+export async function fetchCustomerDetailAction(id: string | number): Promise<any> {
+  const token = getAuthToken();
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const res = await axios.get(buildApiUrl(`/api/customer/${id}`), { headers });
+  return res.data;
+}
+
 export async function createCustomerAction(data: any): Promise<any> {
   const token = getAuthToken();
   const headers = token ? { Authorization: `Bearer ${token}` } : {};

@@ -22,6 +22,7 @@ import {
   updateQueryAction,
   approveQueryAction,
 } from "../../common/actions/query.actions";
+import { fetchCustomersAction } from "../../common/actions/customer.actions";
 import PriceOfferSelectionModal from "./components/PriceOfferSelectionModal";
 import { useSorgularPagination } from "./hooks/useSorgularPagination";
 import { applyFilters, filterByTab } from "./lib/filterSorgular";
@@ -55,6 +56,7 @@ export default function SorgularPage() {
     useState<FilterFormState>(emptyFilterForm);
   const [isNewOpen, setIsNewOpen] = useState(false);
   const [rows, setRows] = useState<LogisticQueryRow[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editRow, setEditRow] = useState<LogisticQueryRow | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -110,6 +112,17 @@ export default function SorgularPage() {
           setLoading(false);
         }
       });
+
+    fetchCustomersAction()
+      .then((data) => {
+        if (!ignore) {
+          setCustomers(data);
+        }
+      })
+      .catch((err) => {
+        console.error("Customers fetch failed", err);
+      });
+
     return () => {
       ignore = true;
     };
@@ -216,7 +229,7 @@ export default function SorgularPage() {
       return;
     }
     
-    exportSorgularToExcel(filteredRows);
+    exportSorgularToExcel(filteredRows, customers);
     
     dispatch(
       showNotification({
@@ -400,12 +413,14 @@ export default function SorgularPage() {
           subTab === "offers" ? (
             <SorgularOffersTable 
               rows={paginatedRows} 
+              customers={customers}
               onDeleteOffer={handleDeleteOffer}
               onEditQuery={handleEditQuery}
             />
           ) : (
             <SorgularTable 
               rows={paginatedRows} 
+              customers={customers}
               onUpdate={handleRowUpdate}
               onDelete={handleRowDelete}
               onApproveStatus={handleApproveRequest}

@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from "react";
 import Loading from "../../../common/components/loading/Loading";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { FaArrowLeft, FaHistory, FaPlus, FaRedo } from "react-icons/fa";
+import { FaArrowLeft, FaEdit, FaHistory, FaRedo } from "react-icons/fa";
 import {
   buildSorguDetailView,
   type SorguDetailTabId,
@@ -25,6 +25,7 @@ import { QueryDocumentsList } from "./components/QueryDocumentsList";
 import { showNotification } from "../../../common/store/modalSlice";
 import { useAppDispatch } from "../../../common/store/hooks";
 import { ConfirmModal } from "../../../common/components/ConfirmModal";
+import { SorgularEditModal, type NewSorguFormPayload } from "../components";
 
 function SectionCard({
   title,
@@ -87,6 +88,7 @@ export default function SorguDetailPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
   // Detay verisini backend'den çek
   const loadDetail = async () => {
@@ -187,6 +189,30 @@ export default function SorguDetailPage() {
     }
   };
 
+  const handleEditSubmit = async (payload: NewSorguFormPayload) => {
+    if (!row) return;
+    try {
+      await updateQueryAction(row.id, payload.fields);
+      setIsEditOpen(false);
+      await loadDetail();
+      dispatch(
+        showNotification({
+          message: "Sorğu uğurla yeniləndi.",
+          type: "success",
+          autoCloseDuration: 2500,
+        }),
+      );
+    } catch {
+      dispatch(
+        showNotification({
+          message: "Redaktə zamanı xəta baş verdi.",
+          type: "error",
+          autoCloseDuration: 3000,
+        }),
+      );
+    }
+  };
+
   if (loading)
     return (
       <div style={{ position: "relative", minHeight: 320 }}>
@@ -240,8 +266,8 @@ export default function SorguDetailPage() {
       <div className={styles.layout}>
         <aside className={styles.sidebar}>
           <div className={styles.card}>
-            <button type="button" className={styles.editBtn}>
-              <FaPlus /> Redaktə et
+            <button type="button" className={styles.editBtn} onClick={() => setIsEditOpen(true)}>
+              <FaEdit /> Redaktə et
             </button>
             <div
               style={{
@@ -467,6 +493,16 @@ export default function SorguDetailPage() {
           setDocToDelete(null);
         }}
         isLoading={isDeleting}
+      />
+
+      <SorgularEditModal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        onSubmit={handleEditSubmit}
+        title="Sorğunu redaktə et"
+        description="Sorğu məlumatlarını dəyişdirin."
+        submitLabel="Yadda saxla"
+        initialValues={row || undefined}
       />
     </div>
   );

@@ -2,12 +2,18 @@ import React, { useState, useEffect } from "react";
 import styles from "./SorgularNewModal.module.css";
 import { FiX, FiPlus, FiTrash2 } from "react-icons/fi";
 import Select from "../../../common/components/select/Select";
+import { fetchLookupAction } from "../../../common/actions/lookup.actions";
+import { LookupManagerModal } from "../../../common/components/modal/LookupManagerModal";
 
 interface PriceOfferItem {
   id: string;
   carrierName: string;
   price: string;
+  expense?: string;
   currency: string;
+  totalPrice?: string;
+  totalCurrency?: string;
+  salesPrice?: string;
   notes: string;
   createdAt: string;
 }
@@ -29,6 +35,32 @@ export const SorgularOfferModal: React.FC<Props> = ({
 }) => {
   const [offers, setOffers] = useState<PriceOfferItem[]>([]);
   const [isVisible, setIsVisible] = useState(false);
+  const [carrierOptions, setCarrierOptions] = useState<{ value: string; label: string }[]>([]);
+  const [isLookupModalOpen, setIsLookupModalOpen] = useState(false);
+
+  const loadCarriers = async () => {
+    try {
+      const data = await fetchLookupAction("carriers");
+      setCarrierOptions(data.map((item) => ({ value: item.value, label: item.value })));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      loadCarriers();
+    }
+  }, [isOpen]);
+
+  const getCarrierOptionsForValue = (val: string) => {
+    if (!val) return carrierOptions;
+    const exists = carrierOptions.some((opt) => opt.value === val);
+    if (!exists) {
+      return [...carrierOptions, { value: val, label: val }];
+    }
+    return carrierOptions;
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -47,7 +79,11 @@ export const SorgularOfferModal: React.FC<Props> = ({
       id: crypto.randomUUID(),
       carrierName: "",
       price: "",
-      currency: "USD",
+      expense: "",
+      currency: "EUR",
+      totalPrice: "",
+      totalCurrency: "EUR",
+      salesPrice: "",
       notes: "",
       createdAt: new Date().toISOString(),
     };
@@ -107,19 +143,54 @@ export const SorgularOfferModal: React.FC<Props> = ({
             ) : (
               <div className={styles.cargoStack}>
                 {offers.map((offer, index) => (
-                  <div key={offer.id} className={styles.cargoCard} style={{ position: "relative" }}>
+                  <div key={offer.id} className={styles.cargoCard}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                      <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#475569" }}>Təklif #{index + 1}</span>
+                      <button
+                        type="button"
+                        className={styles.circleButtonDanger}
+                        onClick={() => handleRemoveOffer(offer.id)}
+                      >
+                        <FiTrash2 />
+                      </button>
+                    </div>
                     <div className={styles.threeColumnGrid}>
-                      <label className={styles.fieldStack}>
+                      <div className={styles.fieldStack}>
                         <span className={styles.label}>Daşıyıcı Adı</span>
-                        <input
-                          className={styles.input}
-                          value={offer.carrierName}
-                          onChange={(e) => handleChange(offer.id, "carrierName", e.target.value)}
-                          placeholder="Məs: Maersk"
-                        />
-                      </label>
+                        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <Select
+                              value={offer.carrierName}
+                              onChange={(val) => handleChange(offer.id, "carrierName", val)}
+                              options={getCarrierOptionsForValue(offer.carrierName)}
+                              placeholder="Daşıyıcı seçin"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsLookupModalOpen(true)}
+                            style={{
+                              width: "38px",
+                              height: "38px",
+                              flexShrink: 0,
+                              background: "#e2e8f0",
+                              border: "1px solid #cbd5e1",
+                              borderRadius: "0.375rem",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontWeight: "bold",
+                              color: "#475569"
+                            }}
+                            title="Yeni daşıyıcı əlavə et"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
                       <label className={styles.fieldStack}>
-                        <span className={styles.label}>Qiymət</span>
+                        <span className={styles.label}>Alış qiyməti</span>
                         <input
                           className={styles.input}
                           type="number"
@@ -129,16 +200,59 @@ export const SorgularOfferModal: React.FC<Props> = ({
                         />
                       </label>
                       <label className={styles.fieldStack}>
+                        <span className={styles.label}>Xərc</span>
+                        <input
+                          className={styles.input}
+                          type="number"
+                          value={offer.expense || ""}
+                          onChange={(e) => handleChange(offer.id, "expense", e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </label>
+                      <label className={styles.fieldStack}>
                         <span className={styles.label}>Valyuta</span>
                         <Select
                           value={offer.currency}
                           onChange={(val) => handleChange(offer.id, "currency", val)}
                           options={[
-                            { value: "USD", label: "USD" },
                             { value: "EUR", label: "EUR" },
+                            { value: "USD", label: "USD" },
                             { value: "AZN", label: "AZN" },
                             { value: "TRY", label: "TRY" },
                           ]}
+                        />
+                      </label>
+                      <label className={styles.fieldStack}>
+                        <span className={styles.label}>Total qiymət</span>
+                        <input
+                          className={styles.input}
+                          type="number"
+                          value={offer.totalPrice || ""}
+                          onChange={(e) => handleChange(offer.id, "totalPrice", e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </label>
+                      <label className={styles.fieldStack}>
+                        <span className={styles.label}>Total valyuta</span>
+                        <Select
+                          value={offer.totalCurrency || "EUR"}
+                          onChange={(val) => handleChange(offer.id, "totalCurrency", val)}
+                          options={[
+                            { value: "EUR", label: "EUR" },
+                            { value: "USD", label: "USD" },
+                            { value: "AZN", label: "AZN" },
+                            { value: "TRY", label: "TRY" },
+                          ]}
+                        />
+                      </label>
+                      <label className={styles.fieldStack}>
+                        <span className={styles.label}>Satış qiyməti</span>
+                        <input
+                          className={styles.input}
+                          type="number"
+                          value={offer.salesPrice || ""}
+                          onChange={(e) => handleChange(offer.id, "salesPrice", e.target.value)}
+                          placeholder="0.00"
                         />
                       </label>
                     </div>
@@ -154,14 +268,6 @@ export const SorgularOfferModal: React.FC<Props> = ({
                         />
                       </label>
                     </div>
-                    <button
-                      type="button"
-                      className={styles.circleButtonDanger}
-                      onClick={() => handleRemoveOffer(offer.id)}
-                      style={{ position: "absolute", top: "0.5rem", right: "0.5rem" }}
-                    >
-                      <FiTrash2 />
-                    </button>
                   </div>
                 ))}
               </div>
@@ -178,6 +284,15 @@ export const SorgularOfferModal: React.FC<Props> = ({
           </button>
         </div>
       </aside>
+      <LookupManagerModal
+        isOpen={isLookupModalOpen}
+        onClose={() => setIsLookupModalOpen(false)}
+        lookupType="carriers"
+        title="Daşıyıcılar siyahısı"
+        onDataChanged={(newData) => {
+          setCarrierOptions(newData.map((item) => ({ value: item.value, label: item.value })));
+        }}
+      />
     </div>
   );
 };

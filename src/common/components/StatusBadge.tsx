@@ -2,7 +2,7 @@ import { FiInfo } from "react-icons/fi";
 import * as Popover from "@radix-ui/react-popover";
 
 // İngilizce status -> Azerice label çevirisi
-function statusLabelAz(value: string): string {
+export function statusLabelAz(value: string): string {
   const v = value.toLowerCase();
   if (v === "pending") return "Gözləmədə";
   if (v === "completed") return "Tamamlandı";
@@ -11,7 +11,7 @@ function statusLabelAz(value: string): string {
     return "Ləğv edildi";
   return value;
 }
-type StatusTone =
+export type StatusTone =
   | "amber"
   | "cyan"
   | "emerald"
@@ -20,7 +20,7 @@ type StatusTone =
   | "sky"
   | "violet";
 
-const toneClasses: Record<
+export const toneClasses: Record<
   StatusTone,
   {
     badge: string;

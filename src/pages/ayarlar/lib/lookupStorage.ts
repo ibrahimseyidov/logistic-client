@@ -3,6 +3,7 @@ import type { LookupOptionRow } from "../types/lookup.types";
 const STORAGE_KEYS = {
   "cargo-specs": "logistic_settings_cargo_specs",
   incoterms: "logistic_settings_incoterms",
+  "transport-types": "logistic_settings_transport_types",
 } as const;
 
 export type LookupStorageKey = keyof typeof STORAGE_KEYS;

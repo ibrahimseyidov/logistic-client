@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import type { LogisticQueryRow } from "../types/sorgu.types";
 
-export const exportSorgularToExcel = async (rows: LogisticQueryRow[]) => {
+export const exportSorgularToExcel = async (rows: LogisticQueryRow[], customers?: any[]) => {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("Sorğular");
 
@@ -47,15 +47,23 @@ export const exportSorgularToExcel = async (rows: LogisticQueryRow[]) => {
       return new Date(iso).toLocaleDateString("az-AZ");
     };
 
+    const customerText = String((row as any).customer || "");
+    const foundCustomer = Array.isArray(customers)
+      ? customers.find(c => c.id?.toString() === customerText)
+      : null;
+    const customerName = foundCustomer
+      ? (foundCustomer.name || foundCustomer.companyName || foundCustomer.fullName)
+      : ((row as any).customerName || (row as any).customer?.fullName || customerText || "—");
+
     const addedRow = worksheet.addRow({
       number: row.number || "—",
       status: row.status || "—",
       createdAt: formatDate(row.createdAt),
       cargo: cargoSummary,
-      sender: row.sender || "—",
+      sender: (row as any).loadPlaceCompany || row.sender || "—",
       loadDate: formatDate(row.loadDate),
       unloadDate: formatDate(row.unloadDate),
-      customer: (row as any).customerName || (row as any).customer?.fullName || "—",
+      customer: customerName,
       company: row.company || "—",
       seller: row.seller || "—",
     });

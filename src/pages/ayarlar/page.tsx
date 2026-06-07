@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams, Navigate } from "react-router-dom";
 import { useAuth } from "../../common/contexts/AuthContext";
-import { INCOTERMS_OPTIONS } from "../sorgular/constants/options.constants";
+import { INCOTERMS_OPTIONS, CARGO_TRANSPORT_OPTIONS } from "../sorgular/constants/options.constants";
 import {
   parseAyarlarTab,
   type AyarlarTab,
@@ -66,6 +66,14 @@ const AyarlarPage: React.FC = () => {
       )}
 
       {activeTab === "contact-persons" && <ContactPersonsSection />}
+
+      {activeTab === "transport-types" && (
+        <LookupOptionsSection
+          storageKey="transport-types"
+          title="Nəqliyyat tipləri"
+          seed={CARGO_TRANSPORT_OPTIONS}
+        />
+      )}
     </div>
   );
 };

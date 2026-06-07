@@ -255,6 +255,16 @@ export default function Sidebar() {
                   >
                     Əlaqədar şəxslər
                   </Link>
+                  <Link
+                    to="/ayarlar?tab=transport-types"
+                    className={`${styles.subItem} ${
+                      isAyarlarSection && ayarlarTab === "transport-types"
+                        ? styles.subItemActive
+                        : ""
+                    }`}
+                  >
+                    Nəqliyyat tipləri
+                  </Link>
                 </div>
               </div>
             </div>

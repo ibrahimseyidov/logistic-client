@@ -29,6 +29,7 @@ import { fetchContactPersonsAction, createContactPersonAction } from "../../../c
 import { fetchLookupAction, createLookupAction } from "../../../common/actions/lookup.actions";
 import { createCustomerAction, fetchCustomersAction } from "../../../common/actions/customer.actions";
 import { LookupManagerModal } from "../../../common/components/modal/LookupManagerModal";
+import { fetchLookupOptions } from "../../ayarlar/lib/lookupStorage";
 
 // Zorunlu alanlar
 const requiredFields = [
@@ -70,7 +71,6 @@ const contractOptions = placeholderOpts([
 ]);
 const simpleSelect = placeholderOpts();
 const countryOptions = placeholderOpts(COUNTRY_OPTIONS);
-const cargoTransportOptions = placeholderOpts(CARGO_TRANSPORT_OPTIONS);
 const transportParentKindOptions = placeholderOpts(TRANSPORT_PARENT_KIND_OPTIONS);
 const cargoCurrencyOptions = placeholderOpts(CARGO_CURRENCY_OPTIONS);
 const packagingTypeOptions = placeholderOpts(PACKAGING_TYPE_OPTIONS);
@@ -353,18 +353,16 @@ export default function SorgularNewModal({
         : [createCargoItem()];
     return raw.map(normalizeCargoItem);
   });
-  const [transportTypeModalOpen, setTransportTypeModalOpen] = useState(false);
-  const [newTransportName, setNewTransportName] = useState("");
-  const [newTransportParentKind, setNewTransportParentKind] =
-    useState("avtoreys");
-  const [newTransportActive, setNewTransportActive] = useState(true);
+
 
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerManager, setNewCustomerManager] = useState("");
   const [newCustomerContact, setNewCustomerContact] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [newCustomerEmail, setNewCustomerEmail] = useState("");
   const [newCustomerAddress, setNewCustomerAddress] = useState("");
+  const [cargoTransportOptions, setCargoTransportOptions] = useState<SelectOption[]>([]);
 
   // Query modelinde olup eksik olan state'ler (hepsi burada, blok dışında):
   const [createdAt, setCreatedAt] = useState(initialValues?.createdAt ?? "");
@@ -390,33 +388,14 @@ export default function SorgularNewModal({
   const [seller, setSeller] = useState(initialValues?.seller ?? "");
   const [purpose, setPurpose] = useState(initialValues?.purpose ?? "");
 
-  const openNewTransportTypeModal = useCallback(() => {
-    setNewTransportName("");
-    setNewTransportParentKind("avtoreys");
-    setNewTransportActive(true);
-    setTransportTypeModalOpen(true);
-  }, []);
 
-  const closeNewTransportTypeModal = useCallback(() => {
-    setTransportTypeModalOpen(false);
-  }, []);
-
-  const saveNewTransportTypeModal = useCallback(() => {
-    dispatch(
-      showNotification({
-        message: "Nəqliyyat tipi yadda saxlanıldı (demo).",
-        type: "success",
-        autoCloseDuration: 3200,
-      }),
-    );
-    setTransportTypeModalOpen(false);
-  }, [dispatch]);
 
   const openNewCustomerModal = useCallback(() => {
     setNewCustomerName("");
     setNewCustomerManager("");
     setNewCustomerContact("");
     setNewCustomerPhone("");
+    setNewCustomerEmail("");
     setNewCustomerAddress("");
     setCustomerModalOpen(true);
   }, []);
@@ -436,6 +415,7 @@ export default function SorgularNewModal({
         manager: newCustomerManager,
         contactPerson: newCustomerContact,
         phone: newCustomerPhone,
+        email: newCustomerEmail,
         address: newCustomerAddress,
       };
       await createCustomerAction(payload);
@@ -470,6 +450,7 @@ export default function SorgularNewModal({
     newCustomerManager,
     newCustomerContact,
     newCustomerPhone,
+    newCustomerEmail,
     newCustomerAddress,
     dispatch
   ]);
@@ -505,6 +486,8 @@ export default function SorgularNewModal({
   useEffect(() => {
     if (isOpen) {
       loadData();
+      const opts = fetchLookupOptions("transport-types", CARGO_TRANSPORT_OPTIONS);
+      setCargoTransportOptions(placeholderOpts(opts.map((opt: any) => ({ value: opt.value, label: opt.label }))));
     }
   }, [isOpen, loadData]);
 
@@ -684,24 +667,22 @@ export default function SorgularNewModal({
 
   useEffect(() => {
     if (!isOpen) {
-      setTransportTypeModalOpen(false);
       setCustomerModalOpen(false);
     }
   }, [isOpen]);
 
   useEffect(() => {
-    if (!transportTypeModalOpen && !customerModalOpen) return undefined;
+    if (!customerModalOpen) return undefined;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setTransportTypeModalOpen(false);
         setCustomerModalOpen(false);
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [transportTypeModalOpen, customerModalOpen]);
+  }, [customerModalOpen]);
 
   if (!mounted) return null;
 
@@ -755,7 +736,7 @@ export default function SorgularNewModal({
   });
 
   const userOpts = placeholderOpts(usersData.map((u: any) => ({ value: u.id?.toString(), label: u.name })));
-  const contactOpts = placeholderOpts(contactsData.map((c: any) => ({ value: c.id?.toString(), label: c.fullName })));
+  const contactOpts = placeholderOpts(contactsData.map((c: any) => ({ value: c.id?.toString(), label: c.position ? `${c.fullName} (${c.position})` : c.fullName })));
   const customerOpts = placeholderOpts(customersData.map((c: any) => ({ value: c.id?.toString(), label: c.name || c.companyName || c.fullName })));
   const tagOpts = placeholderOpts(tagsData.map((t: any) => ({ value: t.value, label: t.value })));
   const sourceOpts = placeholderOpts(sourcesData.map((s: any) => ({ value: s.value, label: s.value })));
@@ -1220,26 +1201,17 @@ export default function SorgularNewModal({
                         </div>
                         <div className={styles.fieldWide}>
                           <Label>Nəqliyyatın tipi</Label>
-                          <div className={styles.inlineControlRow}>
-                            <div className={styles.grow}>
-                              <Select
-                                value={cargo.transportType}
-                                options={cargoTransportOptions}
-                                onChange={(value) =>
-                                  patchCargo(cargo.id, {
-                                    transportType: value,
-                                  })
-                                }
-                                placeholder="Dəyəri seçin"
-                                className={styles.selectControl}
-                              />
-                            </div>
-                            <PlusButton
-                              variant="emerald"
-                              title="Yeni nəqliyyat tipi"
-                              onClick={openNewTransportTypeModal}
-                            />
-                          </div>
+                          <Select
+                            value={cargo.transportType}
+                            options={cargoTransportOptions}
+                            onChange={(value) =>
+                              patchCargo(cargo.id, {
+                                transportType: value,
+                              })
+                            }
+                            placeholder="Dəyəri seçin"
+                            className={styles.selectControl}
+                          />
                         </div>
                         <div className={styles.fieldMedium}>
                           <Label>Yükün dəyəri</Label>
@@ -1480,88 +1452,7 @@ export default function SorgularNewModal({
         </div>
       </div>
 
-      {transportTypeModalOpen ? (
-        <div
-          className={styles.nestedRoot}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="transport-type-new-title"
-        >
-          <button
-            type="button"
-            className={styles.nestedBackdrop}
-            aria-label="Bağla"
-            onClick={closeNewTransportTypeModal}
-          />
-          <div
-            className={styles.nestedCard}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className={styles.nestedHeader}>
-              <h2 id="transport-type-new-title" className={styles.nestedTitle}>
-                Nəqliyyatın yeni tipi
-              </h2>
-              <button
-                type="button"
-                className={styles.nestedCloseButton}
-                onClick={closeNewTransportTypeModal}
-                aria-label="Bağla"
-              >
-                ×
-              </button>
-            </div>
 
-            <div className={styles.nestedBody}>
-              <div className={styles.verticalStack}>
-                <div className={styles.fieldStack}>
-                  <ModalSentenceLabel required>Adı</ModalSentenceLabel>
-                  <input
-                    className={styles.input}
-                    value={newTransportName}
-                    onChange={(event) =>
-                      setNewTransportName(event.target.value)
-                    }
-                    autoComplete="off"
-                  />
-                </div>
-                <div className={styles.fieldStack}>
-                  <ModalSentenceLabel required>
-                    Nəqliyyatın tipi
-                  </ModalSentenceLabel>
-                  <Select
-                    value={newTransportParentKind}
-                    options={transportParentKindOptions}
-                    onChange={setNewTransportParentKind}
-                    placeholder="Dəyəri seçin"
-                    className={styles.selectControl}
-                  />
-                </div>
-                <label className={styles.checkboxRow}>
-                  <input
-                    type="checkbox"
-                    className={styles.checkbox}
-                    checked={newTransportActive}
-                    onChange={(event) =>
-                      setNewTransportActive(event.target.checked)
-                    }
-                  />
-                  <span className={styles.helperText}>Aktiv</span>
-                </label>
-              </div>
-            </div>
-
-            <div className={styles.nestedFooter}>
-              <button
-                type="button"
-                className={styles.nestedPrimaryButton}
-                onClick={saveNewTransportTypeModal}
-              >
-                Yaddaşda saxlamaq
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {customerModalOpen ? (
         <div
@@ -1607,11 +1498,15 @@ export default function SorgularNewModal({
                 </div>
                 <div className={styles.fieldStack}>
                   <ModalSentenceLabel>Menecer</ModalSentenceLabel>
-                  <input
-                    className={styles.input}
+                  <Select
                     value={newCustomerManager}
-                    onChange={(event) => setNewCustomerManager(event.target.value)}
-                    autoComplete="off"
+                    options={usersData.map((u: any) => ({
+                      value: u.name,
+                      label: u.name,
+                    }))}
+                    onChange={setNewCustomerManager}
+                    placeholder="Menecer seçin"
+                    className={styles.selectControl}
                   />
                 </div>
                 <div className={styles.fieldStack}>
@@ -1629,6 +1524,16 @@ export default function SorgularNewModal({
                     className={styles.input}
                     value={newCustomerPhone}
                     onChange={(event) => setNewCustomerPhone(event.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+                <div className={styles.fieldStack}>
+                  <ModalSentenceLabel>E-mail</ModalSentenceLabel>
+                  <input
+                    className={styles.input}
+                    type="email"
+                    value={newCustomerEmail}
+                    onChange={(event) => setNewCustomerEmail(event.target.value)}
                     autoComplete="off"
                   />
                 </div>
