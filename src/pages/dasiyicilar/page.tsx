@@ -2,21 +2,21 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import styles from "./musteriler.module.css";
+import styles from "./dasiyicilar.module.css";
 import sorguLayoutStyles from "../sorgular/sorgular.module.css";
 import sorguActionBarStyles from "../sorgular/components/SorgularActionBar.module.css";
 import sorguTableStyles from "../sorgular/components/SorgularTable.module.css";
 import Select from "../../common/components/select/Select";
 import type { SelectOption } from "../../common/components/select/Select";
-import { MOCK_ROWS, type CustomerRow } from "./data";
+import { MOCK_ROWS, type CarrierRow } from "./data";
 import { FiFilePlus, FiFilter, FiX } from "react-icons/fi";
 import { FaEdit, FaTrash } from "react-icons/fa";
 import {
-  fetchCustomersAction,
-  createCustomerAction,
-  updateCustomerAction,
-  deleteCustomerAction,
-} from "../../common/actions/customer.actions";
+  fetchCarriersAction,
+  createCarrierAction,
+  updateCarrierAction,
+  deleteCarrierAction,
+} from "../../common/actions/carrier.actions";
 import { fetchContactPersonsAction, ContactPersonRow, createContactPersonAction } from "../../common/actions/contact.actions";
 import { useAppDispatch } from "../../common/store/hooks";
 import { showNotification } from "../../common/store/modalSlice";
@@ -35,23 +35,23 @@ const STATUS_OPTIONS: SelectOption[] = [
 
 const TYPE_OPTIONS: SelectOption[] = [
   ...PLACEHOLDER,
-  { value: "new", label: "Yeni müştəri" },
+  { value: "new", label: "Yeni daşıyıcı" },
   { value: "corporate", label: "Korporativ" },
 ];
 
-export default function MusterilerPage() {
+export default function DasiyicilarPage() {
   const dispatch = useAppDispatch();
   const PAGE_SIZE = 12;
-  const [rows, setRows] = useState<CustomerRow[]>([]);
+  const [rows, setRows] = useState<CarrierRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activePanel, setActivePanel] = useState<"filter" | "new" | "edit" | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [customerIdToDelete, setCustomerIdToDelete] = useState<string | null>(null);
+  const [carrierIdToDelete, setCarrierIdToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [newForm, setNewForm] = useState({
     company: "",
     shortName: "",
-    customerType: "",
+    carrierType: "",
     activityType: "",
     voen: "",
     manager: "",
@@ -63,12 +63,12 @@ export default function MusterilerPage() {
     creditLimit: "0",
     salesGroup: "",
   });
-  const [newCustomerTab, setNewCustomerTab] = useState<"main" | "contact">("main");
+  const [newCarrierTab, setNewCarrierTab] = useState<"main" | "contact">("main");
   const [filterDraft, setFilterDraft] = useState({
     author: "",
     counterparty: "",
     status: "",
-    customerType: "",
+    carrierType: "",
     documentNo: "",
     registerNo: "",
     dateFrom: "",
@@ -79,19 +79,19 @@ export default function MusterilerPage() {
     author: "",
     counterparty: "",
     status: "",
-    customerType: "",
+    carrierType: "",
     documentNo: "",
     registerNo: "",
     dateFrom: "",
     dateTo: "",
     daysSinceLastContact: "",
   });
-  const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
+  const [editingCarrierId, setEditingCarrierId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [editForm, setEditForm] = useState({
     company: "",
     shortName: "",
-    customerType: "",
+    carrierType: "",
     activityType: "",
     voen: "",
     manager: "",
@@ -184,9 +184,9 @@ export default function MusterilerPage() {
         return false;
       }
       if (
-        appliedFilter.customerType &&
-        row.customerType !==
-          TYPE_OPTIONS.find((x) => x.value === appliedFilter.customerType)?.label
+        appliedFilter.carrierType &&
+        row.carrierType !==
+          TYPE_OPTIONS.find((x) => x.value === appliedFilter.carrierType)?.label
       ) {
         return false;
       }
@@ -224,7 +224,7 @@ export default function MusterilerPage() {
     [appliedFilter],
   );
 
-  const activeCustomersCount = useMemo(
+  const activeCarriersCount = useMemo(
     () => filteredRows.filter((row) => row.salesGroup !== "Xəta").length,
     [filteredRows],
   );
@@ -236,27 +236,27 @@ export default function MusterilerPage() {
   );
 
   useEffect(() => {
-    loadCustomers();
+    loadCarriers();
   }, []);
 
-  const loadCustomers = async () => {
+  const loadCarriers = async () => {
     setLoading(true);
     try {
       const [data, queries] = await Promise.all([
-        fetchCustomersAction(),
+        fetchCarriersAction(),
         fetchQueriesAction()
       ]);
       // Backend datalarını frontend formatına çevir
-      const mapped: CustomerRow[] = data.map((c: any) => {
-        const customerQueriesCount = queries.filter((q: any) => {
-          const qCust = typeof q.customer === "object" && q.customer ? q.customer.id : q.customer;
+      const mapped: CarrierRow[] = data.map((c: any) => {
+        const carrierQueriesCount = queries.filter((q: any) => {
+          const qCust = typeof q.carrier === "object" && q.carrier ? q.carrier.id : q.carrier;
           return String(qCust) === String(c.id);
         }).length;
 
         return {
           id: String(c.id),
           company: c.name || c.company || "-",
-          customerType: c.customerType || "Yeni müştəri",
+          carrierType: c.carrierType || "Yeni daşıyıcı",
           contactPerson: c.contactPerson || "-",
           contactPersons: c.contactPersons || [],
           contactInfo: c.phone || "-",
@@ -268,7 +268,7 @@ export default function MusterilerPage() {
             ? c.daysSinceLastContact 
             : (c.id === "1" ? 0 : c.id === "2" ? 18 : c.id === "3" ? 14 : (parseInt(c.id, 10) % 25 || 5)),
           orderCount: 0,
-          queriesCount: customerQueriesCount,
+          queriesCount: carrierQueriesCount,
           salesGroup: c.company || "-",
         };
       });
@@ -276,7 +276,7 @@ export default function MusterilerPage() {
     } catch (error) {
       dispatch(
         showNotification({
-          message: "Müştərilər yüklənərkən xata baş verdi",
+          message: "Daşıyıcılər yüklənərkən xata baş verdi",
           type: "error",
         }),
       );
@@ -326,7 +326,7 @@ export default function MusterilerPage() {
       author: "",
       counterparty: "",
       status: "",
-      customerType: "",
+      carrierType: "",
       documentNo: "",
       registerNo: "",
       dateFrom: "",
@@ -337,12 +337,12 @@ export default function MusterilerPage() {
     setAppliedFilter(empty);
   };
 
-  const handleCreateCustomer = async () => {
+  const handleCreateCarrier = async () => {
     if (!newForm.company.trim()) return;
     try {
       const payload = {
         name: newForm.company.trim(),
-        customerType: TYPE_OPTIONS.find((x) => x.value === newForm.customerType)?.label || "Yeni müştəri",
+        carrierType: TYPE_OPTIONS.find((x) => x.value === newForm.carrierType)?.label || "Yeni daşıyıcı",
         manager: newForm.manager.trim(),
         contactPersons: newForm.contactPersons,
         contactPerson: newForm.contactPerson || "",
@@ -356,20 +356,20 @@ export default function MusterilerPage() {
         creditLimit: newForm.creditLimit.trim(),
         salesGroup: newForm.salesGroup.trim(),
       };
-      await createCustomerAction(payload);
+      await createCarrierAction(payload);
       dispatch(
         showNotification({
-          message: "Müştəri uğurla yaradıldı",
+          message: "Daşıyıcı uğurla yaradıldı",
           type: "success",
         }),
       );
-      loadCustomers();
+      loadCarriers();
       setActivePanel(null);
-      setNewCustomerTab("main");
+      setNewCarrierTab("main");
       setNewForm({
         company: "",
         shortName: "",
-        customerType: "",
+        carrierType: "",
         activityType: "",
         voen: "",
         manager: "",
@@ -384,44 +384,44 @@ export default function MusterilerPage() {
     } catch (error) {
       dispatch(
         showNotification({
-          message: "Müştəri yaradılarkən xata baş verdi",
+          message: "Daşıyıcı yaradılarkən xata baş verdi",
           type: "error",
         }),
       );
     }
   };
 
-  const openEditModal = (customer: CustomerRow) => {
-    setEditingCustomerId(customer.id);
+  const openEditModal = (carrier: CarrierRow) => {
+    setEditingCarrierId(carrier.id);
     setEditForm({
-      company: customer.company,
-      shortName: customer.company,
-      customerType: TYPE_OPTIONS.find((x) => x.label === customer.customerType)?.value || customer.customerType,
+      company: carrier.company,
+      shortName: carrier.company,
+      carrierType: TYPE_OPTIONS.find((x) => x.label === carrier.carrierType)?.value || carrier.carrierType,
       activityType: "",
       voen: "",
-      manager: customer.manager,
-      contactPersons: (customer as any).contactPersons || [],
-      contactPerson: customer.contactPerson || "",
-      contactInfo: customer.contactInfo,
-      address: customer.address,
-      country: customer.country || "AZ",
-      creditLimit: customer.creditLimit || "0",
-      salesGroup: customer.salesGroup || "",
+      manager: carrier.manager,
+      contactPersons: (carrier as any).contactPersons || [],
+      contactPerson: carrier.contactPerson || "",
+      contactInfo: carrier.contactInfo,
+      address: carrier.address,
+      country: carrier.country || "AZ",
+      creditLimit: carrier.creditLimit || "0",
+      salesGroup: carrier.salesGroup || "",
     });
     setActivePanel("edit");
   };
 
   const closeEditModal = () => {
-    setEditingCustomerId(null);
+    setEditingCarrierId(null);
     setActivePanel(null);
   };
 
-  const saveEditedCustomer = async () => {
-    if (!editingCustomerId) return;
+  const saveEditedCarrier = async () => {
+    if (!editingCarrierId) return;
     try {
       const payload = {
         name: editForm.company.trim(),
-        customerType: TYPE_OPTIONS.find((x) => x.value === editForm.customerType)?.label || "Yeni müştəri",
+        carrierType: TYPE_OPTIONS.find((x) => x.value === editForm.carrierType)?.label || "Yeni daşıyıcı",
         manager: editForm.manager.trim(),
         contactPersons: editForm.contactPersons,
         contactPerson: editForm.contactPerson || "",
@@ -435,48 +435,48 @@ export default function MusterilerPage() {
         creditLimit: editForm.creditLimit.trim(),
         salesGroup: editForm.salesGroup.trim(),
       };
-      await updateCustomerAction(editingCustomerId, payload);
+      await updateCarrierAction(editingCarrierId, payload);
       dispatch(
         showNotification({
-          message: "Müştəri məlumatları yeniləndi",
+          message: "Daşıyıcı məlumatları yeniləndi",
           type: "success",
         }),
       );
-      loadCustomers();
+      loadCarriers();
       closeEditModal();
     } catch (error) {
       dispatch(
         showNotification({
-          message: "Müştəri yenilənərkən xata baş verdi",
+          message: "Daşıyıcı yenilənərkən xata baş verdi",
           type: "error",
         }),
       );
     }
   };
 
-  const handleDeleteCustomerClick = (customerId: string) => {
-    setCustomerIdToDelete(customerId);
+  const handleDeleteCarrierClick = (carrierId: string) => {
+    setCarrierIdToDelete(carrierId);
     setDeleteConfirmOpen(true);
   };
 
   const handleConfirmDelete = async () => {
-    if (!customerIdToDelete) return;
+    if (!carrierIdToDelete) return;
     setIsDeleting(true);
     try {
-      await deleteCustomerAction(customerIdToDelete);
+      await deleteCarrierAction(carrierIdToDelete);
       dispatch(
         showNotification({
-          message: "Müştəri silindi",
+          message: "Daşıyıcı silindi",
           type: "success",
         }),
       );
-      loadCustomers();
+      loadCarriers();
       setDeleteConfirmOpen(false);
-      setCustomerIdToDelete(null);
+      setCarrierIdToDelete(null);
     } catch (error) {
       dispatch(
         showNotification({
-          message: "Müştəri silinərkən xata baş verdi",
+          message: "Daşıyıcı silinərkən xata baş verdi",
           type: "error",
         }),
       );
@@ -496,7 +496,7 @@ export default function MusterilerPage() {
               onClick={() => setActivePanel("new")}
             >
               <FiFilePlus />
-              Yeni müştəri
+              Yeni daşıyıcı
             </button>
             <button
               type="button"
@@ -513,7 +513,7 @@ export default function MusterilerPage() {
 
           <div className={sorguActionBarStyles.statsGroup}>
             <span className={sorguActionBarStyles.statPill}>Cəmi: {filteredRows.length}</span>
-            <span className={sorguActionBarStyles.statPill}>Aktiv: {activeCustomersCount}</span>
+            <span className={sorguActionBarStyles.statPill}>Aktiv: {activeCarriersCount}</span>
           </div>
           <div className={sorguActionBarStyles.group}>
             <button
@@ -537,7 +537,7 @@ export default function MusterilerPage() {
             <thead className={sorguTableStyles.head}>
               <tr>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min180}`}>Şirkətin adı</th>
-                <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min150}`}>Müştəri tipi</th>
+                <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min150}`}>Daşıyıcı tipi</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min170}`}>Əlaqədar şəxs</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min170}`}>Əlaqə məlumatları</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min180}`}>Ünvan</th>
@@ -561,13 +561,13 @@ export default function MusterilerPage() {
                     className={`${sorguTableStyles.cell} ${sorguTableStyles.nowrap} ${sorguTableStyles.center}`}
                   >
                     <Link
-                      to={`/musteriler/${row.id}`}
+                      to={`/dasiyicilar/${row.id}`}
                       className={sorguTableStyles.link}
                     >
                       {row.company}
                     </Link>
                   </td>
-                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.customerType}</td>
+                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.carrierType}</td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
                     {row.contactPerson && row.contactPerson !== "-"
                       ? row.contactPerson.split(',').map((id: string) => {
@@ -601,7 +601,7 @@ export default function MusterilerPage() {
                       <button
                         type="button"
                         className={`${sorguTableStyles.iconButton} ${sorguTableStyles.deleteButton}`}
-                        onClick={() => handleDeleteCustomerClick(row.id)}
+                        onClick={() => handleDeleteCarrierClick(row.id)}
                         aria-label="Sil"
                         title="Sil"
                       >
@@ -621,7 +621,7 @@ export default function MusterilerPage() {
               {!loading && rows.length === 0 && (
                 <tr>
                   <td colSpan={13} className={sorguTableStyles.center} style={{ padding: "40px" }}>
-                    Müştəri tapılmadı
+                    Daşıyıcı tapılmadı
                   </td>
                 </tr>
               )}
@@ -701,11 +701,11 @@ export default function MusterilerPage() {
                 />
               </label>
               <label className={styles.field}>
-                <span>Müştəri tipi</span>
+                <span>Daşıyıcı tipi</span>
                 <Select
-                  value={filterDraft.customerType}
+                  value={filterDraft.carrierType}
                   options={TYPE_OPTIONS}
-                  onChange={(value) => handleFilterChange("customerType", value)}
+                  onChange={(value) => handleFilterChange("carrierType", value)}
                 />
               </label>
               <label className={styles.field}>
@@ -773,16 +773,16 @@ export default function MusterilerPage() {
 
         {(() => {
           const isNew = activePanel === "new";
-          const isEdit = activePanel === "edit" && editingCustomerId;
+          const isEdit = activePanel === "edit" && editingCarrierId;
           if (!isNew && !isEdit) return null;
           
           const form = isNew ? newForm : editForm;
           const setForm = isNew ? setNewForm : setEditForm;
-          const handleSave = isNew ? handleCreateCustomer : saveEditedCustomer;
-          const title = isNew ? "Yeni müştəri" : "Müştərini redaktə et";
+          const handleSave = isNew ? handleCreateCarrier : saveEditedCarrier;
+          const title = isNew ? "Yeni daşıyıcı" : "Daşıyıcıni redaktə et";
           const description = isNew
-            ? "Müştəri məlumatlarını doldurub yaddaşa əlavə edin."
-            : "Mövcud müştəri məlumatlarını yeniləyin.";
+            ? "Daşıyıcı məlumatlarını doldurub yaddaşa əlavə edin."
+            : "Mövcud daşıyıcı məlumatlarını yeniləyin.";
 
           return (
             <div className={styles.newPanel}>
@@ -831,12 +831,12 @@ export default function MusterilerPage() {
                       />
                     </label>
                     <label className={styles.field}>
-                      <span>Müştəri tipi</span>
+                      <span>Daşıyıcı tipi</span>
                       <Select
-                        value={form.customerType}
+                        value={form.carrierType}
                         options={TYPE_OPTIONS}
                         onChange={(value) =>
-                          setForm((prev: any) => ({ ...prev, customerType: value }))
+                          setForm((prev: any) => ({ ...prev, carrierType: value }))
                         }
                       />
                     </label>
@@ -883,7 +883,7 @@ export default function MusterilerPage() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
                         <span style={{ fontWeight: 600 }}>Əlaqədar şəxslər (Sifarişlər üçün seçilmiş)</span>
                         <div style={{ color: '#64748b', fontSize: '0.8rem', marginBottom: '4px' }}>
-                          Müştəriyə aid bütün şəxsləri sağdakı "İdarə et" düyməsindən yarada bilərsiniz. Yaratdıqdan sonra Sifariş və Sorğularda görünməsini istədiyiniz şəxsləri bu siyahıdan seçin.
+                          Daşıyıcıyə aid bütün şəxsləri sağdakı "İdarə et" düyməsindən yarada bilərsiniz. Yaratdıqdan sonra Sifariş və Sorğularda görünməsini istədiyiniz şəxsləri bu siyahıdan seçin.
                         </div>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                           <div style={{ flex: 1 }}>
@@ -1021,12 +1021,12 @@ export default function MusterilerPage() {
       </aside>
       <ConfirmModal
         isOpen={deleteConfirmOpen}
-        title="Müştərini sil"
-        message="Bu müştərini silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarıla bilməz."
+        title="Daşıyıcıni sil"
+        message="Bu daşıyıcıni silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarıla bilməz."
         onConfirm={handleConfirmDelete}
         onCancel={() => {
           setDeleteConfirmOpen(false);
-          setCustomerIdToDelete(null);
+          setCarrierIdToDelete(null);
         }}
         isLoading={isDeleting}
       />
@@ -1096,7 +1096,7 @@ export default function MusterilerPage() {
                   {((activePanel === "new") ? newForm : editForm).contactPersons.length === 0 ? (
                     <tr>
                       <td colSpan={4} style={{ padding: "16px", textAlign: "center", color: "#94a3b8" }}>
-                        Bu müştəriyə aid heç bir əlaqədar şəxs tapılmadı.
+                        Bu daşıyıcıyə aid heç bir əlaqədar şəxs tapılmadı.
                       </td>
                     </tr>
                   ) : (

@@ -546,9 +546,15 @@ export default function SifarisEditModal({
                     }}
                   >
                     <option value="">Dəyəri seçin</option>
-                    {contactsData.map((c: any) => (
-                      <option key={c.id} value={c.id?.toString()}>{c.fullName}</option>
-                    ))}
+                    {(() => {
+                      const cust = customersData.find((c: any) => c.id?.toString() === customer);
+                      const contacts = cust?.contactPersons || [];
+                      const selectedIds = cust?.contactPerson ? cust.contactPerson.split(',') : null;
+                      const filtered = selectedIds ? contacts.filter((c: any) => selectedIds.includes(String(c.id))) : contacts;
+                      return filtered.map((c: any) => (
+                        <option key={c.id} value={c.fullName}>{c.position ? `${c.fullName} (${c.position})` : c.fullName}</option>
+                      ));
+                    })()}
                   </select>
                 </div>
 

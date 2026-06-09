@@ -12,6 +12,9 @@ import TapshiriqlarPage from "./pages/tapshiriqlar/page";
 import MusterilerPage from "./pages/musteriler/page";
 import MusteriDetailPage from "./pages/musteriler/detail/page";
 import AyarlarPage from "./pages/ayarlar/page";
+import DasiyicilarPage from "./pages/dasiyicilar/page";
+import DasiyiciDetailPage from "./pages/dasiyicilar/detail/page";
+import MaliyyePage from "./pages/maliyye/page";
 import RequireAuth from "./common/components/auth/RequireAuth";
 
 function App() {
@@ -82,6 +85,30 @@ function App() {
               element={
                   <RequireAuth>
                   <AyarlarPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/dasiyicilar"
+              element={
+                <RequireAuth>
+                  <DasiyicilarPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/dasiyicilar/:carrierId"
+              element={
+                <RequireAuth>
+                  <DasiyiciDetailPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/maliyye"
+              element={
+                <RequireAuth>
+                  <MaliyyePage />
                 </RequireAuth>
               }
             />

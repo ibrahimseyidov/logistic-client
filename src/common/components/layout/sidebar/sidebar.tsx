@@ -8,6 +8,8 @@ import {
   FaTasks,
   FaUsers,
   FaCog,
+  FaTruck,
+  FaWallet,
 } from "react-icons/fa";
 import { useSidebarLayout } from "../SidebarLayoutContext";
 import { useAuth } from "../../../contexts/AuthContext";
@@ -193,6 +195,32 @@ export default function Sidebar() {
                 <FaUsers />
               </span>
               Müştərilər
+            </NavLink>
+          </div>
+          <div className={styles.navItem}>
+            <NavLink
+              to="/dasiyicilar"
+              className={({ isActive }) =>
+                `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`
+              }
+            >
+              <span className={styles.navIcon}>
+                <FaTruck />
+              </span>
+              Daşıyıcılar
+            </NavLink>
+          </div>
+          <div className={styles.navItem}>
+            <NavLink
+              to="/maliyye"
+              className={({ isActive }) =>
+                `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`
+              }
+            >
+              <span className={styles.navIcon}>
+                <FaWallet />
+              </span>
+              Maliyyə
             </NavLink>
           </div>
           {user?.roleId === 1 && (

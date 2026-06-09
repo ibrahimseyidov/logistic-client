@@ -20,12 +20,13 @@ export interface SelectOption {
 }
 
 interface SelectProps {
-  value: string;
+  value: any;
   options: SelectOption[];
-  onChange: (value: string) => void;
+  onChange: (value: any) => void;
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  isMulti?: boolean;
 }
 
 export default function Select({
@@ -35,6 +36,7 @@ export default function Select({
   placeholder = "",
   disabled = false,
   className,
+  isMulti = false,
 }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -72,9 +74,25 @@ export default function Select({
     [options, value],
   );
 
-  const displayLabel = selectedOption
-    ? selectedOption.label
-    : placeholder || "";
+  let displayLabel: React.ReactNode = placeholder || "";
+  
+  if (isMulti) {
+    const valArr = Array.isArray(value) ? value : (value ? [value] : []);
+    if (valArr.length > 0) {
+      const selectedLabels = valArr.map(v => options.find(o => o.value === v)?.label || v);
+      displayLabel = (
+        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+          {selectedLabels.map((lbl, idx) => (
+            <span key={idx} style={{ background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px', fontSize: '0.8rem', color: '#1e293b' }}>
+              {lbl}
+            </span>
+          ))}
+        </div>
+      );
+    }
+  } else {
+    displayLabel = selectedOption ? selectedOption.label : placeholder || "";
+  }
 
   useLayoutEffect(() => {
     if (!isOpen) return;
@@ -130,8 +148,18 @@ export default function Select({
 
   const handleSelect = (option: SelectOption) => {
     if (option.disabled) return;
-    onChange(option.value);
-    setIsOpen(false);
+    
+    if (isMulti) {
+      const valArr = Array.isArray(value) ? value : (value ? [value] : []);
+      if (valArr.includes(option.value)) {
+        onChange(valArr.filter((v: any) => v !== option.value));
+      } else {
+        onChange([...valArr, option.value]);
+      }
+    } else {
+      onChange(option.value);
+      setIsOpen(false);
+    }
   };
 
   const filteredOptions = useMemo(() => {
@@ -192,19 +220,23 @@ export default function Select({
               {filteredOptions.length === 0 ? (
                 <div className={styles.empty}>Nəticə tapılmadı</div>
               ) : (
-                filteredOptions.map((option) => (
-                  <div
-                    key={option.value || option.label}
-                    role="option"
-                    aria-selected={option.value === value}
-                    className={`${styles.option} ${
-                      option.value === value ? styles.optionActive : ""
-                    } ${option.disabled ? styles.optionDisabled : ""}`}
-                    onClick={() => handleSelect(option)}
-                  >
-                    {option.label}
-                  </div>
-                ))
+                filteredOptions.map((option) => {
+                  const isSelected = isMulti ? (Array.isArray(value) && value.includes(option.value)) : option.value === value;
+                  return (
+                    <div
+                      key={option.value || option.label}
+                      role="option"
+                      aria-selected={isSelected}
+                      className={`${styles.option} ${
+                        isSelected ? styles.optionActive : ""
+                      } ${option.disabled ? styles.optionDisabled : ""}`}
+                      onClick={() => handleSelect(option)}
+                    >
+                      {option.label}
+                      {isMulti && isSelected && <span style={{ float: 'right' }}>✓</span>}
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>,
