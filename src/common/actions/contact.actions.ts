@@ -1,4 +1,8 @@
-// Mock actions for contact persons since API might not exist yet
+import axios from "axios";
+import { buildApiUrl } from "../../common/utils/fetch.utils";
+
+export type ContactEntityType = "customer" | "carrier";
+
 export interface ContactPersonRow {
   id: string;
   fullName: string;
@@ -6,40 +10,64 @@ export interface ContactPersonRow {
   email: string;
   position: string;
   company: string;
+  entityType?: ContactEntityType;
+  entityId?: number;
 }
 
-let mockContacts: ContactPersonRow[] = [];
-
-export async function fetchContactPersonsAction(): Promise<ContactPersonRow[]> {
-  return new Promise((resolve) => setTimeout(() => resolve([...mockContacts]), 300));
+function getAuthToken() {
+  return localStorage.getItem("token") || "";
 }
 
-export async function createContactPersonAction(data: Omit<ContactPersonRow, "id">): Promise<ContactPersonRow> {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const newContact = { ...data, id: Date.now().toString() };
-      mockContacts = [newContact, ...mockContacts];
-      resolve(newContact);
-    }, 300);
+function getHeaders() {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export async function fetchContactPersonsAction(params?: {
+  entityType?: ContactEntityType;
+  entityId?: string | number;
+}): Promise<ContactPersonRow[]> {
+  const query = new URLSearchParams();
+  if (params?.entityType) query.set("entityType", params.entityType);
+  if (params?.entityId !== undefined && params?.entityId !== "") {
+    query.set("entityId", String(params.entityId));
+  }
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  try {
+    const res = await axios.get(buildApiUrl(`/api/contact-person${suffix}`), {
+      headers: getHeaders(),
+    });
+    return res.data;
+  } catch (err) {
+    console.error("Error fetching contact persons", err);
+    return [];
+  }
+}
+
+export async function createContactPersonAction(
+  data: Omit<ContactPersonRow, "id"> & {
+    entityType: ContactEntityType;
+    entityId?: string | number;
+  },
+): Promise<ContactPersonRow> {
+  const res = await axios.post(buildApiUrl("/api/contact-person"), data, {
+    headers: getHeaders(),
   });
+  return res.data;
 }
 
-export async function updateContactPersonAction(id: string, data: Partial<ContactPersonRow>): Promise<ContactPersonRow> {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      const index = mockContacts.findIndex(c => c.id === id);
-      if (index === -1) return reject(new Error("Contact not found"));
-      mockContacts[index] = { ...mockContacts[index], ...data };
-      resolve(mockContacts[index]);
-    }, 300);
+export async function updateContactPersonAction(
+  id: string,
+  data: Partial<ContactPersonRow>,
+): Promise<ContactPersonRow> {
+  const res = await axios.put(buildApiUrl(`/api/contact-person/${id}`), data, {
+    headers: getHeaders(),
   });
+  return res.data;
 }
 
 export async function deleteContactPersonAction(id: string): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      mockContacts = mockContacts.filter(c => c.id !== id);
-      resolve();
-    }, 300);
+  await axios.delete(buildApiUrl(`/api/contact-person/${id}`), {
+    headers: getHeaders(),
   });
 }

@@ -13,6 +13,8 @@ const headerTitles: Record<string, string> = {
   "/sifarisler": "Sifarişlər",
   "/tapshiriqlar": "Tapşırıqlar",
   "/musteriler": "Müştərilər",
+  "/dasiyicilar": "Daşıyıcılar",
+  "/maliyye": "Maliyyə",
   "/ayarlar": "Ayarlar",
 };
 
@@ -24,6 +26,10 @@ function resolveHeaderTitle(pathname: string): string {
   const musteriRest = pathname.slice("/musteriler/".length);
   if (pathname.startsWith("/musteriler/") && musteriRest.length > 0) {
     return "Müştəri detalı";
+  }
+  const dasiyiciRest = pathname.slice("/dasiyicilar/".length);
+  if (pathname.startsWith("/dasiyicilar/") && dasiyiciRest.length > 0) {
+    return "Daşıyıcı detalı";
   }
   return headerTitles[pathname] ?? "Sorğular";
 }

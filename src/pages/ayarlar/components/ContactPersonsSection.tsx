@@ -77,11 +77,14 @@ export const ContactPersonsSection: React.FC = () => {
       if (selectedContact) {
         const updated = await updateContactPersonAction(selectedContact.id, data);
         setContacts(contacts.map((c) => (c.id === selectedContact.id ? updated : c)));
-        dispatch(showNotification({ message: "Yeniləndi", type: "success" }));
+        dispatch(showNotification({ message: "Yeniləndi", type: "updated" }));
       } else {
-        const created = await createContactPersonAction(data);
+        const created = await createContactPersonAction({
+          ...data,
+          entityType: (data as ContactPersonRow).entityType || "customer",
+        });
         setContacts([created, ...contacts]);
-        dispatch(showNotification({ message: "Yaradıldı", type: "success" }));
+        dispatch(showNotification({ message: "Yaradıldı", type: "added" }));
       }
       setIsModalOpen(false);
     } catch {

@@ -49,3 +49,27 @@ export async function deleteCarrierAction(id: number | string): Promise<void> {
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
   await axios.delete(buildApiUrl(`/api/carrier/${id}`), { headers });
 }
+
+export interface UploadedCarrierDocumentFile {
+  fileName: string;
+  fileUrl: string;
+  fileType: string;
+  fileSize: number;
+}
+
+export async function uploadCarrierDocumentFileAction(
+  file: File,
+): Promise<UploadedCarrierDocumentFile> {
+  const token = getAuthToken();
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await axios.post(
+    buildApiUrl("/api/carrier/documents/upload"),
+    formData,
+    {
+      headers: { ...headers, "Content-Type": "multipart/form-data" },
+    },
+  );
+  return res.data;
+}

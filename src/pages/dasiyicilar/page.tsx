@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef, type ChangeEvent, type Dispatch, type SetStateAction, type MouseEvent } from "react";
 import { Link } from "react-router-dom";
 import styles from "./dasiyicilar.module.css";
+import modalStyles from "../musteriler/musteriler.module.css";
 import sorguLayoutStyles from "../sorgular/sorgular.module.css";
 import sorguActionBarStyles from "../sorgular/components/SorgularActionBar.module.css";
 import sorguTableStyles from "../sorgular/components/SorgularTable.module.css";
 import Select from "../../common/components/select/Select";
 import type { SelectOption } from "../../common/components/select/Select";
-import { MOCK_ROWS, type CarrierRow } from "./data";
+import { buildApiUrl } from "../../common/utils/fetch.utils";
 import { FiFilePlus, FiFilter, FiX } from "react-icons/fi";
 import { FaEdit, FaTrash } from "react-icons/fa";
 import {
@@ -16,15 +17,41 @@ import {
   createCarrierAction,
   updateCarrierAction,
   deleteCarrierAction,
+  uploadCarrierDocumentFileAction,
 } from "../../common/actions/carrier.actions";
 import { fetchContactPersonsAction, ContactPersonRow, createContactPersonAction } from "../../common/actions/contact.actions";
 import { useAppDispatch } from "../../common/store/hooks";
 import { showNotification } from "../../common/store/modalSlice";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { fetchQueriesAction } from "../../common/actions/query.actions";
+import { fetchOrdersAction } from "../../common/actions/order.actions";
 import { fetchUsersAction, UserRow } from "../../common/actions/user.actions";
+import {
+  daysSinceActivityDate,
+  formatActivityDate,
+  getLastCarrierActivityDate,
+  matchesCarrierEntity,
+  queryMatchesCarrier,
+} from "../../common/utils/entityActivity.utils";
+import { fetchLookupAction, LookupRow } from "../../common/actions/lookup.actions";
+import { LookupManagerModal } from "../../common/components/modal/LookupManagerModal";
+import { ContactPersonManagerModal } from "../../common/components/modal/ContactPersonManagerModal";
+import type { ContactPersonFormData } from "../../common/components/modal/ContactPersonFormModal";
+import {
+  parseCarrierDocuments,
+  displayFieldValue,
+  mergeCarrierFormContacts,
+  normalizeCarrierContacts,
+  contactPersonIdsFromList,
+  serializeCarrierDocuments,
+  uploadPendingCarrierDocuments,
+  type CarrierDocumentItem,
+} from "../../common/utils/carrierDisplay.utils";
+import { COUNTRY_OPTIONS } from "../sorgular/constants/options.constants";
 
 const PLACEHOLDER: SelectOption[] = [{ value: "", label: "Dəyəri seçin" }];
+
+type LookupModalType = "carrier-types" | "activity-types" | "countries";
 
 const STATUS_OPTIONS: SelectOption[] = [
   ...PLACEHOLDER,
@@ -33,11 +60,44 @@ const STATUS_OPTIONS: SelectOption[] = [
   { value: "error", label: "Xəta" },
 ];
 
-const TYPE_OPTIONS: SelectOption[] = [
-  ...PLACEHOLDER,
-  { value: "new", label: "Yeni daşıyıcı" },
-  { value: "corporate", label: "Korporativ" },
-];
+function toLookupOptions(data: LookupRow[]): SelectOption[] {
+  return [
+    ...PLACEHOLDER,
+    ...data.map((row) => ({
+      value: row.value,
+      label: row.label || row.value,
+    })),
+  ];
+}
+
+function getLookupLabel(value: string, options: SelectOption[]): string {
+  if (!value) return "";
+  const option = options.find((x) => x.value === value);
+  if (!option || !option.value) return "";
+  return option.label || value;
+}
+
+function resolveLookupValue(stored: string, data: LookupRow[]): string {
+  const trimmed = String(stored ?? "").trim();
+  if (!trimmed || trimmed === "Dəyəri seçin") return "";
+  const byLabel = data.find((x) => x.label === trimmed || x.value === trimmed);
+  return byLabel?.value || trimmed;
+}
+
+const EMPTY_FORM = {
+  company: "",
+  shortName: "",
+  carrierType: "",
+  activityType: "",
+  voen: "",
+  manager: "",
+  contactPersons: [] as ContactPersonRow[],
+  contactPerson: "",
+  contactInfo: "",
+  address: "",
+  country: "AZ",
+  documents: [] as CarrierDocumentItem[],
+};
 
 export default function DasiyicilarPage() {
   const dispatch = useAppDispatch();
@@ -48,21 +108,7 @@ export default function DasiyicilarPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [carrierIdToDelete, setCarrierIdToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [newForm, setNewForm] = useState({
-    company: "",
-    shortName: "",
-    carrierType: "",
-    activityType: "",
-    voen: "",
-    manager: "",
-    contactPersons: [] as string[],
-    contactPerson: "",
-    contactInfo: "",
-    address: "",
-    country: "AZ",
-    creditLimit: "0",
-    salesGroup: "",
-  });
+  const [newForm, setNewForm] = useState({ ...EMPTY_FORM });
   const [newCarrierTab, setNewCarrierTab] = useState<"main" | "contact">("main");
   const [filterDraft, setFilterDraft] = useState({
     author: "",
@@ -88,29 +134,106 @@ export default function DasiyicilarPage() {
   });
   const [editingCarrierId, setEditingCarrierId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [editForm, setEditForm] = useState({
-    company: "",
-    shortName: "",
-    carrierType: "",
-    activityType: "",
-    voen: "",
-    manager: "",
-    contactPersons: [] as string[],
-    contactPerson: "",
-    contactInfo: "",
-    address: "",
-    country: "AZ",
-    creditLimit: "0",
-    salesGroup: "",
-  });
+  const [editForm, setEditForm] = useState({ ...EMPTY_FORM });
+  const [documentDraft, setDocumentDraft] = useState({ number: "", date: "" });
+  const [isDocumentUploading, setIsDocumentUploading] = useState(false);
+  const documentInputRef = useRef<HTMLInputElement | null>(null);
+  const documentFormSetterRef = useRef<Dispatch<SetStateAction<typeof EMPTY_FORM>> | null>(null);
+  const pendingDocumentFilesRef = useRef<Map<string, File>>(new Map());
   
   const [availableContacts, setAvailableContacts] = useState<ContactPersonRow[]>([]);
   const [usersData, setUsersData] = useState<UserRow[]>([]);
+  const [carrierTypesData, setCarrierTypesData] = useState<LookupRow[]>([]);
+  const [activityTypesData, setActivityTypesData] = useState<LookupRow[]>([]);
+  const [countriesData, setCountriesData] = useState<LookupRow[]>([]);
+  const [activeLookupModal, setActiveLookupModal] = useState<LookupModalType | null>(null);
+  const lookupOpenFromPlusRef = useRef(false);
+
+  const carrierTypeOptions = useMemo(
+    () => toLookupOptions(carrierTypesData),
+    [carrierTypesData],
+  );
+
+  const activityTypeOptions = useMemo(
+    () => toLookupOptions(activityTypesData),
+    [activityTypesData],
+  );
+
+  const countryOptions = useMemo(
+    () => toLookupOptions(countriesData),
+    [countriesData],
+  );
+
+  const loadCarrierTypes = async () => {
+    try {
+      const data = await fetchLookupAction("carrier-types");
+      setCarrierTypesData(data);
+    } catch {
+      setCarrierTypesData([]);
+    }
+  };
+
+  const loadActivityTypes = async () => {
+    try {
+      const data = await fetchLookupAction("activity-types");
+      setActivityTypesData(data);
+    } catch {
+      setActivityTypesData([]);
+    }
+  };
+
+  const loadCountries = async () => {
+    try {
+      const data = await fetchLookupAction("countries");
+      setCountriesData(data);
+    } catch {
+      setCountriesData(COUNTRY_OPTIONS.map((option) => ({
+        id: option.value,
+        value: option.value,
+        label: option.label,
+      })));
+    }
+  };
   
   useEffect(() => {
-    fetchContactPersonsAction().then(setAvailableContacts).catch(() => {});
+    fetchContactPersonsAction({ entityType: "carrier" }).then(setAvailableContacts).catch(() => {});
     fetchUsersAction().then(setUsersData).catch(() => {});
+    loadCarrierTypes();
+    loadActivityTypes();
+    loadCountries();
   }, []);
+
+  const handleLookupDataChanged = (data: LookupRow[]) => {
+    if (activeLookupModal === "carrier-types") {
+      setCarrierTypesData(data);
+    } else if (activeLookupModal === "activity-types") {
+      setActivityTypesData(data);
+    } else if (activeLookupModal === "countries") {
+      setCountriesData(data);
+    }
+  };
+
+  const openLookupModal = (
+    event: MouseEvent<HTMLButtonElement>,
+    type: LookupModalType,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!lookupOpenFromPlusRef.current) return;
+    lookupOpenFromPlusRef.current = false;
+    setActiveLookupModal(type);
+  };
+
+  const handleLookupSelectOpen = () => {
+    lookupOpenFromPlusRef.current = false;
+    setActiveLookupModal(null);
+  };
+
+  const armLookupOpenFromPlus = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    lookupOpenFromPlusRef.current = true;
+  };
 
   const userOpts = [
     { value: "", label: "Menecer seçin" },
@@ -118,48 +241,38 @@ export default function DasiyicilarPage() {
   ];
 
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
-  const [contactForm, setContactForm] = useState({
-    fullName: "",
-    phone: "",
-    email: "",
-    position: "",
-  });
 
-  const handleCreateContactPerson = async () => {
-    if (!contactForm.fullName.trim()) {
-      dispatch(showNotification({ message: "Ad Soyad mütləqdir", type: "error" }));
-      return;
-    }
+  const handleCreateContactPerson = async (data: ContactPersonFormData) => {
     try {
       const currentForm = activePanel === "new" ? newForm : editForm;
-      const setForm = activePanel === "new" ? setNewForm : setEditForm;
-      
-      const newContact = {
-        id: Date.now().toString(),
-        fullName: contactForm.fullName.trim(),
-        phone: contactForm.phone.trim(),
-        email: contactForm.email.trim(),
-        position: contactForm.position.trim(),
-        company: currentForm.company || "",
-      };
-      
-      setForm((prev: any) => ({
-        ...prev,
-        contactPersons: [...prev.contactPersons, newContact],
-      }));
-      
-      // Reset inputs to prevent duplicate addition
-      setContactForm({
-        fullName: "",
-        phone: "",
-        email: "",
-        position: "",
+      const entityId = activePanel === "edit" ? editingCarrierId : undefined;
+
+      const newContact = await createContactPersonAction({
+        fullName: data.fullName,
+        phone: data.phone,
+        email: data.email,
+        position: data.position,
+        company: data.company || currentForm.company || "",
+        entityType: "carrier",
+        entityId: entityId || undefined,
       });
+
+      const setForm = activePanel === "new" ? setNewForm : setEditForm;
+      setForm((prev) => {
+        const contactPersons = normalizeCarrierContacts(prev.contactPersons, [newContact]);
+        return {
+          ...prev,
+          contactPersons,
+          contactPerson: contactPersonIdsFromList(contactPersons),
+        };
+      });
+
+      setAvailableContacts((prev) => normalizeCarrierContacts(prev, [newContact]));
 
       dispatch(
         showNotification({
-          message: "Yeni əlaqədar şəxs yaradıldı. Siyahıdan seçə bilərsiniz.",
-          type: "success",
+          message: "Yeni daşıyıcı əlaqədar şəxs əlavə edildi",
+          type: "added",
         }),
       );
     } catch (error) {
@@ -169,7 +282,26 @@ export default function DasiyicilarPage() {
           type: "error",
         }),
       );
+      throw error;
     }
+  };
+
+  const handleRemoveContactPerson = (contact: ContactPersonRow, _index: number) => {
+    const setForm = activePanel === "new" ? setNewForm : setEditForm;
+    setForm((prev) => {
+      const contactPersons = prev.contactPersons.filter((c) => String(c.id) !== String(contact.id));
+      return {
+        ...prev,
+        contactPersons,
+        contactPerson: contactPersonIdsFromList(contactPersons),
+      };
+    });
+    dispatch(
+      showNotification({
+        message: "Əlaqədar şəxs silindi",
+        type: "deleted",
+      }),
+    );
   };
   
   // We don't need a global contactOptions here anymore because it depends on the specific form (newForm/editForm)
@@ -185,8 +317,7 @@ export default function DasiyicilarPage() {
       }
       if (
         appliedFilter.carrierType &&
-        row.carrierType !==
-          TYPE_OPTIONS.find((x) => x.value === appliedFilter.carrierType)?.label
+        row.carrierType !== getLookupLabel(appliedFilter.carrierType, carrierTypeOptions)
       ) {
         return false;
       }
@@ -210,13 +341,14 @@ export default function DasiyicilarPage() {
       }
       if (
         appliedFilter.daysSinceLastContact &&
-        row.daysSinceLastContact < parseInt(appliedFilter.daysSinceLastContact, 10)
+        (Number.isNaN(row.daysSinceLastContact) ||
+          row.daysSinceLastContact < parseInt(appliedFilter.daysSinceLastContact, 10))
       ) {
         return false;
       }
       return true;
     });
-  }, [appliedFilter, rows]);
+  }, [appliedFilter, rows, carrierTypeOptions]);
 
   const activeFilterCount = useMemo(
     () =>
@@ -242,21 +374,30 @@ export default function DasiyicilarPage() {
   const loadCarriers = async () => {
     setLoading(true);
     try {
-      const [data, queries] = await Promise.all([
+      const [data, queries, orders] = await Promise.all([
         fetchCarriersAction(),
-        fetchQueriesAction()
+        fetchQueriesAction(),
+        fetchOrdersAction(),
       ]);
-      // Backend datalarını frontend formatına çevir
       const mapped: CarrierRow[] = data.map((c: any) => {
-        const carrierQueriesCount = queries.filter((q: any) => {
-          const qCust = typeof q.carrier === "object" && q.carrier ? q.carrier.id : q.carrier;
-          return String(qCust) === String(c.id);
-        }).length;
+        const entity = {
+          id: String(c.id),
+          company: c.name || c.company || "",
+          name: c.name,
+        };
+        const carrierQueries = queries.filter((q: any) =>
+          queryMatchesCarrier(q, entity),
+        );
+        const carrierOrders = orders.filter((o: any) =>
+          matchesCarrierEntity(o, entity),
+        );
+        const lastActivity = getLastCarrierActivityDate(entity, queries, orders);
 
         return {
           id: String(c.id),
           company: c.name || c.company || "-",
           carrierType: c.carrierType || "Yeni daşıyıcı",
+          activityType: c.activityType || "",
           contactPerson: c.contactPerson || "-",
           contactPersons: c.contactPersons || [],
           contactInfo: c.phone || "-",
@@ -264,12 +405,12 @@ export default function DasiyicilarPage() {
           country: c.country || "AZ",
           manager: c.manager || "-",
           creditLimit: c.creditLimit || "0",
-          daysSinceLastContact: typeof c.daysSinceLastContact === "number" 
-            ? c.daysSinceLastContact 
-            : (c.id === "1" ? 0 : c.id === "2" ? 18 : c.id === "3" ? 14 : (parseInt(c.id, 10) % 25 || 5)),
-          orderCount: 0,
-          queriesCount: carrierQueriesCount,
+          lastActivityDate: lastActivity ? lastActivity.toISOString() : null,
+          daysSinceLastContact: daysSinceActivityDate(lastActivity),
+          orderCount: carrierOrders.length,
+          queriesCount: carrierQueries.length,
           salesGroup: c.company || "-",
+          documents: parseCarrierDocuments(c.documentsJson),
         };
       });
       setRows(mapped);
@@ -297,18 +438,35 @@ export default function DasiyicilarPage() {
   }, [activePanel]);
 
   useEffect(() => {
+    if (!activePanel) {
+      setActiveLookupModal(null);
+      setIsContactModalOpen(false);
+      lookupOpenFromPlusRef.current = false;
+    }
+  }, [activePanel]);
+
+  useEffect(() => {
     setCurrentPage(1);
   }, [appliedFilter]);
 
   useEffect(() => {
     if (!activePanel) return undefined;
+    const main = document.querySelector("main");
     const prevBody = document.body.style.overflow;
     const prevHtml = document.documentElement.style.overflow;
+    const prevMainOverflow =
+      main instanceof HTMLElement ? main.style.overflow : "";
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
+    if (main instanceof HTMLElement) {
+      main.style.overflow = "hidden";
+    }
     return () => {
       document.body.style.overflow = prevBody;
       document.documentElement.style.overflow = prevHtml;
+      if (main instanceof HTMLElement) {
+        main.style.overflow = prevMainOverflow;
+      }
     };
   }, [activePanel]);
 
@@ -337,26 +495,109 @@ export default function DasiyicilarPage() {
     setAppliedFilter(empty);
   };
 
+  const openDocumentFilePicker = (
+    setForm: Dispatch<SetStateAction<typeof EMPTY_FORM>>,
+  ) => {
+    if (!documentDraft.number.trim() || !documentDraft.date) {
+      dispatch(
+        showNotification({
+          message: "Sənəd nömrəsi və tarix mütləqdir",
+          type: "error",
+        }),
+      );
+      return;
+    }
+    documentFormSetterRef.current = setForm;
+    documentInputRef.current?.click();
+  };
+
+  const handleDocumentFileSelected = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    const setForm = documentFormSetterRef.current;
+    event.target.value = "";
+    if (!file || !setForm) return;
+
+    const docId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    pendingDocumentFilesRef.current.set(docId, file);
+
+    const newDocument: CarrierDocumentItem = {
+      id: docId,
+      number: documentDraft.number.trim(),
+      date: documentDraft.date,
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+    };
+
+    setForm((prev) => ({
+      ...prev,
+      documents: [...prev.documents, newDocument],
+    }));
+    setDocumentDraft({ number: "", date: "" });
+    documentFormSetterRef.current = null;
+    dispatch(
+      showNotification({
+        message: "Sənəd əlavə edildi",
+        type: "added",
+      }),
+    );
+  };
+
+  const resolveDocumentsForSave = async (documents: CarrierDocumentItem[]) => {
+    if (pendingDocumentFilesRef.current.size === 0) {
+      return documents;
+    }
+
+    setIsDocumentUploading(true);
+    try {
+      return await uploadPendingCarrierDocuments(
+        documents,
+        pendingDocumentFilesRef.current,
+        uploadCarrierDocumentFileAction,
+      );
+    } finally {
+      setIsDocumentUploading(false);
+    }
+  };
+
+  const removeDocumentFromForm = (
+    setForm: Dispatch<SetStateAction<typeof EMPTY_FORM>>,
+    documentId: string,
+  ) => {
+    pendingDocumentFilesRef.current.delete(documentId);
+    setForm((prev) => ({
+      ...prev,
+      documents: prev.documents.filter((doc) => doc.id !== documentId),
+    }));
+    dispatch(
+      showNotification({
+        message: "Sənəd silindi",
+        type: "deleted",
+      }),
+    );
+  };
+
   const handleCreateCarrier = async () => {
     if (!newForm.company.trim()) return;
     try {
+      const documents = await resolveDocumentsForSave(newForm.documents);
       const payload = {
         name: newForm.company.trim(),
-        carrierType: TYPE_OPTIONS.find((x) => x.value === newForm.carrierType)?.label || "Yeni daşıyıcı",
+        carrierType: getLookupLabel(newForm.carrierType, carrierTypeOptions) || "Yeni daşıyıcı",
         manager: newForm.manager.trim(),
         contactPersons: newForm.contactPersons,
-        contactPerson: newForm.contactPerson || "",
+        contactPerson: contactPersonIdsFromList(newForm.contactPersons),
         phone: newForm.contactInfo.trim(),
         address: newForm.address.trim(),
         company: newForm.company.trim(),
         shortName: newForm.shortName.trim(),
-        activityType: newForm.activityType.trim(),
+        activityType: getLookupLabel(newForm.activityType, activityTypeOptions),
         voen: newForm.voen.trim(),
         country: newForm.country.trim(),
-        creditLimit: newForm.creditLimit.trim(),
-        salesGroup: newForm.salesGroup.trim(),
+        documents: serializeCarrierDocuments(documents),
       };
       await createCarrierAction(payload);
+      pendingDocumentFilesRef.current.clear();
       dispatch(
         showNotification({
           message: "Daşıyıcı uğurla yaradıldı",
@@ -366,21 +607,8 @@ export default function DasiyicilarPage() {
       loadCarriers();
       setActivePanel(null);
       setNewCarrierTab("main");
-      setNewForm({
-        company: "",
-        shortName: "",
-        carrierType: "",
-        activityType: "",
-        voen: "",
-        manager: "",
-        contactPersons: [],
-        contactPerson: "",
-        contactInfo: "",
-        address: "",
-        country: "AZ",
-        creditLimit: "0",
-        salesGroup: "",
-      });
+      setNewForm({ ...EMPTY_FORM });
+      setDocumentDraft({ number: "", date: "" });
     } catch (error) {
       dispatch(
         showNotification({
@@ -392,50 +620,74 @@ export default function DasiyicilarPage() {
   };
 
   const openEditModal = (carrier: CarrierRow) => {
+    pendingDocumentFilesRef.current.clear();
     setEditingCarrierId(carrier.id);
+    setDocumentDraft({ number: "", date: "" });
     setEditForm({
       company: carrier.company,
       shortName: carrier.company,
-      carrierType: TYPE_OPTIONS.find((x) => x.label === carrier.carrierType)?.value || carrier.carrierType,
-      activityType: "",
+      carrierType: resolveLookupValue(carrier.carrierType, carrierTypesData),
+      activityType: resolveLookupValue((carrier as any).activityType || "", activityTypesData),
       voen: "",
       manager: carrier.manager,
-      contactPersons: (carrier as any).contactPersons || [],
+      contactPersons: normalizeCarrierContacts((carrier as any).contactPersons || [], []),
       contactPerson: carrier.contactPerson || "",
       contactInfo: carrier.contactInfo,
       address: carrier.address,
-      country: carrier.country || "AZ",
-      creditLimit: carrier.creditLimit || "0",
-      salesGroup: carrier.salesGroup || "",
+      country: resolveLookupValue(carrier.country || "AZ", countriesData),
+      documents: parseCarrierDocuments(carrier.documents),
     });
     setActivePanel("edit");
+
+    void (async () => {
+      try {
+        const entityContacts = await fetchContactPersonsAction({
+          entityType: "carrier",
+          entityId: carrier.id,
+        });
+        setAvailableContacts((prev) => normalizeCarrierContacts(prev, entityContacts));
+        setEditForm((prev) => {
+          const contactPersons = normalizeCarrierContacts(prev.contactPersons, entityContacts);
+          return {
+            ...prev,
+            contactPersons,
+            contactPerson: contactPersonIdsFromList(contactPersons),
+          };
+        });
+      } catch {
+        // keep embedded contacts only
+      }
+    })();
   };
 
   const closeEditModal = () => {
     setEditingCarrierId(null);
     setActivePanel(null);
+    setActiveLookupModal(null);
+    lookupOpenFromPlusRef.current = false;
   };
 
   const saveEditedCarrier = async () => {
     if (!editingCarrierId) return;
     try {
+      const documents = await resolveDocumentsForSave(editForm.documents);
       const payload = {
         name: editForm.company.trim(),
-        carrierType: TYPE_OPTIONS.find((x) => x.value === editForm.carrierType)?.label || "Yeni daşıyıcı",
+        carrierType: getLookupLabel(editForm.carrierType, carrierTypeOptions) || "Yeni daşıyıcı",
         manager: editForm.manager.trim(),
         contactPersons: editForm.contactPersons,
-        contactPerson: editForm.contactPerson || "",
+        contactPerson: contactPersonIdsFromList(editForm.contactPersons),
         phone: editForm.contactInfo.trim(),
         address: editForm.address.trim(),
         company: editForm.company.trim(),
         shortName: editForm.shortName.trim(),
-        activityType: editForm.activityType.trim(),
+        activityType: getLookupLabel(editForm.activityType, activityTypeOptions),
         voen: editForm.voen.trim(),
         country: editForm.country.trim(),
-        creditLimit: editForm.creditLimit.trim(),
-        salesGroup: editForm.salesGroup.trim(),
+        documents: serializeCarrierDocuments(documents),
       };
       await updateCarrierAction(editingCarrierId, payload);
+      pendingDocumentFilesRef.current.clear();
       dispatch(
         showNotification({
           message: "Daşıyıcı məlumatları yeniləndi",
@@ -493,7 +745,11 @@ export default function DasiyicilarPage() {
             <button
               type="button"
               className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonPrimary}`}
-              onClick={() => setActivePanel("new")}
+              onClick={() => {
+                pendingDocumentFilesRef.current.clear();
+                setDocumentDraft({ number: "", date: "" });
+                setActivePanel("new");
+              }}
             >
               <FiFilePlus />
               Yeni daşıyıcı
@@ -538,16 +794,14 @@ export default function DasiyicilarPage() {
               <tr>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min180}`}>Şirkətin adı</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min150}`}>Daşıyıcı tipi</th>
-                <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min170}`}>Əlaqədar şəxs</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min170}`}>Əlaqə məlumatları</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min180}`}>Ünvan</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>Ölkə</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min150}`}>Menecer</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>Kredit limiti</th>
-                <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min160}`}>Sonuncu əlaqədən günlər</th>
+                <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min160}`}>Son sorğu/sifariş tarixi</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min140}`}>Sifarişlərin sayı</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min140}`}>Sorğuların sayı</th>
-                <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min150}`}>Satışlar qrupu</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>Əməliyyat</th>
               </tr>
             </thead>
@@ -567,14 +821,8 @@ export default function DasiyicilarPage() {
                       {row.company}
                     </Link>
                   </td>
-                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.carrierType}</td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                    {row.contactPerson && row.contactPerson !== "-"
-                      ? row.contactPerson.split(',').map((id: string) => {
-                          const cp: any = (row as any).contactPersons?.find((c: any) => String(c.id) === id);
-                          return cp ? cp.fullName : null;
-                        }).filter(Boolean).join(', ') || "-"
-                      : "-"}
+                    {displayFieldValue(row.carrierType)}
                   </td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.contactInfo}</td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.address}</td>
@@ -583,10 +831,13 @@ export default function DasiyicilarPage() {
                     {usersData.find(u => String(u.id) === String(row.manager))?.name || row.manager}
                   </td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.creditLimit}</td>
-                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.daysSinceLastContact}</td>
+                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
+                    {formatActivityDate(
+                      row.lastActivityDate ? new Date(row.lastActivityDate) : null,
+                    )}
+                  </td>
                    <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.orderCount}</td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.queriesCount}</td>
-                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.salesGroup}</td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
                     <div className={sorguTableStyles.actionRow}>
                       <button
@@ -656,7 +907,10 @@ export default function DasiyicilarPage() {
 
       <div
         className={`${sorguLayoutStyles.overlay} ${activePanel ? sorguLayoutStyles.overlayOpen : ""}`}
-        onClick={() => setActivePanel(null)}
+        onClick={() => {
+          if (activeLookupModal || isContactModalOpen) return;
+          setActivePanel(null);
+        }}
         aria-hidden={!activePanel}
       />
 
@@ -704,7 +958,7 @@ export default function DasiyicilarPage() {
                 <span>Daşıyıcı tipi</span>
                 <Select
                   value={filterDraft.carrierType}
-                  options={TYPE_OPTIONS}
+                  options={carrierTypeOptions}
                   onChange={(value) => handleFilterChange("carrierType", value)}
                 />
               </label>
@@ -783,17 +1037,25 @@ export default function DasiyicilarPage() {
           const description = isNew
             ? "Daşıyıcı məlumatlarını doldurub yaddaşa əlavə edin."
             : "Mövcud daşıyıcı məlumatlarını yeniləyin.";
+          const selectableContacts = mergeCarrierFormContacts(
+            form.contactPersons,
+            availableContacts,
+            {
+              mode: isNew ? "new" : "edit",
+              entityId: isEdit ? editingCarrierId : null,
+            },
+          );
 
           return (
-            <div className={styles.newPanel}>
-              <div className={styles.newPanelHeader}>
+            <div className={modalStyles.newPanel}>
+              <div className={modalStyles.newPanelHeader}>
                 <div>
-                  <h2 className={styles.newPanelTitle}>{title}</h2>
-                  <p className={styles.newPanelDescription}>{description}</p>
+                  <h2 className={modalStyles.newPanelTitle}>{title}</h2>
+                  <p className={modalStyles.newPanelDescription}>{description}</p>
                 </div>
                 <button
                   type="button"
-                  className={styles.newPanelClose}
+                  className={modalStyles.newPanelClose}
                   onClick={() => {
                     if (isEdit) closeEditModal();
                     else setActivePanel(null);
@@ -803,66 +1065,111 @@ export default function DasiyicilarPage() {
                   ×
                 </button>
               </div>
-              <div className={styles.newPanelBody}>
+              <div className={modalStyles.newPanelBody}>
                 {/* 1. Əsas məlumatlar */}
-                <div className={styles.newPanelCard}>
-                  <h3 className={styles.newPanelCardTitle}>Əsas məlumatlar</h3>
-                  <div className={styles.newPanelGrid}>
-                    <label className={styles.field}>
+                <div className={modalStyles.newPanelCard}>
+                  <h3 className={modalStyles.newPanelCardTitle}>Əsas məlumatlar</h3>
+                  <div className={modalStyles.newPanelGrid}>
+                    <label className={modalStyles.field}>
                       <span>Şirkətin adı (Tam) *</span>
                       <input
                         value={form.company}
                         onChange={(e) =>
                           setForm((prev: any) => ({ ...prev, company: e.target.value }))
                         }
-                        className={styles.input}
+                        className={modalStyles.input}
                         placeholder="Şirkətin tam adını daxil edin"
                       />
                     </label>
-                    <label className={styles.field}>
+                    <label className={modalStyles.field}>
                       <span>Şirkətin adı (Qısa)</span>
                       <input
                         value={form.shortName}
                         onChange={(e) =>
                           setForm((prev: any) => ({ ...prev, shortName: e.target.value }))
                         }
-                        className={styles.input}
+                        className={modalStyles.input}
                         placeholder="Qısa ad"
                       />
                     </label>
-                    <label className={styles.field}>
+                    <div className={modalStyles.field}>
                       <span>Daşıyıcı tipi</span>
-                      <Select
-                        value={form.carrierType}
-                        options={TYPE_OPTIONS}
-                        onChange={(value) =>
-                          setForm((prev: any) => ({ ...prev, carrierType: value }))
-                        }
-                      />
-                    </label>
-                    <label className={styles.field}>
+                      <div className={modalStyles.inlineControlRow}>
+                        <div
+                          className={modalStyles.grow}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            handleLookupSelectOpen();
+                          }}
+                        >
+                          <Select
+                            value={form.carrierType}
+                            options={carrierTypeOptions}
+                            placeholder="-"
+                            onChange={(value) =>
+                              setForm((prev: any) => ({ ...prev, carrierType: value }))
+                            }
+                            onOpenChange={(open) => {
+                              if (open) handleLookupSelectOpen();
+                            }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          title="Daşıyıcı tipi əlavə et"
+                          className={styles.plusButton}
+                          onMouseDown={armLookupOpenFromPlus}
+                          onClick={(e) => openLookupModal(e, "carrier-types")}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    <div className={modalStyles.field}>
                       <span>Fəaliyyət növü</span>
-                      <input
-                        value={form.activityType}
-                        onChange={(e) =>
-                          setForm((prev: any) => ({ ...prev, activityType: e.target.value }))
-                        }
-                        className={styles.input}
-                        placeholder="Məs: Logistika, İstehsalat"
-                      />
-                    </label>
-                    <label className={styles.field}>
+                      <div className={modalStyles.inlineControlRow}>
+                        <div
+                          className={modalStyles.grow}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            handleLookupSelectOpen();
+                          }}
+                        >
+                          <Select
+                            value={form.activityType}
+                            options={activityTypeOptions}
+                            placeholder="-"
+                            onChange={(value) =>
+                              setForm((prev: any) => ({ ...prev, activityType: value }))
+                            }
+                            onOpenChange={(open) => {
+                              if (open) handleLookupSelectOpen();
+                            }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          title="Fəaliyyət növü əlavə et"
+                          className={styles.plusButton}
+                          onMouseDown={armLookupOpenFromPlus}
+                          onClick={(e) => openLookupModal(e, "activity-types")}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    <label className={modalStyles.field}>
                       <span>VÖEN</span>
                       <input
                         value={form.voen}
                         onChange={(e) =>
                           setForm((prev: any) => ({ ...prev, voen: e.target.value }))
                         }
-                        className={styles.input}
+                        className={modalStyles.input}
                         placeholder="VÖEN daxil edin"
                       />
                     </label>
-                    <label className={styles.field}>
+                    <label className={modalStyles.field}>
                       <span>Menecer</span>
                       <Select
                         value={form.manager}
@@ -876,130 +1183,184 @@ export default function DasiyicilarPage() {
                 </div>
 
                 {/* 2. Əlaqə məlumatları */}
-                <div className={styles.newPanelCard}>
-                  <h3 className={styles.newPanelCardTitle}>Əlaqə məlumatları</h3>
-                  <div className={styles.newPanelGrid}>
-                    <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-                        <span style={{ fontWeight: 600 }}>Əlaqədar şəxslər (Sifarişlər üçün seçilmiş)</span>
-                        <div style={{ color: '#64748b', fontSize: '0.8rem', marginBottom: '4px' }}>
-                          Daşıyıcıyə aid bütün şəxsləri sağdakı "İdarə et" düyməsindən yarada bilərsiniz. Yaratdıqdan sonra Sifariş və Sorğularda görünməsini istədiyiniz şəxsləri bu siyahıdan seçin.
-                        </div>
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                          <div style={{ flex: 1 }}>
-                            <Select
-                              isMulti
-                              value={form.contactPerson ? form.contactPerson.split(',').filter((id: string) => form.contactPersons.some((c: any) => String(c.id) === id)) : []}
-                              options={[
-                                { value: "", label: "Şəxs seçin", disabled: true },
-                                ...form.contactPersons.map((c: any) => ({
-                                  value: String(c.id),
-                                  label: c.fullName
-                                }))
-                              ]}
-                              onChange={(val) => {
-                                const valStr = Array.isArray(val) ? val.join(',') : val;
-                                setForm((prev: any) => ({ ...prev, contactPerson: valStr }));
-                              }}
-                              placeholder="Şəxs seçin..."
-                            />
+                <div className={modalStyles.newPanelCard}>
+                  <h3 className={modalStyles.newPanelCardTitle}>Əlaqə məlumatları</h3>
+                  <div className={modalStyles.newPanelGrid}>
+                    <div className={modalStyles.field} style={{ gridColumn: '1 / -1' }}>
+                      <div className={modalStyles.sectionBox}>
+                        <p className={modalStyles.sectionBoxTitle}>Daşıyıcı əlaqədar şəxsləri</p>
+                        <p className={modalStyles.sectionBoxHint}>
+                          Əlaqədar şəxsləri «İdarə et» düyməsi ilə əlavə edin. Əlavə edilən şəxslər avtomatik görünəcək.
+                        </p>
+                        <div className={modalStyles.inlineControlRow}>
+                          <div className={modalStyles.contactPersonList}>
+                            {selectableContacts.length === 0 ? (
+                              <span className={modalStyles.contactPersonEmpty}>
+                                Əlaqədar şəxs yoxdur
+                              </span>
+                            ) : (
+                              selectableContacts.map((contact) => (
+                                <span key={contact.id} className={modalStyles.contactPersonTag}>
+                                  {contact.fullName}
+                                </span>
+                              ))
+                            )}
                           </div>
-                          <button 
-                            type="button" 
-                            onClick={() => {
-                              setContactForm({
-                                fullName: "",
-                                phone: "",
-                                email: "",
-                                position: "",
-                              });
-                              setIsContactModalOpen(true);
-                            }}
-                            style={{
-                              background: '#e0f2fe', border: '1px solid #bae6fd', borderRadius: '6px',
-                              cursor: 'pointer', padding: '10px 16px', fontSize: '0.85rem', fontWeight: 600, color: '#0369a1',
-                              whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                            }}
+                          <button
+                            type="button"
+                            className={modalStyles.manageButton}
+                            onClick={() => setIsContactModalOpen(true)}
                             title="Əlaqədar şəxsləri idarə et"
                           >
                             İdarə et
                           </button>
                         </div>
                       </div>
-                      
-
                     </div>
-                    <label className={styles.field}>
+                    <label className={modalStyles.field}>
                       <span>Telefon nömrəsi</span>
                       <input
                         value={form.contactInfo}
                         onChange={(e) =>
                           setForm((prev: any) => ({ ...prev, contactInfo: e.target.value }))
                         }
-                        className={styles.input}
+                        className={modalStyles.input}
                         placeholder="+994 XX XXX XX XX"
                       />
                     </label>
-                    <label className={styles.field}>
+                    <div className={modalStyles.field}>
                       <span>Ölkə</span>
-                      <input
-                        value={form.country}
-                        onChange={(e) =>
-                          setForm((prev: any) => ({ ...prev, country: e.target.value }))
-                        }
-                        className={styles.input}
-                        placeholder="Məs: AZ"
-                      />
-                    </label>
-                    <label className={styles.field} style={{ gridColumn: '1 / -1' }}>
+                      <div className={modalStyles.inlineControlRow}>
+                        <div
+                          className={modalStyles.grow}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            handleLookupSelectOpen();
+                          }}
+                        >
+                          <Select
+                            value={form.country}
+                            options={countryOptions}
+                            placeholder="-"
+                            onChange={(value) =>
+                              setForm((prev: any) => ({ ...prev, country: value }))
+                            }
+                            onOpenChange={(open) => {
+                              if (open) handleLookupSelectOpen();
+                            }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          title="Ölkə əlavə et"
+                          className={styles.plusButton}
+                          onMouseDown={armLookupOpenFromPlus}
+                          onClick={(e) => openLookupModal(e, "countries")}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    <label className={modalStyles.field} style={{ gridColumn: '1 / -1' }}>
                       <span>Ünvan</span>
                       <input
                         value={form.address}
                         onChange={(e) =>
                           setForm((prev: any) => ({ ...prev, address: e.target.value }))
                         }
-                        className={styles.input}
+                        className={modalStyles.input}
                         placeholder="Tam ünvanı daxil edin"
                       />
                     </label>
                   </div>
                 </div>
 
-                {/* 3. Maliyyə və Satış */}
-                <div className={styles.newPanelCard}>
-                  <h3 className={styles.newPanelCardTitle}>Maliyyə və Satış</h3>
-                  <div className={styles.newPanelGrid}>
-                    <label className={styles.field}>
-                      <span>Kredit limiti</span>
+                {/* 3. Sənədlər */}
+                <div className={modalStyles.newPanelCard}>
+                  <h3 className={modalStyles.newPanelCardTitle}>Sənədlər</h3>
+                  <div className={modalStyles.newPanelGrid}>
+                    <label className={modalStyles.field}>
+                      <span>Sənədin nömrəsi</span>
                       <input
-                        type="number"
-                        value={form.creditLimit}
+                        value={documentDraft.number}
                         onChange={(e) =>
-                          setForm((prev: any) => ({ ...prev, creditLimit: e.target.value }))
+                          setDocumentDraft((prev) => ({ ...prev, number: e.target.value }))
                         }
-                        className={styles.input}
-                        placeholder="0.00"
+                        className={modalStyles.input}
+                        placeholder="Sənəd nömrəsini daxil edin"
                       />
                     </label>
-                    <label className={styles.field}>
-                      <span>Satışlar qrupu</span>
-                      <input
-                        value={form.salesGroup}
-                        onChange={(e) =>
-                          setForm((prev: any) => ({ ...prev, salesGroup: e.target.value }))
-                        }
-                        className={styles.input}
-                        placeholder="Qrup adı"
-                      />
+                    <label className={modalStyles.field}>
+                      <span>Tarix</span>
+                      <div className={modalStyles.inlineControlRow}>
+                        <div className={modalStyles.grow}>
+                          <input
+                            type="date"
+                            value={documentDraft.date}
+                            onChange={(e) =>
+                              setDocumentDraft((prev) => ({ ...prev, date: e.target.value }))
+                            }
+                            className={modalStyles.input}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          title="Fayl seç və əlavə et"
+                          className={styles.plusButton}
+                          disabled={isDocumentUploading}
+                          onClick={() => openDocumentFilePicker(setForm)}
+                        >
+                          {isDocumentUploading ? "..." : "+"}
+                        </button>
+                      </div>
                     </label>
                   </div>
+                  {form.documents.length > 0 ? (
+                    <ul className={styles.documentList}>
+                      {form.documents.map((doc) => (
+                        <li key={doc.id} className={styles.documentItem}>
+                          <div className={styles.documentMeta}>
+                            <span className={styles.documentNumber} title={doc.number}>
+                              {doc.number}
+                            </span>
+                            <span className={styles.documentDate}>{doc.date}</span>
+                            {doc.fileName ? (
+                              <span className={styles.documentFileName} title={doc.fileName}>
+                                {doc.fileUrl ? (
+                                  <a
+                                    href={buildApiUrl(doc.fileUrl)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    {doc.fileName}
+                                  </a>
+                                ) : (
+                                  doc.fileName
+                                )}
+                              </span>
+                            ) : null}
+                          </div>
+                          <button
+                            type="button"
+                            className={styles.documentRemove}
+                            onClick={() => removeDocumentFromForm(setForm, doc.id)}
+                            aria-label="Sənədi sil"
+                          >
+                            ×
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className={styles.documentEmpty}>Hələ sənəd əlavə edilməyib.</p>
+                  )}
                 </div>
               </div>
 
-              <div className={styles.newPanelFooter}>
+              <div className={modalStyles.newPanelFooter}>
                 <button
                   type="button"
-                  className={styles.clearButton}
+                  className={modalStyles.clearButton}
                   onClick={() => {
                     if (isEdit) closeEditModal();
                     else setActivePanel(null);
@@ -1009,7 +1370,7 @@ export default function DasiyicilarPage() {
                 </button>
                 <button
                   type="button"
-                  className={styles.applyButton}
+                  className={modalStyles.applyButton}
                   onClick={handleSave}
                 >
                   Yaddaşda saxlamaq
@@ -1030,177 +1391,46 @@ export default function DasiyicilarPage() {
         }}
         isLoading={isDeleting}
       />
-      {isContactModalOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(15, 23, 42, 0.6)",
-            backdropFilter: "blur(4px)",
-            zIndex: 1000,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "1rem"
-          }}
-          onClick={() => setIsContactModalOpen(false)}
-        >
-          <div
-            style={{
-              backgroundColor: "#ffffff",
-              borderRadius: "16px",
-              border: "1px solid #f1f5f9",
-              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-              padding: "1.75rem",
-              width: "100%",
-              maxWidth: "700px",
-              maxHeight: "90vh",
-              overflowY: "auto",
-              display: "flex",
-              flexDirection: "column",
-              gap: "1.5rem"
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <h3 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#0f172a", marginBottom: "4px", marginTop: 0 }}>
-                  Əlaqədar şəxslər
-                </h3>
-                <p style={{ fontSize: "0.85rem", color: "#64748b", margin: 0 }}>
-                  {((activePanel === "new") ? newForm : editForm).company ? `${((activePanel === "new") ? newForm : editForm).company} üçün əlaqədar şəxslər` : "Yeni şirkət üçün əlaqədar şəxslər"}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsContactModalOpen(false)}
-                style={{
-                  background: "transparent", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#64748b"
-                }}
-              >
-                ×
-              </button>
-            </div>
+      <ContactPersonManagerModal
+        isOpen={isContactModalOpen}
+        onClose={() => setIsContactModalOpen(false)}
+        contacts={mergeCarrierFormContacts(
+          (activePanel === "new" ? newForm : editForm).contactPersons,
+          availableContacts,
+          {
+            mode: activePanel === "new" ? "new" : "edit",
+            entityId: editingCarrierId,
+          },
+        )}
+        onAdd={handleCreateContactPerson}
+        onRemove={handleRemoveContactPerson}
+        entityName={(activePanel === "new" ? newForm : editForm).company}
+        entityTypeLabel="daşıyıcı"
+        emptyMessage="Bu daşıyıcıya aid heç bir əlaqədar şəxs tapılmadı."
+      />
 
-            <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem", textAlign: "left" }}>
-                <thead style={{ background: "#f8fafc", color: "#475569" }}>
-                  <tr>
-                    <th style={{ padding: "10px", borderBottom: "1px solid #e2e8f0", fontWeight: 600 }}>Ad Soyad</th>
-                    <th style={{ padding: "10px", borderBottom: "1px solid #e2e8f0", fontWeight: 600 }}>Telefon</th>
-                    <th style={{ padding: "10px", borderBottom: "1px solid #e2e8f0", fontWeight: 600 }}>E-poçt</th>
-                    <th style={{ padding: "10px", borderBottom: "1px solid #e2e8f0", fontWeight: 600 }}>Vəzifə</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {((activePanel === "new") ? newForm : editForm).contactPersons.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} style={{ padding: "16px", textAlign: "center", color: "#94a3b8" }}>
-                        Bu daşıyıcıyə aid heç bir əlaqədar şəxs tapılmadı.
-                      </td>
-                    </tr>
-                  ) : (
-                    ((activePanel === "new") ? newForm : editForm).contactPersons.map((c: any, i: number) => (
-                      <tr key={i} style={{ borderBottom: "1px solid #e2e8f0" }}>
-                        <td style={{ padding: "10px" }}>{c.fullName}</td>
-                        <td style={{ padding: "10px" }}>{c.phone || "-"}</td>
-                        <td style={{ padding: "10px" }}>{c.email || "-"}</td>
-                        <td style={{ padding: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          {c.position || "-"}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const setForm = activePanel === "new" ? setNewForm : setEditForm;
-                              setForm((prev: any) => ({
-                                ...prev,
-                                contactPersons: prev.contactPersons.filter((_: any, idx: number) => idx !== i)
-                              }));
-                            }}
-                            style={{
-                              background: '#fee2e2', border: 'none', borderRadius: '4px',
-                              color: '#ef4444', cursor: 'pointer', padding: '4px 8px', fontSize: '0.75rem', fontWeight: 600
-                            }}
-                          >
-                            ×
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+      {activeLookupModal ? (
+        <LookupManagerModal
+          isOpen
+          onClose={() => setActiveLookupModal(null)}
+          lookupType={activeLookupModal}
+          title={
+            activeLookupModal === "activity-types"
+              ? "Fəaliyyət növləri"
+              : activeLookupModal === "countries"
+                ? "Ölkələr"
+                : "Daşıyıcı tipləri"
+          }
+          onDataChanged={handleLookupDataChanged}
+        />
+      ) : null}
 
-            <div style={{ background: "#f8fafc", padding: "1.25rem", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
-              <h4 style={{ fontSize: "0.95rem", fontWeight: 600, color: "#1e293b", marginBottom: "1rem", marginTop: 0 }}>Yeni şəxs əlavə et</h4>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                <label className={styles.field} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569" }}>Ad Soyad *</span>
-                  <input
-                    type="text"
-                    value={contactForm.fullName}
-                    onChange={(e) => setContactForm(prev => ({ ...prev, fullName: e.target.value }))}
-                    className={styles.input}
-                    placeholder="Məs: Nicat Namazov"
-                    style={{ width: "100%", background: "#fff" }}
-                  />
-                </label>
-                <label className={styles.field} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569" }}>Telefon nömrəsi</span>
-                  <input
-                    type="number"
-                    value={contactForm.phone}
-                    onChange={(e) => setContactForm(prev => ({ ...prev, phone: e.target.value }))}
-                    className={styles.input}
-                    placeholder="Məs: 500000000"
-                    style={{ width: "100%", background: "#fff" }}
-                  />
-                </label>
-                <label className={styles.field} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569" }}>E-poçt</span>
-                  <input
-                    type="email"
-                    value={contactForm.email}
-                    onChange={(e) => setContactForm(prev => ({ ...prev, email: e.target.value }))}
-                    className={styles.input}
-                    placeholder="Məs: info@domain.com"
-                    style={{ width: "100%", background: "#fff" }}
-                  />
-                </label>
-                <label className={styles.field} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569" }}>Vəzifə</span>
-                  <div style={{ background: "#fff" }}>
-                    <Select
-                      value={contactForm.position}
-                      options={[
-                        { value: "", label: "Vəzifə seçin" },
-                        { value: "Direktor", label: "Direktor" },
-                        { value: "Menecer", label: "Menecer" },
-                        { value: "Mühasib", label: "Mühasib" },
-                        { value: "Logistik", label: "Logistik" },
-                        { value: "Digər", label: "Digər" },
-                      ]}
-                      onChange={(val) => setContactForm(prev => ({ ...prev, position: val }))}
-                    />
-                  </div>
-                </label>
-              </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1rem" }}>
-                <button
-                  type="button"
-                  onClick={handleCreateContactPerson}
-                  style={{
-                    background: "#2563eb", color: "#ffffff", border: "none", borderRadius: "8px", padding: "0.5rem 1.25rem",
-                    fontSize: "0.85rem", fontWeight: 600, cursor: "pointer", boxShadow: "0 2px 4px rgba(37, 99, 235, 0.2)"
-                  }}
-                >
-                  Siyahıya əlavə et
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <input
+        ref={documentInputRef}
+        type="file"
+        className={styles.hiddenFileInput}
+        onChange={handleDocumentFileSelected}
+      />
     </div>
   );
 }

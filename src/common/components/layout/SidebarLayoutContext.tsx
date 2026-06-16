@@ -42,6 +42,13 @@ export function SidebarLayoutProvider({
     }
   }, [collapsed]);
 
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--shell-sidebar-width",
+      collapsed ? "0px" : "220px",
+    );
+  }, [collapsed]);
+
   const toggleSidebar = useCallback(() => {
     setCollapsedState((c) => !c);
   }, []);

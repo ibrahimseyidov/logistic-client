@@ -1,10 +1,15 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import {
+  NotificationInputType,
+  NotificationKind,
+  resolveNotificationKind,
+} from "../utils/notification.utils";
 
 interface ModalState {
   notification: {
     open: boolean;
     message: string;
-    type: "error" | "success" | "info";
+    type: NotificationKind;
     autoCloseDuration?: number;
   };
   confirm: {
@@ -44,11 +49,17 @@ const modalSlice = createSlice({
       state,
       action: PayloadAction<{
         message: string;
-        type: "error" | "success" | "info";
+        type: NotificationInputType;
         autoCloseDuration?: number;
       }>,
     ) {
-      state.notification = { open: true, ...action.payload };
+      const { message, type, autoCloseDuration } = action.payload;
+      state.notification = {
+        open: true,
+        message,
+        type: resolveNotificationKind(type, message),
+        autoCloseDuration,
+      };
     },
     hideNotification(state) {
       state.notification.open = false;

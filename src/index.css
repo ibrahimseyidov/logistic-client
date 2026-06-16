@@ -19,6 +19,8 @@
   --sidebar-text-muted: rgba(255, 255, 255, 0.7);
   --modal-open-duration: 220ms;
   --modal-close-duration: 180ms;
+  --shell-header-height: 70px;
+  --shell-sidebar-width: 220px;
 }
 
 * {

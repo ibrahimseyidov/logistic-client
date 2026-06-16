@@ -1,3 +1,5 @@
+import type { CarrierDocumentItem } from "../../common/utils/carrierDisplay.utils";
+
 export interface CarrierRow {
   id: string;
   company: string;
@@ -8,10 +10,12 @@ export interface CarrierRow {
   country: string;
   manager: string;
   creditLimit: string;
+  lastActivityDate: string | null;
   daysSinceLastContact: number;
   orderCount: number;
   queriesCount: number;
   salesGroup: string;
+  documents?: CarrierDocumentItem[];
 }
 
 export const MOCK_ROWS: CarrierRow[] = [
@@ -25,6 +29,7 @@ export const MOCK_ROWS: CarrierRow[] = [
     country: "AZ",
     manager: "Ulvi Azizov",
     creditLimit: "102",
+    lastActivityDate: null,
     daysSinceLastContact: 0,
     orderCount: 0,
     queriesCount: 0,
@@ -40,6 +45,7 @@ export const MOCK_ROWS: CarrierRow[] = [
     country: "BƏƏ",
     manager: "Töhmino Askin",
     creditLimit: "13",
+    lastActivityDate: null,
     daysSinceLastContact: 18,
     orderCount: 0,
     queriesCount: 0,
@@ -55,6 +61,7 @@ export const MOCK_ROWS: CarrierRow[] = [
     country: "Azərbaycan",
     manager: "Ulvi Azizov",
     creditLimit: "140",
+    lastActivityDate: null,
     daysSinceLastContact: 14,
     orderCount: 4,
     queriesCount: 0,

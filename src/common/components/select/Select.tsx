@@ -27,6 +27,7 @@ interface SelectProps {
   disabled?: boolean;
   className?: string;
   isMulti?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export default function Select({
@@ -37,6 +38,7 @@ export default function Select({
   disabled = false,
   className,
   isMulti = false,
+  onOpenChange,
 }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -91,7 +93,10 @@ export default function Select({
       );
     }
   } else {
-    displayLabel = selectedOption ? selectedOption.label : placeholder || "";
+    const isEmpty = value === "" || value == null;
+    displayLabel = isEmpty
+      ? placeholder || "-"
+      : (selectedOption?.label ?? placeholder) || "-";
   }
 
   useLayoutEffect(() => {
@@ -106,11 +111,13 @@ export default function Select({
       if (containerRef.current?.contains(t)) return;
       if (menuRef.current?.contains(t)) return;
       setIsOpen(false);
+      onOpenChange?.(false);
     };
 
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsOpen(false);
+        onOpenChange?.(false);
       }
     };
 
@@ -125,7 +132,7 @@ export default function Select({
       window.removeEventListener("scroll", updateMenuPosition, true);
       window.removeEventListener("resize", updateMenuPosition);
     };
-  }, [isOpen, updateMenuPosition]);
+  }, [isOpen, onOpenChange, updateMenuPosition]);
 
   const handleToggle = () => {
     if (disabled) return;
@@ -134,6 +141,7 @@ export default function Select({
       if (next) {
         setSearchTerm("");
       }
+      onOpenChange?.(next);
       return next;
     });
   };
@@ -142,7 +150,11 @@ export default function Select({
     if (disabled) return;
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      setIsOpen((prev) => !prev);
+      setIsOpen((prev) => {
+        const next = !prev;
+        onOpenChange?.(next);
+        return next;
+      });
     }
   };
 

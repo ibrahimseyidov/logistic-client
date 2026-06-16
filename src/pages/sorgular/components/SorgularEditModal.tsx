@@ -824,16 +824,12 @@ export default function SorgularEditModal({
   const selectedCustomerObj = customersData.find((c: any) => c.id?.toString() === customer);
   const selectedCustomerName = selectedCustomerObj?.name || selectedCustomerObj?.companyName || selectedCustomerObj?.fullName;
   
-  const filteredContacts = (selectedCustomerObj?.contactPersons || []).filter((c: any) => 
-    selectedCustomerObj?.contactPerson ? selectedCustomerObj.contactPerson.split(',').includes(String(c.id)) : true
-  );
+  const filteredContacts = selectedCustomerObj?.contactPersons || [];
   
   const contactOpts = placeholderOpts(filteredContacts.map((c: any) => ({ value: c.fullName, label: c.position ? `${c.fullName} (${c.position})` : c.fullName })));
   
   const newCustomerObj = customersData.find((c: any) => c.name === newCustomerName);
-  const filteredNewCustomerContacts = (newCustomerObj?.contactPersons || []).filter((c: any) => 
-    newCustomerObj?.contactPerson ? newCustomerObj.contactPerson.split(',').includes(String(c.id)) : true
-  );
+  const filteredNewCustomerContacts = newCustomerObj?.contactPersons || [];
   const newCustomerContactOpts = placeholderOpts(filteredNewCustomerContacts.map((c: any) => ({ value: c.fullName, label: c.position ? `${c.fullName} (${c.position})` : c.fullName })));
   const customerOpts = placeholderOpts(customersData.map((c: any) => ({ value: c.id?.toString(), label: c.name || c.companyName || c.fullName })));
   const tagOpts = placeholderOpts(tagsData.map((t: any) => ({ value: t.value, label: t.value })));

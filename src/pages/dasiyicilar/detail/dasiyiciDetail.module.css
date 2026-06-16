@@ -18,6 +18,7 @@
 
 .companyName {
   min-width: 310px;
+  max-width: 310px;
   display: flex;
   align-items: center;
   padding: 0 16px;
@@ -26,6 +27,9 @@
   font-weight: 700;
   border-right: 1px solid #e2e8f0;
   background: #f8fbff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tabs {
@@ -664,6 +668,7 @@
 
   .companyName {
     min-width: 100%;
+    max-width: 100%;
     min-height: 44px;
   }
 

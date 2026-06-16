@@ -1,26 +1,73 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { FiArrowLeft, FiPlus } from "react-icons/fi";
-import { FaEdit, FaSyncAlt } from "react-icons/fa";
-import axios from "axios";
-import { ENDPOINTS } from "../../../services/EndpointResources.g";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { FiArrowLeft, FiPlus, FiExternalLink } from "react-icons/fi";
+import { FaSyncAlt } from "react-icons/fa";
 import styles from "./dasiyiciDetail.module.css";
 import {
   fetchCarrierDetailAction,
   updateCarrierAction,
 } from "../../../common/actions/carrier.actions";
 import { fetchQueriesAction } from "../../../common/actions/query.actions";
+import { fetchOrdersAction } from "../../../common/actions/order.actions";
 import {
   fetchContactPersonsAction,
   createContactPersonAction,
 } from "../../../common/actions/contact.actions";
+import { fetchFinanceTransactionsAction } from "../../../common/actions/finance.actions";
 import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
 import Loading from "../../../common/components/loading/Loading";
+import {
+  displayFieldValue,
+  getSelectedContactNames,
+  mapCarrierFromApi,
+  normalizeCarrierContacts,
+  resolveManagerDisplayName,
+  serializeCarrierDocuments,
+} from "../../../common/utils/carrierDisplay.utils";
+import Select from "../../../common/components/select/Select";
+import { buildApiUrl } from "../../../common/utils/fetch.utils";
+import { fetchUsersAction } from "../../../common/actions/user.actions";
+import type { UserRow } from "../../ayarlar/types/user.types";
+import { COUNTRY_OPTIONS } from "../../sorgular/constants/options.constants";
+import {
+  ContactPersonFormModal,
+  type ContactPersonFormData,
+} from "../../../common/components/modal/ContactPersonFormModal";
+import {
+  getQueryCargoSummary,
+  getQueryDirectionLabel,
+  getQueryDetailPath,
+} from "../../sorgular/lib/queryDisplay.utils";
+import {
+  matchesCarrierEntity,
+  queryMatchesCarrier,
+} from "../../../common/utils/entityActivity.utils";
 
 const TAB_ITEMS = ["Məlumatlar", "Sorğular", "Sifarişlər", "Maliyyə"];
+
+function resolveCountryValue(stored: string): string {
+  const trimmed = String(stored ?? "").trim();
+  if (!trimmed) return "AZ";
+  const byValue = COUNTRY_OPTIONS.find((option) => option.value === trimmed);
+  if (byValue) return byValue.value;
+  const byLabel = COUNTRY_OPTIONS.find((option) => option.label === trimmed);
+  return byLabel?.value || trimmed;
+}
+
+function getCountrySelectOptions(currentValue?: string) {
+  const options = COUNTRY_OPTIONS.map((option) => ({
+    value: option.value,
+    label: option.label,
+  }));
+  const value = String(currentValue ?? "").trim();
+  if (value && !options.some((option) => option.value === value || option.label === value)) {
+    options.push({ value, label: value });
+  }
+  return options;
+}
 
 function parseMoney(value: string | undefined | null): number {
   if (!value) return 0;
@@ -40,15 +87,11 @@ export default function DasiyiciDetailPage() {
   const [queries, setQueries] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [contactPersons, setContactPersons] = useState<any[]>([]);
+  const [financeTransactions, setFinanceTransactions] = useState<any[]>([]);
+  const [usersData, setUsersData] = useState<UserRow[]>([]);
 
   // Contact modal state
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
-  const [contactForm, setContactForm] = useState({
-    fullName: "",
-    phone: "",
-    email: "",
-    position: "",
-  });
 
   // Edit drawer state
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -72,37 +115,36 @@ export default function DasiyiciDetailPage() {
     if (!carrierId) return;
     setLoading(true);
     try {
-      const [custData, allQueries, contactList] = await Promise.all([
+      const [custData, allQueries, carrierContacts, financeData, users, allOrders] = await Promise.all([
         fetchCarrierDetailAction(carrierId),
         fetchQueriesAction(),
-        fetchContactPersonsAction(),
+        fetchContactPersonsAction({ entityType: "carrier", entityId: carrierId }),
+        fetchFinanceTransactionsAction({ carrierId }),
+        fetchUsersAction().catch(() => []),
+        fetchOrdersAction(),
       ]);
 
-      setCarrier(custData);
-      setContactPersons(contactList);
+      const mappedCarrier = mapCarrierFromApi(custData);
+      setCarrier(mappedCarrier);
+      setUsersData(users);
+      setContactPersons(carrierContacts);
+      setFinanceTransactions(financeData || []);
 
-      // Filter queries for this carrier
-      const carrierQueries = allQueries.filter((q: any) => {
-        const qCust = typeof q.carrier === "object" && q.carrier ? q.carrier.id : q.carrier;
-        return String(qCust) === String(carrierId);
-      });
+      const entity = {
+        id: String(mappedCarrier.id),
+        company: mappedCarrier.company || mappedCarrier.name || "",
+        name: mappedCarrier.name || mappedCarrier.company || "",
+      };
+
+      const carrierQueries = allQueries.filter((q: any) =>
+        queryMatchesCarrier(q, entity),
+      );
       setQueries(carrierQueries);
 
-      // Fetch and filter orders for this carrier
-      try {
-        const token = localStorage.getItem("token") || "";
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const ordersRes = await axios.get(ENDPOINTS.ORDERS.BASE, { headers }).catch(() => ({ data: [] }));
-        const allOrders = ordersRes.data || [];
-        const carrierOrders = allOrders.filter((o: any) => {
-          const oCust = typeof o.carrier === "object" && o.carrier ? o.carrier.id : o.carrierId || o.carrier;
-          return String(oCust) === String(carrierId) || 
-                 String(o.carrierName).toLowerCase() === String(custData.name || custData.company).toLowerCase();
-        });
-        setOrders(carrierOrders);
-      } catch (e) {
-        console.error("Orders fetch failed", e);
-      }
+      const carrierOrders = allOrders.filter((order: any) =>
+        matchesCarrierEntity(order, entity),
+      );
+      setOrders(carrierOrders);
     } catch (err) {
       console.error("Carrier details load failed", err);
       dispatch(
@@ -119,6 +161,21 @@ export default function DasiyiciDetailPage() {
   useEffect(() => {
     loadData();
   }, [carrierId]);
+
+  const displayedContacts = useMemo(
+    () => normalizeCarrierContacts(carrier?.contactPersons, contactPersons),
+    [carrier?.contactPersons, contactPersons],
+  );
+
+  const primaryContactLabel = useMemo(
+    () => getSelectedContactNames(carrier, displayedContacts),
+    [carrier, displayedContacts],
+  );
+
+  const managerLabel = useMemo(
+    () => resolveManagerDisplayName(carrier?.manager, usersData),
+    [carrier?.manager, usersData],
+  );
 
   // Aggregate Order Stats
   const orderStats = useMemo(() => {
@@ -142,10 +199,24 @@ export default function DasiyiciDetailPage() {
 
   // Dynamic Finance Info
   const financeStats = useMemo(() => {
-    // Generate payments: Completed orders are considered paid
     const payments: any[] = [];
     let totalPaid = 0;
     let outstandingDebt = 0;
+
+    financeTransactions.forEach((tx) => {
+      const amount = parseMoney(String(tx.amount ?? 0));
+      const isIncome = tx.type === "INCOME";
+      payments.push({
+        date: tx.date || tx.costDate || new Date().toISOString(),
+        purpose: tx.name || tx.category || "Maliyyə əməliyyatı",
+        amount,
+        currency: tx.currency || "AZN",
+        status: isIncome ? "Mədaxil" : "Məxaric",
+        type: tx.type,
+      });
+      if (isIncome) totalPaid += amount;
+      else outstandingDebt += amount;
+    });
 
     orders.forEach((o) => {
       const amount = parseMoney(o.freight);
@@ -157,33 +228,20 @@ export default function DasiyiciDetailPage() {
           amount,
           currency: "AZN",
           status: "Uğurlu",
+          type: "INCOME",
         });
       } else if (o.statusKind !== "cancelled") {
         outstandingDebt += amount;
       }
     });
 
-    // If there are no payments but we have earned something, mock at least one successful payment
-    if (payments.length === 0 && orderStats.sales > 0) {
-      const amount = Math.floor(orderStats.sales * 0.7);
-      totalPaid = amount;
-      outstandingDebt = orderStats.sales - amount;
-      payments.push({
-        date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-        purpose: "İlkin sifariş avans ödənişi",
-        amount,
-        currency: "AZN",
-        status: "Uğurlu",
-      });
-    }
-
     return {
       totalPaid,
       outstandingDebt,
-      overpayment: 0, // Overpayment mock
+      overpayment: 0,
       payments,
     };
-  }, [orders, orderStats]);
+  }, [orders, financeTransactions]);
 
   const openEditModal = () => {
     if (!carrier) return;
@@ -196,7 +254,7 @@ export default function DasiyiciDetailPage() {
       manager: carrier.manager || "",
       contactInfo: carrier.phone || "",
       address: carrier.address || "",
-      country: carrier.country || "AZ",
+      country: resolveCountryValue(carrier.country || "AZ"),
       creditLimit: carrier.creditLimit || "0",
       salesGroup: carrier.salesGroup || "",
       contactPersons: carrier.contactPersons || [],
@@ -222,27 +280,11 @@ export default function DasiyiciDetailPage() {
         creditLimit: editForm.creditLimit.trim(),
         salesGroup: editForm.salesGroup.trim(),
         contactPersons: editForm.contactPersons,
+        documents: serializeCarrierDocuments(carrier?.documents || []),
       };
 
       const updated = await updateCarrierAction(carrierId, payload);
-      const mapped = {
-        id: String(updated.id),
-        company: updated.name || updated.company || "-",
-        carrierType: updated.carrierType || "Yeni daşıyıcı",
-        contactPerson: updated.contactPerson || "-",
-        contactPersons: updated.contactPersons || [],
-        contactInfo: updated.phone || "-",
-        address: updated.address || "-",
-        country: updated.country || "AZ",
-        manager: updated.manager || "-",
-        creditLimit: updated.creditLimit || "0",
-        daysSinceLastContact: carrier?.daysSinceLastContact || 0,
-        orderCount: orders.length,
-        salesGroup: updated.company || "-",
-        voen: updated.voen || "-",
-      };
-
-      setCarrier(mapped);
+      setCarrier(mapCarrierFromApi(updated));
       setIsEditOpen(false);
       dispatch(
         showNotification({
@@ -261,30 +303,27 @@ export default function DasiyiciDetailPage() {
   };
 
   // Inline contact person creation handler
-  const handleCreateContactPerson = async () => {
-    if (!contactForm.fullName.trim() || !carrier || !carrierId) {
-      dispatch(showNotification({ message: "Ad Soyad mütləqdir", type: "error" }));
-      return;
-    }
+  const handleCreateContactPerson = async (data: ContactPersonFormData) => {
+    if (!carrier || !carrierId) return;
     try {
       const newContact = await createContactPersonAction({
-        fullName: contactForm.fullName.trim(),
-        phone: contactForm.phone.trim(),
-        email: contactForm.email.trim(),
-        position: contactForm.position.trim(),
-        company: carrier.company || "",
+        fullName: data.fullName,
+        phone: data.phone,
+        email: data.email,
+        position: data.position,
+        company: data.company || carrier.company || "",
+        entityType: "carrier",
+        entityId: carrierId,
       });
 
       setContactPersons((prev) => [newContact, ...prev]);
 
-      const updatedContactPersons = [...(carrier.contactPersons || []), newContact.id];
+      const updatedContactPersons = [...displayedContacts, newContact];
 
-      // Update backend carrier immediately
       await updateCarrierAction(carrierId, {
         contactPersons: updatedContactPersons,
       });
 
-      // Update local state
       setCarrier((prev: any) => ({
         ...prev,
         contactPersons: updatedContactPersons,
@@ -293,8 +332,8 @@ export default function DasiyiciDetailPage() {
       setIsContactModalOpen(false);
       dispatch(
         showNotification({
-          message: "Yeni əlaqədar şəxs yaradıldı və əlavə edildi.",
-          type: "success",
+          message: "Yeni daşıyıcı əlaqədar şəxs əlavə edildi",
+          type: "added",
         })
       );
     } catch (error) {
@@ -304,6 +343,7 @@ export default function DasiyiciDetailPage() {
           type: "error",
         })
       );
+      throw error;
     }
   };
 
@@ -341,7 +381,9 @@ export default function DasiyiciDetailPage() {
   return (
     <div className={styles.page}>
       <div className={styles.topBar}>
-        <div className={styles.companyName}>{carrier.company}</div>
+        <div className={styles.companyName} title={carrier.company}>
+          {carrier.company}
+        </div>
         <div className={styles.tabs}>
           {TAB_ITEMS.map((tab) => (
             <button
@@ -365,10 +407,6 @@ export default function DasiyiciDetailPage() {
           <FaSyncAlt size={12} />
           Yenilə
         </button>
-        <button type="button" onClick={openEditModal} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-          <FaEdit size={12} />
-          Redaktə et
-        </button>
       </div>
 
       <div className={styles.content}>
@@ -386,13 +424,28 @@ export default function DasiyiciDetailPage() {
               </p>
               
               <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
-                <span style={{ color: "#64748b", fontWeight: 600 }}>Direktoru:</span>
-                <div style={{ marginTop: "2px", fontWeight: 500 }}>{carrier.contactPerson || "-"}</div>
+                <span style={{ color: "#64748b", fontWeight: 600 }}>Daşıyıcı tipi:</span>
+                <div style={{ marginTop: "2px", fontWeight: 500 }}>{displayFieldValue(carrier.carrierType)}</div>
+              </p>
+
+              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+                <span style={{ color: "#64748b", fontWeight: 600 }}>Fəaliyyət növü:</span>
+                <div style={{ marginTop: "2px", fontWeight: 500 }}>{displayFieldValue(carrier.activityType)}</div>
+              </p>
+
+              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+                <span style={{ color: "#64748b", fontWeight: 600 }}>Əlaqədar şəxs:</span>
+                <div style={{ marginTop: "2px", fontWeight: 500 }}>{primaryContactLabel}</div>
+              </p>
+
+              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+                <span style={{ color: "#64748b", fontWeight: 600 }}>Telefon:</span>
+                <div style={{ marginTop: "2px", fontWeight: 500 }}>{carrier.phone || "-"}</div>
               </p>
               
               <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Tax (VÖEN):</span>
-                <div style={{ marginTop: "2px", fontWeight: 500 }}>{carrier.voen || "-"}</div>
+                <div style={{ marginTop: "2px", fontWeight: 500 }}>{displayFieldValue(carrier.voen)}</div>
               </p>
               
               <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
@@ -402,7 +455,7 @@ export default function DasiyiciDetailPage() {
               
               <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Ziyafreight Menecer:</span>
-                <div style={{ marginTop: "2px", fontWeight: 500 }}>{carrier.manager || "-"}</div>
+                <div style={{ marginTop: "2px", fontWeight: 500 }}>{managerLabel}</div>
               </p>
               
               <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
@@ -417,7 +470,7 @@ export default function DasiyiciDetailPage() {
               
               <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Statusu:</span>
-                <div style={{ marginTop: "2px", fontWeight: 500 }}>{carrier.carrierType || "-"}</div>
+                <div style={{ marginTop: "2px", fontWeight: 500 }}>{displayFieldValue(carrier.carrierType)}</div>
               </p>
 
               <div style={{ borderTop: "1px dashed #cbd5e1", margin: "8px 0" }} />
@@ -442,18 +495,10 @@ export default function DasiyiciDetailPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
               <div className={styles.infoCard}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc", padding: "0 12px", minHeight: "44px", borderBottom: "1px solid #e7edf5" }}>
-                  <h3 style={{ margin: 0, borderBottom: "none", fontSize: "0.76rem", letterSpacing: "0.08em", textTransform: "uppercase", color: "#475569" }}>Əlaqədar şəxslər</h3>
+                  <h3 style={{ margin: 0, borderBottom: "none", fontSize: "0.76rem", letterSpacing: "0.08em", textTransform: "uppercase", color: "#475569" }}>Daşıyıcı əlaqədar şəxsləri</h3>
                   <button
                     type="button"
-                    onClick={() => {
-                      setContactForm({
-                        fullName: "",
-                        phone: "",
-                        email: "",
-                        position: "",
-                      });
-                      setIsContactModalOpen(true);
-                    }}
+                    onClick={() => setIsContactModalOpen(true)}
                     style={{
                       background: "#e0f2fe",
                       border: "1px solid #bae6fd",
@@ -474,42 +519,38 @@ export default function DasiyiciDetailPage() {
                 </div>
                 
                 <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "10px" }}>
-                  {(!carrier.contactPersons || carrier.contactPersons.length === 0) ? (
+                  {displayedContacts.length === 0 ? (
                     <p style={{ color: "#94a3b8", fontSize: "0.8rem", fontStyle: "italic", margin: 0 }}>
-                      Heç bir əlaqədar şəxs əlavə edilməyib.
+                      Heç bir daşıyıcı əlaqədar şəxs əlavə edilməyib.
                     </p>
                   ) : (
-                    carrier.contactPersons.map((personId: string, idx: number) => {
-                      const contact = contactPersons.find(c => String(c.id) === String(personId));
-                      if (!contact) return null;
-                      return (
-                        <div
-                          key={idx}
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "4px",
-                            background: "#f8fafc",
-                            padding: "10px 14px",
-                            borderRadius: "10px",
-                            border: "1px solid #e2e8f0"
-                          }}
-                        >
-                          <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "#1e293b" }}>
-                            {contact.fullName}
-                            {contact.position && (
-                              <span style={{ fontWeight: 500, fontSize: "0.75rem", color: "#64748b", marginLeft: "8px" }}>
-                                ({contact.position})
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ fontSize: "0.78rem", color: "#475569" }}>
-                            {contact.phone && <span>Telefon: {contact.phone}</span>}
-                            {contact.email && <span style={{ marginLeft: "14px" }}>E-poçt: {contact.email}</span>}
-                          </div>
+                    displayedContacts.map((contact) => (
+                      <div
+                        key={contact.id}
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "4px",
+                          background: "#f8fafc",
+                          padding: "10px 14px",
+                          borderRadius: "10px",
+                          border: "1px solid #e2e8f0"
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "#1e293b" }}>
+                          {contact.fullName}
+                          {contact.position && (
+                            <span style={{ fontWeight: 500, fontSize: "0.75rem", color: "#64748b", marginLeft: "8px" }}>
+                              ({contact.position})
+                            </span>
+                          )}
                         </div>
-                      );
-                    })
+                        <div style={{ fontSize: "0.78rem", color: "#475569" }}>
+                          {contact.phone && <span>Telefon: {contact.phone}</span>}
+                          {contact.email && <span style={{ marginLeft: "14px" }}>E-poçt: {contact.email}</span>}
+                        </div>
+                      </div>
+                    ))
                   )}
                 </div>
               </div>
@@ -521,10 +562,10 @@ export default function DasiyiciDetailPage() {
                     <span>Şirkət adı:</span> {carrier.company}
                   </p>
                   <p>
-                    <span>Fəaliyyət növü:</span> {carrier.activityType || "-"}
+                    <span>Fəaliyyət növü:</span> {displayFieldValue(carrier.activityType)}
                   </p>
                   <p>
-                    <span>VÖEN:</span> {carrier.voen || "-"}
+                    <span>VÖEN:</span> {displayFieldValue(carrier.voen)}
                   </p>
                   <p>
                     <span>Hüquqi ünvan:</span> {carrier.address}
@@ -536,8 +577,89 @@ export default function DasiyiciDetailPage() {
                     <span>Kredit limiti:</span> {carrier.creditLimit}
                   </p>
                   <p>
-                    <span>Məsul Menecer:</span> {carrier.manager}
+                    <span>Telefon:</span> {carrier.phone || "-"}
                   </p>
+                  <p>
+                    <span>Daşıyıcı tipi:</span> {displayFieldValue(carrier.carrierType)}
+                  </p>
+                  <p>
+                    <span>Məsul Menecer:</span> {managerLabel}
+                  </p>
+                </div>
+              </div>
+
+              <div className={styles.infoCard}>
+                <h3>Sənədlər</h3>
+                <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {(!carrier.documents || carrier.documents.length === 0) ? (
+                    <p style={{ color: "#94a3b8", fontSize: "0.8rem", fontStyle: "italic", margin: 0 }}>
+                      Heç bir sənəd əlavə edilməyib.
+                    </p>
+                  ) : (
+                    carrier.documents.map((doc: any, idx: number) => (
+                      <div
+                        key={doc.id || idx}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: "12px",
+                          padding: "10px 14px",
+                          borderRadius: "10px",
+                          border: "1px solid #e2e8f0",
+                          background: "#f8fafc",
+                          fontSize: "0.82rem",
+                        }}
+                      >
+                        <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: 0, flex: 1, overflow: "hidden" }}>
+                          <span
+                            title={doc.number}
+                            style={{
+                              fontWeight: 600,
+                              color: "#0f172a",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {doc.number}
+                          </span>
+                          {doc.fileName ? (
+                            <span
+                              title={doc.fileName}
+                              style={{
+                                color: "#0369a1",
+                                fontSize: "0.75rem",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {doc.fileName}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
+                          <span style={{ color: "#64748b" }}>{doc.date}</span>
+                          {doc.fileUrl ? (
+                            <a
+                              href={buildApiUrl(doc.fileUrl)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                color: "#2563eb",
+                                fontWeight: 600,
+                                fontSize: "0.75rem",
+                                textDecoration: "none",
+                              }}
+                            >
+                              Bax
+                            </a>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -556,19 +678,27 @@ export default function DasiyiciDetailPage() {
                       <th style={{ padding: "10px", textAlign: "left", color: "#475569", fontWeight: 700 }}>Yük</th>
                       <th style={{ padding: "10px", textAlign: "left", color: "#475569", fontWeight: 700 }}>İstiqamət</th>
                       <th style={{ padding: "10px", textAlign: "left", color: "#475569", fontWeight: 700 }}>Tarix</th>
+                      <th style={{ padding: "10px", textAlign: "left", color: "#475569", fontWeight: 700 }}>Əməliyyat</th>
                     </tr>
                   </thead>
                   <tbody>
                     {queries.length === 0 ? (
                       <tr>
-                        <td colSpan={5} style={{ padding: "20px", textAlign: "center", color: "#64748b", fontStyle: "italic" }}>
+                        <td colSpan={6} style={{ padding: "20px", textAlign: "center", color: "#64748b", fontStyle: "italic" }}>
                           Sorğu tapılmadı.
                         </td>
                       </tr>
                     ) : (
                       queries.map((q) => (
                         <tr key={q.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                          <td style={{ padding: "10px", fontWeight: 600, color: "#2563eb" }}>{q.number}</td>
+                          <td style={{ padding: "10px", fontWeight: 600 }}>
+                            <Link
+                              to={getQueryDetailPath(q)}
+                              style={{ color: "#2563eb", textDecoration: "none" }}
+                            >
+                              {q.number}
+                            </Link>
+                          </td>
                           <td style={{ padding: "10px" }}>
                             <span style={{
                               display: "inline-block", padding: "2px 8px", borderRadius: "12px", fontSize: "0.7rem", fontWeight: 600,
@@ -579,9 +709,34 @@ export default function DasiyiciDetailPage() {
                               {q.status === "pending" ? "Gözləmədə" : q.status === "approved" ? "Təsdiq edildi" : q.status === "cancelled" ? "Ləğv edildi" : q.status}
                             </span>
                           </td>
-                          <td style={{ padding: "10px", color: "#334155" }}>{q.cargoInfo || "—"}</td>
-                          <td style={{ padding: "10px", color: "#334155" }}>{q.loadPlace} → {q.unloadPlace}</td>
+                          <td style={{ padding: "10px", color: "#334155", maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getQueryCargoSummary(q)}>
+                            {getQueryCargoSummary(q)}
+                          </td>
+                          <td style={{ padding: "10px", color: "#334155", maxWidth: "240px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getQueryDirectionLabel(q)}>
+                            {getQueryDirectionLabel(q)}
+                          </td>
                           <td style={{ padding: "10px", color: "#64748b" }}>{new Date(q.createdAt).toLocaleDateString("az-AZ")}</td>
+                          <td style={{ padding: "10px" }}>
+                            <Link
+                              to={getQueryDetailPath(q)}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                padding: "4px 10px",
+                                borderRadius: "6px",
+                                background: "#e0f2fe",
+                                border: "1px solid #bae6fd",
+                                color: "#0369a1",
+                                fontSize: "0.75rem",
+                                fontWeight: 600,
+                                textDecoration: "none",
+                              }}
+                            >
+                              <FiExternalLink size={12} />
+                              Detala keç
+                            </Link>
+                          </td>
                         </tr>
                       ))
                     )}
@@ -836,9 +991,13 @@ export default function DasiyiciDetailPage() {
                 <div className={styles.contactGrid}>
                   <label>
                     <span>Ölkə</span>
-                    <input
+                    <Select
                       value={editForm.country}
-                      onChange={(e) => setEditForm((prev) => ({ ...prev, country: e.target.value }))}
+                      options={getCountrySelectOptions(editForm.country)}
+                      placeholder="-"
+                      onChange={(value) =>
+                        setEditForm((prev) => ({ ...prev, country: value }))
+                      }
                     />
                   </label>
                   <label>
@@ -889,137 +1048,12 @@ export default function DasiyiciDetailPage() {
       </aside>
 
       {/* Inline Contact Person Creation Modal */}
-      {isContactModalOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(15, 23, 42, 0.6)",
-            backdropFilter: "blur(4px)",
-            zIndex: 2000,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "1rem"
-          }}
-          onClick={() => setIsContactModalOpen(false)}
-        >
-          <div
-            style={{
-              backgroundColor: "#ffffff",
-              borderRadius: "16px",
-              border: "1px solid #f1f5f9",
-              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-              padding: "1.75rem",
-              width: "100%",
-              maxWidth: "420px",
-              maxHeight: "90vh",
-              overflowY: "auto",
-              display: "flex",
-              flexDirection: "column",
-              gap: "1.25rem"
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div>
-              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f172a", marginBottom: "4px" }}>
-                Yeni əlaqədar şəxs əlavə et
-              </h3>
-              <p style={{ fontSize: "0.8rem", color: "#64748b" }}>
-                Şəxsin əlaqə məlumatlarını daxil edərək siyahıya əlavə edin.
-              </p>
-            </div>
-            
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              <label className={styles.field} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569" }}>Ad Soyad *</span>
-                <input
-                  type="text"
-                  value={contactForm.fullName}
-                  onChange={(e) => setContactForm(prev => ({ ...prev, fullName: e.target.value }))}
-                  className={styles.input}
-                  placeholder="Məs: Nicat Namazov"
-                  style={{ width: "100%" }}
-                />
-              </label>
-
-              <label className={styles.field} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569" }}>Telefon nömrəsi</span>
-                <input
-                  type="text"
-                  value={contactForm.phone}
-                  onChange={(e) => setContactForm(prev => ({ ...prev, phone: e.target.value }))}
-                  className={styles.input}
-                  placeholder="Məs: +994 50 000 00 00"
-                  style={{ width: "100%" }}
-                />
-              </label>
-
-              <label className={styles.field} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569" }}>E-poçt</span>
-                <input
-                  type="email"
-                  value={contactForm.email}
-                  onChange={(e) => setContactForm(prev => ({ ...prev, email: e.target.value }))}
-                  className={styles.input}
-                  placeholder="Məs: info@domain.com"
-                  style={{ width: "100%" }}
-                />
-              </label>
-
-              <label className={styles.field} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569" }}>Vəzifə</span>
-                <input
-                  type="text"
-                  value={contactForm.position}
-                  onChange={(e) => setContactForm(prev => ({ ...prev, position: e.target.value }))}
-                  className={styles.input}
-                  placeholder="Məs: Menecer"
-                  style={{ width: "100%" }}
-                />
-              </label>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "0.5rem" }}>
-              <button
-                type="button"
-                onClick={() => setIsContactModalOpen(false)}
-                style={{
-                  background: "#f1f5f9",
-                  color: "#475569",
-                  border: "none",
-                  borderRadius: "8px",
-                  padding: "0.5rem 1rem",
-                  fontSize: "0.8rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  transition: "background 0.2s"
-                }}
-              >
-                Ləğv et
-              </button>
-              <button
-                type="button"
-                onClick={handleCreateContactPerson}
-                style={{
-                  background: "#2563eb",
-                  color: "#ffffff",
-                  border: "none",
-                  borderRadius: "8px",
-                  padding: "0.5rem 1rem",
-                  fontSize: "0.8rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  boxShadow: "0 2px 4px rgba(37, 99, 235, 0.2)",
-                  transition: "background 0.2s"
-                }}
-              >
-                Əlavə et
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ContactPersonFormModal
+        isOpen={isContactModalOpen}
+        onClose={() => setIsContactModalOpen(false)}
+        onSubmit={handleCreateContactPerson}
+        initialValues={{ company: carrier?.company }}
+      />
     </div>
   );
 }

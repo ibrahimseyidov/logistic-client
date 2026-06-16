@@ -549,9 +549,7 @@ export default function SifarisEditModal({
                     {(() => {
                       const cust = customersData.find((c: any) => c.id?.toString() === customer);
                       const contacts = cust?.contactPersons || [];
-                      const selectedIds = cust?.contactPerson ? cust.contactPerson.split(',') : null;
-                      const filtered = selectedIds ? contacts.filter((c: any) => selectedIds.includes(String(c.id))) : contacts;
-                      return filtered.map((c: any) => (
+                      return contacts.map((c: any) => (
                         <option key={c.id} value={c.fullName}>{c.position ? `${c.fullName} (${c.position})` : c.fullName}</option>
                       ));
                     })()}

@@ -1,18 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { FiArrowLeft, FiPlus } from "react-icons/fi";
-import { FaEdit, FaSyncAlt } from "react-icons/fa";
-import axios from "axios";
-import { ENDPOINTS } from "../../../services/EndpointResources.g";
-import styles from "./musteriDetail.module.css";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { FiArrowLeft, FiPlus, FiExternalLink } from "react-icons/fi";
+import { FaSyncAlt } from "react-icons/fa";
 import {
   fetchCustomerDetailAction,
   updateCustomerAction,
 } from "../../../common/actions/customer.actions";
 import { fetchFinanceTransactionsAction } from "../../../common/actions/finance.actions";
 import { fetchQueriesAction } from "../../../common/actions/query.actions";
+import { fetchOrdersAction } from "../../../common/actions/order.actions";
+import styles from "./musteriDetail.module.css";
 import {
   fetchContactPersonsAction,
   createContactPersonAction,
@@ -20,6 +19,28 @@ import {
 import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
 import Loading from "../../../common/components/loading/Loading";
+import {
+  normalizeCarrierContacts,
+  formatEntityContactNames,
+  contactPersonIdsFromList,
+  parseCarrierDocuments,
+  mapCustomerFromApi,
+  resolveManagerDisplayName,
+  displayFieldValue,
+} from "../../../common/utils/carrierDisplay.utils";
+import { buildApiUrl } from "../../../common/utils/fetch.utils";
+import { fetchUsersAction } from "../../../common/actions/user.actions";
+import type { UserRow } from "../../ayarlar/types/user.types";
+import {
+  ContactPersonFormModal,
+  type ContactPersonFormData,
+} from "../../../common/components/modal/ContactPersonFormModal";
+import {
+  getQueryCargoSummary,
+  getQueryDirectionLabel,
+  getQueryDetailPath,
+} from "../../sorgular/lib/queryDisplay.utils";
+import { matchesCustomerEntity } from "../../../common/utils/entityActivity.utils";
 
 const TAB_ITEMS = ["Məlumatlar", "Sorğular", "Sifarişlər", "Maliyyə"];
 
@@ -42,15 +63,10 @@ export default function MusteriDetailPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [contactPersons, setContactPersons] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [usersData, setUsersData] = useState<UserRow[]>([]);
 
   // Contact modal state
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
-  const [contactForm, setContactForm] = useState({
-    fullName: "",
-    phone: "",
-    email: "",
-    position: "",
-  });
 
   // Edit drawer state
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -67,46 +83,74 @@ export default function MusteriDetailPage() {
     country: "",
     creditLimit: "",
     salesGroup: "",
-    contactPersons: [] as string[],
+    contactPersons: [] as any[],
   });
+
+  const displayedContacts = useMemo(
+    () => normalizeCarrierContacts(customer?.contactPersons, contactPersons),
+    [customer?.contactPersons, contactPersons],
+  );
+
+  const customerDocuments = useMemo(
+    () => parseCarrierDocuments(customer?.documents ?? customer?.documentsJson),
+    [customer?.documents, customer?.documentsJson],
+  );
+
+  const managerLabel = useMemo(
+    () => resolveManagerDisplayName(customer?.manager, usersData),
+    [customer?.manager, usersData],
+  );
 
   const loadData = async () => {
     if (!customerId) return;
     setLoading(true);
     try {
-      const [custData, allQueries, contactList, txData] = await Promise.all([
+      const [custData, allQueries, contactList, users, allOrders] = await Promise.all([
         fetchCustomerDetailAction(customerId),
         fetchQueriesAction(),
-        fetchContactPersonsAction(),
-        fetchFinanceTransactionsAction({ customerId }),
+        fetchContactPersonsAction({ entityType: "customer", entityId: customerId }),
+        fetchUsersAction().catch(() => []),
+        fetchOrdersAction(),
       ]);
 
-      setCustomer(custData);
+      const mappedCustomer = mapCustomerFromApi(custData);
+      setCustomer(mappedCustomer);
+      setUsersData(users);
       setContactPersons(contactList);
-      setTransactions(txData || []);
 
-      // Filter queries for this customer
-      const customerQueries = allQueries.filter((q: any) => {
-        const qCust = typeof q.customer === "object" && q.customer ? q.customer.id : q.customer;
-        return String(qCust) === String(customerId);
+      const entity = {
+        id: String(mappedCustomer.id),
+        company: mappedCustomer.company || mappedCustomer.name || "",
+        name: mappedCustomer.name || mappedCustomer.company || "",
+      };
+
+      const customerQueries = allQueries.filter((q: any) =>
+        matchesCustomerEntity(q, entity),
+      );
+
+      const customerQueryIds = new Set(customerQueries.map((q: any) => String(q.id)));
+      const customerOrders = allOrders.filter(
+        (order: any) =>
+          matchesCustomerEntity(order, entity) ||
+          (order.queryId != null && customerQueryIds.has(String(order.queryId))),
+      );
+
+      const [directTx, allFinanceTx] = await Promise.all([
+        fetchFinanceTransactionsAction({ customerId }),
+        fetchFinanceTransactionsAction(),
+      ]);
+      const orderIds = new Set(customerOrders.map((order: any) => String(order.id)));
+      const orderLinkedTx = allFinanceTx.filter(
+        (tx: any) => tx.orderId != null && orderIds.has(String(tx.orderId)),
+      );
+      const txMap = new Map<number, any>();
+      [...directTx, ...orderLinkedTx].forEach((tx: any) => {
+        if (tx?.id != null) txMap.set(tx.id, tx);
       });
-      setQueries(customerQueries);
 
-      // Fetch and filter orders for this customer
-      try {
-        const token = localStorage.getItem("token") || "";
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const ordersRes = await axios.get(ENDPOINTS.ORDERS.BASE, { headers }).catch(() => ({ data: [] }));
-        const allOrders = ordersRes.data || [];
-        const customerOrders = allOrders.filter((o: any) => {
-          const oCust = typeof o.customer === "object" && o.customer ? o.customer.id : o.customerId || o.customer;
-          return String(oCust) === String(customerId) || 
-                 String(o.customerName).toLowerCase() === String(custData.name || custData.company).toLowerCase();
-        });
-        setOrders(customerOrders);
-      } catch (e) {
-        console.error("Orders fetch failed", e);
-      }
+      setQueries(customerQueries);
+      setOrders(customerOrders);
+      setTransactions([...txMap.values()]);
     } catch (err) {
       console.error("Customer details load failed", err);
       dispatch(
@@ -131,9 +175,9 @@ export default function MusteriDetailPage() {
     let profit = 0;
 
     orders.forEach((o) => {
-      sales += parseMoney(o.freight);
+      sales += parseMoney(o.freightAzn) || parseMoney(o.freight);
       expenses += parseMoney(o.extraCosts);
-      profit += parseMoney(o.profit);
+      profit += parseMoney(o.profitAzn) || parseMoney(o.profit);
     });
 
     return {
@@ -146,61 +190,116 @@ export default function MusteriDetailPage() {
 
   // Dynamic Finance Info
   const financeStats = useMemo(() => {
-    // Generate payments: Completed orders are considered paid
     const payments: any[] = [];
     let totalPaid = 0;
     let outstandingDebt = 0;
     let overpayment = 0;
 
-    // Calculate total expected freight from non-cancelled orders
-    let totalExpectedFreight = 0;
-    orders.forEach((o) => {
-      if (o.statusKind !== "cancelled") {
-        totalExpectedFreight += parseMoney(o.freight);
+    const orderIdsWithTx = new Set(
+      transactions
+        .filter((tx) => tx.orderId != null)
+        .map((tx) => String(tx.orderId)),
+    );
+
+    transactions.forEach((tx) => {
+      const amount =
+        parseMoney(String(tx.amount ?? "")) ||
+        parseMoney(tx.tarifAzn) ||
+        parseMoney(tx.tarifPrice) ||
+        parseMoney(tx.mesarifPrice);
+      const isIncome = tx.type === "INCOME";
+
+      payments.push({
+        id: `tx-${tx.id}`,
+        date: tx.date || tx.costDate || tx.createdAt,
+        purpose:
+          tx.name ||
+          tx.category ||
+          (tx.orderId ? `${tx.orderId} nömrəli sifariş əməliyyatı` : "Maliyyə əməliyyatı"),
+        amount: isIncome ? amount : -amount,
+        currency: tx.currency || tx.tarifCurrency || "AZN",
+        status: isIncome ? "Mədaxil" : "Məxaric",
+      });
+
+      if (isIncome) totalPaid += amount;
+      else outstandingDebt += amount;
+    });
+
+    orders.forEach((order) => {
+      const freight =
+        parseMoney(order.freightAzn) || parseMoney(order.freight);
+      const profit =
+        parseMoney(order.profitAzn) || parseMoney(order.profit);
+
+      if (orderIdsWithTx.has(String(order.id))) {
+        return;
+      }
+
+      if (
+        order.statusKind === "completed" ||
+        order.statusKind === "finance_closed"
+      ) {
+        if (freight > 0) {
+          totalPaid += freight;
+          payments.push({
+            id: `order-${order.id}-freight`,
+            date: order.orderDate || order.createdAt,
+            purpose: `${order.orderNumber} — sifariş gəliri`,
+            amount: freight,
+            currency: "AZN",
+            status: "Ödənilib",
+          });
+        }
+      } else if (order.statusKind !== "cancelled" && freight > 0) {
+        outstandingDebt += freight;
+        payments.push({
+          id: `order-${order.id}-pending`,
+          date: order.orderDate || order.createdAt,
+          purpose: `${order.orderNumber} — gözlənilən ödəniş`,
+          amount: freight,
+          currency: "AZN",
+          status: "Gözləmədə",
+        });
+      }
+
+      if (profit > 0 && Math.abs(profit - freight) > 0.01) {
+        payments.push({
+          id: `order-${order.id}-profit`,
+          date: order.orderDate || order.createdAt,
+          purpose: `${order.orderNumber} — mənfəət`,
+          amount: profit,
+          currency: "AZN",
+          status: "Mənfəət",
+        });
       }
     });
 
-    transactions.forEach(tx => {
-      const isIncome = tx.type === "INCOME" || parseFloat(tx.profit || "0") > 0;
-      let amount = parseFloat(tx.amount || "0");
-      if (amount === 0 && tx.tarifPrice) amount = parseFloat(tx.tarifAzn || tx.tarifPrice || "0");
+    const totalExpectedFreight = orders
+      .filter((order) => order.statusKind !== "cancelled")
+      .reduce(
+        (sum, order) =>
+          sum + (parseMoney(order.freightAzn) || parseMoney(order.freight)),
+        0,
+      );
 
-      if (isIncome) {
-        totalPaid += amount;
-        payments.push({
-          date: tx.date || tx.createdAt,
-          purpose: tx.name || (tx.orderId ? `${tx.orderId} nömrəli sifariş ödənişi` : 'Gəlir ödənişi'),
-          amount,
-          currency: tx.currency || tx.tarifCurrency || "AZN",
-          status: "Uğurlu",
-        });
-      } else {
-        // If there's an expense directly tied to customer, it might reduce outstanding debt or just be an expense.
-        // We'll leave expenses out of totalPaid, maybe just show them in the list.
-        payments.push({
-          date: tx.date || tx.createdAt,
-          purpose: tx.name || 'Xərc / Geri qaytarma',
-          amount: -amount,
-          currency: tx.currency || tx.mesarifCurrency || "AZN",
-          status: "Uğurlu",
-        });
-      }
-    });
-
-    outstandingDebt = totalExpectedFreight - totalPaid;
-    if (outstandingDebt < 0) {
-      overpayment = Math.abs(outstandingDebt);
-      outstandingDebt = 0;
+    const netDebt = totalExpectedFreight - totalPaid;
+    if (netDebt < 0) {
+      overpayment = Math.abs(netDebt);
+    } else if (outstandingDebt < netDebt) {
+      outstandingDebt = netDebt;
     }
 
-    // Sort payments by date descending
-    payments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    payments.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    );
 
     return {
       totalPaid,
       outstandingDebt,
       overpayment,
       payments,
+      totalSales: orderStats.sales,
+      totalProfit: orderStats.profit,
     };
   }, [orders, orderStats, transactions]);
 
@@ -233,7 +332,7 @@ export default function MusteriDetailPage() {
         shortName: editForm.shortName.trim(),
         customerType: editForm.customerType,
         activityType: editForm.activityType.trim(),
-        voen: editForm.voen.trim(),
+        taxNumber: editForm.voen.trim(),
         manager: editForm.manager.trim(),
         phone: editForm.contactInfo.trim(),
         address: editForm.address.trim(),
@@ -244,24 +343,7 @@ export default function MusteriDetailPage() {
       };
 
       const updated = await updateCustomerAction(customerId, payload);
-      const mapped = {
-        id: String(updated.id),
-        company: updated.name || updated.company || "-",
-        customerType: updated.customerType || "Yeni müştəri",
-        contactPerson: updated.contactPerson || "-",
-        contactPersons: updated.contactPersons || [],
-        contactInfo: updated.phone || "-",
-        address: updated.address || "-",
-        country: updated.country || "AZ",
-        manager: updated.manager || "-",
-        creditLimit: updated.creditLimit || "0",
-        daysSinceLastContact: customer?.daysSinceLastContact || 0,
-        orderCount: orders.length,
-        salesGroup: updated.company || "-",
-        voen: updated.voen || "-",
-      };
-
-      setCustomer(mapped);
+      setCustomer(mapCustomerFromApi(updated));
       setIsEditOpen(false);
       dispatch(
         showNotification({
@@ -280,40 +362,42 @@ export default function MusteriDetailPage() {
   };
 
   // Inline contact person creation handler
-  const handleCreateContactPerson = async () => {
-    if (!contactForm.fullName.trim() || !customer || !customerId) {
-      dispatch(showNotification({ message: "Ad Soyad mütləqdir", type: "error" }));
-      return;
-    }
+  const handleCreateContactPerson = async (data: ContactPersonFormData) => {
+    if (!customer || !customerId) return;
     try {
       const newContact = await createContactPersonAction({
-        fullName: contactForm.fullName.trim(),
-        phone: contactForm.phone.trim(),
-        email: contactForm.email.trim(),
-        position: contactForm.position.trim(),
-        company: customer.company || "",
+        fullName: data.fullName,
+        phone: data.phone,
+        email: data.email,
+        position: data.position,
+        company: data.company || customer.company || "",
+        entityType: "customer",
+        entityId: customerId,
       });
 
       setContactPersons((prev) => [newContact, ...prev]);
 
-      const updatedContactPersons = [...(customer.contactPersons || []), newContact.id];
+      const updatedContactPersons = normalizeCarrierContacts(
+        customer.contactPersons,
+        [newContact],
+      );
 
-      // Update backend customer immediately
       await updateCustomerAction(customerId, {
         contactPersons: updatedContactPersons,
+        contactPerson: contactPersonIdsFromList(updatedContactPersons),
       });
 
-      // Update local state
       setCustomer((prev: any) => ({
         ...prev,
         contactPersons: updatedContactPersons,
+        contactPerson: contactPersonIdsFromList(updatedContactPersons),
       }));
 
       setIsContactModalOpen(false);
       dispatch(
         showNotification({
-          message: "Yeni əlaqədar şəxs yaradıldı və əlavə edildi.",
-          type: "success",
+          message: "Yeni müştəri əlaqədar şəxs əlavə edildi",
+          type: "added",
         })
       );
     } catch (error) {
@@ -323,6 +407,7 @@ export default function MusteriDetailPage() {
           type: "error",
         })
       );
+      throw error;
     }
   };
 
@@ -384,10 +469,6 @@ export default function MusteriDetailPage() {
           <FaSyncAlt size={12} />
           Yenilə
         </button>
-        <button type="button" onClick={openEditModal} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-          <FaEdit size={12} />
-          Redaktə et
-        </button>
       </div>
 
       <div className={styles.content}>
@@ -406,12 +487,14 @@ export default function MusteriDetailPage() {
               
               <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Direktoru:</span>
-                <div style={{ marginTop: "2px", fontWeight: 500 }}>{customer.contactPerson || "-"}</div>
+                <div style={{ marginTop: "2px", fontWeight: 500 }}>
+                  {formatEntityContactNames(displayedContacts)}
+                </div>
               </p>
               
               <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Tax (VÖEN):</span>
-                <div style={{ marginTop: "2px", fontWeight: 500 }}>{customer.voen || "-"}</div>
+                <div style={{ marginTop: "2px", fontWeight: 500 }}>{displayFieldValue(customer.voen)}</div>
               </p>
               
               <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
@@ -421,7 +504,7 @@ export default function MusteriDetailPage() {
               
               <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Ziyafreight Menecer:</span>
-                <div style={{ marginTop: "2px", fontWeight: 500 }}>{customer.manager || "-"}</div>
+                <div style={{ marginTop: "2px", fontWeight: 500 }}>{managerLabel}</div>
               </p>
               
               <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
@@ -464,15 +547,7 @@ export default function MusteriDetailPage() {
                   <h3 style={{ margin: 0, borderBottom: "none", fontSize: "0.76rem", letterSpacing: "0.08em", textTransform: "uppercase", color: "#475569" }}>Əlaqədar şəxslər</h3>
                   <button
                     type="button"
-                    onClick={() => {
-                      setContactForm({
-                        fullName: "",
-                        phone: "",
-                        email: "",
-                        position: "",
-                      });
-                      setIsContactModalOpen(true);
-                    }}
+                    onClick={() => setIsContactModalOpen(true)}
                     style={{
                       background: "#e0f2fe",
                       border: "1px solid #bae6fd",
@@ -493,42 +568,38 @@ export default function MusteriDetailPage() {
                 </div>
                 
                 <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "10px" }}>
-                  {(!customer.contactPersons || customer.contactPersons.length === 0) ? (
+                  {displayedContacts.length === 0 ? (
                     <p style={{ color: "#94a3b8", fontSize: "0.8rem", fontStyle: "italic", margin: 0 }}>
                       Heç bir əlaqədar şəxs əlavə edilməyib.
                     </p>
                   ) : (
-                    customer.contactPersons.map((personId: string, idx: number) => {
-                      const contact = contactPersons.find(c => String(c.id) === String(personId));
-                      if (!contact) return null;
-                      return (
-                        <div
-                          key={idx}
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "4px",
-                            background: "#f8fafc",
-                            padding: "10px 14px",
-                            borderRadius: "10px",
-                            border: "1px solid #e2e8f0"
-                          }}
-                        >
-                          <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "#1e293b" }}>
-                            {contact.fullName}
-                            {contact.position && (
-                              <span style={{ fontWeight: 500, fontSize: "0.75rem", color: "#64748b", marginLeft: "8px" }}>
-                                ({contact.position})
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ fontSize: "0.78rem", color: "#475569" }}>
-                            {contact.phone && <span>Telefon: {contact.phone}</span>}
-                            {contact.email && <span style={{ marginLeft: "14px" }}>E-poçt: {contact.email}</span>}
-                          </div>
+                    displayedContacts.map((contact) => (
+                      <div
+                        key={contact.id}
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "4px",
+                          background: "#f8fafc",
+                          padding: "10px 14px",
+                          borderRadius: "10px",
+                          border: "1px solid #e2e8f0"
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "#1e293b" }}>
+                          {contact.fullName}
+                          {contact.position && (
+                            <span style={{ fontWeight: 500, fontSize: "0.75rem", color: "#64748b", marginLeft: "8px" }}>
+                              ({contact.position})
+                            </span>
+                          )}
                         </div>
-                      );
-                    })
+                        <div style={{ fontSize: "0.78rem", color: "#475569" }}>
+                          {contact.phone && <span>Telefon: {contact.phone}</span>}
+                          {contact.email && <span style={{ marginLeft: "14px" }}>E-poçt: {contact.email}</span>}
+                        </div>
+                      </div>
+                    ))
                   )}
                 </div>
               </div>
@@ -540,10 +611,10 @@ export default function MusteriDetailPage() {
                     <span>Şirkət adı:</span> {customer.company}
                   </p>
                   <p>
-                    <span>Fəaliyyət növü:</span> {customer.activityType || "-"}
+                    <span>Faaliyyət növü:</span> {displayFieldValue(customer.activityType)}
                   </p>
                   <p>
-                    <span>VÖEN:</span> {customer.voen || "-"}
+                    <span>VÖEN:</span> {displayFieldValue(customer.voen)}
                   </p>
                   <p>
                     <span>Hüquqi ünvan:</span> {customer.address}
@@ -555,8 +626,83 @@ export default function MusteriDetailPage() {
                     <span>Kredit limiti:</span> {customer.creditLimit}
                   </p>
                   <p>
-                    <span>Məsul Menecer:</span> {customer.manager}
+                    <span>Məsul Menecer:</span> {managerLabel}
                   </p>
+                </div>
+              </div>
+
+              <div className={styles.infoCard}>
+                <h3>Sənədlər</h3>
+                <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {customerDocuments.length === 0 ? (
+                    <p style={{ color: "#94a3b8", fontSize: "0.8rem", fontStyle: "italic", margin: 0 }}>
+                      Heç bir sənəd əlavə edilməyib.
+                    </p>
+                  ) : (
+                    customerDocuments.map((doc, idx) => (
+                      <div
+                        key={doc.id || idx}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: "12px",
+                          padding: "10px 14px",
+                          borderRadius: "10px",
+                          border: "1px solid #e2e8f0",
+                          background: "#f8fafc",
+                          fontSize: "0.82rem",
+                        }}
+                      >
+                        <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: 0, flex: 1, overflow: "hidden" }}>
+                          <span
+                            title={doc.number}
+                            style={{
+                              fontWeight: 600,
+                              color: "#0f172a",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {doc.number}
+                          </span>
+                          {doc.fileName ? (
+                            <span
+                              title={doc.fileName}
+                              style={{
+                                color: "#0369a1",
+                                fontSize: "0.75rem",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {doc.fileName}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
+                          <span style={{ color: "#64748b" }}>{doc.date}</span>
+                          {doc.fileUrl ? (
+                            <a
+                              href={buildApiUrl(doc.fileUrl)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                color: "#2563eb",
+                                fontWeight: 600,
+                                fontSize: "0.75rem",
+                                textDecoration: "none",
+                              }}
+                            >
+                              Bax
+                            </a>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -575,19 +721,27 @@ export default function MusteriDetailPage() {
                       <th style={{ padding: "10px", textAlign: "left", color: "#475569", fontWeight: 700 }}>Yük</th>
                       <th style={{ padding: "10px", textAlign: "left", color: "#475569", fontWeight: 700 }}>İstiqamət</th>
                       <th style={{ padding: "10px", textAlign: "left", color: "#475569", fontWeight: 700 }}>Tarix</th>
+                      <th style={{ padding: "10px", textAlign: "left", color: "#475569", fontWeight: 700 }}>Əməliyyat</th>
                     </tr>
                   </thead>
                   <tbody>
                     {queries.length === 0 ? (
                       <tr>
-                        <td colSpan={5} style={{ padding: "20px", textAlign: "center", color: "#64748b", fontStyle: "italic" }}>
+                        <td colSpan={6} style={{ padding: "20px", textAlign: "center", color: "#64748b", fontStyle: "italic" }}>
                           Sorğu tapılmadı.
                         </td>
                       </tr>
                     ) : (
                       queries.map((q) => (
                         <tr key={q.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                          <td style={{ padding: "10px", fontWeight: 600, color: "#2563eb" }}>{q.number}</td>
+                          <td style={{ padding: "10px", fontWeight: 600 }}>
+                            <Link
+                              to={getQueryDetailPath(q)}
+                              style={{ color: "#2563eb", textDecoration: "none" }}
+                            >
+                              {q.number}
+                            </Link>
+                          </td>
                           <td style={{ padding: "10px" }}>
                             <span style={{
                               display: "inline-block", padding: "2px 8px", borderRadius: "12px", fontSize: "0.7rem", fontWeight: 600,
@@ -598,9 +752,34 @@ export default function MusteriDetailPage() {
                               {q.status === "pending" ? "Gözləmədə" : q.status === "approved" ? "Təsdiq edildi" : q.status === "cancelled" ? "Ləğv edildi" : q.status}
                             </span>
                           </td>
-                          <td style={{ padding: "10px", color: "#334155" }}>{q.cargoInfo || "—"}</td>
-                          <td style={{ padding: "10px", color: "#334155" }}>{q.loadPlace} → {q.unloadPlace}</td>
+                          <td style={{ padding: "10px", color: "#334155", maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getQueryCargoSummary(q)}>
+                            {getQueryCargoSummary(q)}
+                          </td>
+                          <td style={{ padding: "10px", color: "#334155", maxWidth: "240px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getQueryDirectionLabel(q)}>
+                            {getQueryDirectionLabel(q)}
+                          </td>
                           <td style={{ padding: "10px", color: "#64748b" }}>{new Date(q.createdAt).toLocaleDateString("az-AZ")}</td>
+                          <td style={{ padding: "10px" }}>
+                            <Link
+                              to={getQueryDetailPath(q)}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                padding: "4px 10px",
+                                borderRadius: "6px",
+                                background: "#e0f2fe",
+                                border: "1px solid #bae6fd",
+                                color: "#0369a1",
+                                fontSize: "0.75rem",
+                                fontWeight: 600,
+                                textDecoration: "none",
+                              }}
+                            >
+                              <FiExternalLink size={12} />
+                              Detala keç
+                            </Link>
+                          </td>
                         </tr>
                       ))
                     )}
@@ -683,8 +862,7 @@ export default function MusteriDetailPage() {
           {/* Maliyyə Tab */}
           {activeTab === "Maliyyə" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-              {/* Financial Stats Grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "10px" }}>
                 <div style={{ background: "#f8fafc", padding: "1rem", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
                   <div style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 600, textTransform: "uppercase", marginBottom: "4px" }}>Ümumi Ödəniş</div>
                   <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#059669" }}>{financeStats.totalPaid.toLocaleString("az-AZ")} AZN</div>
@@ -694,14 +872,21 @@ export default function MusteriDetailPage() {
                   <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#ea580c" }}>{financeStats.outstandingDebt.toLocaleString("az-AZ")} AZN</div>
                 </div>
                 <div style={{ background: "#f8fafc", padding: "1rem", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
-                  <div style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 600, textTransform: "uppercase", marginBottom: "4px" }}>Artıq Ödəniş (Avans)</div>
+                  <div style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 600, textTransform: "uppercase", marginBottom: "4px" }}>Artıq Ödəniş</div>
                   <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#3b82f6" }}>{financeStats.overpayment.toLocaleString("az-AZ")} AZN</div>
+                </div>
+                <div style={{ background: "#f8fafc", padding: "1rem", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+                  <div style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 600, textTransform: "uppercase", marginBottom: "4px" }}>Satış (sifariş)</div>
+                  <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#2563eb" }}>{financeStats.totalSales.toLocaleString("az-AZ")} AZN</div>
+                </div>
+                <div style={{ background: "#f8fafc", padding: "1rem", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+                  <div style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 600, textTransform: "uppercase", marginBottom: "4px" }}>Mənfəət</div>
+                  <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#059669" }}>{financeStats.totalProfit.toLocaleString("az-AZ")} AZN</div>
                 </div>
               </div>
 
-              {/* Payment History */}
               <div className={styles.infoCard}>
-                <h3>Ödəmə tarixçəsi</h3>
+                <h3>Maliyyə tarixçəsi</h3>
                 <div style={{ padding: "0.5rem", overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
                     <thead>
@@ -717,20 +902,49 @@ export default function MusteriDetailPage() {
                       {financeStats.payments.length === 0 ? (
                         <tr>
                           <td colSpan={5} style={{ padding: "20px", textAlign: "center", color: "#64748b", fontStyle: "italic" }}>
-                            Ödəniş tarixçəsi tapılmadı.
+                            Maliyyə əməliyyatı tapılmadı.
                           </td>
                         </tr>
                       ) : (
-                        financeStats.payments.map((p, pIdx) => (
-                          <tr key={pIdx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                            <td style={{ padding: "10px", color: "#64748b" }}>{new Date(p.date).toLocaleDateString("az-AZ")}</td>
+                        financeStats.payments.map((p) => (
+                          <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                            <td style={{ padding: "10px", color: "#64748b" }}>
+                              {p.date ? new Date(p.date).toLocaleDateString("az-AZ") : "—"}
+                            </td>
                             <td style={{ padding: "10px", color: "#334155" }}>{p.purpose}</td>
-                            <td style={{ padding: "10px", fontWeight: 700, color: "#0f172a" }}>{p.amount.toLocaleString("az-AZ")}</td>
+                            <td
+                              style={{
+                                padding: "10px",
+                                fontWeight: 700,
+                                color: p.amount >= 0 ? "#059669" : "#dc2626",
+                              }}
+                            >
+                              {p.amount >= 0 ? "+" : ""}
+                              {p.amount.toLocaleString("az-AZ")}
+                            </td>
                             <td style={{ padding: "10px", color: "#475569" }}>{p.currency}</td>
                             <td style={{ padding: "10px" }}>
                               <span style={{
                                 display: "inline-block", padding: "2px 8px", borderRadius: "12px", fontSize: "0.7rem", fontWeight: 600,
-                                background: "#ecfdf5", color: "#047857", border: "1px solid #a7f3d0"
+                                background:
+                                  p.status === "Məxaric"
+                                    ? "#fef2f2"
+                                    : p.status === "Gözləmədə"
+                                      ? "#fffbeb"
+                                      : "#ecfdf5",
+                                color:
+                                  p.status === "Məxaric"
+                                    ? "#b91c1c"
+                                    : p.status === "Gözləmədə"
+                                      ? "#b45309"
+                                      : "#047857",
+                                border: `1px solid ${
+                                  p.status === "Məxaric"
+                                    ? "#fecaca"
+                                    : p.status === "Gözləmədə"
+                                      ? "#fde68a"
+                                      : "#a7f3d0"
+                                }`,
                               }}>
                                 {p.status}
                               </span>
@@ -908,137 +1122,12 @@ export default function MusteriDetailPage() {
       </aside>
 
       {/* Inline Contact Person Creation Modal */}
-      {isContactModalOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(15, 23, 42, 0.6)",
-            backdropFilter: "blur(4px)",
-            zIndex: 2000,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "1rem"
-          }}
-          onClick={() => setIsContactModalOpen(false)}
-        >
-          <div
-            style={{
-              backgroundColor: "#ffffff",
-              borderRadius: "16px",
-              border: "1px solid #f1f5f9",
-              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-              padding: "1.75rem",
-              width: "100%",
-              maxWidth: "420px",
-              maxHeight: "90vh",
-              overflowY: "auto",
-              display: "flex",
-              flexDirection: "column",
-              gap: "1.25rem"
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div>
-              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f172a", marginBottom: "4px" }}>
-                Yeni əlaqədar şəxs əlavə et
-              </h3>
-              <p style={{ fontSize: "0.8rem", color: "#64748b" }}>
-                Şəxsin əlaqə məlumatlarını daxil edərək siyahıya əlavə edin.
-              </p>
-            </div>
-            
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              <label className={styles.field} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569" }}>Ad Soyad *</span>
-                <input
-                  type="text"
-                  value={contactForm.fullName}
-                  onChange={(e) => setContactForm(prev => ({ ...prev, fullName: e.target.value }))}
-                  className={styles.input}
-                  placeholder="Məs: Nicat Namazov"
-                  style={{ width: "100%" }}
-                />
-              </label>
-
-              <label className={styles.field} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569" }}>Telefon nömrəsi</span>
-                <input
-                  type="text"
-                  value={contactForm.phone}
-                  onChange={(e) => setContactForm(prev => ({ ...prev, phone: e.target.value }))}
-                  className={styles.input}
-                  placeholder="Məs: +994 50 000 00 00"
-                  style={{ width: "100%" }}
-                />
-              </label>
-
-              <label className={styles.field} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569" }}>E-poçt</span>
-                <input
-                  type="email"
-                  value={contactForm.email}
-                  onChange={(e) => setContactForm(prev => ({ ...prev, email: e.target.value }))}
-                  className={styles.input}
-                  placeholder="Məs: info@domain.com"
-                  style={{ width: "100%" }}
-                />
-              </label>
-
-              <label className={styles.field} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569" }}>Vəzifə</span>
-                <input
-                  type="text"
-                  value={contactForm.position}
-                  onChange={(e) => setContactForm(prev => ({ ...prev, position: e.target.value }))}
-                  className={styles.input}
-                  placeholder="Məs: Menecer"
-                  style={{ width: "100%" }}
-                />
-              </label>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "0.5rem" }}>
-              <button
-                type="button"
-                onClick={() => setIsContactModalOpen(false)}
-                style={{
-                  background: "#f1f5f9",
-                  color: "#475569",
-                  border: "none",
-                  borderRadius: "8px",
-                  padding: "0.5rem 1rem",
-                  fontSize: "0.8rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  transition: "background 0.2s"
-                }}
-              >
-                Ləğv et
-              </button>
-              <button
-                type="button"
-                onClick={handleCreateContactPerson}
-                style={{
-                  background: "#2563eb",
-                  color: "#ffffff",
-                  border: "none",
-                  borderRadius: "8px",
-                  padding: "0.5rem 1rem",
-                  fontSize: "0.8rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  boxShadow: "0 2px 4px rgba(37, 99, 235, 0.2)",
-                  transition: "background 0.2s"
-                }}
-              >
-                Əlavə et
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ContactPersonFormModal
+        isOpen={isContactModalOpen}
+        onClose={() => setIsContactModalOpen(false)}
+        onSubmit={handleCreateContactPerson}
+        initialValues={{ company: customer?.company }}
+      />
     </div>
   );
 }
