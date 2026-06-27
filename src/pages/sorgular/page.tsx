@@ -477,7 +477,6 @@ export default function SorgularPage() {
         className={`${styles.overlay} ${
           isFilterPanelOpen ? styles.overlayOpen : ""
         }`}
-        onClick={() => setIsFilterPanelOpen(false)}
         aria-hidden={!isFilterPanelOpen}
       />
 

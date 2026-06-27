@@ -521,7 +521,6 @@ export default function SifarisTable({
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            onClick={() => setHistoryOrder(null)}
           />
           <div 
             style={{

@@ -674,7 +674,6 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad }: Pr
           background: "rgba(15, 23, 42, 0.35)",
           backdropFilter: "blur(4px)",
         }}
-        onClick={onClose}
       />
 
       {/* Main Container */}
@@ -1813,7 +1812,6 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad }: Pr
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            onClick={() => setIsCountryModalOpen(false)}
           />
 
           {/* Centered Modal Card */}
@@ -2146,7 +2144,6 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad }: Pr
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            onClick={() => setIsPartnerModalOpen(false)}
           />
 
           {/* Centered Modal Card */}
@@ -2845,7 +2842,6 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad }: Pr
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            onClick={() => setIsBankModalOpen(false)}
           />
 
           {/* Centered Modal Card */}

@@ -281,7 +281,6 @@ export default function SorgularTemplate({
         className={`${styles.overlay} ${
           isFilterPanelOpen ? styles.overlayOpen : ""
         }`}
-        onClick={() => setIsFilterPanelOpen(false)}
         aria-hidden={!isFilterPanelOpen}
       />
 

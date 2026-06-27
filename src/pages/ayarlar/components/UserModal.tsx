@@ -56,7 +56,6 @@ export const UserModal: React.FC<Props> = ({ isOpen, onClose, onSubmit, initialV
     <div className={styles.dialogRoot}>
       <div 
         className={`${styles.dialogBackdrop} ${isVisible ? styles.dialogBackdropVisible : ""}`} 
-        onClick={onClose} 
       />
       <aside className={`${styles.dialogPanel} ${isVisible ? styles.dialogPanelVisible : ""}`}>
         <div className={styles.dialogHeader}>

@@ -178,7 +178,6 @@ export default function SifarisEditModal({
           background: "rgba(15, 23, 42, 0.4)",
           backdropFilter: "blur(4px)",
         }}
-        onClick={onClose}
       />
 
       {/* Main Container Card */}
@@ -1038,9 +1037,8 @@ export default function SifarisEditModal({
                 inset: 0,
                 background: "rgba(15, 23, 42, 0.4)",
                 backdropFilter: "blur(4px)",
-              }}
-              onClick={() => setIsNewClientModalOpen(false)}
-            />
+            }}
+          />
             <div
               style={{
                 position: "relative",
@@ -1341,9 +1339,8 @@ export default function SifarisEditModal({
                 inset: 0,
                 background: "rgba(15, 23, 42, 0.4)",
                 backdropFilter: "blur(4px)",
-              }}
-              onClick={() => setIsNewContactModalOpen(false)}
-            />
+            }}
+          />
             <div
               style={{
                 position: "relative",
@@ -1456,9 +1453,8 @@ export default function SifarisEditModal({
                 inset: 0,
                 background: "rgba(15, 23, 42, 0.4)",
                 backdropFilter: "blur(4px)",
-              }}
-              onClick={() => setIsNewTagModalOpen(false)}
-            />
+            }}
+          />
             <div
               style={{
                 position: "relative",

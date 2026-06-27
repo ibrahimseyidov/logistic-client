@@ -99,6 +99,50 @@
   box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.25);
 }
 
+.selectControl {
+  width: 100%;
+  min-height: 2.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 0.875rem;
+}
+
+.selectControl:hover {
+  border-color: #cbd5e1;
+}
+
+.inlineControlRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.plusButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.plusButton:hover {
+  background: #bae6fd;
+}
+
 .footer {
   display: flex;
   justify-content: flex-end;

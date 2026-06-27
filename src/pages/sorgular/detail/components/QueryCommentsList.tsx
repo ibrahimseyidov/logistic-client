@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FaPaperPlane, FaUserCircle } from "react-icons/fa";
+import { FaPaperPlane, FaTrash, FaUserCircle } from "react-icons/fa";
 
 interface Comment {
   id: number;
@@ -11,9 +11,14 @@ interface Comment {
 interface Props {
   comments: Comment[];
   onAddComment: (text: string) => void;
+  onDeleteComment?: (commentId: number) => void;
 }
 
-export const QueryCommentsList: React.FC<Props> = ({ comments, onAddComment }) => {
+export const QueryCommentsList: React.FC<Props> = ({
+  comments,
+  onAddComment,
+  onDeleteComment,
+}) => {
   const [newComment, setNewComment] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -41,7 +46,7 @@ export const QueryCommentsList: React.FC<Props> = ({ comments, onAddComment }) =
             outline: "none",
             resize: "none",
             transition: "all 0.2s",
-            background: "#fff"
+            background: "#fff",
           }}
           onFocus={(e) => {
             e.currentTarget.style.borderColor = "#2563eb";
@@ -66,7 +71,7 @@ export const QueryCommentsList: React.FC<Props> = ({ comments, onAddComment }) =
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center"
+            justifyContent: "center",
           }}
         >
           <FaPaperPlane />
@@ -83,25 +88,85 @@ export const QueryCommentsList: React.FC<Props> = ({ comments, onAddComment }) =
               padding: "1rem",
               background: "#f8fafc",
               borderRadius: "0.5rem",
-              border: "1px solid #f1f5f9"
+              border: "1px solid #f1f5f9",
             }}
           >
             <FaUserCircle style={{ fontSize: "2rem", color: "#cbd5e1" }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.25rem" }}>
-                <span style={{ fontWeight: 600, fontSize: "0.875rem", color: "#1e293b" }}>{comment.userName}</span>
-                <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
-                  {new Date(comment.createdAt).toLocaleString("az-AZ")}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  gap: "0.75rem",
+                  marginBottom: "0.25rem",
+                }}
+              >
+                <span
+                  style={{
+                    fontWeight: 600,
+                    fontSize: "0.875rem",
+                    color: "#1e293b",
+                  }}
+                >
+                  {comment.userName}
                 </span>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    flexShrink: 0,
+                  }}
+                >
+                  <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
+                    {new Date(comment.createdAt).toLocaleString("az-AZ")}
+                  </span>
+                  {onDeleteComment ? (
+                    <button
+                      type="button"
+                      onClick={() => onDeleteComment(comment.id)}
+                      style={{
+                        padding: "0.35rem",
+                        color: "#ef4444",
+                        border: "none",
+                        background: "none",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                      title="Şərhi sil"
+                      aria-label="Şərhi sil"
+                    >
+                      <FaTrash />
+                    </button>
+                  ) : null}
+                </div>
               </div>
-              <p style={{ fontSize: "0.875rem", color: "#475569", lineHeight: "1.5", whiteSpace: "pre-line" }}>
+              <p
+                style={{
+                  fontSize: "0.875rem",
+                  color: "#475569",
+                  lineHeight: "1.5",
+                  whiteSpace: "pre-line",
+                  margin: 0,
+                }}
+              >
                 {comment.text}
               </p>
             </div>
           </div>
         ))}
         {comments.length === 0 && (
-          <p style={{ textAlign: "center", padding: "2rem", color: "#94a3b8", fontSize: "0.875rem" }}>
+          <p
+            style={{
+              textAlign: "center",
+              padding: "2rem",
+              color: "#94a3b8",
+              fontSize: "0.875rem",
+            }}
+          >
             Hələ heç bir şərh yazılmayıb.
           </p>
         )}

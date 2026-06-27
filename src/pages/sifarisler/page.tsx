@@ -1143,7 +1143,6 @@ export default function SifarislerPage() {
         className={`${styles.overlay} ${
           openFilterPanel ? styles.overlayOpen : ""
         }`}
-        onClick={() => setOpenFilterPanel(null)}
         aria-hidden={!openFilterPanel}
       />
 

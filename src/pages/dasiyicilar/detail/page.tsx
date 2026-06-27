@@ -24,13 +24,10 @@ import {
   getSelectedContactNames,
   mapCarrierFromApi,
   normalizeCarrierContacts,
-  resolveManagerDisplayName,
   serializeCarrierDocuments,
 } from "../../../common/utils/carrierDisplay.utils";
 import Select from "../../../common/components/select/Select";
 import { buildApiUrl } from "../../../common/utils/fetch.utils";
-import { fetchUsersAction } from "../../../common/actions/user.actions";
-import type { UserRow } from "../../ayarlar/types/user.types";
 import { COUNTRY_OPTIONS } from "../../sorgular/constants/options.constants";
 import {
   ContactPersonFormModal,
@@ -69,9 +66,10 @@ function getCountrySelectOptions(currentValue?: string) {
   return options;
 }
 
-function parseMoney(value: string | undefined | null): number {
-  if (!value) return 0;
-  const cleaned = value.replace(/[^0-9.-]/g, "");
+function parseMoney(value: string | number | undefined | null): number {
+  if (value == null || value === "") return 0;
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const cleaned = String(value).replace(/[^0-9.-]/g, "");
   const parsed = parseFloat(cleaned);
   return Number.isNaN(parsed) ? 0 : parsed;
 }
@@ -88,25 +86,22 @@ export default function DasiyiciDetailPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [contactPersons, setContactPersons] = useState<any[]>([]);
   const [financeTransactions, setFinanceTransactions] = useState<any[]>([]);
-  const [usersData, setUsersData] = useState<UserRow[]>([]);
 
   // Contact modal state
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
 
   // Edit drawer state
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [activeEditTab, setActiveEditTab] = useState<"main" | "contact" | "finance">("main");
+  const [activeEditTab, setActiveEditTab] = useState<"main" | "contact">("main");
   const [editForm, setEditForm] = useState({
     company: "",
     shortName: "",
     carrierType: "",
     activityType: "",
     voen: "",
-    manager: "",
     contactInfo: "",
     address: "",
     country: "",
-    creditLimit: "",
     salesGroup: "",
     contactPersons: [] as string[],
   });
@@ -115,18 +110,16 @@ export default function DasiyiciDetailPage() {
     if (!carrierId) return;
     setLoading(true);
     try {
-      const [custData, allQueries, carrierContacts, financeData, users, allOrders] = await Promise.all([
+      const [custData, allQueries, carrierContacts, financeData, allOrders] = await Promise.all([
         fetchCarrierDetailAction(carrierId),
         fetchQueriesAction(),
         fetchContactPersonsAction({ entityType: "carrier", entityId: carrierId }),
         fetchFinanceTransactionsAction({ carrierId }),
-        fetchUsersAction().catch(() => []),
         fetchOrdersAction(),
       ]);
 
       const mappedCarrier = mapCarrierFromApi(custData);
       setCarrier(mappedCarrier);
-      setUsersData(users);
       setContactPersons(carrierContacts);
       setFinanceTransactions(financeData || []);
 
@@ -170,11 +163,6 @@ export default function DasiyiciDetailPage() {
   const primaryContactLabel = useMemo(
     () => getSelectedContactNames(carrier, displayedContacts),
     [carrier, displayedContacts],
-  );
-
-  const managerLabel = useMemo(
-    () => resolveManagerDisplayName(carrier?.manager, usersData),
-    [carrier?.manager, usersData],
   );
 
   // Aggregate Order Stats
@@ -251,11 +239,9 @@ export default function DasiyiciDetailPage() {
       carrierType: carrier.carrierType || "Yeni daşıyıcı",
       activityType: carrier.activityType || "",
       voen: carrier.voen || "",
-      manager: carrier.manager || "",
       contactInfo: carrier.phone || "",
       address: carrier.address || "",
       country: resolveCountryValue(carrier.country || "AZ"),
-      creditLimit: carrier.creditLimit || "0",
       salesGroup: carrier.salesGroup || "",
       contactPersons: carrier.contactPersons || [],
     });
@@ -273,11 +259,9 @@ export default function DasiyiciDetailPage() {
         carrierType: editForm.carrierType,
         activityType: editForm.activityType.trim(),
         voen: editForm.voen.trim(),
-        manager: editForm.manager.trim(),
         phone: editForm.contactInfo.trim(),
         address: editForm.address.trim(),
         country: editForm.country.trim(),
-        creditLimit: editForm.creditLimit.trim(),
         salesGroup: editForm.salesGroup.trim(),
         contactPersons: editForm.contactPersons,
         documents: serializeCarrierDocuments(carrier?.documents || []),
@@ -418,72 +402,67 @@ export default function DasiyiciDetailPage() {
             </div>
             
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Şirkət adı:</span>
                 <div style={{ marginTop: "2px", fontWeight: 700, color: "#0f172a" }}>{carrier.company}</div>
-              </p>
+              </div>
               
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Daşıyıcı tipi:</span>
                 <div style={{ marginTop: "2px", fontWeight: 500 }}>{displayFieldValue(carrier.carrierType)}</div>
-              </p>
+              </div>
 
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Fəaliyyət növü:</span>
                 <div style={{ marginTop: "2px", fontWeight: 500 }}>{displayFieldValue(carrier.activityType)}</div>
-              </p>
+              </div>
 
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Əlaqədar şəxs:</span>
                 <div style={{ marginTop: "2px", fontWeight: 500 }}>{primaryContactLabel}</div>
-              </p>
+              </div>
 
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Telefon:</span>
                 <div style={{ marginTop: "2px", fontWeight: 500 }}>{carrier.phone || "-"}</div>
-              </p>
+              </div>
               
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Tax (VÖEN):</span>
                 <div style={{ marginTop: "2px", fontWeight: 500 }}>{displayFieldValue(carrier.voen)}</div>
-              </p>
+              </div>
               
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Ünvan:</span>
                 <div style={{ marginTop: "2px", fontWeight: 500 }}>{carrier.address || "-"}</div>
-              </p>
+              </div>
               
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
-                <span style={{ color: "#64748b", fontWeight: 600 }}>Ziyafreight Menecer:</span>
-                <div style={{ marginTop: "2px", fontWeight: 500 }}>{managerLabel}</div>
-              </p>
-              
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Sorğu sayı:</span>
                 <div style={{ marginTop: "2px", fontWeight: 500 }}>{queries.length}</div>
-              </p>
+              </div>
               
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Sifariş sayı:</span>
                 <div style={{ marginTop: "2px", fontWeight: 500 }}>{orders.length}</div>
-              </p>
+              </div>
               
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Statusu:</span>
                 <div style={{ marginTop: "2px", fontWeight: 500 }}>{displayFieldValue(carrier.carrierType)}</div>
-              </p>
+              </div>
 
               <div style={{ borderTop: "1px dashed #cbd5e1", margin: "8px 0" }} />
               
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Şirkətdən qazanılan:</span>
                 <div style={{ marginTop: "2px", fontWeight: 700, color: "#2563eb" }}>{orderStats.sales.toLocaleString("az-AZ")} AZN</div>
-              </p>
+              </div>
               
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Ümumi mənfəət:</span>
                 <div style={{ marginTop: "2px", fontWeight: 700, color: "#059669" }}>{orderStats.profit.toLocaleString("az-AZ")} AZN</div>
-              </p>
+              </div>
             </div>
           </div>
         </aside>
@@ -574,16 +553,10 @@ export default function DasiyiciDetailPage() {
                     <span>Ölkə:</span> {carrier.country}
                   </p>
                   <p>
-                    <span>Kredit limiti:</span> {carrier.creditLimit}
-                  </p>
-                  <p>
                     <span>Telefon:</span> {carrier.phone || "-"}
                   </p>
                   <p>
                     <span>Daşıyıcı tipi:</span> {displayFieldValue(carrier.carrierType)}
-                  </p>
-                  <p>
-                    <span>Məsul Menecer:</span> {managerLabel}
                   </p>
                 </div>
               </div>
@@ -624,6 +597,20 @@ export default function DasiyiciDetailPage() {
                           >
                             {doc.number}
                           </span>
+                          {doc.documentType ? (
+                            <span
+                              title={doc.documentType}
+                              style={{
+                                color: "#475569",
+                                fontSize: "0.75rem",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {doc.documentType}
+                            </span>
+                          ) : null}
                           {doc.fileName ? (
                             <span
                               title={doc.fileName}
@@ -886,7 +873,6 @@ export default function DasiyiciDetailPage() {
       {/* Edit Drawer Modal */}
       <div
         className={`${styles.editModalOverlay} ${isEditOpen ? styles.editModalOverlayOpen : ""}`}
-        onClick={() => setIsEditOpen(false)}
         aria-hidden={!isEditOpen}
       />
       <aside
@@ -914,13 +900,6 @@ export default function DasiyiciDetailPage() {
               onClick={() => setActiveEditTab("contact")}
             >
               Əlaqə məlumatları
-            </button>
-            <button
-              type="button"
-              className={activeEditTab === "finance" ? styles.editTabActive : ""}
-              onClick={() => setActiveEditTab("finance")}
-            >
-              Maliyyə şərtləri
             </button>
           </div>
 
@@ -965,14 +944,7 @@ export default function DasiyiciDetailPage() {
               </section>
 
               <section className={styles.editColumn}>
-                <h4>Məsul şəxslər</h4>
-                <label>
-                  <span>Məsul menecer</span>
-                  <input
-                    value={editForm.manager}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, manager: e.target.value }))}
-                  />
-                </label>
+                <h4>Satış</h4>
                 <label>
                   <span>Satışlar qrupu</span>
                   <input
@@ -1012,23 +984,6 @@ export default function DasiyiciDetailPage() {
                     <input
                       value={editForm.contactInfo}
                       onChange={(e) => setEditForm((prev) => ({ ...prev, contactInfo: e.target.value }))}
-                    />
-                  </label>
-                </div>
-              </section>
-            </div>
-          )}
-
-          {activeEditTab === "finance" && (
-            <div className={styles.singleTabContent}>
-              <section className={styles.editColumn}>
-                <h4>Maliyyə limitləri</h4>
-                <div className={styles.financeGrid}>
-                  <label>
-                    <span>Kredit limiti</span>
-                    <input
-                      value={editForm.creditLimit}
-                      onChange={(e) => setEditForm((prev) => ({ ...prev, creditLimit: e.target.value }))}
                     />
                   </label>
                 </div>

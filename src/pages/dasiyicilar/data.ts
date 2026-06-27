@@ -8,8 +8,6 @@ export interface CarrierRow {
   contactInfo: string;
   address: string;
   country: string;
-  manager: string;
-  creditLimit: string;
   lastActivityDate: string | null;
   daysSinceLastContact: number;
   orderCount: number;
@@ -27,8 +25,6 @@ export const MOCK_ROWS: CarrierRow[] = [
     contactInfo: "+994 50 285 75 58",
     address: "Bakı",
     country: "AZ",
-    manager: "Ulvi Azizov",
-    creditLimit: "102",
     lastActivityDate: null,
     daysSinceLastContact: 0,
     orderCount: 0,
@@ -43,8 +39,6 @@ export const MOCK_ROWS: CarrierRow[] = [
     contactInfo: "+971 52 392 20 04",
     address: "United Arab Emirates",
     country: "BƏƏ",
-    manager: "Töhmino Askin",
-    creditLimit: "13",
     lastActivityDate: null,
     daysSinceLastContact: 18,
     orderCount: 0,
@@ -59,8 +53,6 @@ export const MOCK_ROWS: CarrierRow[] = [
     contactInfo: "+994 55 409 87 61",
     address: "H.Əliyev küç 82 F, Bakı",
     country: "Azərbaycan",
-    manager: "Ulvi Azizov",
-    creditLimit: "140",
     lastActivityDate: null,
     daysSinceLastContact: 14,
     orderCount: 4,

@@ -59,7 +59,6 @@ export default function FinanceModal({
     <>
       <div 
         className={`${drawerStyles.overlay} ${isOpen ? drawerStyles.overlayOpen : ''}`} 
-        onClick={onClose} 
       />
       <div className={`${drawerStyles.drawer} ${isOpen ? drawerStyles.drawerOpen : ''}`}>
         <div style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0' }}>

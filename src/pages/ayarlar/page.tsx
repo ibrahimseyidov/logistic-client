@@ -7,9 +7,11 @@ import {
   type AyarlarTab,
 } from "./constants/ayarlar.constants";
 import { LookupOptionsSection } from "./components/LookupOptionsSection";
+import { ApiLookupOptionsSection } from "./components/ApiLookupOptionsSection";
 import { UsersSection } from "./components/UsersSection";
 import { ContactPersonsSection } from "./components/ContactPersonsSection";
 import styles from "../sorgular/sorgular.module.css";
+import { CONTACT_POSITIONS_LOOKUP_TYPE } from "../../common/utils/contactPosition.utils";
 
 const CARGO_SPECS_SEED = [
   { value: "stackable", label: "Stackable" },
@@ -66,6 +68,14 @@ const AyarlarPage: React.FC = () => {
       )}
 
       {activeTab === "contact-persons" && <ContactPersonsSection />}
+
+      {activeTab === "contact-positions" && (
+        <ApiLookupOptionsSection
+          lookupType={CONTACT_POSITIONS_LOOKUP_TYPE}
+          title="Vəzifə"
+          singleField
+        />
+      )}
 
       {activeTab === "transport-types" && (
         <LookupOptionsSection

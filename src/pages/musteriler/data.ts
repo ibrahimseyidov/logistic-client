@@ -7,7 +7,6 @@ export interface CustomerRow {
   address: string;
   country: string;
   manager: string;
-  creditLimit: string;
   lastActivityDate: string | null;
   daysSinceLastContact: number;
   orderCount: number;
@@ -25,7 +24,6 @@ export const MOCK_ROWS: CustomerRow[] = [
     address: "Bakı",
     country: "AZ",
     manager: "Ulvi Azizov",
-    creditLimit: "102",
     lastActivityDate: null,
     daysSinceLastContact: 0,
     orderCount: 0,
@@ -41,7 +39,6 @@ export const MOCK_ROWS: CustomerRow[] = [
     address: "United Arab Emirates",
     country: "BƏƏ",
     manager: "Töhmino Askin",
-    creditLimit: "13",
     lastActivityDate: null,
     daysSinceLastContact: 18,
     orderCount: 0,
@@ -57,7 +54,6 @@ export const MOCK_ROWS: CustomerRow[] = [
     address: "H.Əliyev küç 82 F, Bakı",
     country: "Azərbaycan",
     manager: "Ulvi Azizov",
-    creditLimit: "140",
     lastActivityDate: null,
     daysSinceLastContact: 14,
     orderCount: 4,

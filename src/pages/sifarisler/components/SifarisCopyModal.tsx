@@ -73,7 +73,7 @@ export default function SifarisCopyModal({
 
   return (
     <div className={styles.nestedRoot}>
-      <div className={styles.nestedBackdrop} onClick={onClose} />
+      <div className={styles.nestedBackdrop} />
       <div
         className={styles.nestedCard}
         style={{

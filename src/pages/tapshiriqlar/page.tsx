@@ -461,7 +461,6 @@ export default function TapshiriqlarPage() {
 
       <div
         className={`${styles.overlay} ${isFilterPanelOpen ? styles.overlayOpen : ""}`}
-        onClick={() => setIsFilterPanelOpen(false)}
         aria-hidden={!isFilterPanelOpen}
       />
 

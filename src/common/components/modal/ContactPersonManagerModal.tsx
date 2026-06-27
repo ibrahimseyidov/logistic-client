@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FiPlus } from "react-icons/fi";
+import { FiEdit2, FiPlus } from "react-icons/fi";
 import type { ContactPersonRow } from "../../actions/contact.actions";
 import {
   ContactPersonFormModal,
@@ -12,6 +12,7 @@ interface ContactPersonManagerModalProps {
   onClose: () => void;
   contacts: ContactPersonRow[];
   onAdd: (data: ContactPersonFormData) => void | Promise<void>;
+  onEdit?: (contact: ContactPersonRow, data: ContactPersonFormData) => void | Promise<void>;
   onRemove: (contact: ContactPersonRow, index: number) => void;
   entityName?: string;
   entityTypeLabel?: string;
@@ -24,6 +25,7 @@ export const ContactPersonManagerModal: React.FC<ContactPersonManagerModalProps>
   onClose,
   contacts,
   onAdd,
+  onEdit,
   onRemove,
   entityName,
   entityTypeLabel = "şirkət",
@@ -31,6 +33,7 @@ export const ContactPersonManagerModal: React.FC<ContactPersonManagerModalProps>
   isSubmitting = false,
 }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingContact, setEditingContact] = useState<ContactPersonRow | null>(null);
 
   if (!isOpen) return null;
 
@@ -38,14 +41,33 @@ export const ContactPersonManagerModal: React.FC<ContactPersonManagerModalProps>
     ? `${entityName} üçün ${entityTypeLabel} əlaqədar şəxsləri`
     : `Yeni ${entityTypeLabel} üçün əlaqədar şəxslər`;
 
-  const handleAdd = async (data: ContactPersonFormData) => {
-    await onAdd(data);
+  const openCreateForm = () => {
+    setEditingContact(null);
+    setIsFormOpen(true);
+  };
+
+  const openEditForm = (contact: ContactPersonRow) => {
+    setEditingContact(contact);
+    setIsFormOpen(true);
+  };
+
+  const closeForm = () => {
     setIsFormOpen(false);
+    setEditingContact(null);
+  };
+
+  const handleSubmit = async (data: ContactPersonFormData) => {
+    if (editingContact && onEdit) {
+      await onEdit(editingContact, data);
+    } else {
+      await onAdd(data);
+    }
+    closeForm();
   };
 
   return (
     <>
-      <div className={styles.overlay} onClick={onClose}>
+      <div className={styles.overlay}>
         <div className={styles.panel} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
           <div className={styles.header}>
             <div>
@@ -57,7 +79,7 @@ export const ContactPersonManagerModal: React.FC<ContactPersonManagerModalProps>
             </button>
           </div>
 
-          <button type="button" className={styles.addButton} onClick={() => setIsFormOpen(true)}>
+          <button type="button" className={styles.addButton} onClick={openCreateForm}>
             <FiPlus />
             Yeni əlaqədar şəxs
           </button>
@@ -81,14 +103,26 @@ export const ContactPersonManagerModal: React.FC<ContactPersonManagerModalProps>
                       {contact.email ? `E-poçt: ${contact.email}` : ""}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className={styles.removeButton}
-                    onClick={() => onRemove(contact, index)}
-                    aria-label="Şəxsi sil"
-                  >
-                    ×
-                  </button>
+                  <div className={styles.cardActions}>
+                    {onEdit ? (
+                      <button
+                        type="button"
+                        className={styles.editButton}
+                        onClick={() => openEditForm(contact)}
+                        aria-label="Şəxsi redaktə et"
+                      >
+                        <FiEdit2 />
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className={styles.removeButton}
+                      onClick={() => onRemove(contact, index)}
+                      aria-label="Şəxsi sil"
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -104,10 +138,27 @@ export const ContactPersonManagerModal: React.FC<ContactPersonManagerModalProps>
 
       <ContactPersonFormModal
         isOpen={isFormOpen}
-        onClose={() => setIsFormOpen(false)}
-        onSubmit={handleAdd}
+        onClose={closeForm}
+        onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
-        initialValues={{ company: entityName }}
+        initialValues={
+          editingContact
+            ? {
+                fullName: editingContact.fullName,
+                phone: editingContact.phone,
+                email: editingContact.email,
+                position: editingContact.position,
+                company: editingContact.company || entityName,
+              }
+            : { company: entityName }
+        }
+        title={editingContact ? "Əlaqədar şəxsi redaktə et" : "Yeni əlaqədar şəxs əlavə et"}
+        description={
+          editingContact
+            ? "Əlaqədar şəxsin məlumatlarını yeniləyin."
+            : "Şəxsin əlaqə məlumatlarını daxil edərək siyahıya əlavə edin."
+        }
+        submitLabel={editingContact ? "Yadda saxla" : "Əlavə et"}
       />
     </>
   );

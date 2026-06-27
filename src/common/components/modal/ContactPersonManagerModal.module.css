@@ -131,6 +131,31 @@
   line-height: 1.4;
 }
 
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.editButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #fff;
+  color: #2563eb;
+  font-size: 0.85rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  cursor: pointer;
+}
+
+.editButton:hover {
+  background: #eff6ff;
+}
+
 .removeButton {
   flex-shrink: 0;
   border: 1px solid #fecaca;

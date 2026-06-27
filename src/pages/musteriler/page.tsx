@@ -19,7 +19,7 @@ import {
   deleteCustomerAction,
   uploadCustomerDocumentFileAction,
 } from "../../common/actions/customer.actions";
-import { fetchContactPersonsAction, ContactPersonRow, createContactPersonAction } from "../../common/actions/contact.actions";
+import { fetchContactPersonsAction, ContactPersonRow, createContactPersonAction, deleteContactPersonAction, updateContactPersonAction } from "../../common/actions/contact.actions";
 import { useAppDispatch } from "../../common/store/hooks";
 import { showNotification } from "../../common/store/modalSlice";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
@@ -39,6 +39,8 @@ import type { ContactPersonFormData } from "../../common/components/modal/Contac
 import {
   displayFieldValue,
   mergeCarrierFormContacts,
+  isPersistedContactPerson,
+  scopeEntityContacts,
   normalizeCarrierContacts,
   contactPersonIdsFromList,
   parseCarrierDocuments,
@@ -95,7 +97,6 @@ const EMPTY_FORM = {
   contactInfo: "",
   address: "",
   country: "AZ",
-  creditLimit: "0",
   documents: [] as CarrierDocumentItem[],
 };
 
@@ -135,7 +136,7 @@ export default function MusterilerPage() {
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [editForm, setEditForm] = useState({ ...EMPTY_FORM });
-  const [documentDraft, setDocumentDraft] = useState({ number: "", date: "" });
+  const [documentDraft, setDocumentDraft] = useState({ number: "", documentType: "", date: "" });
   const [isDocumentUploading, setIsDocumentUploading] = useState(false);
   const documentInputRef = useRef<HTMLInputElement | null>(null);
   const documentFormSetterRef = useRef<Dispatch<SetStateAction<typeof EMPTY_FORM>> | null>(null);
@@ -246,6 +247,10 @@ export default function MusterilerPage() {
     try {
       const currentForm = activePanel === "new" ? newForm : editForm;
       const entityId = activePanel === "edit" ? editingCustomerId : undefined;
+      const contactOptions = {
+        mode: activePanel === "new" ? ("new" as const) : ("edit" as const),
+        entityId: entityId || null,
+      };
 
       const newContact = await createContactPersonAction({
         fullName: data.fullName,
@@ -257,15 +262,25 @@ export default function MusterilerPage() {
         entityId: entityId || undefined,
       });
 
+      const nextContactPersons = mergeCarrierFormContacts(
+        normalizeCarrierContacts(currentForm.contactPersons, [newContact]),
+        normalizeCarrierContacts(availableContacts, [newContact]),
+        contactOptions,
+      );
+
+      if (activePanel === "edit" && editingCustomerId) {
+        await updateCustomerAction(editingCustomerId, {
+          contactPersons: nextContactPersons,
+          contactPerson: contactPersonIdsFromList(nextContactPersons),
+        });
+      }
+
       const setForm = activePanel === "new" ? setNewForm : setEditForm;
-      setForm((prev) => {
-        const contactPersons = normalizeCarrierContacts(prev.contactPersons, [newContact]);
-        return {
-          ...prev,
-          contactPersons,
-          contactPerson: contactPersonIdsFromList(contactPersons),
-        };
-      });
+      setForm((prev) => ({
+        ...prev,
+        contactPersons: nextContactPersons,
+        contactPerson: contactPersonIdsFromList(nextContactPersons),
+      }));
 
       setAvailableContacts((prev) => normalizeCarrierContacts(prev, [newContact]));
 
@@ -286,22 +301,136 @@ export default function MusterilerPage() {
     }
   };
 
-  const handleRemoveContactPerson = (contact: ContactPersonRow, _index: number) => {
+  const handleEditContactPerson = async (
+    contact: ContactPersonRow,
+    data: ContactPersonFormData,
+  ) => {
     const setForm = activePanel === "new" ? setNewForm : setEditForm;
-    setForm((prev) => {
-      const contactPersons = prev.contactPersons.filter((c) => String(c.id) !== String(contact.id));
-      return {
-        ...prev,
-        contactPersons,
-        contactPerson: contactPersonIdsFromList(contactPersons),
-      };
-    });
-    dispatch(
-      showNotification({
-        message: "Əlaqədar şəxs silindi",
-        type: "deleted",
-      }),
+    const currentForm = activePanel === "new" ? newForm : editForm;
+    const contactOptions = {
+      mode: activePanel === "new" ? ("new" as const) : ("edit" as const),
+      entityId: activePanel === "edit" ? editingCustomerId : null,
+    };
+    const scopedAvailable = scopeEntityContacts(availableContacts, contactOptions);
+    const mergedContacts = mergeCarrierFormContacts(
+      currentForm.contactPersons,
+      availableContacts,
+      contactOptions,
     );
+
+    try {
+      const company = data.company || contact.company || currentForm.company || "";
+      let updatedContact: ContactPersonRow = {
+        ...contact,
+        fullName: data.fullName,
+        phone: data.phone,
+        email: data.email,
+        position: data.position,
+        company,
+      };
+
+      if (isPersistedContactPerson(contact, scopedAvailable)) {
+        updatedContact = await updateContactPersonAction(String(contact.id), {
+          fullName: data.fullName,
+          phone: data.phone,
+          email: data.email,
+          position: data.position,
+          company,
+        });
+      }
+
+      const nextContactPersons = mergedContacts.map((item) =>
+        String(item.id) === String(contact.id) ? updatedContact : item,
+      );
+
+      if (activePanel === "edit" && editingCustomerId) {
+        await updateCustomerAction(editingCustomerId, {
+          contactPersons: nextContactPersons,
+          contactPerson: contactPersonIdsFromList(nextContactPersons),
+        });
+      }
+
+      setForm((prev) => ({
+        ...prev,
+        contactPersons: nextContactPersons,
+        contactPerson: contactPersonIdsFromList(nextContactPersons),
+      }));
+
+      if (isPersistedContactPerson(contact, scopedAvailable)) {
+        setAvailableContacts((prev) =>
+          prev.map((item) => (String(item.id) === String(contact.id) ? updatedContact : item)),
+        );
+      }
+
+      dispatch(
+        showNotification({
+          message: "Əlaqədar şəxs yeniləndi",
+          type: "updated",
+        }),
+      );
+    } catch (error) {
+      dispatch(
+        showNotification({
+          message: "Əlaqədar şəxs yenilənərkən xəta baş verdi",
+          type: "error",
+        }),
+      );
+      throw error;
+    }
+  };
+
+  const handleRemoveContactPerson = async (contact: ContactPersonRow, _index: number) => {
+    const setForm = activePanel === "new" ? setNewForm : setEditForm;
+    const currentForm = activePanel === "new" ? newForm : editForm;
+    const mergedContacts = mergeCarrierFormContacts(
+      currentForm.contactPersons,
+      availableContacts,
+      {
+        mode: activePanel === "new" ? "new" : "edit",
+        entityId: activePanel === "edit" ? editingCustomerId : null,
+      },
+    );
+    const nextContactPersons = mergedContacts.filter(
+      (c) => String(c.id) !== String(contact.id),
+    );
+    const scopedAvailable = scopeEntityContacts(availableContacts, {
+      mode: activePanel === "new" ? "new" : "edit",
+      entityId: activePanel === "edit" ? editingCustomerId : null,
+    });
+
+    try {
+      if (isPersistedContactPerson(contact, scopedAvailable)) {
+        await deleteContactPersonAction(String(contact.id));
+      }
+
+      if (activePanel === "edit" && editingCustomerId) {
+        await updateCustomerAction(editingCustomerId, {
+          contactPersons: nextContactPersons,
+          contactPerson: contactPersonIdsFromList(nextContactPersons),
+        });
+      }
+
+      setForm((prev) => ({
+        ...prev,
+        contactPersons: nextContactPersons,
+        contactPerson: contactPersonIdsFromList(nextContactPersons),
+      }));
+      setAvailableContacts((prev) => prev.filter((c) => String(c.id) !== String(contact.id)));
+
+      dispatch(
+        showNotification({
+          message: "Əlaqədar şəxs silindi",
+          type: "deleted",
+        }),
+      );
+    } catch (error) {
+      dispatch(
+        showNotification({
+          message: "Əlaqədar şəxs silinərkən xəta baş verdi",
+          type: "error",
+        }),
+      );
+    }
   };
   
   // We don't need a global contactOptions here anymore because it depends on the specific form (newForm/editForm)
@@ -403,7 +532,6 @@ export default function MusterilerPage() {
           address: c.address || "-",
           country: c.country || "AZ",
           manager: c.manager || "-",
-          creditLimit: c.creditLimit || "0",
           lastActivityDate: lastActivity ? lastActivity.toISOString() : null,
           daysSinceLastContact: daysSinceActivityDate(lastActivity),
           orderCount: customerOrders.length,
@@ -491,10 +619,10 @@ export default function MusterilerPage() {
   const openDocumentFilePicker = (
     setForm: Dispatch<SetStateAction<typeof EMPTY_FORM>>,
   ) => {
-    if (!documentDraft.number.trim() || !documentDraft.date) {
+    if (!documentDraft.number.trim() || !documentDraft.documentType.trim() || !documentDraft.date) {
       dispatch(
         showNotification({
-          message: "Sənəd nömrəsi və tarix mütləqdir",
+          message: "Sənəd nömrəsi, növü və tarix mütləqdir",
           type: "error",
         }),
       );
@@ -516,6 +644,7 @@ export default function MusterilerPage() {
     const newDocument: CarrierDocumentItem = {
       id: docId,
       number: documentDraft.number.trim(),
+      documentType: documentDraft.documentType.trim(),
       date: documentDraft.date,
       fileName: file.name,
       fileType: file.type,
@@ -526,7 +655,7 @@ export default function MusterilerPage() {
       ...prev,
       documents: [...prev.documents, newDocument],
     }));
-    setDocumentDraft({ number: "", date: "" });
+    setDocumentDraft({ number: "", documentType: "", date: "" });
     documentFormSetterRef.current = null;
     dispatch(
       showNotification({
@@ -587,7 +716,6 @@ export default function MusterilerPage() {
         activityType: getLookupLabel(newForm.activityType, activityTypeOptions),
         taxNumber: newForm.voen.trim(),
         country: newForm.country.trim(),
-        creditLimit: newForm.creditLimit.trim(),
         documents: serializeCarrierDocuments(documents),
       };
       await createCustomerAction(payload);
@@ -602,7 +730,7 @@ export default function MusterilerPage() {
       setActivePanel(null);
       setNewCustomerTab("main");
       setNewForm({ ...EMPTY_FORM });
-      setDocumentDraft({ number: "", date: "" });
+      setDocumentDraft({ number: "", documentType: "", date: "" });
     } catch (error) {
       dispatch(
         showNotification({
@@ -615,7 +743,7 @@ export default function MusterilerPage() {
 
   const openEditModal = (customer: CustomerRow) => {
     pendingDocumentFilesRef.current.clear();
-    setDocumentDraft({ number: "", date: "" });
+    setDocumentDraft({ number: "", documentType: "", date: "" });
     setEditingCustomerId(customer.id);
     setEditForm({
       company: customer.company,
@@ -629,7 +757,6 @@ export default function MusterilerPage() {
       contactInfo: customer.contactInfo,
       address: customer.address,
       country: resolveLookupValue(customer.country || "AZ", countriesData),
-      creditLimit: customer.creditLimit || "0",
       documents: parseCarrierDocuments((customer as any).documents),
     });
     setActivePanel("edit");
@@ -661,7 +788,7 @@ export default function MusterilerPage() {
     setActiveLookupModal(null);
     lookupOpenFromPlusRef.current = false;
     pendingDocumentFilesRef.current.clear();
-    setDocumentDraft({ number: "", date: "" });
+    setDocumentDraft({ number: "", documentType: "", date: "" });
   };
 
   const saveEditedCustomer = async () => {
@@ -681,7 +808,6 @@ export default function MusterilerPage() {
         activityType: getLookupLabel(editForm.activityType, activityTypeOptions),
         taxNumber: editForm.voen.trim(),
         country: editForm.country.trim(),
-        creditLimit: editForm.creditLimit.trim(),
         documents: serializeCarrierDocuments(documents),
       };
       await updateCustomerAction(editingCustomerId, payload);
@@ -792,7 +918,6 @@ export default function MusterilerPage() {
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min180}`}>Ünvan</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>Ölkə</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min150}`}>Menecer</th>
-                <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>Kredit limiti</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min160}`}>Son sorğu/sifariş tarixi</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min140}`}>Sifarişlərin sayı</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min140}`}>Sorğuların sayı</th>
@@ -824,7 +949,6 @@ export default function MusterilerPage() {
                   <td className={sorguTableStyles.cell}>
                     {usersData.find(u => String(u.id) === String(row.manager))?.name || row.manager}
                   </td>
-                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.creditLimit}</td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
                     {formatActivityDate(
                       row.lastActivityDate ? new Date(row.lastActivityDate) : null,
@@ -901,7 +1025,6 @@ export default function MusterilerPage() {
 
       <div
         className={`${sorguLayoutStyles.overlay} ${activePanel ? sorguLayoutStyles.overlayOpen : ""}`}
-        onClick={() => setActivePanel(null)}
         aria-hidden={!activePanel}
       />
 
@@ -1028,14 +1151,6 @@ export default function MusterilerPage() {
           const description = isNew
             ? "Müştəri məlumatlarını doldurub yaddaşa əlavə edin."
             : "Mövcud müştəri məlumatlarını yeniləyin.";
-          const selectableContacts = mergeCarrierFormContacts(
-            form.contactPersons,
-            availableContacts,
-            {
-              mode: isNew ? "new" : "edit",
-              entityId: isEdit ? editingCustomerId : null,
-            },
-          );
 
           return (
             <div className={styles.newPanel}>
@@ -1181,22 +1296,10 @@ export default function MusterilerPage() {
                       <div className={styles.sectionBox}>
                         <p className={styles.sectionBoxTitle}>Müştəri əlaqədar şəxsləri</p>
                         <p className={styles.sectionBoxHint}>
-                          Əlaqədar şəxsləri «İdarə et» düyməsi ilə əlavə edin. Əlavə edilən şəxslər avtomatik görünəcək.
+                          Əlaqədar şəxsləri «İdarə et» düyməsi ilə əlavə edin.
                         </p>
                         <div className={styles.inlineControlRow}>
-                          <div className={styles.contactPersonList}>
-                            {selectableContacts.length === 0 ? (
-                              <span className={styles.contactPersonEmpty}>
-                                Əlaqədar şəxs yoxdur
-                              </span>
-                            ) : (
-                              selectableContacts.map((contact) => (
-                                <span key={contact.id} className={styles.contactPersonTag}>
-                                  {contact.fullName}
-                                </span>
-                              ))
-                            )}
-                          </div>
+                          <div className={styles.contactPersonList} aria-hidden="true" />
                           <button
                             type="button"
                             className={styles.manageButton}
@@ -1266,29 +1369,10 @@ export default function MusterilerPage() {
                   </div>
                 </div>
 
-                {/* 3. Maliyyə və Satış */}
-                <div className={styles.newPanelCard}>
-                  <h3 className={styles.newPanelCardTitle}>Maliyyə və Satış</h3>
-                  <div className={styles.newPanelGrid}>
-                    <label className={styles.field}>
-                      <span>Kredit limiti</span>
-                      <input
-                        type="number"
-                        value={form.creditLimit}
-                        onChange={(e) =>
-                          setForm((prev: any) => ({ ...prev, creditLimit: e.target.value }))
-                        }
-                        className={styles.input}
-                        placeholder="0.00"
-                      />
-                    </label>
-                  </div>
-                </div>
-
-                {/* 4. Sənədlər */}
+                {/* 3. Sənədlər */}
                 <div className={styles.newPanelCard}>
                   <h3 className={styles.newPanelCardTitle}>Sənədlər</h3>
-                  <div className={styles.newPanelGrid}>
+                  <div className={styles.documentFormGrid}>
                     <label className={styles.field}>
                       <span>Sənədin nömrəsi</span>
                       <input
@@ -1298,6 +1382,17 @@ export default function MusterilerPage() {
                         }
                         className={styles.input}
                         placeholder="Sənəd nömrəsini daxil edin"
+                      />
+                    </label>
+                    <label className={styles.field}>
+                      <span>Sənədin növü</span>
+                      <input
+                        value={documentDraft.documentType}
+                        onChange={(e) =>
+                          setDocumentDraft((prev) => ({ ...prev, documentType: e.target.value }))
+                        }
+                        className={styles.input}
+                        placeholder="Məs: Müqavilə"
                       />
                     </label>
                     <label className={styles.field}>
@@ -1333,6 +1428,11 @@ export default function MusterilerPage() {
                             <span className={styles.documentNumber} title={doc.number}>
                               {doc.number}
                             </span>
+                            {doc.documentType ? (
+                              <span className={styles.documentType} title={doc.documentType}>
+                                {doc.documentType}
+                              </span>
+                            ) : null}
                             <span className={styles.documentDate}>{doc.date}</span>
                             {doc.fileName ? (
                               <span className={styles.documentFileName} title={doc.fileName}>
@@ -1413,6 +1513,7 @@ export default function MusterilerPage() {
           },
         )}
         onAdd={handleCreateContactPerson}
+        onEdit={handleEditContactPerson}
         onRemove={handleRemoveContactPerson}
         entityName={(activePanel === "new" ? newForm : editForm).company}
         entityTypeLabel="müştəri"

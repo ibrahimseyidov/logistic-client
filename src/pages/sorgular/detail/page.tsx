@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from "react";
 import Loading from "../../../common/components/loading/Loading";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { FaArrowLeft, FaEdit, FaHistory, FaRedo } from "react-icons/fa";
+import { FaArrowLeft, FaEdit } from "react-icons/fa";
 import {
   buildSorguDetailView,
   type SorguDetailTabId,
@@ -15,8 +15,11 @@ import {
   fetchDocumentsAction,
   uploadDocumentAction,
   deleteDocumentAction,
+  deleteCommentAction,
   updateQueryAction
 } from "../../../common/actions/query.actions";
+import { fetchCustomersAction } from "../../../common/actions/customer.actions";
+import { fetchUsersAction } from "../../../common/actions/user.actions";
 import type { LogisticQueryRow } from "../types/sorgu.types";
 import styles from "./page.module.css";
 import { QueryOffersList } from "./components/QueryOffersList";
@@ -25,7 +28,7 @@ import { QueryDocumentsList } from "./components/QueryDocumentsList";
 import { showNotification } from "../../../common/store/modalSlice";
 import { useAppDispatch } from "../../../common/store/hooks";
 import { ConfirmModal } from "../../../common/components/ConfirmModal";
-import { SorgularEditModal, type NewSorguFormPayload } from "../components";
+import { SorgularEditModal, type NewSorguFormPayload, SorgularOfferModal } from "../components";
 
 function SectionCard({
   title,
@@ -81,14 +84,19 @@ export default function SorguDetailPage() {
   const dispatch = useAppDispatch();
   const [tab, setTab] = useState<SorguDetailTabId>("main");
   const [row, setRow] = useState<LogisticQueryRow | null>(null);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   
   const [comments, setComments] = useState<any[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<number | null>(null);
+  const [commentDeleteConfirmOpen, setCommentDeleteConfirmOpen] = useState(false);
+  const [commentToDelete, setCommentToDelete] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isOfferModalOpen, setIsOfferModalOpen] = useState(false);
 
   // Detay verisini backend'den çek
   const loadDetail = async () => {
@@ -107,6 +115,16 @@ export default function SorguDetailPage() {
   };
 
   React.useEffect(() => {
+    Promise.all([
+      fetchCustomersAction().catch(() => []),
+      fetchUsersAction().catch(() => []),
+    ]).then(([customerRows, userRows]) => {
+      setCustomers(customerRows);
+      setUsers(userRows);
+    });
+  }, []);
+
+  React.useEffect(() => {
     loadDetail();
   }, [sorguKey]);
 
@@ -119,7 +137,10 @@ export default function SorguDetailPage() {
     }
   }, [tab, row?.id]);
 
-  const detail = useMemo(() => (row ? buildSorguDetailView(row) : null), [row]);
+  const detail = useMemo(
+    () => (row ? buildSorguDetailView(row, customers, users) : null),
+    [row, customers, users],
+  );
 
   const handleAddComment = async (text: string) => {
     if (!row) return;
@@ -148,6 +169,27 @@ export default function SorguDetailPage() {
     setDeleteConfirmOpen(true);
   };
 
+  const handleDeleteComment = (commentId: number) => {
+    setCommentToDelete(commentId);
+    setCommentDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDeleteComment = async () => {
+    if (!row || commentToDelete === null) return;
+    setIsDeleting(true);
+    try {
+      await deleteCommentAction(row.id, commentToDelete);
+      setComments(comments.filter((c) => c.id !== commentToDelete));
+      dispatch(showNotification({ message: "Şərh silindi", type: "success" }));
+      setCommentDeleteConfirmOpen(false);
+      setCommentToDelete(null);
+    } catch {
+      dispatch(showNotification({ message: "Silinərkən xəta", type: "error" }));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleConfirmDeleteDoc = async () => {
     if (!row || docToDelete === null) return;
     setIsDeleting(true);
@@ -164,28 +206,32 @@ export default function SorguDetailPage() {
     }
   };
 
-  const handleAddOffer = async (offer: any) => {
+  const handleOfferSubmit = async (offers: any[]) => {
     if (!row) return;
     try {
-      let currentOffers = [];
-      if (row.priceOffers) {
-        try {
-          currentOffers = JSON.parse(row.priceOffers);
-        } catch(e) {}
-      } else if (row.priceOfferItems) {
-        currentOffers = row.priceOfferItems;
-      }
-      
-      const newOffers = [...currentOffers, offer];
-      const priceOffersStr = JSON.stringify(newOffers);
-      
-      await updateQueryAction(row.id, { priceOffersJson: priceOffersStr });
-      
-      // Update local state by re-fetching detail
+      const priceOffersStr = JSON.stringify(offers);
+      await updateQueryAction(row.id, {
+        priceOffersJson: priceOffersStr,
+        priceOffers:
+          offers.length > 0
+            ? `${offers[0].carrierName}: ${offers[0].price} ${offers[0].currency}`
+            : "",
+      });
+      setIsOfferModalOpen(false);
       await loadDetail();
-      dispatch(showNotification({ message: "Qiymət təklifi əlavə edildi", type: "success" }));
-    } catch (error) {
-      dispatch(showNotification({ message: "Xəta baş verdi", type: "error" }));
+      dispatch(
+        showNotification({
+          message: "Qiymət təklifləri yadda saxlanıldı",
+          type: "success",
+        }),
+      );
+    } catch {
+      dispatch(
+        showNotification({
+          message: "Qiymət təklifi saxlanarkən xəta baş verdi",
+          type: "error",
+        }),
+      );
     }
   };
 
@@ -269,49 +315,27 @@ export default function SorguDetailPage() {
             <button type="button" className={styles.editBtn} onClick={() => setIsEditOpen(true)}>
               <FaEdit /> Redaktə et
             </button>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 20,
-              }}
-            >
+            <div style={{ marginBottom: 20 }}>
               <span className={styles.status}>{r.status}</span>
-              <div style={{ display: "flex", gap: 6 }}>
-                <button
-                  type="button"
-                  className={styles.iconBtn}
-                  onClick={loadDetail}
-                  title="Yenilə"
-                >
-                  <FaRedo />
-                </button>
-                <button
-                  type="button"
-                  className={styles.iconBtn}
-                  title="Tarixçə"
-                >
-                  <FaHistory />
-                </button>
-              </div>
             </div>
             <div className={styles.dlList}>
               <DlRow label="Satıcı" value={detail.seller} />
               <DlRow label="Sorğunun tarixi" value={detail.inquiryDateLabel} />
               <DlRow label="İstiqamət" value={detail.direction} />
               <DlRow label="Şirkət" value={r.company} />
-              <DlRow label="Müştəri" value={r.customer} />
+              <DlRow label="Müştəri" value={detail.customerName} />
               <DlRow label="Ünvan" value={detail.summaryAddress} />
               <DlRow label="Əlaqədar şəxslər" value={detail.contacts} />
-              <DlRow label="Sorğunun məqsədi" value={r.purpose} />
+              <DlRow label="Menecer" value={detail.managerName} />
+              <DlRow label="Logist" value={detail.logistName} />
+              <DlRow label="Müqavilə №" value={r.contractNumber} />
               <DlRow label="Ümumi miqdar" value={detail.quantityTotal} />
               <DlRow label="Ümumi LDM" value={detail.ldmTotal} />
               <DlRow label="Ümumi çəki" value={detail.weightTotal} />
               <DlRow label="Ümumi həcm" value={detail.volumeLabel} />
               <DlRow label="Incoterms" value={detail.incoterms} />
               <DlRow label="Cargo Specs" value={detail.cargoSpecs} />
-              <DlRow label="Mənbə" value={detail.source} />
+              <DlRow label="Teqlər" value={r.tags} />
             </div>
           </div>
         </aside>
@@ -356,6 +380,7 @@ export default function SorguDetailPage() {
                 >
                   <SectionCard title="Haradan">
                     <div className={styles.dlList}>
+                      <DlRow label="Şirkət" value={detail.fromCompany} />
                       <DlRow label="Ölkə" value={detail.fromCountry} />
                       <DlRow label="Şəhər" value={detail.fromCity} />
                       <DlRow label="Ünvan" value={detail.fromAddress} />
@@ -363,6 +388,7 @@ export default function SorguDetailPage() {
                   </SectionCard>
                   <SectionCard title="Haraya">
                     <div className={styles.dlList}>
+                      <DlRow label="Şirkət" value={detail.toCompany} />
                       <DlRow label="Ölkə" value={detail.toCountry} />
                       <DlRow label="Şəhər" value={detail.toCity} />
                       <DlRow label="Ünvan" value={detail.toAddress} />
@@ -396,7 +422,53 @@ export default function SorguDetailPage() {
                       <p style={{ color: "#0f172a", fontWeight: 700, fontSize: 18 }}>{detail.volumeLabel}</p>
                     </div>
                   </div>
-                  <DlRow label="Nəqliyyatın tipi" value={r.transportType} />
+                  <DlRow label="Nəqliyyatın tipi" value={detail.transportTypeLabel} />
+                  {detail.cargoItems.length > 0 ? (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 12,
+                        marginTop: 16,
+                      }}
+                    >
+                      {detail.cargoItems.map((cargo, index) => (
+                        <div
+                          key={`${cargo.name}-${index}`}
+                          style={{
+                            padding: "12px 14px",
+                            background: "#f8fafc",
+                            borderRadius: "8px",
+                            border: "1px solid #e8eef5",
+                          }}
+                        >
+                          <p
+                            style={{
+                              margin: "0 0 8px",
+                              fontWeight: 700,
+                              color: "#0f172a",
+                              fontSize: 14,
+                            }}
+                          >
+                            {cargo.name}
+                          </p>
+                          <div className={styles.dlList}>
+                            <DlRow label="Çəki" value={cargo.weight} />
+                            <DlRow label="LDM" value={cargo.ldm} />
+                            <DlRow label="Həcm" value={cargo.volumeM3} />
+                            <DlRow
+                              label="Nəqliyyat"
+                              value={cargo.transportType}
+                            />
+                            <DlRow label="Dəyər" value={cargo.cargoValue} />
+                            {cargo.incompleteLoad ? (
+                              <DlRow label="Status" value="Natamam yük" />
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </SectionCard>
 
                 <SectionCard title="Yük haqqında əlavə məlumat">
@@ -452,11 +524,15 @@ export default function SorguDetailPage() {
                   userName: c.user?.name || "Bilinməyən",
                   createdAt: c.createdAt
                 }))} 
-                onAddComment={handleAddComment} 
+                onAddComment={handleAddComment}
+                onDeleteComment={handleDeleteComment}
               />
             )}
             {tab === "offers" && (
-              <QueryOffersList offers={detail.priceOfferItems} onAddOffer={handleAddOffer} />
+              <QueryOffersList
+                offers={detail.priceOfferItems}
+                onOpenAddModal={() => setIsOfferModalOpen(true)}
+              />
             )}
             {tab === "documents" && (
               <QueryDocumentsList 
@@ -495,6 +571,19 @@ export default function SorguDetailPage() {
         isLoading={isDeleting}
       />
 
+      <ConfirmModal
+        isOpen={commentDeleteConfirmOpen}
+        title="Şərhi sil"
+        message="Bu şərhi silmək istədiyinizə əminsiniz?"
+        confirmLabel="Bəli, sil"
+        onConfirm={handleConfirmDeleteComment}
+        onCancel={() => {
+          setCommentDeleteConfirmOpen(false);
+          setCommentToDelete(null);
+        }}
+        isLoading={isDeleting}
+      />
+
       <SorgularEditModal
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
@@ -503,6 +592,25 @@ export default function SorguDetailPage() {
         description="Sorğu məlumatlarını dəyişdirin."
         submitLabel="Yadda saxla"
         initialValues={row || undefined}
+      />
+
+      <SorgularOfferModal
+        isOpen={isOfferModalOpen}
+        onClose={() => setIsOfferModalOpen(false)}
+        onSubmit={handleOfferSubmit}
+        initialOffers={(detail?.priceOfferItems || []).map((offer: any, index: number) => ({
+          id: offer.id || `offer-${index}`,
+          carrierName: offer.carrierName || "",
+          price: offer.price || "",
+          expense: offer.expense || "",
+          currency: offer.currency || "EUR",
+          totalPrice: offer.totalPrice || "",
+          totalCurrency: offer.totalCurrency || offer.currency || "EUR",
+          salesPrice: offer.salesPrice || "",
+          notes: offer.notes || "",
+          createdAt: offer.createdAt || new Date().toISOString(),
+        }))}
+        queryNumber={r.number}
       />
     </div>
   );

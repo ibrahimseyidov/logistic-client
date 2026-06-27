@@ -55,10 +55,21 @@ export interface LogisticQueryRow {
   unloadCity?: string;
   unloadAddress?: string;
   unloadCountry?: string;
-  cargoItems?: any[]; // API'den gelen yükler
+  cargoItems?: any[];
   comments?: any[];
   documents?: any[];
   loadPlaceCompany?: string;
+  unloadPlaceCompany?: string;
+  incoterms?: string;
+  cargoSpecs?: string;
+  cargoComposition?: string;
+  inquirySource?: string;
+  inquiryPurpose?: string;
+  additionalInfo?: string;
+  manager?: string;
+  logist?: string;
+  tags?: string;
+  contractNumber?: string;
 }
 
 export interface FilterFormState {

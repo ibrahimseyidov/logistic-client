@@ -190,8 +190,7 @@
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
-.card,
-.cargoCard {
+.card {
   padding: 1rem;
 }
 
@@ -397,12 +396,126 @@
   overflow-x: auto;
 }
 
-.cargoTopRow,
-.packagingRow {
+.cargoCard {
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.15rem;
+}
+
+.cargoCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
-  min-width: 64rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.cargoCardTitle {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.cargoRemoveButton {
+  border: 1px solid #fecaca;
+  border-radius: 0.65rem;
+  padding: 0.38rem 0.72rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #ef4444;
+  background: #ffffff;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.cargoRemoveButton:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.cargoRemoveButton:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.cargoTopGrid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 0.7rem 0.75rem;
+  align-items: end;
+}
+
+.cargoGridName {
+  grid-column: span 4;
+}
+
+.cargoGridMetric {
+  grid-column: span 2;
+}
+
+.cargoGridTransport {
+  grid-column: span 4;
+}
+
+.cargoGridValue {
+  grid-column: span 3;
+}
+
+.cargoGridCurrency {
+  grid-column: span 3;
+}
+
+.packagingRow {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1.5fr) repeat(5, minmax(4.25rem, 1fr)) auto;
+  gap: 0.65rem 0.75rem;
+  align-items: end;
+  padding: 0.85rem;
+  border: 1px solid #e8eef5;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+}
+
+.packagingRowWithExtra {
+  grid-template-columns: minmax(7.5rem, 1.1fr) minmax(5.5rem, 0.85fr) repeat(
+      5,
+      minmax(3.75rem, 1fr)
+    ) auto;
+}
+
+@media (max-width: 960px) {
+  .cargoTopGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cargoGridName,
+  .cargoGridTransport {
+    grid-column: span 2;
+  }
+
+  .cargoGridMetric,
+  .cargoGridValue,
+  .cargoGridCurrency {
+    grid-column: span 1;
+  }
+
+  .packagingRow,
+  .packagingRowWithExtra {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .packagingTypeGroup,
+  .packagingExtraField {
+    grid-column: span 2;
+  }
+
+  .packagingRow > .fieldStack,
+  .packagingRowWithExtra > .fieldStack {
+    grid-column: span 1;
+  }
 }
 
 .packagingActionSlot {
@@ -501,35 +614,73 @@
 }
 
 .packagingArea {
-  margin-top: 1rem;
-  padding-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding-top: 0.35rem;
   border-top: 1px solid #eef2f7;
+}
+
+.packagingAreaHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.packagingAreaTitle {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.packagingAddButton {
+  width: 2.35rem;
+  height: 2.35rem;
+  flex-shrink: 0;
+  border: 1px solid #86efac;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #059669;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.packagingAddButton:hover {
+  background: #ecfdf5;
 }
 
 .packagingRows {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.65rem;
 }
 
 .packagingTypeGroup {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.75rem;
-  flex: 1 1 0;
-  min-width: 18rem;
+  min-width: 0;
 }
 
 .packagingExtraField {
-  flex: 0 0 5rem;
+  min-width: 0;
 }
 
-.packagingSpacer {
-  color: #94a3b8;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+.inputReadOnly {
+  background: #f1f5f9;
+  color: #475569;
+  cursor: default;
+  border-color: #e2e8f0;
+}
+
+.cargoMetaSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid #eef2f7;
 }
 
 .cargoMetaLabel {

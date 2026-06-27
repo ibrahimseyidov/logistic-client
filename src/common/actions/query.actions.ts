@@ -104,6 +104,17 @@ export async function addCommentAction(queryId: string | number, text: string): 
   return res.data;
 }
 
+export async function deleteCommentAction(
+  queryId: string | number,
+  commentId: number,
+): Promise<void> {
+  const token = getAuthToken();
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  await axios.delete(buildApiUrl(`/api/query/${queryId}/comments/${commentId}`), {
+    headers,
+  });
+}
+
 export async function fetchDocumentsAction(queryId: string | number): Promise<any[]> {
   const token = getAuthToken();
   const headers = token ? { Authorization: `Bearer ${token}` } : {};

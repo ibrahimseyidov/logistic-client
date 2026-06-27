@@ -34,6 +34,8 @@ import ReysViewModal from "../components/ReysViewModal";
 import ReysEditModal from "../components/ReysEditModal";
 import ReysDeleteModal from "../components/ReysDeleteModal";
 import styles from "./page.module.css";
+import { useCurrencyRates } from "../../../common/hooks/useCurrencyRates";
+import { convertCurrencyToAzn, formatAzn } from "../../../common/utils/currency.utils";
 
 // Helper components for key-value layout
 function DlRow({
@@ -72,6 +74,7 @@ const LabelWithPlus = ({ label, onPlusClick }: { label: string; onPlusClick?: ()
 export default function SifarisDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
+  const { toAzn } = useCurrencyRates();
 
   const [orders, setOrders] = useState<SifarisOrderRow[]>([]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -459,18 +462,21 @@ export default function SifarisDetailPage() {
     setIsAddTransactionModalOpen(true);
   };
 
-  const handleSaveTransaction = () => {
+  const handleSaveTransaction = async () => {
     if (!txName.trim()) {
       alert("Lütfən adı daxil edin!");
       return;
     }
 
-    let profitVal = 0;
     const rev = parseFloat(txRevTarif) || 0;
     const exp = parseFloat(txExpMesarif) || 0;
-    const revAzn = txRevCurrency === "USD" ? rev * 1.7 : rev;
-    const expAzn = txExpCurrency === "USD" ? exp * 1.7 : exp;
-    profitVal = revAzn - expAzn;
+    const [revConv, expConv] = await Promise.all([
+      convertCurrencyToAzn(rev, txRevCurrency),
+      convertCurrencyToAzn(exp, txExpCurrency),
+    ]);
+    const revAzn = revConv.azn;
+    const expAzn = expConv.azn;
+    const profitVal = revAzn - expAzn;
 
     if (selectedTxForEdit) {
       const updateData = {
@@ -638,7 +644,7 @@ export default function SifarisDetailPage() {
        
        if (t.mesarifPrice && t.mesarifCurrency) {
           const exp = parseFloat(t.mesarifPrice) || 0;
-          const azn = t.mesarifCurrency === "USD" ? exp * 1.7 : t.mesarifCurrency === "EUR" ? exp * 1.85 : exp;
+          const azn = toAzn(exp, t.mesarifCurrency);
           totalExpAzn += azn;
        }
     });
@@ -647,7 +653,7 @@ export default function SifarisDetailPage() {
        if (v.rawPayload && v.rawPayload.price) {
           const exp = parseFloat(v.rawPayload.price) || 0;
           const curr = v.rawPayload.currency || "AZN";
-          const azn = curr === "USD" ? exp * 1.7 : curr === "EUR" ? exp * 1.85 : exp;
+          const azn = toAzn(exp, curr);
           totalExpAzn += azn;
        }
     });
@@ -657,7 +663,7 @@ export default function SifarisDetailPage() {
       totalExpAzn,
       profitAzn: totalRevAzn - totalExpAzn
     };
-  }, [financeTransactions, voyagesList]);
+  }, [financeTransactions, voyagesList, toAzn]);
 
   // Removed previous unused useEffects
 
@@ -1914,10 +1920,14 @@ export default function SifarisDetailPage() {
                             <td className={styles.td} style={{ fontWeight: 600, color: "#16a34a" }}>{v.number}</td>
                             <td className={styles.td}>{v.carrier}</td>
                             <td className={styles.td}>
-                              {v.rawPayload?.price ? `${parseFloat(v.rawPayload.price) * 1.7} AZN` : v.price}
+                              {v.rawPayload?.price
+                                ? formatAzn(toAzn(parseFloat(v.rawPayload.price) || 0, v.rawPayload.currency || "AZN"))
+                                : v.price}
                             </td>
                             <td className={styles.td}>
-                              {v.rawPayload?.price ? `${parseFloat(v.rawPayload.price) * 1.7} AZN` : v.price}
+                              {v.rawPayload?.price
+                                ? formatAzn(toAzn(parseFloat(v.rawPayload.price) || 0, v.rawPayload.currency || "AZN"))
+                                : v.price}
                             </td>
                             <td className={styles.td}>{v.expeditor}</td>
                             <td className={styles.td} style={{ textAlign: "center" }}>
@@ -2694,8 +2704,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            onClick={() => setIsHistoryModalOpen(false)}
-          />
+            />
           {/* Center Card */}
           <div
             style={{
@@ -2909,8 +2918,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            onClick={() => setIsAddTransactionModalOpen(false)}
-          />
+            />
           {/* Modal Container */}
           <div
             style={{
@@ -3343,8 +3351,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            onClick={() => setIsTemplateModalOpen(false)}
-          />
+            />
 
           <div 
             style={{
@@ -3572,8 +3579,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            onClick={() => setIsExpenseCategoryModalOpen(false)}
-          />
+            />
 
           <div 
             style={{
@@ -3792,8 +3798,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            onClick={() => setIsPartnerModalOpen(false)}
-          />
+            />
 
           <div
             style={{
@@ -4630,7 +4635,6 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            onClick={() => setIsCountryModalOpen(false)}
           />
 
           <div
@@ -4831,8 +4835,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            onClick={() => setIsNewActModalOpen(false)}
-          />
+            />
 
           <div
             style={{
@@ -5102,8 +5105,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            onClick={() => setIsNewDocModalOpen(false)}
-          />
+            />
 
           <div
             style={{
@@ -5271,10 +5273,6 @@ export default function SifarisDetailPage() {
               inset: 0,
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
-            }}
-            onClick={() => {
-              setIsEditDocModalOpen(false);
-              setSelectedDocForEdit(null);
             }}
           />
 
@@ -5461,10 +5459,6 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            onClick={() => {
-              setIsDocDeleteConfirmOpen(false);
-              setDocToDelete(null);
-            }}
           />
 
           <div
@@ -5573,8 +5567,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            onClick={() => setIsNewInvoiceModalOpen(false)}
-          />
+            />
           {/* Modal Container */}
           <div
             style={{
@@ -6116,8 +6109,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            onClick={() => setIsNewCommentModalOpen(false)}
-          />
+            />
           {/* Modal Container */}
           <div
             style={{
@@ -6271,8 +6263,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            onClick={() => setIsTaskModalOpen(false)}
-          />
+            />
           {/* Modal Container */}
           <div
             style={{
@@ -6649,8 +6640,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            onClick={() => setIsNewContractModalOpen(false)}
-          />
+            />
           {/* Modal Container */}
           <div
             style={{

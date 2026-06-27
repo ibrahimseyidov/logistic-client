@@ -44,11 +44,45 @@ import { matchesCustomerEntity } from "../../../common/utils/entityActivity.util
 
 const TAB_ITEMS = ["Məlumatlar", "Sorğular", "Sifarişlər", "Maliyyə"];
 
-function parseMoney(value: string | undefined | null): number {
-  if (!value) return 0;
-  const cleaned = value.replace(/[^0-9.-]/g, "");
+function parseMoney(value: string | number | undefined | null): number {
+  if (value == null || value === "") return 0;
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const cleaned = String(value).replace(/[^0-9.-]/g, "");
   const parsed = parseFloat(cleaned);
   return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function resolveCustomerTransactionStatus(tx: any): string {
+  if (tx.type === "INCOME") return "Mədaxil";
+
+  const receivableAmount =
+    parseMoney(tx.tarifAzn) ||
+    parseMoney(tx.tarifPrice) ||
+    parseMoney(tx.edvliTarifAzn) ||
+    parseMoney(tx.edvliTarifPrice);
+
+  if (receivableAmount > 0) {
+    return tx.invoiceReceived ? "Ödənilib" : "Ödənilməyib";
+  }
+
+  return "Məxaric";
+}
+
+function getFinanceStatusStyle(status: string) {
+  switch (status) {
+    case "Məxaric":
+      return { background: "#fef2f2", color: "#b91c1c", border: "#fecaca" };
+    case "Gözləmədə":
+      return { background: "#fffbeb", color: "#b45309", border: "#fde68a" };
+    case "Ödənilməyib":
+      return { background: "#fff7ed", color: "#ea580c", border: "#fed7aa" };
+    case "Ödənilib":
+    case "Mədaxil":
+    case "Mənfəət":
+      return { background: "#ecfdf5", color: "#047857", border: "#a7f3d0" };
+    default:
+      return { background: "#f1f5f9", color: "#475569", border: "#cbd5e1" };
+  }
 }
 
 export default function MusteriDetailPage() {
@@ -70,7 +104,7 @@ export default function MusteriDetailPage() {
 
   // Edit drawer state
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [activeEditTab, setActiveEditTab] = useState<"main" | "contact" | "finance">("main");
+  const [activeEditTab, setActiveEditTab] = useState<"main" | "contact">("main");
   const [editForm, setEditForm] = useState({
     company: "",
     shortName: "",
@@ -81,7 +115,6 @@ export default function MusteriDetailPage() {
     contactInfo: "",
     address: "",
     country: "",
-    creditLimit: "",
     salesGroup: "",
     contactPersons: [] as any[],
   });
@@ -218,7 +251,7 @@ export default function MusteriDetailPage() {
           (tx.orderId ? `${tx.orderId} nömrəli sifariş əməliyyatı` : "Maliyyə əməliyyatı"),
         amount: isIncome ? amount : -amount,
         currency: tx.currency || tx.tarifCurrency || "AZN",
-        status: isIncome ? "Mədaxil" : "Məxaric",
+        status: resolveCustomerTransactionStatus(tx),
       });
 
       if (isIncome) totalPaid += amount;
@@ -315,7 +348,6 @@ export default function MusteriDetailPage() {
       contactInfo: customer.phone || "",
       address: customer.address || "",
       country: customer.country || "AZ",
-      creditLimit: customer.creditLimit || "0",
       salesGroup: customer.salesGroup || "",
       contactPersons: customer.contactPersons || [],
     });
@@ -337,7 +369,6 @@ export default function MusteriDetailPage() {
         phone: editForm.contactInfo.trim(),
         address: editForm.address.trim(),
         country: editForm.country.trim(),
-        creditLimit: editForm.creditLimit.trim(),
         salesGroup: editForm.salesGroup.trim(),
         contactPersons: editForm.contactPersons,
       };
@@ -480,59 +511,59 @@ export default function MusteriDetailPage() {
             </div>
             
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Şirkət adı:</span>
                 <div style={{ marginTop: "2px", fontWeight: 700, color: "#0f172a" }}>{customer.company}</div>
-              </p>
+              </div>
               
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Direktoru:</span>
                 <div style={{ marginTop: "2px", fontWeight: 500 }}>
                   {formatEntityContactNames(displayedContacts)}
                 </div>
-              </p>
+              </div>
               
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Tax (VÖEN):</span>
                 <div style={{ marginTop: "2px", fontWeight: 500 }}>{displayFieldValue(customer.voen)}</div>
-              </p>
+              </div>
               
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Ünvan:</span>
                 <div style={{ marginTop: "2px", fontWeight: 500 }}>{customer.address || "-"}</div>
-              </p>
+              </div>
               
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Ziyafreight Menecer:</span>
                 <div style={{ marginTop: "2px", fontWeight: 500 }}>{managerLabel}</div>
-              </p>
+              </div>
               
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Sorğu sayı:</span>
                 <div style={{ marginTop: "2px", fontWeight: 500 }}>{queries.length}</div>
-              </p>
+              </div>
               
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Sifariş sayı:</span>
                 <div style={{ marginTop: "2px", fontWeight: 500 }}>{orders.length}</div>
-              </p>
+              </div>
               
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Statusu:</span>
                 <div style={{ marginTop: "2px", fontWeight: 500 }}>{customer.customerType || "-"}</div>
-              </p>
+              </div>
 
               <div style={{ borderTop: "1px dashed #cbd5e1", margin: "8px 0" }} />
               
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Şirkətdən qazanılan:</span>
                 <div style={{ marginTop: "2px", fontWeight: 700, color: "#2563eb" }}>{orderStats.sales.toLocaleString("az-AZ")} AZN</div>
-              </p>
+              </div>
               
-              <p style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
+              <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Ümumi mənfəət:</span>
                 <div style={{ marginTop: "2px", fontWeight: 700, color: "#059669" }}>{orderStats.profit.toLocaleString("az-AZ")} AZN</div>
-              </p>
+              </div>
             </div>
           </div>
         </aside>
@@ -623,9 +654,6 @@ export default function MusteriDetailPage() {
                     <span>Ölkə:</span> {customer.country}
                   </p>
                   <p>
-                    <span>Kredit limiti:</span> {customer.creditLimit}
-                  </p>
-                  <p>
                     <span>Məsul Menecer:</span> {managerLabel}
                   </p>
                 </div>
@@ -667,6 +695,20 @@ export default function MusteriDetailPage() {
                           >
                             {doc.number}
                           </span>
+                          {doc.documentType ? (
+                            <span
+                              title={doc.documentType}
+                              style={{
+                                color: "#475569",
+                                fontSize: "0.75rem",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {doc.documentType}
+                            </span>
+                          ) : null}
                           {doc.fileName ? (
                             <span
                               title={doc.fileName}
@@ -926,25 +968,9 @@ export default function MusteriDetailPage() {
                             <td style={{ padding: "10px" }}>
                               <span style={{
                                 display: "inline-block", padding: "2px 8px", borderRadius: "12px", fontSize: "0.7rem", fontWeight: 600,
-                                background:
-                                  p.status === "Məxaric"
-                                    ? "#fef2f2"
-                                    : p.status === "Gözləmədə"
-                                      ? "#fffbeb"
-                                      : "#ecfdf5",
-                                color:
-                                  p.status === "Məxaric"
-                                    ? "#b91c1c"
-                                    : p.status === "Gözləmədə"
-                                      ? "#b45309"
-                                      : "#047857",
-                                border: `1px solid ${
-                                  p.status === "Məxaric"
-                                    ? "#fecaca"
-                                    : p.status === "Gözləmədə"
-                                      ? "#fde68a"
-                                      : "#a7f3d0"
-                                }`,
+                                background: getFinanceStatusStyle(p.status).background,
+                                color: getFinanceStatusStyle(p.status).color,
+                                border: `1px solid ${getFinanceStatusStyle(p.status).border}`,
                               }}>
                                 {p.status}
                               </span>
@@ -964,7 +990,6 @@ export default function MusteriDetailPage() {
       {/* Edit Drawer Modal */}
       <div
         className={`${styles.editModalOverlay} ${isEditOpen ? styles.editModalOverlayOpen : ""}`}
-        onClick={() => setIsEditOpen(false)}
         aria-hidden={!isEditOpen}
       />
       <aside
@@ -992,13 +1017,6 @@ export default function MusteriDetailPage() {
               onClick={() => setActiveEditTab("contact")}
             >
               Əlaqə məlumatları
-            </button>
-            <button
-              type="button"
-              className={activeEditTab === "finance" ? styles.editTabActive : ""}
-              onClick={() => setActiveEditTab("finance")}
-            >
-              Maliyyə şərtləri
             </button>
           </div>
 
@@ -1086,23 +1104,6 @@ export default function MusteriDetailPage() {
                     <input
                       value={editForm.contactInfo}
                       onChange={(e) => setEditForm((prev) => ({ ...prev, contactInfo: e.target.value }))}
-                    />
-                  </label>
-                </div>
-              </section>
-            </div>
-          )}
-
-          {activeEditTab === "finance" && (
-            <div className={styles.singleTabContent}>
-              <section className={styles.editColumn}>
-                <h4>Maliyyə limitləri</h4>
-                <div className={styles.financeGrid}>
-                  <label>
-                    <span>Kredit limiti</span>
-                    <input
-                      value={editForm.creditLimit}
-                      onChange={(e) => setEditForm((prev) => ({ ...prev, creditLimit: e.target.value }))}
                     />
                   </label>
                 </div>

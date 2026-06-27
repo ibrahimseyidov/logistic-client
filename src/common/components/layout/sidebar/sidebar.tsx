@@ -284,6 +284,16 @@ export default function Sidebar() {
                     Əlaqədar şəxslər
                   </Link>
                   <Link
+                    to="/ayarlar?tab=contact-positions"
+                    className={`${styles.subItem} ${
+                      isAyarlarSection && ayarlarTab === "contact-positions"
+                        ? styles.subItemActive
+                        : ""
+                    }`}
+                  >
+                    Vəzifələr
+                  </Link>
+                  <Link
                     to="/ayarlar?tab=transport-types"
                     className={`${styles.subItem} ${
                       isAyarlarSection && ayarlarTab === "transport-types"

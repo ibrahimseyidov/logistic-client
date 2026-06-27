@@ -418,6 +418,13 @@
   align-items: start;
 }
 
+.documentFormGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 1rem 0.9rem;
+  align-items: end;
+}
+
 .sectionBox {
   display: flex;
   flex-direction: column;
@@ -885,6 +892,10 @@
     grid-template-columns: 1fr;
   }
 
+  .documentFormGrid {
+    grid-template-columns: 1fr;
+  }
+
   .tableHeader {
     padding: 0.62rem 0.75rem;
   }
@@ -951,6 +962,14 @@
   font-size: 0.85rem;
   font-weight: 600;
   color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.documentType {
+  font-size: 0.75rem;
+  color: #475569;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

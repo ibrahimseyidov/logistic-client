@@ -20,6 +20,18 @@ interface LookupManagerModalProps {
   onDataChanged: (newData: LookupRow[]) => void;
 }
 
+function parsePercentageInput(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number.parseFloat(trimmed.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatPercentage(value?: number | null): string {
+  if (value === null || value === undefined) return "";
+  return String(value);
+}
+
 export const LookupManagerModal: React.FC<LookupManagerModalProps> = ({
   isOpen,
   onClose,
@@ -28,12 +40,15 @@ export const LookupManagerModal: React.FC<LookupManagerModalProps> = ({
   onDataChanged,
 }) => {
   const dispatch = useAppDispatch();
+  const supportsPercentage = lookupType === "carrier-types";
   const [data, setData] = useState<LookupRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [newValue, setNewValue] = useState("");
+  const [newPercentage, setNewPercentage] = useState("");
   const [editingId, setEditingId] = useState<string | number | null>(null);
   const [editingValue, setEditingValue] = useState("");
-  
+  const [editingPercentage, setEditingPercentage] = useState("");
+
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -52,7 +67,12 @@ export const LookupManagerModal: React.FC<LookupManagerModalProps> = ({
       onDataChanged(res);
     } catch (e) {
       console.error(e);
-      dispatch(showNotification({ message: "Məlumatlar yüklənərkən xəta baş verdi", type: "error" }));
+      dispatch(
+        showNotification({
+          message: "Məlumatlar yüklənərkən xəta baş verdi",
+          type: "error",
+        }),
+      );
     } finally {
       setLoading(false);
     }
@@ -61,30 +81,49 @@ export const LookupManagerModal: React.FC<LookupManagerModalProps> = ({
   const handleAdd = async () => {
     if (!newValue.trim()) return;
     try {
-      await createLookupAction(lookupType, { value: newValue.trim(), label: newValue.trim() });
+      await createLookupAction(lookupType, {
+        value: newValue.trim(),
+        label: newValue.trim(),
+        percentage: supportsPercentage
+          ? parsePercentageInput(newPercentage)
+          : undefined,
+      });
       setNewValue("");
+      setNewPercentage("");
       loadData();
     } catch (e) {
       console.error(e);
-      dispatch(showNotification({ message: "Əlavə edilərkən xəta baş verdi", type: "error" }));
+      dispatch(
+        showNotification({ message: "Əlavə edilərkən xəta baş verdi", type: "error" }),
+      );
     }
   };
 
   const handleEdit = (row: LookupRow) => {
     setEditingId(row.id);
-    setEditingValue(row.value);
+    setEditingValue(row.label || row.value);
+    setEditingPercentage(formatPercentage(row.percentage));
   };
 
   const handleSaveEdit = async (id: string | number) => {
     if (!editingValue.trim()) return;
     try {
-      await updateLookupAction(lookupType, id, { value: editingValue.trim(), label: editingValue.trim() });
+      await updateLookupAction(lookupType, id, {
+        value: editingValue.trim(),
+        label: editingValue.trim(),
+        percentage: supportsPercentage
+          ? parsePercentageInput(editingPercentage)
+          : undefined,
+      });
       setEditingId(null);
       setEditingValue("");
+      setEditingPercentage("");
       loadData();
     } catch (e) {
       console.error(e);
-      dispatch(showNotification({ message: "Yenilənərkən xəta baş verdi", type: "error" }));
+      dispatch(
+        showNotification({ message: "Yenilənərkən xəta baş verdi", type: "error" }),
+      );
     }
   };
 
@@ -103,7 +142,9 @@ export const LookupManagerModal: React.FC<LookupManagerModalProps> = ({
       loadData();
     } catch (e) {
       console.error(e);
-      dispatch(showNotification({ message: "Silinərkən xəta baş verdi", type: "error" }));
+      dispatch(
+        showNotification({ message: "Silinərkən xəta baş verdi", type: "error" }),
+      );
     } finally {
       setIsDeleting(false);
     }
@@ -114,16 +155,24 @@ export const LookupManagerModal: React.FC<LookupManagerModalProps> = ({
   return (
     <>
       <div className={styles.overlay}>
-        <div className={styles.modal}>
+        <div
+          className={`${styles.modal} ${
+            supportsPercentage ? styles.modalWide : ""
+          }`}
+        >
           <div className={styles.header}>
             <h3 className={styles.title}>{title}</h3>
             <button className={styles.closeBtn} onClick={onClose}>
               <FiX />
             </button>
           </div>
-          
+
           <div className={styles.body}>
-            <div className={styles.addSection}>
+            <div
+              className={
+                supportsPercentage ? styles.addSectionWithPercent : styles.addSection
+              }
+            >
               <input
                 type="text"
                 placeholder="Yeni dəyər..."
@@ -132,6 +181,18 @@ export const LookupManagerModal: React.FC<LookupManagerModalProps> = ({
                 onChange={(e) => setNewValue(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleAdd()}
               />
+              {supportsPercentage ? (
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="%"
+                  className={styles.percentageInput}
+                  value={newPercentage}
+                  onChange={(e) => setNewPercentage(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+                />
+              ) : null}
               <button className={styles.addBtn} onClick={handleAdd}>
                 <FiPlus /> Əlavə et
               </button>
@@ -146,29 +207,70 @@ export const LookupManagerModal: React.FC<LookupManagerModalProps> = ({
                 data.map((row) => (
                   <div key={row.id} className={styles.row}>
                     {editingId === row.id ? (
-                      <div className={styles.editMode}>
+                      <div
+                        className={
+                          supportsPercentage
+                            ? styles.editModeWithPercent
+                            : styles.editMode
+                        }
+                      >
                         <input
                           className={styles.input}
                           value={editingValue}
                           onChange={(e) => setEditingValue(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && handleSaveEdit(row.id)}
+                          onKeyDown={(e) =>
+                            e.key === "Enter" && handleSaveEdit(row.id)
+                          }
                           autoFocus
                         />
-                        <button className={styles.iconBtnSuccess} onClick={() => handleSaveEdit(row.id)}>
+                        {supportsPercentage ? (
+                          <input
+                            className={styles.percentageInput}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="%"
+                            value={editingPercentage}
+                            onChange={(e) => setEditingPercentage(e.target.value)}
+                            onKeyDown={(e) =>
+                              e.key === "Enter" && handleSaveEdit(row.id)
+                            }
+                          />
+                        ) : null}
+                        <button
+                          className={styles.iconBtnSuccess}
+                          onClick={() => handleSaveEdit(row.id)}
+                        >
                           <FiCheck />
                         </button>
-                        <button className={styles.iconBtnDanger} onClick={() => setEditingId(null)}>
+                        <button
+                          className={styles.iconBtnDanger}
+                          onClick={() => setEditingId(null)}
+                        >
                           <FiX />
                         </button>
                       </div>
                     ) : (
                       <>
-                        <span className={styles.value}>{row.value}</span>
+                        <span className={styles.value}>
+                          {row.label || row.value}
+                          {supportsPercentage && row.percentage != null ? (
+                            <span className={styles.percentageBadge}>
+                              {row.percentage}%
+                            </span>
+                          ) : null}
+                        </span>
                         <div className={styles.actions}>
-                          <button className={styles.iconBtn} onClick={() => handleEdit(row)}>
+                          <button
+                            className={styles.iconBtn}
+                            onClick={() => handleEdit(row)}
+                          >
                             <FiEdit2 />
                           </button>
-                          <button className={styles.iconBtnDanger} onClick={() => requestDelete(row.id)}>
+                          <button
+                            className={styles.iconBtnDanger}
+                            onClick={() => requestDelete(row.id)}
+                          >
                             <FiTrash2 />
                           </button>
                         </div>

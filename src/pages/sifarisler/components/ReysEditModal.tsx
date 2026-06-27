@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { FiX, FiCalendar, FiClock, FiMapPin, FiPlus, FiMinus } from "react-icons/fi";
+import { useCurrencyRates } from "../../../common/hooks/useCurrencyRates";
+import { formatAzn, formatRateLine } from "../../../common/utils/currency.utils";
 
 interface Props {
   isOpen: boolean;
@@ -100,6 +102,12 @@ export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }
   const [price, setPrice] = useState("1205");
   const [currency, setCurrency] = useState("USD");
   const [exchangeDate, setExchangeDate] = useState("25.05.2026");
+  const { toAzn, getRate, ratesData } = useCurrencyRates(exchangeDate);
+  const parsedPrice = parseFloat(price) || 0;
+  const calculatedAznPrice = useMemo(
+    () => toAzn(parsedPrice, currency),
+    [parsedPrice, currency, toAzn],
+  );
   const [priceWithVat, setPriceWithVat] = useState("1205");
   const [vatRate, setVatRate] = useState("0%");
   const [paymentTerms, setPaymentTerms] = useState("Dəyəri seçin");
@@ -417,7 +425,8 @@ export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }
       return;
     }
 
-    const calculatedAznPrice = (parseFloat(price) * 1.7).toFixed(2);
+    const aznAmount = toAzn(parseFloat(price) || 0, currency);
+    const calculatedAznPrice = aznAmount.toFixed(2);
     const formattedPriceString = `${price} ${currency} ƏDV ilə (${calculatedAznPrice} AZN ƏDV ilə)`;
 
     onConfirm({
@@ -505,7 +514,6 @@ export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }
           background: "rgba(15, 23, 42, 0.4)",
           backdropFilter: "blur(4px)",
         }}
-        onClick={onClose}
       />
 
       {/* Centered Modal Card */}
@@ -716,6 +724,12 @@ export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }
                       </select>
                     </div>
                   </div>
+
+                  {currency !== "AZN" && ratesData && (
+                    <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "-0.25rem" }}>
+                      {formatRateLine(currency, getRate(currency))} · {formatAzn(calculatedAznPrice)}
+                    </div>
+                  )}
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
@@ -1075,7 +1089,7 @@ export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }
       {isCarrierModalOpen && (
         <div style={{ position: "fixed", inset: 0, zIndex: 10006, display: "flex", justifyContent: "center", alignItems: "center" }}>
           {/* Backdrop blur */}
-          <div style={{ position: "absolute", inset: 0, background: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(4px)" }} onClick={() => setIsCarrierModalOpen(false)} />
+          <div style={{ position: "absolute", inset: 0, background: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(4px)" }} />
           {/* Card */}
           <div style={{ position: "relative", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "0.75rem", width: "min(96%, 1120px)", height: "88vh", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "inherit", boxSizing: "border-box" }}>
             {/* Header */}
@@ -1477,7 +1491,7 @@ export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }
       {/* Sub-modal 2: Yeni əlaqədar şəxs (Photo 2) */}
       {isContactModalOpen && (
         <div style={{ position: "fixed", inset: 0, zIndex: 10006, display: "flex", justifyContent: "center", alignItems: "center" }}>
-          <div style={{ position: "absolute", inset: 0, background: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(4px)" }} onClick={() => setIsContactModalOpen(false)} />
+          <div style={{ position: "absolute", inset: 0, background: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(4px)" }} />
           <div style={{ position: "relative", background: "#f1f5f9", width: "min(96%, 480px)", borderRadius: "0.5rem", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "inherit", boxSizing: "border-box" }}>
             {/* Header */}
             <div style={{ background: "#ffffff", padding: "0.85rem 1.25rem", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -1511,7 +1525,7 @@ export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }
       {/* Sub-modal 3: Nəqliyyatın yeni tipi (Photo 3) */}
       {isVehicleTypeModalOpen && (
         <div style={{ position: "fixed", inset: 0, zIndex: 10006, display: "flex", justifyContent: "center", alignItems: "center" }}>
-          <div style={{ position: "absolute", inset: 0, background: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(4px)" }} onClick={() => setIsVehicleTypeModalOpen(false)} />
+          <div style={{ position: "absolute", inset: 0, background: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(4px)" }} />
           <div style={{ position: "relative", background: "#f1f5f9", width: "min(96%, 480px)", borderRadius: "0.5rem", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "inherit", boxSizing: "border-box" }}>
             {/* Header */}
             <div style={{ background: "#ffffff", padding: "0.85rem 1.25rem", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -1569,7 +1583,7 @@ export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }
       {/* Sub-modal 4: Əlavə et - Teq (Photo 4) */}
       {isTagModalOpen && (
         <div style={{ position: "fixed", inset: 0, zIndex: 10006, display: "flex", justifyContent: "center", alignItems: "center" }}>
-          <div style={{ position: "absolute", inset: 0, background: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(4px)" }} onClick={() => setIsTagModalOpen(false)} />
+          <div style={{ position: "absolute", inset: 0, background: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(4px)" }} />
           <div style={{ position: "relative", background: "#f1f5f9", width: "min(96%, 420px)", borderRadius: "0.5rem", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "inherit", boxSizing: "border-box" }}>
             {/* Header */}
             <div style={{ background: "#ffffff", padding: "0.85rem 1.25rem", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -1601,7 +1615,7 @@ export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }
       {/* Sub-modal 5: Yeni yükləmə üsulu (Photo 5) */}
       {isLoadingMethodModalOpen && (
         <div style={{ position: "fixed", inset: 0, zIndex: 10006, display: "flex", justifyContent: "center", alignItems: "center" }}>
-          <div style={{ position: "absolute", inset: 0, background: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(4px)" }} onClick={() => setIsLoadingMethodModalOpen(false)} />
+          <div style={{ position: "absolute", inset: 0, background: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(4px)" }} />
           <div style={{ position: "relative", background: "#f1f5f9", width: "min(96%, 420px)", borderRadius: "0.5rem", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "inherit", boxSizing: "border-box" }}>
             {/* Header */}
             <div style={{ background: "#ffffff", padding: "0.85rem 1.25rem", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>

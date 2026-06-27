@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -27,10 +28,31 @@ import { useAuth } from "../../../common/contexts/AuthContext";
 import { fetchUsersAction } from "../../../common/actions/user.actions";
 import { fetchContactPersonsAction, createContactPersonAction } from "../../../common/actions/contact.actions";
 import { fetchLookupAction, createLookupAction } from "../../../common/actions/lookup.actions";
-import { createCustomerAction, fetchCustomersAction } from "../../../common/actions/customer.actions";
+import { fetchCustomersAction } from "../../../common/actions/customer.actions";
+import { CustomerCreateDrawer } from "../../musteriler/components/CustomerCreateDrawer";
 import { LookupManagerModal } from "../../../common/components/modal/LookupManagerModal";
 import { fetchLookupOptions } from "../../ayarlar/lib/lookupStorage";
 import { fetchCompaniesAction, createCompanyAction } from "../../../common/actions/company.actions";
+import {
+  CONTACT_POSITIONS_LOOKUP_TYPE,
+  lookupRowsToPositionOptions,
+  withCustomPositionOption,
+} from "../../../common/utils/contactPosition.utils";
+import { normalizeCarrierContacts } from "../../../common/utils/carrierDisplay.utils";
+
+function customerContactPersons(
+  customerObj: { id?: string | number; contactPersons?: unknown } | undefined,
+  contactsData: Array<{ entityType?: string; entityId?: string | number }>,
+) {
+  if (!customerObj) return [];
+  const scopedDb = contactsData.filter(
+    (contact) =>
+      contact.entityType === "customer" &&
+      customerObj.id != null &&
+      String(contact.entityId) === String(customerObj.id),
+  );
+  return normalizeCarrierContacts(customerObj.contactPersons || [], scopedDb as any);
+}
 
 // Zorunlu alanlar
 const requiredFields = [
@@ -260,6 +282,7 @@ export default function SorgularNewModal({
   const [purposesData, setPurposesData] = useState<any[]>([]);
   const [specsData, setSpecsData] = useState<any[]>([]);
   const [incotermsData, setIncotermsData] = useState<any[]>([]);
+  const [contactPositionsData, setContactPositionsData] = useState<any[]>([]);
   const [companiesData, setCompaniesData] = useState<any[]>([]);
 
   // Lookup Modal States
@@ -268,7 +291,6 @@ export default function SorgularNewModal({
   const [lookupModalTitle, setLookupModalTitle] = useState("");
 
   const [isNewContactModalOpen, setIsNewContactModalOpen] = useState(false);
-  const [newContactSource, setNewContactSource] = useState<"main" | "customer">("main");
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [contactEmail, setContactEmail] = useState("");
@@ -282,7 +304,7 @@ export default function SorgularNewModal({
   const [newCompanyEmail, setNewCompanyEmail] = useState("");
   const [newCompanyAddress, setNewCompanyAddress] = useState("");
   
-  const [isCustomerCreated, setIsCustomerCreated] = useState(false);
+  const [customerDrawerOpen, setCustomerDrawerOpen] = useState(false);
 
   // Ana form state'leri
   const [company, setCompany] = useState(
@@ -368,17 +390,6 @@ export default function SorgularNewModal({
     return raw.map(normalizeCargoItem);
   });
 
-
-  const [customerModalOpen, setCustomerModalOpen] = useState(false);
-  const [newCustomerName, setNewCustomerName] = useState("");
-  const [newCustomerManager, setNewCustomerManager] = useState("");
-  const [newCustomerContact, setNewCustomerContact] = useState("");
-  const [newCustomerPhone, setNewCustomerPhone] = useState("");
-  const [newCustomerEmail, setNewCustomerEmail] = useState("");
-  const [newCustomerAddress, setNewCustomerAddress] = useState("");
-  const [cargoTransportOptions, setCargoTransportOptions] = useState<SelectOption[]>([]);
-
-  // Query modelinde olup eksik olan state'ler (hepsi burada, blok dışında):
   const [createdAt, setCreatedAt] = useState(initialValues?.createdAt ?? "");
   const [status, setStatus] = useState(
     initialValues?.status ?? SorguStatus.Pending,
@@ -401,126 +412,29 @@ export default function SorgularNewModal({
   const [archived, setArchived] = useState(initialValues?.archived ?? false);
   const [seller, setSeller] = useState(initialValues?.seller ?? "");
   const [purpose, setPurpose] = useState(initialValues?.purpose ?? "");
-
-
+  const [cargoTransportOptions, setCargoTransportOptions] = useState<SelectOption[]>([]);
 
   const openNewCustomerModal = useCallback(() => {
-    setNewCustomerName("");
-    setNewCustomerManager("");
-    setNewCustomerContact("");
-    setNewCustomerPhone("");
-    setNewCustomerEmail("");
-    setNewCustomerAddress("");
-    setIsCustomerCreated(false);
-    setCustomerModalOpen(true);
+    setCustomerDrawerOpen(true);
   }, []);
 
-  const handleCreateCustomerAndEnableContacts = async () => {
-    if (!newCustomerName.trim()) {
-      dispatch(
-        showNotification({
-          message: "Lütfən şirkətin adını daxil edin!",
-          type: "warning",
-          autoCloseDuration: 3200,
-        })
-      );
-      return;
-    }
-    try {
-      const created = await createCustomerAction({
-        name: newCustomerName,
-        companyName: newCustomerName,
-        manager: newCustomerManager,
-        phone: newCustomerPhone,
-        email: newCustomerEmail,
-        address: newCustomerAddress
-      });
-      const data = await fetchCustomersAction();
-      setCustomersData(data);
-      if (created && created.id) {
-        setCustomer(created.id.toString());
-      } else {
-        // Fallback matching by name
-        const found = data.find((c: any) => c.name === newCustomerName);
-        if (found) setCustomer(found.id.toString());
+  const handleCustomerCreated = useCallback(
+    async (created: { id: string; name: string }) => {
+      try {
+        const data = await fetchCustomersAction();
+        setCustomersData(data);
+        if (created.id) {
+          setCustomer(created.id);
+        } else {
+          const found = data.find((c: any) => c.name === created.name);
+          if (found) setCustomer(String(found.id));
+        }
+      } catch (error) {
+        console.error("Failed to refresh customers", error);
       }
-      setIsCustomerCreated(true);
-      dispatch(
-        showNotification({
-          message: "Şirkət (Müştəri) uğurla yaradıldı! İndi əlaqədar şəxs əlavə edə bilərsiniz.",
-          type: "success",
-          autoCloseDuration: 3200,
-        })
-      );
-    } catch (error) {
-      console.error("Failed to create customer", error);
-      dispatch(
-        showNotification({
-          message: "Müştəri yaradılarkən xəta baş verdi",
-          type: "error",
-          autoCloseDuration: 3200,
-        })
-      );
-    }
-  };
-
-  const closeNewCustomerModal = () => {
-    setCustomerModalOpen(false);
-    setNewCustomerName("");
-    setNewCustomerManager("");
-    setNewCustomerContact("");
-    setNewCustomerPhone("");
-    setNewCustomerEmail("");
-    setNewCustomerAddress("");
-    setIsCustomerCreated(false);
-  };
-
-  const saveNewCustomerModal = useCallback(async () => {
-    if (!newCustomerName) {
-      alert("Şirkətin adı mütləqdir!");
-      return;
-    }
-    try {
-      const payload = {
-        name: newCustomerName,
-        manager: newCustomerManager,
-        contactPerson: newCustomerContact,
-        phone: newCustomerPhone,
-        email: newCustomerEmail,
-        address: newCustomerAddress,
-      };
-      await createCustomerAction(payload);
-      
-      // Reload customers to get the new one in the dropdown
-      const cust = await fetchCustomersAction();
-      setCustomersData(cust);
-      
-      // Auto-select the newly created customer
-      setCustomer(newCustomerName);
-      
-      dispatch(
-        showNotification({
-          message: "Müştəri uğurla əlavə edildi.",
-          type: "success",
-          autoCloseDuration: 3200,
-        }),
-      );
-      setCustomerModalOpen(false);
-    } catch (e) {
-      console.error(e);
-      dispatch(
-        showNotification({
-          message: "Xəta baş verdi.",
-          type: "error",
-          autoCloseDuration: 3200,
-        }),
-      );
-    }
-  }, [
-    newCustomerEmail,
-    newCustomerAddress,
-    dispatch
-  ]);
+    },
+    [],
+  );
 
   const openNewCompanyModal = useCallback(() => {
     setNewCompanyName("");
@@ -586,7 +500,7 @@ export default function SorgularNewModal({
 
   const loadData = useCallback(async () => {
     try {
-      const [u, c, cust, t, s, p, sp, inc, comps] = await Promise.all([
+      const [u, c, cust, t, s, p, sp, inc, positions, comps] = await Promise.all([
         fetchUsersAction(),
         fetchContactPersonsAction(),
         fetchCustomersAction(),
@@ -595,6 +509,7 @@ export default function SorgularNewModal({
         fetchLookupAction("inquiry-purposes"),
         fetchLookupAction("cargo-specs"),
         fetchLookupAction("incoterms"),
+        fetchLookupAction(CONTACT_POSITIONS_LOOKUP_TYPE),
         fetchCompaniesAction()
       ]);
       setUsersData(u);
@@ -605,6 +520,7 @@ export default function SorgularNewModal({
       setPurposesData(p);
       setSpecsData(sp);
       setIncotermsData(inc);
+      setContactPositionsData(positions);
       setCompaniesData(comps);
       if (!manager && user?.id) {
         setManager(user.id.toString());
@@ -635,8 +551,18 @@ export default function SorgularNewModal({
       case "inquiry-purposes": setPurposesData(newData); break;
       case "cargo-specs": setSpecsData(newData); break;
       case "incoterms": setIncotermsData(newData); break;
+      case CONTACT_POSITIONS_LOOKUP_TYPE: setContactPositionsData(newData); break;
     }
   };
+
+  const contactPositionOptions = useMemo(
+    () =>
+      withCustomPositionOption(
+        lookupRowsToPositionOptions(contactPositionsData),
+        contactPosition,
+      ),
+    [contactPositionsData, contactPosition],
+  );
 
   const notifyPlus = useCallback(
     (label: string) => {
@@ -798,23 +724,9 @@ export default function SorgularNewModal({
 
   useEffect(() => {
     if (!isOpen) {
-      setCustomerModalOpen(false);
       setCompanyModalOpen(false);
     }
   }, [isOpen]);
-
-  useEffect(() => {
-    if (!customerModalOpen) return undefined;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setCustomerModalOpen(false);
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [customerModalOpen]);
 
   useEffect(() => {
     if (!companyModalOpen) return undefined;
@@ -885,14 +797,10 @@ export default function SorgularNewModal({
   const selectedCustomerObj = customersData.find((c: any) => c.id?.toString() === customer);
   const selectedCustomerName = selectedCustomerObj?.name || selectedCustomerObj?.companyName || selectedCustomerObj?.fullName;
   
-  const filteredContacts = selectedCustomerObj?.contactPersons || [];
+  const filteredContacts = customerContactPersons(selectedCustomerObj, contactsData);
   
   const contactOpts = placeholderOpts(filteredContacts.map((c: any) => ({ value: c.fullName, label: c.position ? `${c.fullName} (${c.position})` : c.fullName })));
   
-  const newCustomerObj = customersData.find((c: any) => c.name === newCustomerName);
-  const filteredNewCustomerContacts = newCustomerObj?.contactPersons || [];
-  const newCustomerContactOpts = placeholderOpts(filteredNewCustomerContacts.map((c: any) => ({ value: c.fullName, label: c.position ? `${c.fullName} (${c.position})` : c.fullName })));
-
   const customerOpts = placeholderOpts(customersData.map((c: any) => ({ value: c.id?.toString(), label: c.name || c.companyName || c.fullName })));
   const tagOpts = placeholderOpts(tagsData.map((t: any) => ({ value: t.value, label: t.value })));
   const sourceOpts = placeholderOpts(sourcesData.map((s: any) => ({ value: s.value, label: s.value })));
@@ -938,7 +846,6 @@ export default function SorgularNewModal({
           className={`${styles.dialogBackdrop} ${
             visible ? styles.dialogBackdropVisible : ""
           }`}
-          onClick={onClose}
           aria-hidden="true"
         />
 
@@ -1054,7 +961,7 @@ export default function SorgularNewModal({
                         contactPerson,
                         contactOpts,
                         setContactPerson,
-                        { title: "Yeni əlaqədar şəxs", onClick: () => { setContactName(""); setContactPhone(""); setContactEmail(""); setNewContactSource("main"); setIsNewContactModalOpen(true); } },
+                        { title: "Yeni əlaqədar şəxs", onClick: () => { setContactName(""); setContactPhone(""); setContactEmail(""); setIsNewContactModalOpen(true); } },
                       )}
                     </div>
                   </div>
@@ -1287,21 +1194,29 @@ export default function SorgularNewModal({
               </div>
             ) : (
               <div className={styles.cargoStack}>
-                {cargoItems.map((cargo) => (
+                {cargoItems.map((cargo, cargoIndex) => (
                   <div key={cargo.id} className={styles.cargoCard}>
-                    <div className={styles.scrollX}>
-                      <div className={styles.cargoTopRow}>
-                        <button
-                          type="button"
-                          title="Yükü sil"
-                          disabled={cargoItems.length <= 1}
-                          onClick={() => removeCargo(cargo.id)}
-                          className={styles.circleButtonDanger}
-                          aria-label="Yükü sil"
+                    <div className={styles.cargoCardHeader}>
+                      <span className={styles.cargoCardTitle}>
+                        {cargoItems.length > 1
+                          ? `Yük ${cargoIndex + 1}`
+                          : "Yük məlumatları"}
+                      </span>
+                      <button
+                        type="button"
+                        title="Yükü sil"
+                        disabled={cargoItems.length <= 1}
+                        onClick={() => removeCargo(cargo.id)}
+                        className={styles.cargoRemoveButton}
+                        aria-label="Yükü sil"
+                      >
+                        Sil
+                      </button>
+                    </div>
+                    <div className={styles.cargoTopGrid}>
+                        <div
+                          className={`${styles.fieldStack} ${styles.cargoGridName}`}
                         >
-                          −
-                        </button>
-                        <div className={styles.fieldAuto}>
                           <Label>Adı</Label>
                           <input
                             className={styles.input}
@@ -1311,7 +1226,9 @@ export default function SorgularNewModal({
                             }
                           />
                         </div>
-                        <div className={styles.fieldNarrow}>
+                        <div
+                          className={`${styles.fieldStack} ${styles.cargoGridMetric}`}
+                        >
                           <Label>Çəkisi</Label>
                           <input
                             className={styles.input}
@@ -1323,25 +1240,31 @@ export default function SorgularNewModal({
                             }
                           />
                         </div>
-                        <div className={styles.fieldNarrow}>
+                        <div
+                          className={`${styles.fieldStack} ${styles.cargoGridMetric}`}
+                        >
                           <Label>Həcm (m³)</Label>
                           <input
-                            className={styles.input}
+                            className={`${styles.input} ${styles.inputReadOnly}`}
                             value={cargo.volumeM3 ?? ""}
                             readOnly
                             title="Qablaşdırmalardan avtomatik hesablanır"
                           />
                         </div>
-                        <div className={styles.fieldNarrow}>
+                        <div
+                          className={`${styles.fieldStack} ${styles.cargoGridMetric}`}
+                        >
                           <Label>LDM (m)</Label>
                           <input
-                            className={styles.input}
+                            className={`${styles.input} ${styles.inputReadOnly}`}
                             value={cargo.ldm}
                             readOnly
                             title="max(yuvarlaq çəki, həcm × 167) — avtomatik"
                           />
                         </div>
-                        <div className={styles.fieldWide}>
+                        <div
+                          className={`${styles.fieldStack} ${styles.cargoGridTransport}`}
+                        >
                           <Label>Nəqliyyatın tipi</Label>
                           <Select
                             value={cargo.transportType}
@@ -1355,7 +1278,9 @@ export default function SorgularNewModal({
                             className={styles.selectControl}
                           />
                         </div>
-                        <div className={styles.fieldMedium}>
+                        <div
+                          className={`${styles.fieldStack} ${styles.cargoGridValue}`}
+                        >
                           <Label>Yükün dəyəri</Label>
                           <input
                             className={styles.input}
@@ -1367,7 +1292,9 @@ export default function SorgularNewModal({
                             }
                           />
                         </div>
-                        <div className={styles.fieldNarrow}>
+                        <div
+                          className={`${styles.fieldStack} ${styles.cargoGridCurrency}`}
+                        >
                           <Label>Valyuta</Label>
                           <Select
                             value={cargo.currency}
@@ -1379,76 +1306,49 @@ export default function SorgularNewModal({
                             className={styles.selectControl}
                           />
                         </div>
-                      </div>
                     </div>
 
                     <div className={styles.packagingArea}>
+                      <div className={styles.packagingAreaHeader}>
+                        <p className={styles.packagingAreaTitle}>
+                          Qablaşdırma
+                        </p>
+                        <button
+                          type="button"
+                          title="Qablaşdırma sətri əlavə et"
+                          onClick={() =>
+                            addPackagingRowAfter(
+                              cargo.id,
+                              cargo.packagingRows.length - 1,
+                            )
+                          }
+                          className={styles.packagingAddButton}
+                          aria-label="Qablaşdırma sətri əlavə et"
+                        >
+                          +
+                        </button>
+                      </div>
                       <div className={styles.packagingRows}>
-                        {cargo.packagingRows.map((row, rowIndex) => (
-                          <div key={row.id} className={styles.scrollX}>
-                            <div className={styles.packagingRow}>
-                              <div className={styles.packagingActionSlot}>
-                                {rowIndex === 0 ? (
-                                  cargo.packagingRows.length <= 1 ? (
-                                    <button
-                                      type="button"
-                                      title="Qablaşdırma sətri əlavə et"
-                                      onClick={() =>
-                                        addPackagingRowAfter(cargo.id, 0)
-                                      }
-                                      className={styles.circleButtonSuccess}
-                                      aria-label="Qablaşdırma sətri əlavə et"
-                                    >
-                                      +
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      title="Sətri sil"
-                                      onClick={() =>
-                                        removePackagingRow(cargo.id, row.id)
-                                      }
-                                      className={styles.circleButtonDanger}
-                                      aria-label="Qablaşdırma sətri sil"
-                                    >
-                                      −
-                                    </button>
-                                  )
-                                ) : (
-                                  <button
-                                    type="button"
-                                    title="Qablaşdırma sətri əlavə et"
-                                    onClick={() =>
-                                      addPackagingRowAfter(cargo.id, rowIndex)
-                                    }
-                                    className={styles.circleButtonSuccess}
-                                    aria-label="Qablaşdırma sətri əlavə et"
-                                  >
-                                    +
-                                  </button>
-                                )}
-                              </div>
-
+                        {cargo.packagingRows.map((row) => (
+                          <div key={row.id} className={styles.packagingRow}>
                               <div className={styles.packagingTypeGroup}>
-                                <div className={styles.grow}>
-                                  <div className={styles.fieldStack}>
-                                    <Label>Qablaşdırmanın tipi</Label>
-                                    <Select
-                                      value={row.packagingType}
-                                      options={packagingTypeOptions}
-                                      onChange={(value) =>
-                                        updatePackagingRow(cargo.id, row.id, {
-                                          packagingType: value,
-                                        })
-                                      }
-                                      placeholder="Dəyəri seçin"
-                                      className={styles.selectControl}
-                                    />
-                                  </div>
+                                <div className={styles.fieldStack}>
+                                  <Label>Qablaşdırmanın tipi</Label>
+                                  <Select
+                                    value={row.packagingType}
+                                    options={packagingTypeOptions}
+                                    onChange={(value) =>
+                                      updatePackagingRow(cargo.id, row.id, {
+                                        packagingType: value,
+                                      })
+                                    }
+                                    placeholder="Dəyəri seçin"
+                                    className={styles.selectControl}
+                                  />
                                 </div>
                               </div>
 
-                              <div className={styles.fieldTiny}>
+                              <div className={styles.fieldStack}>
                                 <Label>Sayı</Label>
                                 <input
                                   className={styles.input}
@@ -1461,7 +1361,7 @@ export default function SorgularNewModal({
                                   inputMode="numeric"
                                 />
                               </div>
-                              <div className={styles.fieldTiny}>
+                              <div className={styles.fieldStack}>
                                 <Label>Uzunluğu (m)</Label>
                                 <input
                                   className={styles.input}
@@ -1473,7 +1373,7 @@ export default function SorgularNewModal({
                                   }
                                 />
                               </div>
-                              <div className={styles.fieldTiny}>
+                              <div className={styles.fieldStack}>
                                 <Label>Eni (m)</Label>
                                 <input
                                   className={styles.input}
@@ -1485,7 +1385,7 @@ export default function SorgularNewModal({
                                   }
                                 />
                               </div>
-                              <div className={styles.fieldTiny}>
+                              <div className={styles.fieldStack}>
                                 <Label>Hündürlüyü (m)</Label>
                                 <input
                                   className={styles.input}
@@ -1497,18 +1397,17 @@ export default function SorgularNewModal({
                                   }
                                 />
                               </div>
-                              <div className={styles.fieldTiny}>
+                              <div className={styles.fieldStack}>
                                 <Label>Həcmi (m³)</Label>
                                 <input
-                                  className={styles.input}
+                                  className={`${styles.input} ${styles.inputReadOnly}`}
                                   value={row.volumeM3}
                                   readOnly
                                   title="(uzunluq × en × hündürlük × say) — avtomatik"
                                 />
                               </div>
 
-                              {cargo.packagingRows.length > 1 &&
-                              rowIndex > 0 ? (
+                              {cargo.packagingRows.length > 1 ? (
                                 <button
                                   type="button"
                                   title="Sətri sil"
@@ -1521,12 +1420,12 @@ export default function SorgularNewModal({
                                   ×
                                 </button>
                               ) : null}
-                            </div>
                           </div>
                         ))}
                       </div>
                     </div>
 
+                    <div className={styles.cargoMetaSection}>
                     <label className={styles.checkboxRow}>
                       <input
                         type="checkbox"
@@ -1555,6 +1454,7 @@ export default function SorgularNewModal({
                         }
                         rows={4}
                       />
+                    </div>
                     </div>
                   </div>
                 ))}
@@ -1596,145 +1496,16 @@ export default function SorgularNewModal({
 
 
 
-      {customerModalOpen ? (
-        <div
-          className={styles.nestedRoot}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="customer-new-title"
-        >
-          <button
-            type="button"
-            className={styles.nestedBackdrop}
-            aria-label="Bağla"
-            onClick={closeNewCustomerModal}
-          />
-          <div
-            className={styles.nestedCard}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className={styles.nestedHeader}>
-              <h2 id="customer-new-title" className={styles.nestedTitle}>
-                Yeni müştəri
-              </h2>
-              <button
-                type="button"
-                className={styles.nestedCloseButton}
-                onClick={closeNewCustomerModal}
-                aria-label="Bağla"
-              >
-                ×
-              </button>
-            </div>
+      <CustomerCreateDrawer
+        isOpen={customerDrawerOpen}
+        onClose={() => setCustomerDrawerOpen(false)}
+        onCreated={handleCustomerCreated}
+      />
 
-            <div className={styles.nestedBody}>
-              <div className={styles.verticalStack}>
-                <div className={styles.fieldStack}>
-                  <ModalSentenceLabel required>Müştəri adı</ModalSentenceLabel>
-                  <input
-                    className={styles.input}
-                    value={newCustomerName}
-                    onChange={(e) => setNewCustomerName(e.target.value)}
-                    disabled={isCustomerCreated}
-                    autoComplete="off"
-                  />
-                </div>
-                <div className={styles.fieldStack}>
-                  <ModalSentenceLabel>Menecer</ModalSentenceLabel>
-                  <Select
-                    value={newCustomerManager}
-                    options={userOpts}
-                    onChange={setNewCustomerManager}
-                    placeholder="Menecer seçin"
-                    className={styles.selectControl}
-                  />
-                </div>
-                <div className={styles.fieldStack} style={{ opacity: isCustomerCreated ? 1 : 0.5, pointerEvents: isCustomerCreated ? 'auto' : 'none' }}>
-                  <ModalSentenceLabel>Əlaqədar şəxs</ModalSentenceLabel>
-                  <div className={styles.inlineControlRow}>
-                    <div className={styles.grow}>
-                      <Select
-                        value={newCustomerContact}
-                        options={newCustomerContactOpts}
-                        onChange={setNewCustomerContact}
-                        placeholder={isCustomerCreated ? "Əlaqədar şəxs seçin" : "Əvvəlcə şirkəti yaradın"}
-                        className={styles.selectControl}
-                        disabled={!isCustomerCreated}
-                      />
-                    </div>
-                    <PlusButton
-                      title="Yeni əlaqədar şəxs"
-                      onClick={() => {
-                        if (!isCustomerCreated) return;
-                        setContactName("");
-                        setContactPhone("");
-                        setContactEmail("");
-                        setContactPosition("");
-                        setNewContactSource("customer");
-                        setIsNewContactModalOpen(true);
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className={styles.fieldStack}>
-                  <ModalSentenceLabel>Əlaqə nömrəsi</ModalSentenceLabel>
-                  <input
-                    className={styles.input}
-                    value={newCustomerPhone}
-                    onChange={(event) => setNewCustomerPhone(event.target.value)}
-                    autoComplete="off"
-                  />
-                </div>
-                <div className={styles.fieldStack}>
-                  <ModalSentenceLabel>E-mail</ModalSentenceLabel>
-                  <input
-                    className={styles.input}
-                    type="email"
-                    value={newCustomerEmail}
-                    onChange={(event) => setNewCustomerEmail(event.target.value)}
-                    autoComplete="off"
-                  />
-                </div>
-                <div className={styles.fieldStack}>
-                  <ModalSentenceLabel>Ünvan</ModalSentenceLabel>
-                  <input
-                    className={styles.input}
-                    value={newCustomerAddress}
-                    onChange={(event) => setNewCustomerAddress(event.target.value)}
-                    autoComplete="off"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className={styles.nestedFooter}>
-              {!isCustomerCreated ? (
-                <button
-                  type="button"
-                  className={styles.nestedPrimaryButton}
-                  onClick={handleCreateCustomerAndEnableContacts}
-                >
-                  Şirkəti yarat
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className={styles.nestedPrimaryButton}
-                  onClick={closeNewCustomerModal}
-                >
-                  Tamamla
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
-      
       {isNewContactModalOpen ? (
         <div className={styles.nestedRoot} style={{ zIndex: 1205 }}>
           <div
             className={styles.nestedBackdrop}
-            onClick={() => setIsNewContactModalOpen(false)}
             aria-hidden="true"
           />
           <div className={styles.nestedCard} style={{ transform: "scale(0.96) translateY(20px)" }}>
@@ -1782,20 +1553,21 @@ export default function SorgularNewModal({
                 </div>
                 <div className={styles.fieldStack}>
                   <ModalSentenceLabel>Vəzifə</ModalSentenceLabel>
-                  <Select
-                    value={contactPosition}
-                    options={[
-                      { value: "Rəhbər", label: "Rəhbər" },
-                      { value: "Menecer", label: "Menecer" },
-                      { value: "Satış təmsilçisi", label: "Satış təmsilçisi" },
-                      { value: "Mühasib", label: "Mühasib" },
-                      { value: "Agent", label: "Agent" },
-                      { value: "Digər", label: "Digər" },
-                    ]}
-                    onChange={setContactPosition}
-                    placeholder="Vəzifə seçin"
-                    className={styles.selectControl}
-                  />
+                  <div className={styles.inlineControlRow}>
+                    <div className={styles.grow}>
+                      <Select
+                        value={contactPosition}
+                        options={contactPositionOptions}
+                        onChange={setContactPosition}
+                        placeholder="Vəzifə seçin"
+                        className={styles.selectControl}
+                      />
+                    </div>
+                    <PlusButton
+                      title="Vəzifə əlavə et"
+                      onClick={() => openLookupModal(CONTACT_POSITIONS_LOOKUP_TYPE, "Vəzifələr")}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1810,20 +1582,27 @@ export default function SorgularNewModal({
                     return;
                   }
                   try {
+                    const linkedCustomer = customersData.find(
+                      (c: any) => c.id?.toString() === customer,
+                    );
+
                     await createContactPersonAction({
                       fullName: contactName,
                       phone: contactPhone,
                       email: contactEmail,
                       position: contactPosition,
-                      company: newContactSource === "main" ? (selectedCustomerName || customer) : newCustomerName
+                      company:
+                        selectedCustomerName || linkedCustomer?.company || linkedCustomer?.name || "",
+                      entityType: "customer",
+                      entityId: linkedCustomer?.id,
                     });
-                    const c = await fetchContactPersonsAction();
-                    setContactsData(c);
-                    if (newContactSource === "main") {
-                      setContactPerson(contactName);
-                    } else {
-                      setNewCustomerContact(contactName);
-                    }
+                    const [freshContacts, freshCustomers] = await Promise.all([
+                      fetchContactPersonsAction(),
+                      fetchCustomersAction(),
+                    ]);
+                    setContactsData(freshContacts);
+                    setCustomersData(freshCustomers);
+                    setContactPerson(contactName);
                     dispatch(showNotification({ message: "Əlaqədar şəxs uğurla əlavə edildi.", type: "success", autoCloseDuration: 3200 }));
                     setIsNewContactModalOpen(false);
                   } catch (e) {
@@ -1845,11 +1624,9 @@ export default function SorgularNewModal({
           aria-labelledby="company-new-title"
           style={{ zIndex: 1205 }}
         >
-          <button
-            type="button"
+          <div
             className={styles.nestedBackdrop}
-            aria-label="Bağla"
-            onClick={closeNewCompanyModal}
+            aria-hidden="true"
           />
           <div
             className={styles.nestedCard}

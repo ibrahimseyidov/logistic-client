@@ -3,6 +3,7 @@ import type { ContactPersonRow } from "../actions/contact.actions";
 export interface CarrierDocumentItem {
   id?: string;
   number: string;
+  documentType?: string;
   date: string;
   fileName?: string;
   fileUrl?: string;
@@ -12,9 +13,10 @@ export interface CarrierDocumentItem {
 
 export function serializeCarrierDocuments(documents: CarrierDocumentItem[]) {
   return documents.map(
-    ({ id, number, date, fileName, fileUrl, fileType, fileSize }) => ({
+    ({ id, number, documentType, date, fileName, fileUrl, fileType, fileSize }) => ({
       id,
       number,
+      documentType,
       date,
       fileName,
       fileUrl,
@@ -61,6 +63,7 @@ export function parseCarrierDocuments(raw: unknown): CarrierDocumentItem[] {
     return raw.map((item: any, index) => ({
       id: String(item?.id ?? index),
       number: String(item?.number ?? ""),
+      documentType: item?.documentType ? String(item.documentType) : undefined,
       date: String(item?.date ?? ""),
       fileName: item?.fileName ? String(item.fileName) : undefined,
       fileUrl: item?.fileUrl ? String(item.fileUrl) : undefined,
@@ -188,6 +191,27 @@ export function mergeCarrierFormContacts(
       : available.filter((c) => !c.entityId);
 
   return normalizeCarrierContacts(formContacts, scoped);
+}
+
+export function isPersistedContactPerson(
+  contact: ContactPersonRow,
+  available: ContactPersonRow[],
+): boolean {
+  return available.some((item) => String(item.id) === String(contact.id));
+}
+
+export function scopeEntityContacts(
+  available: ContactPersonRow[],
+  options?: { mode?: "new" | "edit"; entityId?: string | number | null },
+): ContactPersonRow[] {
+  const mode = options?.mode ?? "new";
+  const entityId = options?.entityId;
+
+  if (mode === "edit" && entityId) {
+    return available.filter((c) => String(c.entityId) === String(entityId));
+  }
+
+  return available.filter((c) => !c.entityId);
 }
 
 export function contactPersonToSelectOptions(

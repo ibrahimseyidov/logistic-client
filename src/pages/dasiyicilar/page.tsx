@@ -19,13 +19,12 @@ import {
   deleteCarrierAction,
   uploadCarrierDocumentFileAction,
 } from "../../common/actions/carrier.actions";
-import { fetchContactPersonsAction, ContactPersonRow, createContactPersonAction } from "../../common/actions/contact.actions";
+import { fetchContactPersonsAction, ContactPersonRow, createContactPersonAction, deleteContactPersonAction, updateContactPersonAction } from "../../common/actions/contact.actions";
 import { useAppDispatch } from "../../common/store/hooks";
 import { showNotification } from "../../common/store/modalSlice";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { fetchQueriesAction } from "../../common/actions/query.actions";
 import { fetchOrdersAction } from "../../common/actions/order.actions";
-import { fetchUsersAction, UserRow } from "../../common/actions/user.actions";
 import {
   daysSinceActivityDate,
   formatActivityDate,
@@ -41,6 +40,8 @@ import {
   parseCarrierDocuments,
   displayFieldValue,
   mergeCarrierFormContacts,
+  isPersistedContactPerson,
+  scopeEntityContacts,
   normalizeCarrierContacts,
   contactPersonIdsFromList,
   serializeCarrierDocuments,
@@ -90,7 +91,6 @@ const EMPTY_FORM = {
   carrierType: "",
   activityType: "",
   voen: "",
-  manager: "",
   contactPersons: [] as ContactPersonRow[],
   contactPerson: "",
   contactInfo: "",
@@ -135,14 +135,13 @@ export default function DasiyicilarPage() {
   const [editingCarrierId, setEditingCarrierId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [editForm, setEditForm] = useState({ ...EMPTY_FORM });
-  const [documentDraft, setDocumentDraft] = useState({ number: "", date: "" });
+  const [documentDraft, setDocumentDraft] = useState({ number: "", documentType: "", date: "" });
   const [isDocumentUploading, setIsDocumentUploading] = useState(false);
   const documentInputRef = useRef<HTMLInputElement | null>(null);
   const documentFormSetterRef = useRef<Dispatch<SetStateAction<typeof EMPTY_FORM>> | null>(null);
   const pendingDocumentFilesRef = useRef<Map<string, File>>(new Map());
   
   const [availableContacts, setAvailableContacts] = useState<ContactPersonRow[]>([]);
-  const [usersData, setUsersData] = useState<UserRow[]>([]);
   const [carrierTypesData, setCarrierTypesData] = useState<LookupRow[]>([]);
   const [activityTypesData, setActivityTypesData] = useState<LookupRow[]>([]);
   const [countriesData, setCountriesData] = useState<LookupRow[]>([]);
@@ -197,7 +196,6 @@ export default function DasiyicilarPage() {
   
   useEffect(() => {
     fetchContactPersonsAction({ entityType: "carrier" }).then(setAvailableContacts).catch(() => {});
-    fetchUsersAction().then(setUsersData).catch(() => {});
     loadCarrierTypes();
     loadActivityTypes();
     loadCountries();
@@ -235,17 +233,16 @@ export default function DasiyicilarPage() {
     lookupOpenFromPlusRef.current = true;
   };
 
-  const userOpts = [
-    { value: "", label: "Menecer seçin" },
-    ...usersData.map((u) => ({ value: String(u.id), label: u.name })),
-  ];
-
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
 
   const handleCreateContactPerson = async (data: ContactPersonFormData) => {
     try {
       const currentForm = activePanel === "new" ? newForm : editForm;
       const entityId = activePanel === "edit" ? editingCarrierId : undefined;
+      const contactOptions = {
+        mode: activePanel === "new" ? ("new" as const) : ("edit" as const),
+        entityId: entityId || null,
+      };
 
       const newContact = await createContactPersonAction({
         fullName: data.fullName,
@@ -257,15 +254,25 @@ export default function DasiyicilarPage() {
         entityId: entityId || undefined,
       });
 
+      const nextContactPersons = mergeCarrierFormContacts(
+        normalizeCarrierContacts(currentForm.contactPersons, [newContact]),
+        normalizeCarrierContacts(availableContacts, [newContact]),
+        contactOptions,
+      );
+
+      if (activePanel === "edit" && editingCarrierId) {
+        await updateCarrierAction(editingCarrierId, {
+          contactPersons: nextContactPersons,
+          contactPerson: contactPersonIdsFromList(nextContactPersons),
+        });
+      }
+
       const setForm = activePanel === "new" ? setNewForm : setEditForm;
-      setForm((prev) => {
-        const contactPersons = normalizeCarrierContacts(prev.contactPersons, [newContact]);
-        return {
-          ...prev,
-          contactPersons,
-          contactPerson: contactPersonIdsFromList(contactPersons),
-        };
-      });
+      setForm((prev) => ({
+        ...prev,
+        contactPersons: nextContactPersons,
+        contactPerson: contactPersonIdsFromList(nextContactPersons),
+      }));
 
       setAvailableContacts((prev) => normalizeCarrierContacts(prev, [newContact]));
 
@@ -286,22 +293,136 @@ export default function DasiyicilarPage() {
     }
   };
 
-  const handleRemoveContactPerson = (contact: ContactPersonRow, _index: number) => {
+  const handleEditContactPerson = async (
+    contact: ContactPersonRow,
+    data: ContactPersonFormData,
+  ) => {
     const setForm = activePanel === "new" ? setNewForm : setEditForm;
-    setForm((prev) => {
-      const contactPersons = prev.contactPersons.filter((c) => String(c.id) !== String(contact.id));
-      return {
-        ...prev,
-        contactPersons,
-        contactPerson: contactPersonIdsFromList(contactPersons),
-      };
-    });
-    dispatch(
-      showNotification({
-        message: "Əlaqədar şəxs silindi",
-        type: "deleted",
-      }),
+    const currentForm = activePanel === "new" ? newForm : editForm;
+    const contactOptions = {
+      mode: activePanel === "new" ? ("new" as const) : ("edit" as const),
+      entityId: activePanel === "edit" ? editingCarrierId : null,
+    };
+    const scopedAvailable = scopeEntityContacts(availableContacts, contactOptions);
+    const mergedContacts = mergeCarrierFormContacts(
+      currentForm.contactPersons,
+      availableContacts,
+      contactOptions,
     );
+
+    try {
+      const company = data.company || contact.company || currentForm.company || "";
+      let updatedContact: ContactPersonRow = {
+        ...contact,
+        fullName: data.fullName,
+        phone: data.phone,
+        email: data.email,
+        position: data.position,
+        company,
+      };
+
+      if (isPersistedContactPerson(contact, scopedAvailable)) {
+        updatedContact = await updateContactPersonAction(String(contact.id), {
+          fullName: data.fullName,
+          phone: data.phone,
+          email: data.email,
+          position: data.position,
+          company,
+        });
+      }
+
+      const nextContactPersons = mergedContacts.map((item) =>
+        String(item.id) === String(contact.id) ? updatedContact : item,
+      );
+
+      if (activePanel === "edit" && editingCarrierId) {
+        await updateCarrierAction(editingCarrierId, {
+          contactPersons: nextContactPersons,
+          contactPerson: contactPersonIdsFromList(nextContactPersons),
+        });
+      }
+
+      setForm((prev) => ({
+        ...prev,
+        contactPersons: nextContactPersons,
+        contactPerson: contactPersonIdsFromList(nextContactPersons),
+      }));
+
+      if (isPersistedContactPerson(contact, scopedAvailable)) {
+        setAvailableContacts((prev) =>
+          prev.map((item) => (String(item.id) === String(contact.id) ? updatedContact : item)),
+        );
+      }
+
+      dispatch(
+        showNotification({
+          message: "Əlaqədar şəxs yeniləndi",
+          type: "updated",
+        }),
+      );
+    } catch (error) {
+      dispatch(
+        showNotification({
+          message: "Əlaqədar şəxs yenilənərkən xəta baş verdi",
+          type: "error",
+        }),
+      );
+      throw error;
+    }
+  };
+
+  const handleRemoveContactPerson = async (contact: ContactPersonRow, _index: number) => {
+    const setForm = activePanel === "new" ? setNewForm : setEditForm;
+    const currentForm = activePanel === "new" ? newForm : editForm;
+    const mergedContacts = mergeCarrierFormContacts(
+      currentForm.contactPersons,
+      availableContacts,
+      {
+        mode: activePanel === "new" ? "new" : "edit",
+        entityId: activePanel === "edit" ? editingCarrierId : null,
+      },
+    );
+    const nextContactPersons = mergedContacts.filter(
+      (c) => String(c.id) !== String(contact.id),
+    );
+    const scopedAvailable = scopeEntityContacts(availableContacts, {
+      mode: activePanel === "new" ? "new" : "edit",
+      entityId: activePanel === "edit" ? editingCarrierId : null,
+    });
+
+    try {
+      if (isPersistedContactPerson(contact, scopedAvailable)) {
+        await deleteContactPersonAction(String(contact.id));
+      }
+
+      if (activePanel === "edit" && editingCarrierId) {
+        await updateCarrierAction(editingCarrierId, {
+          contactPersons: nextContactPersons,
+          contactPerson: contactPersonIdsFromList(nextContactPersons),
+        });
+      }
+
+      setForm((prev) => ({
+        ...prev,
+        contactPersons: nextContactPersons,
+        contactPerson: contactPersonIdsFromList(nextContactPersons),
+      }));
+      setAvailableContacts((prev) => prev.filter((c) => String(c.id) !== String(contact.id)));
+
+      dispatch(
+        showNotification({
+          message: "Əlaqədar şəxs silindi",
+          type: "deleted",
+        }),
+      );
+    } catch (error) {
+      dispatch(
+        showNotification({
+          message: "Əlaqədar şəxs silinərkən xəta baş verdi",
+          type: "error",
+        }),
+      );
+    }
   };
   
   // We don't need a global contactOptions here anymore because it depends on the specific form (newForm/editForm)
@@ -403,8 +524,6 @@ export default function DasiyicilarPage() {
           contactInfo: c.phone || "-",
           address: c.address || "-",
           country: c.country || "AZ",
-          manager: c.manager || "-",
-          creditLimit: c.creditLimit || "0",
           lastActivityDate: lastActivity ? lastActivity.toISOString() : null,
           daysSinceLastContact: daysSinceActivityDate(lastActivity),
           orderCount: carrierOrders.length,
@@ -498,10 +617,10 @@ export default function DasiyicilarPage() {
   const openDocumentFilePicker = (
     setForm: Dispatch<SetStateAction<typeof EMPTY_FORM>>,
   ) => {
-    if (!documentDraft.number.trim() || !documentDraft.date) {
+    if (!documentDraft.number.trim() || !documentDraft.documentType.trim() || !documentDraft.date) {
       dispatch(
         showNotification({
-          message: "Sənəd nömrəsi və tarix mütləqdir",
+          message: "Sənəd nömrəsi, növü və tarix mütləqdir",
           type: "error",
         }),
       );
@@ -523,6 +642,7 @@ export default function DasiyicilarPage() {
     const newDocument: CarrierDocumentItem = {
       id: docId,
       number: documentDraft.number.trim(),
+      documentType: documentDraft.documentType.trim(),
       date: documentDraft.date,
       fileName: file.name,
       fileType: file.type,
@@ -533,7 +653,7 @@ export default function DasiyicilarPage() {
       ...prev,
       documents: [...prev.documents, newDocument],
     }));
-    setDocumentDraft({ number: "", date: "" });
+    setDocumentDraft({ number: "", documentType: "", date: "" });
     documentFormSetterRef.current = null;
     dispatch(
       showNotification({
@@ -584,7 +704,6 @@ export default function DasiyicilarPage() {
       const payload = {
         name: newForm.company.trim(),
         carrierType: getLookupLabel(newForm.carrierType, carrierTypeOptions) || "Yeni daşıyıcı",
-        manager: newForm.manager.trim(),
         contactPersons: newForm.contactPersons,
         contactPerson: contactPersonIdsFromList(newForm.contactPersons),
         phone: newForm.contactInfo.trim(),
@@ -608,7 +727,7 @@ export default function DasiyicilarPage() {
       setActivePanel(null);
       setNewCarrierTab("main");
       setNewForm({ ...EMPTY_FORM });
-      setDocumentDraft({ number: "", date: "" });
+      setDocumentDraft({ number: "", documentType: "", date: "" });
     } catch (error) {
       dispatch(
         showNotification({
@@ -622,14 +741,13 @@ export default function DasiyicilarPage() {
   const openEditModal = (carrier: CarrierRow) => {
     pendingDocumentFilesRef.current.clear();
     setEditingCarrierId(carrier.id);
-    setDocumentDraft({ number: "", date: "" });
+    setDocumentDraft({ number: "", documentType: "", date: "" });
     setEditForm({
       company: carrier.company,
       shortName: carrier.company,
       carrierType: resolveLookupValue(carrier.carrierType, carrierTypesData),
       activityType: resolveLookupValue((carrier as any).activityType || "", activityTypesData),
       voen: "",
-      manager: carrier.manager,
       contactPersons: normalizeCarrierContacts((carrier as any).contactPersons || [], []),
       contactPerson: carrier.contactPerson || "",
       contactInfo: carrier.contactInfo,
@@ -674,7 +792,6 @@ export default function DasiyicilarPage() {
       const payload = {
         name: editForm.company.trim(),
         carrierType: getLookupLabel(editForm.carrierType, carrierTypeOptions) || "Yeni daşıyıcı",
-        manager: editForm.manager.trim(),
         contactPersons: editForm.contactPersons,
         contactPerson: contactPersonIdsFromList(editForm.contactPersons),
         phone: editForm.contactInfo.trim(),
@@ -747,7 +864,7 @@ export default function DasiyicilarPage() {
               className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonPrimary}`}
               onClick={() => {
                 pendingDocumentFilesRef.current.clear();
-                setDocumentDraft({ number: "", date: "" });
+                setDocumentDraft({ number: "", documentType: "", date: "" });
                 setActivePanel("new");
               }}
             >
@@ -797,8 +914,6 @@ export default function DasiyicilarPage() {
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min170}`}>Əlaqə məlumatları</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min180}`}>Ünvan</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>Ölkə</th>
-                <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min150}`}>Menecer</th>
-                <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>Kredit limiti</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min160}`}>Son sorğu/sifariş tarixi</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min140}`}>Sifarişlərin sayı</th>
                 <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min140}`}>Sorğuların sayı</th>
@@ -827,10 +942,6 @@ export default function DasiyicilarPage() {
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.contactInfo}</td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.address}</td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.country}</td>
-                  <td className={sorguTableStyles.cell}>
-                    {usersData.find(u => String(u.id) === String(row.manager))?.name || row.manager}
-                  </td>
-                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.creditLimit}</td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
                     {formatActivityDate(
                       row.lastActivityDate ? new Date(row.lastActivityDate) : null,
@@ -907,10 +1018,6 @@ export default function DasiyicilarPage() {
 
       <div
         className={`${sorguLayoutStyles.overlay} ${activePanel ? sorguLayoutStyles.overlayOpen : ""}`}
-        onClick={() => {
-          if (activeLookupModal || isContactModalOpen) return;
-          setActivePanel(null);
-        }}
         aria-hidden={!activePanel}
       />
 
@@ -1037,14 +1144,6 @@ export default function DasiyicilarPage() {
           const description = isNew
             ? "Daşıyıcı məlumatlarını doldurub yaddaşa əlavə edin."
             : "Mövcud daşıyıcı məlumatlarını yeniləyin.";
-          const selectableContacts = mergeCarrierFormContacts(
-            form.contactPersons,
-            availableContacts,
-            {
-              mode: isNew ? "new" : "edit",
-              entityId: isEdit ? editingCarrierId : null,
-            },
-          );
 
           return (
             <div className={modalStyles.newPanel}>
@@ -1169,16 +1268,6 @@ export default function DasiyicilarPage() {
                         placeholder="VÖEN daxil edin"
                       />
                     </label>
-                    <label className={modalStyles.field}>
-                      <span>Menecer</span>
-                      <Select
-                        value={form.manager}
-                        options={userOpts}
-                        onChange={(value) =>
-                          setForm((prev: any) => ({ ...prev, manager: value }))
-                        }
-                      />
-                    </label>
                   </div>
                 </div>
 
@@ -1190,22 +1279,10 @@ export default function DasiyicilarPage() {
                       <div className={modalStyles.sectionBox}>
                         <p className={modalStyles.sectionBoxTitle}>Daşıyıcı əlaqədar şəxsləri</p>
                         <p className={modalStyles.sectionBoxHint}>
-                          Əlaqədar şəxsləri «İdarə et» düyməsi ilə əlavə edin. Əlavə edilən şəxslər avtomatik görünəcək.
+                          Əlaqədar şəxsləri «İdarə et» düyməsi ilə əlavə edin.
                         </p>
                         <div className={modalStyles.inlineControlRow}>
-                          <div className={modalStyles.contactPersonList}>
-                            {selectableContacts.length === 0 ? (
-                              <span className={modalStyles.contactPersonEmpty}>
-                                Əlaqədar şəxs yoxdur
-                              </span>
-                            ) : (
-                              selectableContacts.map((contact) => (
-                                <span key={contact.id} className={modalStyles.contactPersonTag}>
-                                  {contact.fullName}
-                                </span>
-                              ))
-                            )}
-                          </div>
+                          <div className={modalStyles.contactPersonList} aria-hidden="true" />
                           <button
                             type="button"
                             className={modalStyles.manageButton}
@@ -1278,7 +1355,7 @@ export default function DasiyicilarPage() {
                 {/* 3. Sənədlər */}
                 <div className={modalStyles.newPanelCard}>
                   <h3 className={modalStyles.newPanelCardTitle}>Sənədlər</h3>
-                  <div className={modalStyles.newPanelGrid}>
+                  <div className={modalStyles.documentFormGrid}>
                     <label className={modalStyles.field}>
                       <span>Sənədin nömrəsi</span>
                       <input
@@ -1288,6 +1365,17 @@ export default function DasiyicilarPage() {
                         }
                         className={modalStyles.input}
                         placeholder="Sənəd nömrəsini daxil edin"
+                      />
+                    </label>
+                    <label className={modalStyles.field}>
+                      <span>Sənədin növü</span>
+                      <input
+                        value={documentDraft.documentType}
+                        onChange={(e) =>
+                          setDocumentDraft((prev) => ({ ...prev, documentType: e.target.value }))
+                        }
+                        className={modalStyles.input}
+                        placeholder="Məs: Müqavilə"
                       />
                     </label>
                     <label className={modalStyles.field}>
@@ -1306,7 +1394,7 @@ export default function DasiyicilarPage() {
                         <button
                           type="button"
                           title="Fayl seç və əlavə et"
-                          className={styles.plusButton}
+                          className={modalStyles.plusButton}
                           disabled={isDocumentUploading}
                           onClick={() => openDocumentFilePicker(setForm)}
                         >
@@ -1316,16 +1404,21 @@ export default function DasiyicilarPage() {
                     </label>
                   </div>
                   {form.documents.length > 0 ? (
-                    <ul className={styles.documentList}>
+                    <ul className={modalStyles.documentList}>
                       {form.documents.map((doc) => (
-                        <li key={doc.id} className={styles.documentItem}>
-                          <div className={styles.documentMeta}>
-                            <span className={styles.documentNumber} title={doc.number}>
+                        <li key={doc.id} className={modalStyles.documentItem}>
+                          <div className={modalStyles.documentMeta}>
+                            <span className={modalStyles.documentNumber} title={doc.number}>
                               {doc.number}
                             </span>
-                            <span className={styles.documentDate}>{doc.date}</span>
+                            {doc.documentType ? (
+                              <span className={modalStyles.documentType} title={doc.documentType}>
+                                {doc.documentType}
+                              </span>
+                            ) : null}
+                            <span className={modalStyles.documentDate}>{doc.date}</span>
                             {doc.fileName ? (
-                              <span className={styles.documentFileName} title={doc.fileName}>
+                              <span className={modalStyles.documentFileName} title={doc.fileName}>
                                 {doc.fileUrl ? (
                                   <a
                                     href={buildApiUrl(doc.fileUrl)}
@@ -1342,7 +1435,7 @@ export default function DasiyicilarPage() {
                           </div>
                           <button
                             type="button"
-                            className={styles.documentRemove}
+                            className={modalStyles.documentRemove}
                             onClick={() => removeDocumentFromForm(setForm, doc.id)}
                             aria-label="Sənədi sil"
                           >
@@ -1352,7 +1445,7 @@ export default function DasiyicilarPage() {
                       ))}
                     </ul>
                   ) : (
-                    <p className={styles.documentEmpty}>Hələ sənəd əlavə edilməyib.</p>
+                    <p className={modalStyles.documentEmpty}>Hələ sənəd əlavə edilməyib.</p>
                   )}
                 </div>
               </div>
@@ -1403,6 +1496,7 @@ export default function DasiyicilarPage() {
           },
         )}
         onAdd={handleCreateContactPerson}
+        onEdit={handleEditContactPerson}
         onRemove={handleRemoveContactPerson}
         entityName={(activePanel === "new" ? newForm : editForm).company}
         entityTypeLabel="daşıyıcı"

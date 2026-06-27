@@ -7,19 +7,25 @@ interface Props {
   rows: LookupOptionRow[];
   onEdit: (row: LookupOptionRow) => void;
   onDelete: (id: number) => void;
+  singleColumn?: boolean;
 }
 
 export const LookupOptionsTable: React.FC<Props> = ({
   rows,
   onEdit,
   onDelete,
+  singleColumn = false,
 }) => {
+  const columnCount = singleColumn ? 2 : 3;
+
   return (
     <div className={styles.tableWrapper}>
       <table className={styles.table}>
         <thead>
           <tr>
-            <th className={`${styles.headerCell} ${styles.center}`}>Kod</th>
+            {!singleColumn ? (
+              <th className={`${styles.headerCell} ${styles.center}`}>Kod</th>
+            ) : null}
             <th className={`${styles.headerCell} ${styles.center}`}>Ad</th>
             <th className={styles.headerCell}>Əməliyyatlar</th>
           </tr>
@@ -27,16 +33,18 @@ export const LookupOptionsTable: React.FC<Props> = ({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td className={styles.emptyCell} colSpan={3}>
+              <td className={styles.emptyCell} colSpan={columnCount}>
                 Məlumat tapılmadı
               </td>
             </tr>
           ) : (
             rows.map((row) => (
               <tr key={row.id}>
-                <td className={`${styles.cell} ${styles.center}`}>
-                  {row.value}
-                </td>
+                {!singleColumn ? (
+                  <td className={`${styles.cell} ${styles.center}`}>
+                    {row.value}
+                  </td>
+                ) : null}
                 <td className={`${styles.cell} ${styles.center}`}>
                   {row.label}
                 </td>

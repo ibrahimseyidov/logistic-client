@@ -9,6 +9,8 @@ interface Props {
   onClose: () => void;
   onSubmit: (data: { value: string; label: string }) => void;
   initialValues?: LookupOptionRow | null;
+  singleField?: boolean;
+  singleFieldLabel?: string;
 }
 
 export const LookupOptionModal: React.FC<Props> = ({
@@ -17,15 +19,18 @@ export const LookupOptionModal: React.FC<Props> = ({
   onClose,
   onSubmit,
   initialValues,
+  singleField = false,
+  singleFieldLabel = "Ad",
 }) => {
   const [formData, setFormData] = useState({ value: "", label: "" });
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
+      const label = initialValues?.label ?? initialValues?.value ?? "";
       setFormData({
-        value: initialValues?.value ?? "",
-        label: initialValues?.label ?? "",
+        value: initialValues?.value ?? label,
+        label,
       });
       setTimeout(() => setIsVisible(true), 10);
     } else {
@@ -37,6 +42,10 @@ export const LookupOptionModal: React.FC<Props> = ({
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
+    if (singleField) {
+      onSubmit({ value: formData.label.trim(), label: formData.label.trim() });
+      return;
+    }
     onSubmit(formData);
   };
 
@@ -44,7 +53,6 @@ export const LookupOptionModal: React.FC<Props> = ({
     <div className={styles.dialogRoot}>
       <div
         className={`${styles.dialogBackdrop} ${isVisible ? styles.dialogBackdropVisible : ""}`}
-        onClick={onClose}
       />
       <aside
         className={`${styles.dialogPanel} ${isVisible ? styles.dialogPanelVisible : ""}`}
@@ -60,19 +68,21 @@ export const LookupOptionModal: React.FC<Props> = ({
 
         <form onSubmit={handleSubmit} className={styles.dialogBody}>
           <div className={styles.sectionStack}>
+            {!singleField ? (
+              <label className={styles.fieldStack}>
+                <span className={styles.label}>Kod</span>
+                <input
+                  className={styles.input}
+                  value={formData.value}
+                  onChange={(event) =>
+                    setFormData({ ...formData, value: event.target.value })
+                  }
+                  required
+                />
+              </label>
+            ) : null}
             <label className={styles.fieldStack}>
-              <span className={styles.label}>Kod</span>
-              <input
-                className={styles.input}
-                value={formData.value}
-                onChange={(event) =>
-                  setFormData({ ...formData, value: event.target.value })
-                }
-                required
-              />
-            </label>
-            <label className={styles.fieldStack}>
-              <span className={styles.label}>Ad</span>
+              <span className={styles.label}>{singleField ? singleFieldLabel : "Ad"}</span>
               <input
                 className={styles.input}
                 value={formData.label}

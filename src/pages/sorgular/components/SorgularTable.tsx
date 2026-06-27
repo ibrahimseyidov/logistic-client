@@ -18,7 +18,6 @@ import {
   CARGO_TRANSPORT_OPTIONS,
   COMPANY_OPTIONS,
   CUSTOMER_OPTIONS,
-  PACKAGING_TYPE_OPTIONS,
   PERSON_OPTIONS,
 } from "../constants/options.constants";
 
@@ -136,11 +135,6 @@ function getPersonLabel(value: string) {
 
 function getCargoTransportLabel(value: string) {
   const matched = CARGO_TRANSPORT_OPTIONS.find((opt) => opt.value === value);
-  return matched ? matched.label : value;
-}
-
-function getPackagingLabel(value: string) {
-  const matched = PACKAGING_TYPE_OPTIONS.find((opt) => opt.value === value);
   return matched ? matched.label : value;
 }
 
@@ -421,32 +415,6 @@ export default function SorgularTable({ rows, customers, onUpdate, onDelete, onA
                               {item.cargoValue || "0"} {item.currency || ""}
                             </div>
                           )}
-                          {Array.isArray(item.packagingRows) &&
-                            item.packagingRows.length > 0 && (
-                              <div
-                                style={{
-                                  fontSize: "0.68rem",
-                                  color: "#94a3b8",
-                                  marginTop: "3px",
-                                  backgroundColor: "#f8fafc",
-                                  padding: "2px 4px",
-                                  borderRadius: "4px",
-                                }}
-                              >
-                                {item.packagingRows.map(
-                                  (p: any, pIdx: number) => (
-                                    <div key={p.id || pIdx}>
-                                      {p.packagingType
-                                        ? `${getPackagingLabel(p.packagingType)}: `
-                                        : ""}
-                                      {p.lengthM || 0}x{p.widthM || 0}x
-                                      {p.heightM || 0}m
-                                      {p.volumeM3 ? ` | ${p.volumeM3}m³` : ""}
-                                    </div>
-                                  ),
-                                )}
-                              </div>
-                            )}
                         </div>
                       ))}
                     </div>

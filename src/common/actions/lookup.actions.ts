@@ -8,7 +8,8 @@ function getAuthToken() {
 export interface LookupRow {
   id: string | number;
   value: string;
-  label?: string; // Optional depending on how you use it
+  label?: string;
+  percentage?: number | null;
 }
 
 export async function fetchLookupAction(type: string): Promise<LookupRow[]> {
