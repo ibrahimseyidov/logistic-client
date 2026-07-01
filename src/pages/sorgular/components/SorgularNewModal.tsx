@@ -23,7 +23,15 @@ import {
   PACKAGING_TYPE_OPTIONS,
   TRANSPORT_PARENT_KIND_OPTIONS,
 } from "../constants/options.constants";
-import { calcCargoMetrics } from "../lib/cargoCalculations";
+import {
+  applyCargoMetrics,
+  createCargoItem,
+  createPackagingRow,
+  normalizeCargoItem,
+  resolveCargoItemsFromInitialValues,
+  type CargoItemForm,
+  type CargoPackagingRow,
+} from "../lib/cargoForm.utils";
 import { useAuth } from "../../../common/contexts/AuthContext";
 import { fetchUsersAction } from "../../../common/actions/user.actions";
 import { fetchContactPersonsAction, createContactPersonAction } from "../../../common/actions/contact.actions";
@@ -98,86 +106,7 @@ const transportParentKindOptions = placeholderOpts(TRANSPORT_PARENT_KIND_OPTIONS
 const cargoCurrencyOptions = placeholderOpts(CARGO_CURRENCY_OPTIONS);
 const packagingTypeOptions = placeholderOpts(PACKAGING_TYPE_OPTIONS);
 
-export interface CargoPackagingRow {
-  id: string;
-  packagingType: string;
-  packagingExtra: string;
-  packagingCount: string;
-  lengthM: string;
-  widthM: string;
-  heightM: string;
-  volumeM3: string;
-}
-
-export interface CargoItemForm {
-  id: string;
-  name: string;
-  weight: string;
-  volumeM3: string;
-  ldm: string;
-  transportType: string;
-  cargoValue: string;
-  currency: string;
-  packagingRows: CargoPackagingRow[];
-  incompleteLoad: boolean;
-  additionalInfo: string;
-}
-
-function createPackagingRow(): CargoPackagingRow {
-  return {
-    id: crypto.randomUUID(),
-    packagingType: "",
-    packagingExtra: "",
-    packagingCount: "1",
-    lengthM: "",
-    widthM: "",
-    heightM: "",
-    volumeM3: "",
-  };
-}
-
-function createCargoItem(): CargoItemForm {
-  return {
-    id: crypto.randomUUID(),
-    name: "",
-    weight: "",
-    volumeM3: "",
-    ldm: "",
-    transportType: "",
-    cargoValue: "",
-    currency: "",
-    packagingRows: [createPackagingRow()],
-    incompleteLoad: false,
-    additionalInfo: "",
-  };
-}
-
-function normalizePackagingRow(row: CargoPackagingRow): CargoPackagingRow {
-  return {
-    ...row,
-    packagingCount: row.packagingCount ?? "1",
-  };
-}
-
-function applyCargoMetrics(cargo: CargoItemForm): CargoItemForm {
-  const metrics = calcCargoMetrics({
-    weight: cargo.weight,
-    packagingRows: cargo.packagingRows.map(normalizePackagingRow),
-  });
-  return {
-    ...cargo,
-    packagingRows: metrics.packagingRows as CargoPackagingRow[],
-    volumeM3: metrics.totalVolumeM3,
-    ldm: metrics.ldm,
-  };
-}
-
-function normalizeCargoItem(cargo: CargoItemForm): CargoItemForm {
-  return applyCargoMetrics({
-    ...cargo,
-    packagingRows: cargo.packagingRows.map(normalizePackagingRow),
-  });
-}
+export type { CargoItemForm, CargoPackagingRow };
 
 export interface NewSorguFormPayload {
   tabSnapshot: "main" | "cargo";
@@ -374,21 +303,9 @@ export default function SorgularNewModal({
   const [additionalInfo, setAdditionalInfo] = useState(
     initialValues?.additionalInfo ?? "",
   );
-  const [cargoItems, setCargoItems] = useState<CargoItemForm[]>(() => {
-    const raw: CargoItemForm[] = initialValues?.cargoItems
-      ? initialValues.cargoItems
-      : initialValues?.cargoItemsJson
-        ? (() => {
-            try {
-              const parsed = JSON.parse(initialValues.cargoItemsJson);
-              return Array.isArray(parsed) ? parsed : [createCargoItem()];
-            } catch {
-              return [createCargoItem()];
-            }
-          })()
-        : [createCargoItem()];
-    return raw.map(normalizeCargoItem);
-  });
+  const [cargoItems, setCargoItems] = useState<CargoItemForm[]>(() =>
+    resolveCargoItemsFromInitialValues(initialValues ?? {}),
+  );
 
   const [createdAt, setCreatedAt] = useState(initialValues?.createdAt ?? "");
   const [status, setStatus] = useState(

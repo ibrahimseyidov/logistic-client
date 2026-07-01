@@ -6,6 +6,11 @@ import Header from "../header/Header";
 import { NotificationModal } from "../../NotificationModal";
 import { useAppDispatch } from "../../../store/hooks";
 import { hideNotification } from "../../../store/modalSlice";
+import {
+  AYARLAR_TITLE,
+  getAyarlarTabLabel,
+  parseAyarlarTab,
+} from "../../../../pages/ayarlar/constants/ayarlar.constants";
 import styles from "./appShell.module.css";
 
 const headerTitles: Record<string, string> = {
@@ -15,7 +20,7 @@ const headerTitles: Record<string, string> = {
   "/musteriler": "Müştərilər",
   "/dasiyicilar": "Daşıyıcılar",
   "/maliyye": "Maliyyə",
-  "/ayarlar": "Ayarlar",
+  "/ayarlar": "Parametrlər",
 };
 
 function resolveHeaderTitle(pathname: string): string {
@@ -34,19 +39,30 @@ function resolveHeaderTitle(pathname: string): string {
   return headerTitles[pathname] ?? "Sorğular";
 }
 
+function resolveHeaderSubtitle(pathname: string, search: string): string | undefined {
+  if (pathname.startsWith("/ayarlar")) {
+    const tab = parseAyarlarTab(new URLSearchParams(search).get("tab"));
+    const label = getAyarlarTabLabel(tab);
+    return label === AYARLAR_TITLE ? undefined : label;
+  }
+  return undefined;
+}
+
 function AppShellInner({
   children,
   title,
+  subtitle,
 }: {
   children: React.ReactNode;
   title: string;
+  subtitle?: string;
 }) {
   return (
     <div className={styles.shell}>
       <NotificationModal />
       <Sidebar />
       <div className={styles.contentArea}>
-        <Header title={title} />
+        <Header title={title} subtitle={subtitle} />
         <main className={styles.pageContent}>{children}</main>
       </div>
     </div>
@@ -68,7 +84,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarLayoutProvider>
-      <AppShellInner title={resolveHeaderTitle(pathname)}>
+      <AppShellInner
+        title={resolveHeaderTitle(pathname)}
+        subtitle={resolveHeaderSubtitle(pathname, location.search)}
+      >
         {children}
       </AppShellInner>
     </SidebarLayoutProvider>

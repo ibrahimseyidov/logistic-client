@@ -14,20 +14,6 @@ import Select from "../../../common/components/select/Select";
 import type { SelectOption } from "../../../common/components/select/Select";
 import datePickerStyles from "./TaskFiltersDrawer.module.css";
 
-const PLACEHOLDER: SelectOption[] = [{ value: "", label: "Dəyəri seçin" }];
-
-const DEPT_OPTS: SelectOption[] = [
-  ...PLACEHOLDER,
-  { value: "sales", label: "Satış şöbəsi" },
-  { value: "logistics", label: "Logistika" },
-];
-
-const KONTRAGENT_OPTS: SelectOption[] = [
-  ...PLACEHOLDER,
-  { value: "k1", label: "Karat MMC" },
-  { value: "k2", label: "Ziyafreight" },
-];
-
 const AUTHOR_OPTS: SelectOption[] = [
   { value: "ulvi", label: "Ulvi Adilzadə (Satış şöbəsi)" },
   { value: "nargiz", label: "Nərgiz K. (Logistika)" },
@@ -106,8 +92,6 @@ export default function TaskViewModal({
 }: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [kontragent, setKontragent] = useState("");
-  const [department, setDepartment] = useState("");
   const [author, setAuthor] = useState("ulvi");
   const [executorInput, setExecutorInput] = useState("");
   const [executorTags, setExecutorTags] = useState<string[]>([
@@ -151,7 +135,6 @@ export default function TaskViewModal({
     if (initialData) {
       setTitle(initialData.title);
       setDescription(initialData.description);
-      setKontragent(initialData.counterparty);
       setAuthor(initialData.author || "ulvi");
       setExecutorTags(initialData.executors.length ? initialData.executors : []);
       setDeadlineDate(initialData.deadlineDate);
@@ -162,8 +145,6 @@ export default function TaskViewModal({
 
     setTitle("");
     setDescription("");
-    setKontragent("");
-    setDepartment("");
     setAuthor("ulvi");
     setExecutorInput("");
     setExecutorTags(["Ulvi Adilzadə (Satış şöbəsi)"]);
@@ -312,7 +293,7 @@ export default function TaskViewModal({
     onSave({
       title: normalizedTitle,
       description: description.trim(),
-      counterparty: kontragent,
+      counterparty: "",
       author,
       executors: executorTags,
       deadlineDate,
@@ -591,26 +572,6 @@ export default function TaskViewModal({
             </div>
 
             <div className={styles.rightCol}>
-              <div className={fieldBox}>
-                <span className={styles.fieldLabel}>Kontragent</span>
-                <Select
-                  value={kontragent}
-                  options={KONTRAGENT_OPTS}
-                  onChange={setKontragent}
-                  placeholder="Dəyəri seçin"
-                />
-              </div>
-
-              <div className={fieldBox}>
-                <span className={styles.fieldLabel}>Şöbə</span>
-                <Select
-                  value={department}
-                  options={DEPT_OPTS}
-                  onChange={setDepartment}
-                  placeholder="Dəyəri seçin"
-                />
-              </div>
-
               <div className={fieldBox}>
                 <span className={styles.fieldLabel}>Müəllif</span>
                 <Select

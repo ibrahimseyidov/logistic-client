@@ -24,6 +24,7 @@ import {
 } from "../../common/actions/query.actions";
 import { fetchCustomersAction } from "../../common/actions/customer.actions";
 import PriceOfferSelectionModal from "./components/PriceOfferSelectionModal";
+import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { useSorgularPagination } from "./hooks/useSorgularPagination";
 import { applyFilters, filterByTab } from "./lib/filterSorgular";
 import { exportSorgularToExcel } from "./lib/exportExcel";
@@ -64,6 +65,11 @@ export default function SorgularPage() {
   const [isPriceOfferModalOpen, setIsPriceOfferModalOpen] = useState(false);
   const [queryToApprove, setQueryToApprove] = useState<LogisticQueryRow | null>(null);
   const [pendingPayloadFields, setPendingPayloadFields] = useState<any>(null);
+  const [offerToDelete, setOfferToDelete] = useState<{
+    queryId: number;
+    offerId: string;
+  } | null>(null);
+  const [isDeletingOffer, setIsDeletingOffer] = useState(false);
 
   useEffect(() => {
     const nextTab: SorguSubTab =
@@ -349,8 +355,14 @@ export default function SorgularPage() {
     }
   };
 
-  const handleDeleteOffer = async (queryId: number, offerId: string) => {
-    if (!window.confirm("Bu təklifi silmək istədiyinizə əminsiniz?")) return;
+  const handleDeleteOffer = (queryId: number, offerId: string) => {
+    setOfferToDelete({ queryId, offerId });
+  };
+
+  const handleConfirmDeleteOffer = async () => {
+    if (!offerToDelete) return;
+    const { queryId, offerId } = offerToDelete;
+    setIsDeletingOffer(true);
     try {
       const query = rows.find((r) => String(r.id) === String(queryId));
       if (!query) return;
@@ -376,6 +388,7 @@ export default function SorgularPage() {
           autoCloseDuration: 2500,
         }),
       );
+      setOfferToDelete(null);
     } catch (e) {
       dispatch(
         showNotification({
@@ -384,6 +397,8 @@ export default function SorgularPage() {
           autoCloseDuration: 3000,
         }),
       );
+    } finally {
+      setIsDeletingOffer(false);
     }
   };
 
@@ -471,6 +486,15 @@ export default function SorgularPage() {
         }}
         query={queryToApprove}
         onApprove={handleApproveSubmit}
+      />
+
+      <ConfirmModal
+        isOpen={offerToDelete !== null}
+        title="Qiymət təklifini sil"
+        message="Bu qiymət təklifini silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarıla bilməz."
+        onConfirm={handleConfirmDeleteOffer}
+        onCancel={() => setOfferToDelete(null)}
+        isLoading={isDeletingOffer}
       />
 
       <div

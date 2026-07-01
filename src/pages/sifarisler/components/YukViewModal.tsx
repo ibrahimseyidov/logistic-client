@@ -1,4 +1,4 @@
-import React from "react";
+import { formatVoyageLabel } from "../lib/mapLoadRow";
 import { FiX, FiEdit } from "react-icons/fi";
 
 interface Props {
@@ -124,7 +124,9 @@ export default function YukViewModal({ isOpen, onClose, onEdit, load }: Props) {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1.2fr 2fr" }}>
                 <div style={{ padding: "0.55rem 0.75rem", background: "#f8fafc", borderRight: "1px solid #e2e8f0", color: "#64748b", fontWeight: 600 }}>Reys</div>
-                <div style={{ padding: "0.55rem 0.75rem", color: "#16a34a", fontWeight: 700 }}>{load.voyage || "—"}</div>
+                <div style={{ padding: "0.55rem 0.75rem", color: "#16a34a", fontWeight: 700 }}>
+                  {formatVoyageLabel(load.voyageLabel ?? load.voyage)}
+                </div>
               </div>
             </div>
           </div>

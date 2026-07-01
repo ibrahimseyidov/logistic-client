@@ -63,6 +63,7 @@ import {
   aggregateSifarisStats,
   applySifarisFilters,
 } from "./lib/filterSifarisler";
+import { formatDateOnly, toDateIso } from "./lib/formatDate";
 import { aggregateYukStats, applyYukFilters } from "./lib/filterYukler";
 import {
   aggregateReysStats,
@@ -97,6 +98,7 @@ import type {
 } from "./types/emek.types";
 import { emptyEmekFilter } from "./types/emek.types";
 import axios from "axios";
+import { fetchCustomersAction } from "../../common/actions/customer.actions";
 
 const YUK_ACCOUNT_OPTIONS: SelectOption[] = [
   { value: "", label: "Təfərrüatlı hesab irəli sür" },
@@ -128,9 +130,16 @@ export default function SifarislerPage() {
   const [isSifarisNewOpen, setIsSifarisNewOpen] = useState(false);
 
   const [orders, setOrders] = useState<SifarisOrderRow[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
   const [reysler, setReysler] = useState<any[]>([]);
   const [yukler, setYukler] = useState<any[]>([]);
   const [emekler, setEmekler] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchCustomersAction()
+      .then(setCustomers)
+      .catch(() => setCustomers([]));
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -144,7 +153,9 @@ export default function SifarislerPage() {
             return {
               ...o,
               queryNumber: o.query?.number || "—",
-              queryDate: o.query?.createdAt ? new Date(o.query.createdAt).toLocaleDateString("az-AZ") : "—",
+              queryDate: formatDateOnly(o.query?.createdAt),
+              orderDateIso: toDateIso(o.orderDate),
+              orderDate: formatDateOnly(o.orderDate),
               customer: o.customerName || "—",
               voyageNumber: voyages.length > 0 ? voyages.map((v: any) => v.tripRef || (v.id ? `R-${v.id}` : "—")).join(", ") : "—",
               carriers: voyages.length > 0 ? voyages.map((v: any) => v.carrier || "—").join(", ") : "—",
@@ -1031,90 +1042,78 @@ export default function SifarislerPage() {
         ) : (
           <>
             {subTab === "orders" && (
-              <>
-                <div className={styles.tableBody}>
-                  <SifarisTable
-                    rows={paginatedRows}
-                    selectedIds={selectedIds}
-                    onToggleRow={toggleRow}
-                    onToggleAllPage={toggleAllPage}
-                    onDeleteClick={setDeleteTargetId}
-                    onDuplicateClick={setDuplicateTargetId}
-                    onStatusChange={handleStatusChange}
-                  />
-                </div>
-                <div className={styles.footer}>
-                  <SifarisPagination
-                    totalRows={filteredRows.length}
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    getVisiblePages={getVisiblePages}
-                    onPageChange={setCurrentPage}
-                  />
-                </div>
-              </>
+              <SifarisTable
+                rows={paginatedRows}
+                customers={customers}
+                selectedIds={selectedIds}
+                onToggleRow={toggleRow}
+                onToggleAllPage={toggleAllPage}
+                onDeleteClick={setDeleteTargetId}
+                onDuplicateClick={setDuplicateTargetId}
+                onStatusChange={handleStatusChange}
+              />
             )}
-            {subTab === "voyages" && (
-              <>
-                <div className={styles.tableBody}>
-                  <ReysTable rows={reysPaginated} />
-                </div>
-                <div className={styles.footer}>
-                  <SifarisPagination
-                    totalRows={reysFilteredRows.length}
-                    currentPage={reysPage}
-                    totalPages={reysTotalPages}
-                    getVisiblePages={reysGetVisiblePages}
-                    onPageChange={setReysPage}
-                  />
-                </div>
-              </>
-            )}
+            {subTab === "voyages" && <ReysTable rows={reysPaginated} />}
             {subTab === "loads" && (
-              <>
-                <div className={styles.tableBody}>
-                  <YukTable
-                    rows={yukPaginated}
-                    selectedIds={yukSelectedIds}
-                    onToggleRow={toggleYukRow}
-                    onToggleAllPage={toggleYukAllPage}
-                  />
-                </div>
-                <div className={styles.footer}>
-                  <SifarisPagination
-                    totalRows={yukFilteredRows.length}
-                    currentPage={yukPage}
-                    totalPages={yukTotalPages}
-                    getVisiblePages={yukGetVisiblePages}
-                    onPageChange={setYukPage}
-                  />
-                </div>
-              </>
+              <YukTable
+                rows={yukPaginated}
+                selectedIds={yukSelectedIds}
+                onToggleRow={toggleYukRow}
+                onToggleAllPage={toggleYukAllPage}
+              />
             )}
             {subTab === "payroll" && (
-              <>
-                <div className={styles.tableBody}>
-                  <EmekTable
-                    rows={emekPaginated}
-                    selectedIds={emekSelectedIds}
-                    onToggleRow={toggleEmekRow}
-                    onToggleAllPage={toggleEmekAllPage}
-                  />
-                </div>
-                <div className={styles.footer}>
-                  <SifarisPagination
-                    totalRows={emekFilteredRows.length}
-                    currentPage={emekPage}
-                    totalPages={emekTotalPages}
-                    getVisiblePages={emekGetVisiblePages}
-                    onPageChange={setEmekPage}
-                  />
-                </div>
-              </>
+              <EmekTable
+                rows={emekPaginated}
+                selectedIds={emekSelectedIds}
+                onToggleRow={toggleEmekRow}
+                onToggleAllPage={toggleEmekAllPage}
+              />
             )}
           </>
         )}
       </div>
+
+      {!loading && (
+        <div className={styles.footer}>
+          {subTab === "orders" && (
+            <SifarisPagination
+              totalRows={filteredRows.length}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              getVisiblePages={getVisiblePages}
+              onPageChange={setCurrentPage}
+            />
+          )}
+          {subTab === "voyages" && (
+            <SifarisPagination
+              totalRows={reysFilteredRows.length}
+              currentPage={reysPage}
+              totalPages={reysTotalPages}
+              getVisiblePages={reysGetVisiblePages}
+              onPageChange={setReysPage}
+            />
+          )}
+          {subTab === "loads" && (
+            <SifarisPagination
+              totalRows={yukFilteredRows.length}
+              currentPage={yukPage}
+              totalPages={yukTotalPages}
+              getVisiblePages={yukGetVisiblePages}
+              onPageChange={setYukPage}
+            />
+          )}
+          {subTab === "payroll" && (
+            <SifarisPagination
+              totalRows={emekFilteredRows.length}
+              currentPage={emekPage}
+              totalPages={emekTotalPages}
+              getVisiblePages={emekGetVisiblePages}
+              onPageChange={setEmekPage}
+            />
+          )}
+        </div>
+      )}
       <SifarisNewModal
         isOpen={isSifarisNewOpen}
         onClose={() => setIsSifarisNewOpen(false)}

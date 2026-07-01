@@ -107,6 +107,12 @@ export default function MusterilerPage() {
   const [loading, setLoading] = useState(true);
   const [activePanel, setActivePanel] = useState<"filter" | "new" | "edit" | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [inlineDeleteConfirm, setInlineDeleteConfirm] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void | Promise<void>;
+  } | null>(null);
+  const [isInlineDeleting, setIsInlineDeleting] = useState(false);
   const [customerIdToDelete, setCustomerIdToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [newForm, setNewForm] = useState({ ...EMPTY_FORM });
@@ -697,6 +703,25 @@ export default function MusterilerPage() {
         type: "deleted",
       }),
     );
+  };
+
+  const requestRemoveDocument = (
+    setForm: Dispatch<SetStateAction<typeof EMPTY_FORM>>,
+    documentId: string,
+  ) => {
+    setInlineDeleteConfirm({
+      title: "Sənədi sil",
+      message: "Bu sənədi silmək istədiyinizə əminsiniz?",
+      onConfirm: () => removeDocumentFromForm(setForm, documentId),
+    });
+  };
+
+  const requestRemoveContactPerson = (contact: ContactPersonRow, index: number) => {
+    setInlineDeleteConfirm({
+      title: "Əlaqədar şəxsi sil",
+      message: `"${contact.fullName}" əlaqədar şəxsini silmək istədiyinizə əminsiniz?`,
+      onConfirm: () => handleRemoveContactPerson(contact, index),
+    });
   };
 
   const handleCreateCustomer = async () => {
@@ -1453,7 +1478,7 @@ export default function MusterilerPage() {
                           <button
                             type="button"
                             className={styles.documentRemove}
-                            onClick={() => removeDocumentFromForm(setForm, doc.id!)}
+                            onClick={() => requestRemoveDocument(setForm, doc.id!)}
                             aria-label="Sənədi sil"
                           >
                             ×
@@ -1501,6 +1526,23 @@ export default function MusterilerPage() {
         }}
         isLoading={isDeleting}
       />
+      <ConfirmModal
+        isOpen={inlineDeleteConfirm !== null}
+        title={inlineDeleteConfirm?.title ?? ""}
+        message={inlineDeleteConfirm?.message ?? ""}
+        onConfirm={async () => {
+          if (!inlineDeleteConfirm) return;
+          setIsInlineDeleting(true);
+          try {
+            await inlineDeleteConfirm.onConfirm();
+            setInlineDeleteConfirm(null);
+          } finally {
+            setIsInlineDeleting(false);
+          }
+        }}
+        onCancel={() => setInlineDeleteConfirm(null)}
+        isLoading={isInlineDeleting}
+      />
       <ContactPersonManagerModal
         isOpen={isContactModalOpen}
         onClose={() => setIsContactModalOpen(false)}
@@ -1514,7 +1556,7 @@ export default function MusterilerPage() {
         )}
         onAdd={handleCreateContactPerson}
         onEdit={handleEditContactPerson}
-        onRemove={handleRemoveContactPerson}
+        onRemove={requestRemoveContactPerson}
         entityName={(activePanel === "new" ? newForm : editForm).company}
         entityTypeLabel="müştəri"
         emptyMessage="Bu müştəriyə aid heç bir əlaqədar şəxs tapılmadı."

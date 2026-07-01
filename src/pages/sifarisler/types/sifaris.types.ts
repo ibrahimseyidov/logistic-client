@@ -26,6 +26,7 @@ export interface SifarisOrderRow {
   queryNumber: string;
   queryDate: string;
   orderDate: string;
+  orderDateIso?: string;
   actCreatedAt: string;
   actDate: string;
   cmrUnloadDate: string;

@@ -106,6 +106,12 @@ export default function DasiyicilarPage() {
   const [loading, setLoading] = useState(true);
   const [activePanel, setActivePanel] = useState<"filter" | "new" | "edit" | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [inlineDeleteConfirm, setInlineDeleteConfirm] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void | Promise<void>;
+  } | null>(null);
+  const [isInlineDeleting, setIsInlineDeleting] = useState(false);
   const [carrierIdToDelete, setCarrierIdToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [newForm, setNewForm] = useState({ ...EMPTY_FORM });
@@ -695,6 +701,25 @@ export default function DasiyicilarPage() {
         type: "deleted",
       }),
     );
+  };
+
+  const requestRemoveDocument = (
+    setForm: Dispatch<SetStateAction<typeof EMPTY_FORM>>,
+    documentId: string,
+  ) => {
+    setInlineDeleteConfirm({
+      title: "Sənədi sil",
+      message: "Bu sənədi silmək istədiyinizə əminsiniz?",
+      onConfirm: () => removeDocumentFromForm(setForm, documentId),
+    });
+  };
+
+  const requestRemoveContactPerson = (contact: ContactPersonRow, index: number) => {
+    setInlineDeleteConfirm({
+      title: "Əlaqədar şəxsi sil",
+      message: `"${contact.fullName}" əlaqədar şəxsini silmək istədiyinizə əminsiniz?`,
+      onConfirm: () => handleRemoveContactPerson(contact, index),
+    });
   };
 
   const handleCreateCarrier = async () => {
@@ -1436,7 +1461,7 @@ export default function DasiyicilarPage() {
                           <button
                             type="button"
                             className={modalStyles.documentRemove}
-                            onClick={() => removeDocumentFromForm(setForm, doc.id)}
+                            onClick={() => requestRemoveDocument(setForm, doc.id)}
                             aria-label="Sənədi sil"
                           >
                             ×
@@ -1484,6 +1509,23 @@ export default function DasiyicilarPage() {
         }}
         isLoading={isDeleting}
       />
+      <ConfirmModal
+        isOpen={inlineDeleteConfirm !== null}
+        title={inlineDeleteConfirm?.title ?? ""}
+        message={inlineDeleteConfirm?.message ?? ""}
+        onConfirm={async () => {
+          if (!inlineDeleteConfirm) return;
+          setIsInlineDeleting(true);
+          try {
+            await inlineDeleteConfirm.onConfirm();
+            setInlineDeleteConfirm(null);
+          } finally {
+            setIsInlineDeleting(false);
+          }
+        }}
+        onCancel={() => setInlineDeleteConfirm(null)}
+        isLoading={isInlineDeleting}
+      />
       <ContactPersonManagerModal
         isOpen={isContactModalOpen}
         onClose={() => setIsContactModalOpen(false)}
@@ -1497,7 +1539,7 @@ export default function DasiyicilarPage() {
         )}
         onAdd={handleCreateContactPerson}
         onEdit={handleEditContactPerson}
-        onRemove={handleRemoveContactPerson}
+        onRemove={requestRemoveContactPerson}
         entityName={(activePanel === "new" ? newForm : editForm).company}
         entityTypeLabel="daşıyıcı"
         emptyMessage="Bu daşıyıcıya aid heç bir əlaqədar şəxs tapılmadı."

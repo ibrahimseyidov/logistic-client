@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams, Navigate } from "react-router-dom";
 import { useAuth } from "../../common/contexts/AuthContext";
+import { isAdminUser } from "../../common/utils/auth.utils";
 import { INCOTERMS_OPTIONS, CARGO_TRANSPORT_OPTIONS } from "../sorgular/constants/options.constants";
 import {
+  getAyarlarTabLabel,
   parseAyarlarTab,
   type AyarlarTab,
 } from "./constants/ayarlar.constants";
@@ -10,7 +12,7 @@ import { LookupOptionsSection } from "./components/LookupOptionsSection";
 import { ApiLookupOptionsSection } from "./components/ApiLookupOptionsSection";
 import { UsersSection } from "./components/UsersSection";
 import { ContactPersonsSection } from "./components/ContactPersonsSection";
-import styles from "../sorgular/sorgular.module.css";
+import ayarlarStyles from "./ayarlar.module.css";
 import { CONTACT_POSITIONS_LOOKUP_TYPE } from "../../common/utils/contactPosition.utils";
 
 const CARGO_SPECS_SEED = [
@@ -31,7 +33,7 @@ const AyarlarPage: React.FC = () => {
     setActiveTab((prev) => (prev === nextTab ? prev : nextTab));
   }, [requestedTab]);
 
-  if (user && user.roleId !== 1) {
+  if (user && !isAdminUser(user)) {
     return <Navigate to="/" replace />;
   }
 
@@ -42,19 +44,13 @@ const AyarlarPage: React.FC = () => {
   }
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
-        <h1 className={styles.title} style={{ display: "none" }}>
-          Ayarlar
-        </h1>
-      </div>
-
+    <div className={ayarlarStyles.page}>
       {activeTab === "users" && <UsersSection />}
 
       {activeTab === "cargo-specs" && (
         <LookupOptionsSection
           storageKey="cargo-specs"
-          title="Cargo specifications"
+          title={getAyarlarTabLabel("cargo-specs")}
           seed={CARGO_SPECS_SEED}
         />
       )}
@@ -62,7 +58,7 @@ const AyarlarPage: React.FC = () => {
       {activeTab === "incoterms" && (
         <LookupOptionsSection
           storageKey="incoterms"
-          title="Incoterms"
+          title={getAyarlarTabLabel("incoterms")}
           seed={INCOTERMS_OPTIONS}
         />
       )}

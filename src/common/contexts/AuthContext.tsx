@@ -13,6 +13,7 @@ import {
   AuthUser,
   fetchAuthBootstrap,
 } from "../actions/auth.actions";
+import { getStoredAuthToken } from "../utils/auth.utils";
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -56,10 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   useEffect(() => {
-    const token = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("token="))
-      ?.split("=")[1];
+    const token = getStoredAuthToken();
 
     if (!token || hydratedTokens.has(token) || inFlightTokens.has(token)) {
       return;

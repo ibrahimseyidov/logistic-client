@@ -7,18 +7,21 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
-  background: none;
-  border: none;
-  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.625rem;
   cursor: pointer;
-  color: #333;
-  font-size: 14px;
-  transition: background-color 0.2s;
+  color: #334155;
+  font-size: 0.875rem;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s;
 }
 
 .profileButton:hover {
-  background-color: #f5f5f5;
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
 }
 
 .userIcon {

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { FiFilePlus } from "react-icons/fi";
 import actionStyles from "../../sorgular/components/SorgularActionBar.module.css";
-import layoutStyles from "../../sorgular/sorgular.module.css";
+import ayarlarStyles from "../ayarlar.module.css";
 import { ConfirmModal } from "../../../common/components/ConfirmModal";
 import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
@@ -15,6 +15,7 @@ import {
 import type { LookupOptionRow } from "../types/lookup.types";
 import { LookupOptionModal } from "./LookupOptionModal";
 import { LookupOptionsTable } from "./LookupOptionsTable";
+import { AyarlarToolbar } from "./AyarlarToolbar";
 
 interface Props {
   storageKey: LookupStorageKey;
@@ -93,22 +94,24 @@ export const LookupOptionsSection: React.FC<Props> = ({
 
   return (
     <>
-      <div className={actionStyles.wrapper} style={{ padding: "0.5rem 1rem" }}>
-        <div className={actionStyles.group}>
-          <button
-            type="button"
-            className={`${actionStyles.buttonBase} ${actionStyles.buttonPrimary}`}
-            onClick={handleCreate}
-          >
-            <FiFilePlus /> Yeni əlavə et
-          </button>
+      <AyarlarToolbar>
+        <div className={actionStyles.wrapper}>
+          <div className={actionStyles.group}>
+            <button
+              type="button"
+              className={`${actionStyles.buttonBase} ${actionStyles.buttonPrimary}`}
+              onClick={handleCreate}
+            >
+              <FiFilePlus /> Yeni əlavə et
+            </button>
+          </div>
+          <div className={actionStyles.statsGroup}>
+            <span className={actionStyles.statPill}>Cəmi: {rows.length}</span>
+          </div>
         </div>
-        <div className={actionStyles.statsGroup}>
-          <span className={actionStyles.statPill}>Cəmi: {rows.length}</span>
-        </div>
-      </div>
+      </AyarlarToolbar>
 
-      <div className={layoutStyles.body}>
+      <div className={ayarlarStyles.body}>
         <LookupOptionsTable
           rows={rows}
           onEdit={handleEdit}

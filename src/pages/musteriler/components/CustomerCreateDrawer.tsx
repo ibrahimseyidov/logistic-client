@@ -33,6 +33,7 @@ import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
 import { LookupManagerModal } from "../../../common/components/modal/LookupManagerModal";
 import { ContactPersonManagerModal } from "../../../common/components/modal/ContactPersonManagerModal";
+import { ConfirmModal } from "../../../common/components/ConfirmModal";
 import type { ContactPersonFormData } from "../../../common/components/modal/ContactPersonFormModal";
 import {
   contactPersonIdsFromList,
@@ -114,6 +115,12 @@ export function CustomerCreateDrawer({
   const [countriesData, setCountriesData] = useState<LookupRow[]>([]);
   const [activeLookupModal, setActiveLookupModal] = useState<LookupModalType | null>(null);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void | Promise<void>;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const lookupOpenFromPlusRef = useRef(false);
 
   const customerTypeOptions = useMemo(
@@ -269,6 +276,22 @@ export function CustomerCreateDrawer({
       documents: prev.documents.filter((doc) => doc.id !== documentId),
     }));
     dispatch(showNotification({ message: "Sənəd silindi", type: "deleted" }));
+  };
+
+  const requestRemoveDocument = (documentId: string) => {
+    setDeleteConfirm({
+      title: "Sənədi sil",
+      message: "Bu sənədi silmək istədiyinizə əminsiniz?",
+      onConfirm: () => removeDocumentFromForm(documentId),
+    });
+  };
+
+  const requestRemoveContactPerson = (contact: ContactPersonRow) => {
+    setDeleteConfirm({
+      title: "Əlaqədar şəxsi sil",
+      message: `"${contact.fullName}" əlaqədar şəxsini silmək istədiyinizə əminsiniz?`,
+      onConfirm: () => handleRemoveContactPerson(contact),
+    });
   };
 
   const handleCreateContactPerson = async (data: ContactPersonFormData) => {
@@ -699,7 +722,7 @@ export function CustomerCreateDrawer({
                       <button
                         type="button"
                         className={panelStyles.documentRemove}
-                        onClick={() => removeDocumentFromForm(doc.id!)}
+                        onClick={() => requestRemoveDocument(doc.id!)}
                         aria-label="Sənədi sil"
                       >
                         ×
@@ -733,7 +756,7 @@ export function CustomerCreateDrawer({
         })}
         onAdd={handleCreateContactPerson}
         onEdit={handleEditContactPerson}
-        onRemove={(contact) => handleRemoveContactPerson(contact)}
+        onRemove={(contact) => requestRemoveContactPerson(contact)}
         entityName={form.company}
         entityTypeLabel="müştəri"
         emptyMessage="Bu müştəriyə aid heç bir əlaqədar şəxs tapılmadı."
@@ -754,6 +777,24 @@ export function CustomerCreateDrawer({
           onDataChanged={handleLookupDataChanged}
         />
       ) : null}
+
+      <ConfirmModal
+        isOpen={deleteConfirm !== null}
+        title={deleteConfirm?.title ?? ""}
+        message={deleteConfirm?.message ?? ""}
+        onConfirm={async () => {
+          if (!deleteConfirm) return;
+          setIsDeleting(true);
+          try {
+            await deleteConfirm.onConfirm();
+            setDeleteConfirm(null);
+          } finally {
+            setIsDeleting(false);
+          }
+        }}
+        onCancel={() => setDeleteConfirm(null)}
+        isLoading={isDeleting}
+      />
 
       <input
         ref={documentInputRef}

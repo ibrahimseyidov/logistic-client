@@ -11,9 +11,10 @@ import { ConfirmModal } from "../../../common/components/ConfirmModal";
 import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
 import actionStyles from "../../sorgular/components/SorgularActionBar.module.css";
-import layoutStyles from "../../sorgular/sorgular.module.css";
+import ayarlarStyles from "../ayarlar.module.css";
 import { ContactPersonModal } from "./ContactPersonModal";
 import { ContactPersonsTable } from "./ContactPersonsTable";
+import { AyarlarToolbar } from "./AyarlarToolbar";
 
 export const ContactPersonsSection: React.FC = () => {
   const [contacts, setContacts] = useState<ContactPersonRow[]>([]);
@@ -94,22 +95,24 @@ export const ContactPersonsSection: React.FC = () => {
 
   return (
     <>
-      <div className={actionStyles.wrapper} style={{ padding: "0.5rem 1rem" }}>
-        <div className={actionStyles.group}>
-          <button
-            type="button"
-            className={`${actionStyles.buttonBase} ${actionStyles.buttonPrimary}`}
-            onClick={handleCreate}
-          >
-            <FiFilePlus /> Yeni şəxs
-          </button>
+      <AyarlarToolbar>
+        <div className={actionStyles.wrapper}>
+          <div className={actionStyles.group}>
+            <button
+              type="button"
+              className={`${actionStyles.buttonBase} ${actionStyles.buttonPrimary}`}
+              onClick={handleCreate}
+            >
+              <FiFilePlus /> Yeni şəxs
+            </button>
+          </div>
+          <div className={actionStyles.statsGroup}>
+            <span className={actionStyles.statPill}>Cəmi: {contacts.length}</span>
+          </div>
         </div>
-        <div className={actionStyles.statsGroup}>
-          <span className={actionStyles.statPill}>Cəmi: {contacts.length}</span>
-        </div>
-      </div>
+      </AyarlarToolbar>
 
-      <div className={layoutStyles.body}>
+      <div className={ayarlarStyles.body}>
         {loading ? (
           <div style={{ padding: "2rem", textAlign: "center" }}>Yüklənir...</div>
         ) : (

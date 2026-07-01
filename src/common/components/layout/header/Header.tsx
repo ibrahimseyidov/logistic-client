@@ -8,9 +8,10 @@ import UserProfile from "../userProfile/userProfile";
 
 interface HeaderProps {
   title?: string;
+  subtitle?: string;
 }
 
-const Header: React.FC<HeaderProps> = ({ title = "Sorğular" }) => {
+const Header: React.FC<HeaderProps> = ({ title = "Sorğular", subtitle }) => {
   const { collapsed, toggleSidebar } = useSidebarLayout();
 
   return (
@@ -29,7 +30,10 @@ const Header: React.FC<HeaderProps> = ({ title = "Sorğular" }) => {
             <FaBars />
           </button>
         ) : null}
-        <h1 className={styles.title}>{title}</h1>
+        <div className={styles.headerText}>
+          {subtitle ? <span className={styles.subtitle}>{subtitle}</span> : null}
+          <h1 className={styles.title}>{title}</h1>
+        </div>
       </div>
       <UserProfile />
     </header>

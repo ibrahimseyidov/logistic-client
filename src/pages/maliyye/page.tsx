@@ -10,6 +10,7 @@ import { FiPlus, FiFilter } from "react-icons/fi";
 import { fetchFinanceTransactionsAction, fetchInvoicesAction, createFinanceTransactionAction, updateFinanceTransactionAction, deleteFinanceTransactionAction } from "../../common/actions/finance.actions";
 import Loading from "../../common/components/loading/Loading";
 import FinanceModal from "./FinanceModal";
+import { ConfirmModal } from "../../common/components/ConfirmModal";
 
 export default function MaliyyePage() {
   const [activeTab, setActiveTab] = useState<"transactions" | "invoices">("transactions");
@@ -19,6 +20,8 @@ export default function MaliyyePage() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<any>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -78,13 +81,21 @@ export default function MaliyyePage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("Silmək istədiyinizə əminsiniz?")) return;
+  const handleDelete = (id: number) => {
+    setDeleteTargetId(id);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (deleteTargetId === null) return;
+    setIsDeleting(true);
     try {
-      await deleteFinanceTransactionAction(id);
+      await deleteFinanceTransactionAction(deleteTargetId);
       loadData();
+      setDeleteTargetId(null);
     } catch (err) {
       alert("Xəta baş verdi");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -261,6 +272,15 @@ export default function MaliyyePage() {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
         initialData={editingTx}
+      />
+
+      <ConfirmModal
+        isOpen={deleteTargetId !== null}
+        title="Tranzaksiyanı sil"
+        message="Bu tranzaksiyanı silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarıla bilməz."
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTargetId(null)}
+        isLoading={isDeleting}
       />
     </div>
   );

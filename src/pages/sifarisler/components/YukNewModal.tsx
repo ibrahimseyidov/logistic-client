@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { FiX, FiCalendar, FiClock, FiMapPin, FiPlus, FiMinus, FiUsers, FiTruck } from "react-icons/fi";
 import { FaPlane, FaShip, FaTrain, FaTruck } from "react-icons/fa";
+import { buildYukPrefillFromOrder } from "../lib/yukPrefill.utils";
 
 interface Props {
   isOpen: boolean;
@@ -25,6 +26,7 @@ interface Props {
     rawPayload?: any;
   }) => void;
   editLoad?: any;
+  orderContext?: any;
 }
 
 interface LoadingPlace {
@@ -175,10 +177,10 @@ function SquarePlusTrigger({ label, onClick }: { label: string; onClick: () => v
   );
 }
 
-export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad }: Props) {
+export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad, orderContext }: Props) {
   // General Info
   const [name, setName] = useState("");
-  const [containerNumber, setContainerNumber] = useState("Dəyəri seçin");
+  const [containerNumber, setContainerNumber] = useState("");
   const [loadingNumber, setLoadingNumber] = useState("");
   const [temperature, setTemperature] = useState("");
   const [isIncomplete, setIsIncomplete] = useState(false);
@@ -188,8 +190,8 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad }: Pr
     {
       id: "lp-1",
       startDate: "", endDate: "", startTime: "", endTime: "", coords: "",
-      company: "Limon Dental MMC", country: "Azerbaijan", sender: "Azerbaijan",
-      city: "Bakı", postal: "", address: "Samad Vurgun, Baku", contact: "", saveTerminal: false
+      company: "", country: "Dəyəri seçin", sender: "Dəyəri seçin",
+      city: "", postal: "", address: "", contact: "", saveTerminal: false
     }
   ]);
 
@@ -203,14 +205,7 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad }: Pr
   ]);
 
   const [loadingCustoms, setLoadingCustoms] = useState<CustomsPlace[]>([]);
-  const [unloadingCustoms, setUnloadingCustoms] = useState<CustomsPlace[]>([
-    {
-      id: "uc-1",
-      startDate: "", endDate: "", startTime: "", endTime: "", coords: "",
-      company: "", country: "Dəyəri seçin",
-      city: "", postal: "", address: "", contact: "", saveTerminal: false
-    }
-  ]);
+  const [unloadingCustoms, setUnloadingCustoms] = useState<CustomsPlace[]>([]);
 
   const [parameters, setParameters] = useState<CargoParamRow[]>([
     {
@@ -229,7 +224,7 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad }: Pr
   useEffect(() => {
     if (isOpen && editLoad) {
       setName(editLoad.name || "");
-      setContainerNumber(editLoad.containerNumber || "Dəyəri seçin");
+      setContainerNumber(editLoad.containerNumber || "");
       setLoadingNumber(editLoad.rawPayload?.loadingNumber || editLoad.loadingNumber || "");
       setTemperature(editLoad.rawPayload?.temperature || editLoad.temperature || "");
       setIsIncomplete(editLoad.rawPayload?.isIncomplete || editLoad.isIncomplete || false);
@@ -239,8 +234,8 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad }: Pr
         setLoadingPlaces([
           {
             id: "lp-1",
-            startDate: editLoad.loadDate !== "—" ? editLoad.loadDate : "", endDate: "", startTime: "", endTime: "", coords: "",
-            company: editLoad.sender !== "—" ? editLoad.sender : "", country: "Dəyəri seçin", sender: "Dəyəri seçin",
+            startDate: editLoad.loadDate && editLoad.loadDate !== "—" ? editLoad.loadDate : "", endDate: "", startTime: "", endTime: "", coords: "",
+            company: editLoad.sender !== "—" ? editLoad.sender : "", country: "Dəyəri seçin", sender: editLoad.sender !== "—" ? editLoad.sender : "Dəyəri seçin",
             city: "", postal: "", address: editLoad.loadPlace !== "—" ? editLoad.loadPlace : "", contact: "", saveTerminal: false
           }
         ]);
@@ -251,8 +246,8 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad }: Pr
         setUnloadingPlaces([
           {
             id: "up-1",
-            startDate: editLoad.unloadDate !== "—" ? editLoad.unloadDate : "", endDate: "", startTime: "", endTime: "", coords: "",
-            company: editLoad.receiver !== "—" ? editLoad.receiver : "", country: "Dəyəri seçin", receiver: "Dəyəri seçin",
+            startDate: editLoad.unloadDate && editLoad.unloadDate !== "—" ? editLoad.unloadDate : "", endDate: "", startTime: "", endTime: "", coords: "",
+            company: editLoad.receiver !== "—" ? editLoad.receiver : "", country: "Dəyəri seçin", receiver: editLoad.receiver !== "—" ? editLoad.receiver : "Dəyəri seçin",
             city: "", postal: "", address: editLoad.unloadPlace !== "—" ? editLoad.unloadPlace : "", contact: "", saveTerminal: false
           }
         ]);
@@ -267,54 +262,72 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad }: Pr
         setParameters(editLoad.rawPayload.parameters);
       }
     } else if (isOpen && !editLoad) {
-      setName("");
-      setContainerNumber("Dəyəri seçin");
-      setLoadingNumber("");
-      setTemperature("");
-      setIsIncomplete(false);
-      setLoadingPlaces([
-        {
-          id: "lp-1",
-          startDate: "", endDate: "", startTime: "", endTime: "", coords: "",
-          company: "Limon Dental MMC", country: "Azerbaijan", sender: "Azerbaijan",
-          city: "Bakı", postal: "", address: "Samad Vurgun, Baku", contact: "", saveTerminal: false
-        }
-      ]);
-      setUnloadingPlaces([
-        {
-          id: "up-1",
-          startDate: "", endDate: "", startTime: "", endTime: "", coords: "",
-          company: "", country: "Dəyəri seçin", receiver: "Dəyəri seçin",
-          city: "", postal: "", address: "", contact: "", saveTerminal: false
-        }
-      ]);
-      setLoadingCustoms([]);
-      setUnloadingCustoms([
-        {
-          id: "uc-1",
-          startDate: "", endDate: "", startTime: "", endTime: "", coords: "",
-          company: "", country: "Dəyəri seçin",
-          city: "", postal: "", address: "", contact: "", saveTerminal: false
-        }
-      ]);
-      setParameters([
-        {
-          id: "param-1",
-          weight: "",
-          packagingType: "Dəyəri seçin",
-          quantity: "",
-          ldm: "",
-          volume: "",
-          length: "",
-          width: "",
-          height: "",
-        }
-      ]);
+      const prefill = orderContext
+        ? buildYukPrefillFromOrder(orderContext, orderContext.voyage)
+        : null;
+
+      if (prefill) {
+        setName(prefill.name);
+        setContainerNumber(prefill.containerNumber);
+        setLoadingNumber(prefill.loadingNumber);
+        setTemperature(prefill.temperature);
+        setIsIncomplete(prefill.isIncomplete);
+        setLoadingPlaces(prefill.loadingPlaces);
+        setUnloadingPlaces(prefill.unloadingPlaces);
+        setLoadingCustoms(prefill.loadingCustoms);
+        setUnloadingCustoms(prefill.unloadingCustoms);
+        setParameters(prefill.parameters);
+        setCountries(prefill.countries);
+        setSenders(prefill.senders);
+        setReceivers(prefill.receivers);
+        setActiveTransport(prefill.activeTransport);
+      } else {
+        setName("");
+        setContainerNumber("");
+        setLoadingNumber("");
+        setTemperature("");
+        setIsIncomplete(false);
+        setLoadingPlaces([
+          {
+            id: "lp-1",
+            startDate: "", endDate: "", startTime: "", endTime: "", coords: "",
+            company: "", country: "Dəyəri seçin", sender: "Dəyəri seçin",
+            city: "", postal: "", address: "", contact: "", saveTerminal: false
+          }
+        ]);
+        setUnloadingPlaces([
+          {
+            id: "up-1",
+            startDate: "", endDate: "", startTime: "", endTime: "", coords: "",
+            company: "", country: "Dəyəri seçin", receiver: "Dəyəri seçin",
+            city: "", postal: "", address: "", contact: "", saveTerminal: false
+          }
+        ]);
+        setLoadingCustoms([]);
+        setUnloadingCustoms([]);
+        setParameters([
+          {
+            id: "param-1",
+            weight: "",
+            packagingType: "Dəyəri seçin",
+            quantity: "",
+            ldm: "",
+            volume: "",
+            length: "",
+            width: "",
+            height: "",
+          }
+        ]);
+        setCountries(["Azərbaycan", "Almaniya", "Türkiyə", "Gürcüstan"]);
+        setSenders([]);
+        setReceivers([]);
+        setActiveTransport("truck");
+      }
     }
-  }, [isOpen, editLoad]);
+  }, [isOpen, editLoad, orderContext]);
 
   // Option lists
-  const [countries, setCountries] = useState<string[]>(["Germany", "Azerbaijan", "Turkey", "Georgia"]);
+  const [countries, setCountries] = useState<string[]>(["Azərbaycan", "Almaniya", "Türkiyə", "Gürcüstan"]);
   const [senders, setSenders] = useState<string[]>(["Ziyafreight Sender", "Limon Dental MMC", "Baku Express"]);
   const [receivers, setReceivers] = useState<string[]>(["Ziyafreight Receiver", "Baku Retail Group", "Azeri Logistics"]);
 
@@ -625,31 +638,54 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad }: Pr
     const firstUp = unloadingPlaces[0];
     const firstParam = parameters[0];
 
-    const loadAddressString = firstLp?.company
-      ? `${firstLp.company}, ${firstLp.address || firstLp.city || "Germany"}`
-      : "Germany, Rietheim-Weilheim, DE 78604 Rietheim-Weilheim";
+    const loadAddressString = firstLp
+      ? [firstLp.company, firstLp.address, firstLp.city, firstLp.country]
+          .filter((part) => part && part !== "Dəyəri seçin")
+          .join(", ")
+      : "";
 
-    const unloadAddressString = firstUp?.company
-      ? `${firstUp.company}, ${firstUp.address || firstUp.city || "Baku"}`
-      : "Azerbaijan, Baku";
+    const unloadAddressString = firstUp
+      ? [firstUp.company, firstUp.address, firstUp.city, firstUp.country]
+          .filter((part) => part && part !== "Dəyəri seçin")
+          .join(", ")
+      : "";
 
     onConfirm({
       name: name || "General cargo",
-      containerNumber: containerNumber !== "Dəyəri seçin" ? containerNumber : "—",
+      containerNumber: containerNumber.trim() || "—",
       loadingNumber: loadingNumber || "—",
       temperature: temperature || "—",
       isIncomplete,
       loadPlace: loadAddressString,
       unloadPlace: unloadAddressString,
-      weight: firstParam?.weight || "4",
-      packagingType: firstParam?.packagingType !== "Dəyəri seçin" ? firstParam.packagingType : "General cargo",
-      quantity: firstParam?.quantity || "1",
-      ldm: firstParam?.ldm || "4",
-      volume: firstParam?.volume || "0.0219",
-      sender: firstLp?.company || "Limon Dental MMC",
-      receiver: firstUp?.company || "Samad Vurgun, Baku",
-      loadDate: firstLp?.startDate || "—",
-      unloadDate: firstUp?.startDate || "—",
+      weight: firstParam?.weight || "",
+      packagingType: firstParam?.packagingType !== "Dəyəri seçin" ? firstParam.packagingType : "",
+      quantity: firstParam?.quantity || "",
+      ldm: firstParam?.ldm || "",
+      volume: firstParam?.volume || "",
+      sender:
+        firstLp?.sender && firstLp.sender !== "Dəyəri seçin"
+          ? firstLp.sender
+          : firstLp?.company || "",
+      receiver:
+        firstUp?.receiver && firstUp.receiver !== "Dəyəri seçin"
+          ? firstUp.receiver
+          : firstUp?.company || "",
+      loadDate: firstLp?.startDate || "",
+      unloadDate: firstUp?.startDate || "",
+      rawPayload: {
+        name,
+        containerNumber,
+        loadingNumber,
+        temperature,
+        isIncomplete,
+        loadingPlaces,
+        unloadingPlaces,
+        loadingCustoms,
+        unloadingCustoms,
+        parameters,
+        activeTransport,
+      },
     });
   };
 
@@ -781,15 +817,12 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad }: Pr
 
             <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
               <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b" }}>Konteynerin nömrəsi</label>
-              <select
+              <input
+                type="text"
                 value={containerNumber}
                 onChange={(e) => setContainerNumber(e.target.value)}
-                style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", color: "#1e293b", outline: "none", background: "#ffffff", width: "100%", height: "32px", boxSizing: "border-box" }}
-              >
-                <option value="Dəyəri seçin">Dəyəri seçin</option>
-                <option value="40FT-CONT">40FT Container</option>
-                <option value="20FT-CONT">20FT Container</option>
-              </select>
+                style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", color: "#1e293b", outline: "none", width: "100%", boxSizing: "border-box" }}
+              />
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>

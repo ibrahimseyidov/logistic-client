@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { FiFilePlus, FiFilter, FiUpload, FiDownload } from "react-icons/fi";
+import { FiFilter, FiPlus, FiUpload, FiDownload } from "react-icons/fi";
 import {
   createUserAction,
   deleteUserAction,
@@ -10,8 +10,9 @@ import { ConfirmModal } from "../../../common/components/ConfirmModal";
 import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
 import actionStyles from "../../sorgular/components/SorgularActionBar.module.css";
-import layoutStyles from "../../sorgular/sorgular.module.css";
+import ayarlarStyles from "../ayarlar.module.css";
 import type { UserRow } from "../types/user.types";
+import { AyarlarToolbar } from "./AyarlarToolbar";
 import { UserModal } from "./UserModal";
 import { UsersTable } from "./UsersTable";
 
@@ -124,47 +125,49 @@ export const UsersSection: React.FC = () => {
 
   return (
     <>
-      <div className={actionStyles.wrapper} style={{ padding: "0.5rem 1rem" }}>
-        <div className={actionStyles.group}>
-          <button
-            type="button"
-            className={`${actionStyles.buttonBase} ${actionStyles.buttonPrimary}`}
-            onClick={handleCreate}
-          >
-            <FiFilePlus /> Yeni user
-          </button>
-          <button
-            type="button"
-            className={`${actionStyles.buttonBase} ${actionStyles.buttonSecondary}`}
-          >
-            <FiFilter /> Filtrlər
-          </button>
-        </div>
+      <AyarlarToolbar>
+        <div className={actionStyles.wrapper}>
+          <div className={actionStyles.group}>
+            <button
+              type="button"
+              className={`${actionStyles.buttonBase} ${actionStyles.buttonPrimary}`}
+              onClick={handleCreate}
+            >
+              <FiPlus /> Yeni istifadəçi
+            </button>
+            <button
+              type="button"
+              className={`${actionStyles.buttonBase} ${actionStyles.buttonSecondary}`}
+            >
+              <FiFilter /> Filtrlər
+            </button>
+          </div>
 
-        <div className={actionStyles.statsGroup}>
-          <span className={actionStyles.statPill}>Cəmi: {users.length}</span>
-          <span className={actionStyles.statPill}>
-            Aktiv: {users.filter((u) => u.status === "active").length}
-          </span>
-        </div>
+          <div className={actionStyles.statsGroup}>
+            <span className={actionStyles.statPill}>Cəmi: {users.length}</span>
+            <span className={actionStyles.statPill}>
+              Aktiv: {users.filter((u) => u.status === "active").length}
+            </span>
+          </div>
 
-        <div className={actionStyles.group}>
-          <button
-            type="button"
-            className={`${actionStyles.buttonBase} ${actionStyles.buttonSecondary}`}
-          >
-            <FiUpload /> Excel-dən idxal et
-          </button>
-          <button
-            type="button"
-            className={`${actionStyles.buttonBase} ${actionStyles.buttonSecondary}`}
-          >
-            <FiDownload /> Excel-ə ixrac et
-          </button>
+          <div className={actionStyles.group}>
+            <button
+              type="button"
+              className={`${actionStyles.buttonBase} ${actionStyles.buttonSecondary}`}
+            >
+              <FiUpload /> Excel-dən idxal
+            </button>
+            <button
+              type="button"
+              className={`${actionStyles.buttonBase} ${actionStyles.buttonSecondary}`}
+            >
+              <FiDownload /> Excel-ə ixrac
+            </button>
+          </div>
         </div>
-      </div>
+      </AyarlarToolbar>
 
-      <div className={layoutStyles.body}>
+      <div className={ayarlarStyles.body}>
         {loading ? (
           <div style={{ padding: "2rem", textAlign: "center" }}>Yüklənir...</div>
         ) : (

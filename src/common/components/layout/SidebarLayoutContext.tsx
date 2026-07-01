@@ -45,7 +45,7 @@ export function SidebarLayoutProvider({
   useEffect(() => {
     document.documentElement.style.setProperty(
       "--shell-sidebar-width",
-      collapsed ? "0px" : "220px",
+      collapsed ? "0px" : "252px",
     );
   }, [collapsed]);
 

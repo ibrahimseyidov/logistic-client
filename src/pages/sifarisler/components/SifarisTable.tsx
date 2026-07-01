@@ -6,6 +6,7 @@ import * as Popover from "@radix-ui/react-popover";
 import StatusBadge from "../../../common/components/StatusBadge";
 import type { OrderStatusKind, SifarisOrderRow } from "../types/sifaris.types";
 import { CUSTOMER_OPTIONS } from "../../sorgular/constants/options.constants";
+import { formatDateOnly } from "../lib/formatDate";
 import styles from "./SifarisTable.module.css";
 
 
@@ -22,16 +23,30 @@ function rowTone(kind: OrderStatusKind): string {
   }
 }
 
-function getCustomerLabel(val: string): string {
+function getCustomerLabel(val: string, customers?: any[]): string {
   if (!val) return "";
+  const trimmed = val.trim();
+  if (Array.isArray(customers)) {
+    const found = customers.find((c) => c.id?.toString() === trimmed);
+    if (found) {
+      return (
+        found.name ||
+        found.companyName ||
+        found.company ||
+        found.fullName ||
+        trimmed
+      );
+    }
+  }
   const matched = CUSTOMER_OPTIONS.find(
-    (opt) => opt.value.toLowerCase() === val.trim().toLowerCase()
+    (opt) => opt.value.toLowerCase() === trimmed.toLowerCase()
   );
   return matched ? matched.label : val;
 }
 
 interface Props {
   rows: SifarisOrderRow[];
+  customers?: any[];
   selectedIds: Set<string>;
   onToggleRow: (id: string) => void;
   onToggleAllPage: (ids: string[], checked: boolean) => void;
@@ -111,6 +126,7 @@ function DocBadge({ present, tooltip, icon }: { present: boolean; tooltip: strin
 
 export default function SifarisTable({
   rows,
+  customers,
   selectedIds,
   onToggleRow,
   onToggleAllPage,
@@ -221,7 +237,7 @@ export default function SifarisTable({
             <td
               className={`${styles.cell} ${styles.mutedText} ${styles.nowrap}`}
             >
-              {row.orderDate}
+              {formatDateOnly(row.orderDateIso || row.orderDate)}
             </td>
              <td className={`${styles.cell} ${styles.nowrap}`} style={{ verticalAlign: "middle" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
@@ -355,15 +371,15 @@ export default function SifarisTable({
               </div>
             </td>
             <td
-              className={`${styles.cell} ${styles.bodyText} ${styles.smallText}`}
+              className={`${styles.cell} ${styles.bodyText} ${styles.smallText} ${styles.center}`}
             >
-              <div style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getCustomerLabel(row.customer)}>{getCustomerLabel(row.customer)}</div>
-              <div className={`${styles.softText} ${styles.customerMeta}`} style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.customerRefs}>
+              <div style={{ maxWidth: "150px", margin: "0 auto", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getCustomerLabel(row.customer, customers)}>{getCustomerLabel(row.customer, customers)}</div>
+              <div className={`${styles.softText} ${styles.customerMeta}`} style={{ maxWidth: "150px", margin: "0 auto", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.customerRefs}>
                 {row.customerRefs}
               </div>
             </td>
             <td
-              className={`${styles.cell} ${styles.mutedText} ${styles.smallText} ${styles.preLine}`}
+              className={`${styles.cell} ${styles.mutedText} ${styles.smallText} ${styles.preLine} ${styles.center}`}
             >
               {row.carriers}
             </td>
@@ -374,7 +390,7 @@ export default function SifarisTable({
               {row.route}
             </td>
             <td
-              className={`${styles.cell} ${styles.mutedText} ${styles.preLine} ${styles.smallText} ${styles.max240}`}
+              className={`${styles.cell} ${styles.mutedText} ${styles.preLine} ${styles.smallText} ${styles.max240} ${styles.center}`}
             >
               {row.cargoParams ? row.cargoParams.replace(/\n?Say:\s*\d+/gi, "") : ""}
             </td>

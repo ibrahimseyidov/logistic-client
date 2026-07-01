@@ -19,7 +19,16 @@ import type { SelectOption } from "../../../common/components/select/Select";
 import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
 import styles from "./SorgularEditModal.module.css";
-import { calcCargoMetrics } from "../lib/cargoCalculations";
+import {
+  applyCargoMetrics,
+  createCargoItem,
+  createPackagingRow,
+  getCargoInitialValuesKey,
+  normalizeCargoItem,
+  resolveCargoItemsFromInitialValues,
+  type CargoItemForm,
+  type CargoPackagingRow,
+} from "../lib/cargoForm.utils";
 import {
   CARGO_CURRENCY_OPTIONS,
   CARGO_TRANSPORT_OPTIONS,
@@ -76,97 +85,7 @@ const transportParentKindOptions = placeholderOpts(TRANSPORT_PARENT_KIND_OPTIONS
 const cargoCurrencyOptions = placeholderOpts(CARGO_CURRENCY_OPTIONS);
 const packagingTypeOptions = placeholderOpts(PACKAGING_TYPE_OPTIONS);
 
-export interface CargoPackagingRow {
-  id: string;
-  packagingType: string;
-  packagingExtra: string;
-  packagingCount: string;
-  lengthM: string;
-  widthM: string;
-  heightM: string;
-  volumeM3: string;
-}
-
-export interface CargoItemForm {
-  id: string;
-  name: string;
-  weight: string;
-  volumeM3: string;
-  ldm: string;
-  transportType: string;
-  cargoValue: string;
-  currency: string;
-  packagingRows: CargoPackagingRow[];
-  incompleteLoad: boolean;
-  additionalInfo: string;
-}
-
-function createPackagingRow(): CargoPackagingRow {
-  return {
-    id: crypto.randomUUID(),
-    packagingType: "",
-    packagingExtra: "",
-    packagingCount: "1",
-    lengthM: "",
-    widthM: "",
-    heightM: "",
-    volumeM3: "",
-  };
-}
-
-function createCargoItem(): CargoItemForm {
-  return {
-    id: crypto.randomUUID(),
-    name: "",
-    weight: "",
-    volumeM3: "",
-    ldm: "",
-    transportType: "",
-    cargoValue: "",
-    currency: "",
-    packagingRows: [createPackagingRow()],
-    incompleteLoad: false,
-    additionalInfo: "",
-  };
-}
-
-function normalizePackagingRow(row: CargoPackagingRow): CargoPackagingRow {
-  return {
-    ...row,
-    packagingCount: row.packagingCount ?? "1",
-  };
-}
-
-function applyCargoMetrics(cargo: CargoItemForm): CargoItemForm {
-  const metrics = calcCargoMetrics({
-    weight: cargo.weight,
-    packagingRows: cargo.packagingRows.map(normalizePackagingRow),
-  });
-  return {
-    ...cargo,
-    packagingRows: metrics.packagingRows as CargoPackagingRow[],
-    volumeM3: metrics.totalVolumeM3,
-    ldm: metrics.ldm,
-  };
-}
-
-function normalizeCargoItem(cargo: CargoItemForm): CargoItemForm {
-  return applyCargoMetrics({
-    ...cargo,
-    packagingRows: cargo.packagingRows.map(normalizePackagingRow),
-  });
-}
-
-function normalizeLoadedCargoItem(item: Partial<CargoItemForm>): CargoItemForm {
-  return normalizeCargoItem({
-    ...createCargoItem(),
-    ...item,
-    packagingRows:
-      item.packagingRows && item.packagingRows.length > 0
-        ? item.packagingRows
-        : [createPackagingRow()],
-  });
-}
+export type { CargoItemForm, CargoPackagingRow };
 
 export interface NewSorguFormPayload {
   tabSnapshot: "main" | "cargo";
@@ -346,84 +265,7 @@ export default function SorgularEditModal({
   const [seller, setSeller] = useState("");
   const [purpose, setPurpose] = useState("");
 
-  // Initial values-ları modal açıldığında doldur
-  useEffect(() => {
-    if (!isOpen) return;
-
-    if (initialValues && Object.keys(initialValues).length > 0) {
-      const data = initialValues as Record<string, any>;
-
-      // Ana alanlar
-      setCompany(data.company || "ziyafreight");
-      setManager(data.manager || "");
-      setLogist(data.logist || "");
-      setCustomer(data.customer || "");
-      setContractNumber(data.contractNumber || "");
-      setContactPerson(data.contactPerson || "");
-      setExtremelyUrgent(data.extremelyUrgent === true);
-      setTags(data.tags || "");
-      setInquirySource(data.inquirySource || "");
-      setInquiryPurpose(data.inquiryPurpose || "");
-      setCargoComposition(data.cargoComposition || "");
-      setCargoSpecs(data.cargoSpecs || "");
-      setIncoterms(data.incoterms || "");
-
-      // Yükləmə yeri
-      setLoadPlaceCompany(data.loadPlaceCompany || "");
-      setLoadCity(data.loadCity || "");
-      setLoadCountry(data.loadCountry || "");
-      setLoadPostal(data.loadPostal || "");
-      setLoadAddress(data.loadAddress || "");
-      setLoadCoordinates(data.loadCoordinates || "");
-      setLoadSaveTerminal(data.loadSaveTerminal === true);
-
-      // Boşaltma yeri
-      setUnloadPlaceCompany(data.unloadPlaceCompany || "");
-      setUnloadCity(data.unloadCity || "");
-      setUnloadCountry(data.unloadCountry || "");
-      setUnloadPostal(data.unloadPostal || "");
-      setUnloadAddress(data.unloadAddress || "");
-      setUnloadCoordinates(data.unloadCoordinates || "");
-      setUnloadSaveTerminal(data.unloadSaveTerminal === true);
-
-      // Göndərən/Alıcı (Silindi)
-      setAdditionalInfo(data.additionalInfo || "");
-
-      // Yük məlumatları
-      if (Array.isArray(data.cargoItems)) {
-        setCargoItems(data.cargoItems.map((item: Partial<CargoItemForm>) => normalizeLoadedCargoItem(item)));
-      } else if (typeof data.cargoItemsJson === "string") {
-        try {
-          const parsed = JSON.parse(data.cargoItemsJson);
-          const items = Array.isArray(parsed) ? parsed : [createCargoItem()];
-          setCargoItems(items.map((item: Partial<CargoItemForm>) => normalizeLoadedCargoItem(item)));
-        } catch {
-          setCargoItems([normalizeCargoItem(createCargoItem())]);
-        }
-      } else {
-        setCargoItems([normalizeCargoItem(createCargoItem())]);
-      }
-
-      // Query modelindən gələn alanlar
-      setCreatedAt(data.createdAt || "");
-      setStatus(data.status || "");
-      setTransportType(data.transportType || "");
-      setCargoInfo(data.cargoInfo || "");
-      setLoadPlace(data.loadPlace || "");
-      setRecipient(data.recipient || "");
-      setUnloadPlace(data.unloadPlace || "");
-      setLoadDate(data.loadDate || "");
-      setUnloadDate(data.unloadDate || "");
-      setPriceOffers(data.priceOffers || "");
-      setConfirmed(data.confirmed === true);
-      setArchived(data.archived === true);
-      setSeller(data.seller || "");
-      setPurpose(data.purpose || "");
-    } else {
-      // Yeni qeyd olduqda varsayılan dəyərləri təyin et
-      resetFormStates();
-    }
-  }, [isOpen, initialValues]);
+  const cargoInitKeyRef = useRef<string | null>(null);
 
   const resetFormStates = useCallback(() => {
     setTab("main");
@@ -471,6 +313,73 @@ export default function SorgularEditModal({
     setSeller("");
     setPurpose("");
   }, []);
+
+  // Initial values-ları modal açıldığında doldur
+  useEffect(() => {
+    if (!isOpen) {
+      cargoInitKeyRef.current = null;
+      return;
+    }
+
+    const initKey = getCargoInitialValuesKey(initialValues as Record<string, unknown>);
+    const shouldLoadForm =
+      initialValues && Object.keys(initialValues).length > 0;
+
+    if (!shouldLoadForm) {
+      cargoInitKeyRef.current = initKey;
+      resetFormStates();
+      return;
+    }
+
+    if (cargoInitKeyRef.current === initKey) return;
+    cargoInitKeyRef.current = initKey;
+
+    const data = initialValues as Record<string, any>;
+
+    setCompany(data.company || "ziyafreight");
+    setManager(data.manager || "");
+    setLogist(data.logist || "");
+    setCustomer(data.customer || "");
+    setContractNumber(data.contractNumber || "");
+    setContactPerson(data.contactPerson || "");
+    setExtremelyUrgent(data.extremelyUrgent === true);
+    setTags(data.tags || "");
+    setInquirySource(data.inquirySource || "");
+    setInquiryPurpose(data.inquiryPurpose || "");
+    setCargoComposition(data.cargoComposition || "");
+    setCargoSpecs(data.cargoSpecs || "");
+    setIncoterms(data.incoterms || "");
+    setLoadPlaceCompany(data.loadPlaceCompany || "");
+    setLoadCity(data.loadCity || "");
+    setLoadCountry(data.loadCountry || "");
+    setLoadPostal(data.loadPostal || "");
+    setLoadAddress(data.loadAddress || "");
+    setLoadCoordinates(data.loadCoordinates || "");
+    setLoadSaveTerminal(data.loadSaveTerminal === true);
+    setUnloadPlaceCompany(data.unloadPlaceCompany || "");
+    setUnloadCity(data.unloadCity || "");
+    setUnloadCountry(data.unloadCountry || "");
+    setUnloadPostal(data.unloadPostal || "");
+    setUnloadAddress(data.unloadAddress || "");
+    setUnloadCoordinates(data.unloadCoordinates || "");
+    setUnloadSaveTerminal(data.unloadSaveTerminal === true);
+    setAdditionalInfo(data.additionalInfo || "");
+    setCargoItems(resolveCargoItemsFromInitialValues(data));
+    setCreatedAt(data.createdAt || "");
+    setStatus(data.status || "");
+    setTransportType(data.transportType || "");
+    setCargoInfo(data.cargoInfo || "");
+    setLoadPlace(data.loadPlace || "");
+    setRecipient(data.recipient || "");
+    setUnloadPlace(data.unloadPlace || "");
+    setLoadDate(data.loadDate || "");
+    setUnloadDate(data.unloadDate || "");
+    setPriceOffers(data.priceOffers || "");
+    setConfirmed(data.confirmed === true);
+    setArchived(data.archived === true);
+    setSeller(data.seller || "");
+    setPurpose(data.purpose || "");
+  }, [isOpen, initialValues, resetFormStates]);
 
 
 

@@ -27,15 +27,17 @@ import {
 import axios from "axios";
 import { ENDPOINTS } from "../../../services/EndpointResources.g";
 import type { SifarisOrderRow, OrderStatusKind } from "../types/sifaris.types";
+import { buildLoadApiPayload, formatVoyageLabel, mapLoadRow } from "../lib/mapLoadRow";
+import { formatDateOnly } from "../lib/formatDate";
 import SifarisEditModal from "../components/SifarisEditModal";
 import YukNewModal from "../components/YukNewModal";
 import YukViewModal from "../components/YukViewModal";
 import ReysViewModal from "../components/ReysViewModal";
 import ReysEditModal from "../components/ReysEditModal";
 import ReysDeleteModal from "../components/ReysDeleteModal";
+import { ConfirmModal } from "../../../common/components/ConfirmModal";
 import styles from "./page.module.css";
-import { useCurrencyRates } from "../../../common/hooks/useCurrencyRates";
-import { convertCurrencyToAzn, formatAzn } from "../../../common/utils/currency.utils";
+import { convertCurrencyToAzn, resolveFinanceExpenseAzn, resolveFinanceRevenueAzn, resolveVoyageExpenseAzn } from "../../../common/utils/currency.utils";
 
 // Helper components for key-value layout
 function DlRow({
@@ -74,7 +76,6 @@ const LabelWithPlus = ({ label, onPlusClick }: { label: string; onPlusClick?: ()
 export default function SifarisDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
-  const { toAzn } = useCurrencyRates();
 
   const [orders, setOrders] = useState<SifarisOrderRow[]>([]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -117,8 +118,10 @@ export default function SifarisDetailPage() {
     edvliTarifAzn: string;
     mesarifPrice: string;
     mesarifCurrency: string;
+    mesarifAzn?: string;
     edvliMesarifPrice: string;
     edvliMesarifCurrency: string;
+    edvliMesarifAzn?: string;
     profit: string;
     user: string;
     invoiceWritten: boolean;
@@ -405,11 +408,15 @@ export default function SifarisDetailPage() {
   };
 
   const handleRemoveInvoiceRow = (id: string) => {
-    if (invoiceRows.length > 1) {
-      setInvoiceRows(invoiceRows.filter(r => r.id !== id));
-    } else {
+    if (invoiceRows.length <= 1) {
       alert("Ən azı bir hesab sətri olmalıdır!");
+      return;
     }
+    openDeleteConfirm(
+      "Sətri sil",
+      "Bu hesab sətrini silmək istədiyinizə əminsiniz?",
+      () => setInvoiceRows(invoiceRows.filter((r) => r.id !== id)),
+    );
   };
 
   const handleSaveInvoice = () => {
@@ -470,9 +477,10 @@ export default function SifarisDetailPage() {
 
     const rev = parseFloat(txRevTarif) || 0;
     const exp = parseFloat(txExpMesarif) || 0;
+    const rateDate = selectedTxForEdit?.costDate || undefined;
     const [revConv, expConv] = await Promise.all([
-      convertCurrencyToAzn(rev, txRevCurrency),
-      convertCurrencyToAzn(exp, txExpCurrency),
+      convertCurrencyToAzn(rev, txRevCurrency, rateDate),
+      convertCurrencyToAzn(exp, txExpCurrency, rateDate),
     ]);
     const revAzn = revConv.azn;
     const expAzn = expConv.azn;
@@ -490,9 +498,12 @@ export default function SifarisDetailPage() {
         edvliTarifAzn: revAzn.toFixed(2),
         mesarifPrice: txExpMesarif !== "0.00" ? txExpMesarif : "",
         mesarifCurrency: txExpMesarif !== "0.00" ? txExpCurrency : "",
+        mesarifAzn: txExpMesarif !== "0.00" ? expAzn.toFixed(2) : "",
         edvliMesarifPrice: txExpMesarif !== "0.00" ? txExpMesarif : "",
         edvliMesarifCurrency: txExpMesarif !== "0.00" ? txExpCurrency : "",
+        edvliMesarifAzn: txExpMesarif !== "0.00" ? expAzn.toFixed(2) : "",
         profit: `${profitVal.toFixed(2)} AZN`,
+        costDate: selectedTxForEdit.costDate,
       };
       axios.put(ENDPOINTS.FINANCE.BASE + "/" + selectedTxForEdit.id, updateData, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
         .then(res => {
@@ -512,8 +523,10 @@ export default function SifarisDetailPage() {
         edvliTarifAzn: revAzn.toFixed(2),
         mesarifPrice: txExpMesarif !== "0.00" ? txExpMesarif : "",
         mesarifCurrency: txExpMesarif !== "0.00" ? txExpCurrency : "",
+        mesarifAzn: txExpMesarif !== "0.00" ? expAzn.toFixed(2) : "",
         edvliMesarifPrice: txExpMesarif !== "0.00" ? txExpMesarif : "",
         edvliMesarifCurrency: txExpMesarif !== "0.00" ? txExpCurrency : "",
+        edvliMesarifAzn: txExpMesarif !== "0.00" ? expAzn.toFixed(2) : "",
         profit: `${profitVal.toFixed(2)} AZN`,
         user: txUser,
         invoiceWritten: false,
@@ -565,6 +578,20 @@ export default function SifarisDetailPage() {
   const [selectedVoyageForDelete, setSelectedVoyageForDelete] = useState<any | null>(null);
   const [isVoyageDeleteOpen, setIsVoyageDeleteOpen] = useState(false);
 
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const openDeleteConfirm = (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+  ) => {
+    setDeleteConfirm({ title, message, onConfirm });
+  };
+
   useEffect(() => {
     const fetchOrders = async () => {
       try {
@@ -602,21 +629,21 @@ export default function SifarisDetailPage() {
           ]);
           setFinanceTransactions(finRes.data || []);
           
-          const mappedLoads = (loadRes.data || []).map((l: any) => ({
-            ...l,
-            number: l.id ? `Y-${l.id}` : "—",
-            name: l.cargoName || "—",
-            orderRef: l.order?.orderNumber || "—"
-          }));
+          const mappedLoads = (loadRes.data || [])
+            .filter((l: any) => String(l.orderId) === String(order.id))
+            .map((l: any) => mapLoadRow(l, order));
           setLoadsList(mappedLoads);
           
-          const mappedVoyages = (voyRes.data || []).map((v: any) => ({
+          const mappedVoyages = (voyRes.data || [])
+            .filter((v: any) => String(v.orderId) === String(order.id))
+            .map((v: any) => ({
             ...v,
             number: v.tripRef || (v.id ? `R-${v.id}` : "—"),
             loadPlace: v.loading || "—",
             unloadPlace: v.unloading || "—",
             status: v.tripStatus || "—",
-            price: v.tripPrice || "—"
+            price: v.tripPrice || "—",
+            valueAzn: typeof v.valueAzn === "number" ? v.valueAzn : undefined,
           }));
           setVoyagesList(mappedVoyages);
           
@@ -639,31 +666,21 @@ export default function SifarisDetailPage() {
   const financeTotals = useMemo(() => {
     let totalRevAzn = 0;
     let totalExpAzn = 0;
-    financeTransactions.forEach(t => {
-       if (t.tarifAzn) totalRevAzn += parseFloat(t.tarifAzn) || 0;
-       
-       if (t.mesarifPrice && t.mesarifCurrency) {
-          const exp = parseFloat(t.mesarifPrice) || 0;
-          const azn = toAzn(exp, t.mesarifCurrency);
-          totalExpAzn += azn;
-       }
+    financeTransactions.forEach((t) => {
+      totalRevAzn += resolveFinanceRevenueAzn(t);
+      totalExpAzn += resolveFinanceExpenseAzn(t);
     });
 
-    voyagesList.forEach(v => {
-       if (v.rawPayload && v.rawPayload.price) {
-          const exp = parseFloat(v.rawPayload.price) || 0;
-          const curr = v.rawPayload.currency || "AZN";
-          const azn = toAzn(exp, curr);
-          totalExpAzn += azn;
-       }
+    voyagesList.forEach((v) => {
+      totalExpAzn += resolveVoyageExpenseAzn(v);
     });
 
     return {
       totalRevAzn,
       totalExpAzn,
-      profitAzn: totalRevAzn - totalExpAzn
+      profitAzn: totalRevAzn - totalExpAzn,
     };
-  }, [financeTransactions, voyagesList, toAzn]);
+  }, [financeTransactions, voyagesList]);
 
   // Removed previous unused useEffects
 
@@ -838,8 +855,6 @@ export default function SifarisDetailPage() {
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
   const [taskChecklist, setTaskChecklist] = useState<string[]>([]);
-  const [taskContractor, setTaskContractor] = useState("Dəyəri seçin");
-  const [taskDepartment, setTaskDepartment] = useState("Dəyəri seçin");
   const [taskAuthor, setTaskAuthor] = useState("Ulvi Adilzade (Satış şöbəsi)");
   const [taskExecutor, setTaskExecutor] = useState("Ulvi Adilzade (Satış şöbəsi)");
   const [taskIsRecurring, setTaskIsRecurring] = useState(false);
@@ -875,8 +890,6 @@ export default function SifarisDetailPage() {
     description: string;
     checklist: string[];
     completed: boolean;
-    contractor: string;
-    department: string;
     author: string;
     executor: string;
     isRecurring: boolean;
@@ -895,8 +908,6 @@ export default function SifarisDetailPage() {
       description: "Limon Dental MMC müqaviləsi imzalanıb-imzalanmadığını yoxlayın",
       checklist: ["Müqavilə nömrəsini təsdiqlə", "Skanner nüsxəsini yüklə"],
       completed: true,
-      contractor: "Dəyəri seçin",
-      department: "Dəyəri seçin",
       author: "Ulvi Adilzade (Satış şöbəsi)",
       executor: "Ulvi Adilzade (Satış şöbəsi)",
       isRecurring: false,
@@ -915,8 +926,6 @@ export default function SifarisDetailPage() {
       description: "CMR sənədinin yüklənməsi tələb olunur",
       checklist: [],
       completed: false,
-      contractor: "Dəyəri seçin",
-      department: "Dəyəri seçin",
       author: "Ulvi Adilzade (Satış şöbəsi)",
       executor: "Ulvi Adilzade (Satış şöbəsi)",
       isRecurring: false,
@@ -958,8 +967,6 @@ export default function SifarisDetailPage() {
         title: taskTitle,
         description: taskDescription,
         checklist: taskChecklist,
-        contractor: taskContractor,
-        department: taskDepartment,
         author: taskAuthor,
         executor: taskExecutor,
         isRecurring: taskIsRecurring,
@@ -980,8 +987,6 @@ export default function SifarisDetailPage() {
         description: taskDescription,
         checklist: taskChecklist,
         completed: false,
-        contractor: taskContractor,
-        department: taskDepartment,
         author: taskAuthor,
         executor: taskExecutor,
         isRecurring: taskIsRecurring,
@@ -1000,8 +1005,15 @@ export default function SifarisDetailPage() {
   };
 
   const handleDeleteTask = (id: string) => {
-    setTasksList(tasksList.filter(t => t.id !== id));
-    setIsTaskModalOpen(false);
+    openDeleteConfirm(
+      "Tapşırığı sil",
+      "Bu tapşırığı silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarıla bilməz.",
+      () => {
+        setTasksList(tasksList.filter((t) => t.id !== id));
+        setIsTaskModalOpen(false);
+        setSelectedTaskForEdit(null);
+      },
+    );
   };
 
   const handleAddComment = (e: React.FormEvent) => {
@@ -1037,7 +1049,11 @@ export default function SifarisDetailPage() {
   };
 
   const handleDocDelete = (id: string) => {
-    setDocuments(documents.filter((doc) => doc.id !== id));
+    openDeleteConfirm(
+      "Sənədi sil",
+      "Bu sənədi silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarıla bilməz.",
+      () => setDocuments(documents.filter((doc) => doc.id !== id)),
+    );
   };
 
   // Dynamic status change
@@ -1101,19 +1117,11 @@ export default function SifarisDetailPage() {
   };
 
   const handleYukAdd = (payload: any) => {
-    const newLoad = {
-      orderId: order?.id,
-      cargoName: payload.name || "General cargo",
-      sender: payload.sender || "—",
-      receiver: payload.receiver || "—",
-      weightKg: parseFloat(payload.weight) || null,
-      volumeM3: parseFloat(payload.volume) || null,
-      ldm: parseFloat(payload.ldm) || null,
-      status: "Gözləmədə",
-    };
+    if (!order?.id) return;
+    const newLoad = buildLoadApiPayload(payload, order.id);
     axios.post(ENDPOINTS.LOADS.BASE, newLoad, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
       .then(res => {
-        setLoadsList([...loadsList, res.data]);
+        setLoadsList([...loadsList, mapLoadRow(res.data, order)]);
         setIsYukModalOpen(false);
       })
       .catch(console.error);
@@ -1121,17 +1129,10 @@ export default function SifarisDetailPage() {
 
   const handleYukEdit = (payload: any) => {
     if (!selectedLoadForEdit) return;
-    const updateData = {
-      cargoName: payload.name || "General cargo",
-      sender: payload.sender || "—",
-      receiver: payload.receiver || "—",
-      weightKg: parseFloat(payload.weight) || null,
-      volumeM3: parseFloat(payload.volume) || null,
-      ldm: parseFloat(payload.ldm) || null,
-    };
+    const updateData = buildLoadApiPayload(payload, order?.id || selectedLoadForEdit.orderId);
     axios.put(ENDPOINTS.LOADS.BASE + "/" + selectedLoadForEdit.id, updateData, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
       .then(res => {
-        setLoadsList(loadsList.map(load => load.id === selectedLoadForEdit.id ? res.data : load));
+        setLoadsList(loadsList.map(load => load.id === selectedLoadForEdit.id ? mapLoadRow(res.data, order) : load));
         setIsYukEditModalOpen(false);
         setSelectedLoadForEdit(null);
       })
@@ -1145,6 +1146,7 @@ export default function SifarisDetailPage() {
         tripStatus: payload.status || "Planlaşdırılıb",
         carrier: payload.carrier,
         tripPrice: payload.price,
+        valueAzn: payload.priceAzn ? Number(payload.priceAzn) : undefined,
         sender: payload.sender,
         loading: payload.loadPlace,
         receiver: payload.receiver,
@@ -1166,6 +1168,7 @@ export default function SifarisDetailPage() {
         customer: order?.customer || "",
         carrier: payload.carrier,
         tripPrice: payload.price,
+        valueAzn: payload.priceAzn ? Number(payload.priceAzn) : undefined,
         sender: payload.sender,
         loading: payload.loadPlace,
         receiver: payload.receiver,
@@ -1257,9 +1260,9 @@ export default function SifarisDetailPage() {
 
   // Tabs navigation
   const tabItems = [
-    { id: "loads" as SifarisTabId, label: `Yüklər (${order.cargoParams ? 1 : 0})`, icon: <FiBox /> },
-    { id: "voyages" as SifarisTabId, label: `Reyslər (${order.voyageNumber ? 1 : 0})`, icon: <FiTruck /> },
-    { id: "finance" as SifarisTabId, label: `Maliyyə (1)`, icon: <FiDollarSign /> },
+    { id: "loads" as SifarisTabId, label: `Yüklər (${loadsList.length})`, icon: <FiBox /> },
+    { id: "voyages" as SifarisTabId, label: `Reyslər (${voyagesList.length})`, icon: <FiTruck /> },
+    { id: "finance" as SifarisTabId, label: `Maliyyə (${financeTransactions.length})`, icon: <FiDollarSign /> },
     { id: "documents" as SifarisTabId, label: `Sənədlər (${documents.length})`, icon: <FiFileText /> },
     { id: "invoices" as SifarisTabId, label: "Hesablar", icon: <FiFile /> },
     { id: "comments" as SifarisTabId, label: `Şərhlər və Tapşırıqlar`, icon: <FiMessageSquare /> }
@@ -1443,7 +1446,7 @@ export default function SifarisDetailPage() {
               <DlRow label="Şirkət" value={order.company} />
               <DlRow label="Menecer" value={order.manager || "Ulvi Adilzade"} />
               <DlRow label="Əlavə menecerlər" value={order.extraManagers || "Ulvi Adilzade"} />
-              <DlRow label="Sifarişin tarixi" value={order.orderDate} />
+              <DlRow label="Sifarişin tarixi" value={formatDateOnly(order.orderDate)} />
               <DlRow label="Teqlər" value={order.tags || "—"} />
               <DlRow label="Incoterms" value={order.incoterms || "EXW"} />
               <DlRow label="Müştəri" value={order.customer} />
@@ -1538,21 +1541,19 @@ export default function SifarisDetailPage() {
                           <td className={`${styles.td} ${styles.tdNowrap}`}>{load.containerNumber}</td>
                           <td className={`${styles.td} ${styles.cargoParamsCol}`}>
                             <div className={styles.cargoDetailsBox}>
-                              {`Tip: Palet\nLDM: ${load.ldm || "—"}\nHəcm: ${load.volumeM3 || "—"} m³\nÇəki: ${load.weightKg || "—"} t`}
+                              {`Tip: ${load.packagingType || "—"}\nLDM: ${load.ldm ?? "—"}\nHəcm: ${load.volumeM3 ?? "—"} m³\nÇəki: ${load.weightKg ?? "—"} kq`}
                             </div>
                           </td>
                           <td className={`${styles.td} ${styles.tdNowrap}`}>{load.sender}</td>
                           <td className={`${styles.td} ${styles.tdNowrap}`}>{load.loadPlace}</td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>{load.loadDate}</td>
+                          <td className={`${styles.td} ${styles.tdNowrap}`}>{formatDateOnly(load.loadDate)}</td>
                           <td className={`${styles.td} ${styles.tdNowrap}`}>{load.receiver}</td>
                           <td className={`${styles.td} ${styles.tdNowrap}`}>{load.unloadPlace}</td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>{load.unloadDate}</td>
+                          <td className={`${styles.td} ${styles.tdNowrap}`}>{formatDateOnly(load.unloadDate)}</td>
                           <td className={`${styles.td} ${styles.tdNowrap}`}>
                             <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
                               <span style={{ fontWeight: 600 }}>
-                                {typeof load.voyage === "object" && load.voyage !== null 
-                                  ? (load.voyage.tripRef || "—") 
-                                  : (load.voyage || "—")}
+                                {load.voyageLabel || formatVoyageLabel(load.voyage)}
                               </span>
                               <div style={{ display: "flex", gap: "0.25rem" }}>
                                 <button
@@ -1584,10 +1585,24 @@ export default function SifarisDetailPage() {
                                   className={styles.iconBtn}
                                   title="Kopyalamaq"
                                   onClick={() => {
-                                    const cloned = { ...load };
-                                    delete (cloned as any).id;
-                                    axios.post(ENDPOINTS.LOADS.BASE, cloned, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
-                                      .then(res => setLoadsList([...loadsList, res.data]))
+                                    if (!order?.id) return;
+                                    const clonePayload = buildLoadApiPayload({
+                                      name: load.name,
+                                      containerNumber: load.containerNumber,
+                                      sender: load.sender,
+                                      receiver: load.receiver,
+                                      loadPlace: load.loadPlace,
+                                      unloadPlace: load.unloadPlace,
+                                      loadDate: load.loadDate,
+                                      unloadDate: load.unloadDate,
+                                      weight: load.weightKg,
+                                      volume: load.volumeM3,
+                                      ldm: load.ldm,
+                                      packagingType: load.packagingType,
+                                      rawPayload: load.rawPayload,
+                                    }, order.id);
+                                    axios.post(ENDPOINTS.LOADS.BASE, clonePayload, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
+                                      .then(res => setLoadsList([...loadsList, mapLoadRow(res.data, order)]))
                                       .catch(console.error);
                                   }}
                                 >
@@ -1598,9 +1613,20 @@ export default function SifarisDetailPage() {
                                   className={styles.iconBtn}
                                   title="Silmək"
                                   onClick={() => {
-                                    axios.delete(ENDPOINTS.LOADS.BASE + "/" + load.id, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
-                                      .then(() => setLoadsList(loadsList.filter((l) => l.id !== load.id)))
-                                      .catch(console.error);
+                                    openDeleteConfirm(
+                                      "Yükü sil",
+                                      `"${load.name || load.containerNumber || "Yük"}" silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarıla bilməz.`,
+                                      () => {
+                                        axios
+                                          .delete(ENDPOINTS.LOADS.BASE + "/" + load.id, {
+                                            headers: { Authorization: "Bearer " + localStorage.getItem("token") },
+                                          })
+                                          .then(() =>
+                                            setLoadsList(loadsList.filter((l) => l.id !== load.id)),
+                                          )
+                                          .catch(console.error);
+                                      },
+                                    );
                                   }}
                                 >
                                   <FiTrash2 style={{ color: "#ef4444", fontSize: "0.85rem" }} />
@@ -1855,10 +1881,14 @@ export default function SifarisDetailPage() {
                               {tx.edvliTarifPrice ? `${tx.edvliTarifPrice} ${tx.edvliTarifCurrency} (${tx.edvliTarifAzn} AZN)` : ""}
                             </td>
                             <td className={styles.td}>
-                              {tx.mesarifPrice ? `${tx.mesarifPrice} ${tx.mesarifCurrency}` : ""}
+                              {tx.mesarifPrice
+                                ? `${tx.mesarifPrice} ${tx.mesarifCurrency}${tx.mesarifAzn ? ` (${tx.mesarifAzn} AZN)` : ""}`
+                                : ""}
                             </td>
                             <td className={styles.td}>
-                              {tx.edvliMesarifPrice ? `${tx.edvliMesarifPrice} ${tx.edvliMesarifCurrency}` : ""}
+                              {tx.edvliMesarifPrice
+                                ? `${tx.edvliMesarifPrice} ${tx.edvliMesarifCurrency}${tx.edvliMesarifAzn ? ` (${tx.edvliMesarifAzn} AZN)` : ""}`
+                                : ""}
                             </td>
                             <td className={styles.td} style={{ color: "#166534", fontWeight: 700 }}>{tx.profit}</td>
                             <td className={styles.td}>{tx.user}</td>
@@ -1919,16 +1949,8 @@ export default function SifarisDetailPage() {
                           <tr key={v.id}>
                             <td className={styles.td} style={{ fontWeight: 600, color: "#16a34a" }}>{v.number}</td>
                             <td className={styles.td}>{v.carrier}</td>
-                            <td className={styles.td}>
-                              {v.rawPayload?.price
-                                ? formatAzn(toAzn(parseFloat(v.rawPayload.price) || 0, v.rawPayload.currency || "AZN"))
-                                : v.price}
-                            </td>
-                            <td className={styles.td}>
-                              {v.rawPayload?.price
-                                ? formatAzn(toAzn(parseFloat(v.rawPayload.price) || 0, v.rawPayload.currency || "AZN"))
-                                : v.price}
-                            </td>
+                            <td className={styles.td}>{v.price}</td>
+                            <td className={styles.td}>{v.price}</td>
                             <td className={styles.td}>{v.expeditor}</td>
                             <td className={styles.td} style={{ textAlign: "center" }}>
                               {v.invoices === "Yazılıb" ? (
@@ -2111,7 +2133,13 @@ export default function SifarisDetailPage() {
                                 <button
                                   type="button"
                                   className={styles.iconBtn}
-                                  onClick={() => setAktlarList(aktlarList.filter(a => a.id !== act.id))}
+                                  onClick={() => {
+                                    openDeleteConfirm(
+                                      "Aktı sil",
+                                      `"${act.company}" aktını silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarıla bilməz.`,
+                                      () => setAktlarList(aktlarList.filter((a) => a.id !== act.id)),
+                                    );
+                                  }}
                                   title="Silmək"
                                 >
                                   <FiTrash2 style={{ color: "#ef4444" }} />
@@ -2190,7 +2218,13 @@ export default function SifarisDetailPage() {
                               </span>
                               <button
                                 type="button"
-                                onClick={() => setFotosList(fotosList.filter(f => f.id !== foto.id))}
+                                onClick={() => {
+                                  openDeleteConfirm(
+                                    "Fotoşəkli sil",
+                                    `"${foto.name}" fotoşəklini silmək istədiyinizə əminsiniz?`,
+                                    () => setFotosList(fotosList.filter((f) => f.id !== foto.id)),
+                                  );
+                                }}
                                 style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", color: "#ef4444", fontSize: "0.85rem" }}
                               >
                                 &times;
@@ -2604,8 +2638,6 @@ export default function SifarisDetailPage() {
                             setTaskTitle(task.title);
                             setTaskDescription(task.description);
                             setTaskChecklist(task.checklist);
-                            setTaskContractor(task.contractor);
-                            setTaskDepartment(task.department);
                             setTaskAuthor(task.author);
                             setTaskExecutor(task.executor);
                             setTaskIsRecurring(task.isRecurring);
@@ -2827,6 +2859,7 @@ export default function SifarisDetailPage() {
         isOpen={isYukModalOpen}
         onClose={() => setIsYukModalOpen(false)}
         onConfirm={handleYukAdd}
+        orderContext={order ? { ...order, voyage: voyagesList[0] } : undefined}
       />
 
       {/* View Load Modal */}
@@ -2896,6 +2929,17 @@ export default function SifarisDetailPage() {
           setSelectedVoyageForDelete(null);
         }}
         voyageNumber={selectedVoyageForDelete?.number || ""}
+      />
+
+      <ConfirmModal
+        isOpen={deleteConfirm !== null}
+        title={deleteConfirm?.title ?? ""}
+        message={deleteConfirm?.message ?? ""}
+        onConfirm={() => {
+          deleteConfirm?.onConfirm();
+          setDeleteConfirm(null);
+        }}
+        onCancel={() => setDeleteConfirm(null)}
       />
 
       {/* Transaction Modal Overlay */}
@@ -4280,9 +4324,13 @@ export default function SifarisDetailPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              if (bankAccounts.length > 1) {
-                                setBankAccounts(bankAccounts.filter((a) => a.id !== account.id));
-                              }
+                              if (bankAccounts.length <= 1) return;
+                              openDeleteConfirm(
+                                "Bank hesabını sil",
+                                "Bu bank hesabını silmək istədiyinizə əminsiniz?",
+                                () =>
+                                  setBankAccounts(bankAccounts.filter((a) => a.id !== account.id)),
+                              );
                             }}
                             style={{
                               background: "transparent",
@@ -6338,7 +6386,13 @@ export default function SifarisDetailPage() {
                           <span style={{ fontSize: "0.85rem", color: "#334155" }}>{item}</span>
                           <button
                             type="button"
-                            onClick={() => setTaskChecklist(taskChecklist.filter((_, i) => i !== idx))}
+                            onClick={() => {
+                              openDeleteConfirm(
+                                "Elementi sil",
+                                "Bu çeklist elementini silmək istədiyinizə əminsiniz?",
+                                () => setTaskChecklist(taskChecklist.filter((_, i) => i !== idx)),
+                              );
+                            }}
                             style={{ background: "transparent", border: 0, cursor: "pointer", color: "#ef4444", fontSize: "0.8rem", marginLeft: "auto" }}
                           >
                             Sil
@@ -6403,33 +6457,6 @@ export default function SifarisDetailPage() {
 
                 {/* Right Column / Control Panel */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                  
-                  {/* Kontragent */}
-                  <div style={{ background: "#ffffff", padding: "0.75rem 1rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0" }}>
-                    <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "0.25rem" }}>Kontragent</label>
-                    <select
-                      value={taskContractor}
-                      onChange={(e) => setTaskContractor(e.target.value)}
-                      style={{ width: "100%", border: 0, padding: 0, outline: "none", fontSize: "0.85rem", backgroundColor: "transparent" }}
-                    >
-                      <option value="Dəyəri seçin">Dəyəri seçin</option>
-                      <option value="Limon Dental MMC">Limon Dental MMC</option>
-                    </select>
-                  </div>
-
-                  {/* Şöbə */}
-                  <div style={{ background: "#ffffff", padding: "0.75rem 1rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0" }}>
-                    <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "0.25rem" }}>Şöbə</label>
-                    <select
-                      value={taskDepartment}
-                      onChange={(e) => setTaskDepartment(e.target.value)}
-                      style={{ width: "100%", border: 0, padding: 0, outline: "none", fontSize: "0.85rem", backgroundColor: "transparent" }}
-                    >
-                      <option value="Dəyəri seçin">Dəyəri seçin</option>
-                      <option value="Satış şöbəsi">Satış şöbəsi</option>
-                      <option value="Maliyyə şöbəsi">Maliyyə şöbəsi</option>
-                    </select>
-                  </div>
 
                   {/* Müəllif */}
                   <div style={{ background: "#ffffff", padding: "0.75rem 1rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>

@@ -84,3 +84,64 @@ export function formatRateLine(currency: string, rate: number): string {
   if (!currency || currency.toUpperCase() === "AZN") return "1 AZN = 1 AZN";
   return `1 ${currency.toUpperCase()} = ${rate.toFixed(4)} AZN`;
 }
+
+export function parseStoredAzn(value?: string | number | null): number | null {
+  const parsed = parseFloat(String(value ?? "").replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function parseAznFromTripPrice(tripPrice?: string | null): number | null {
+  if (!tripPrice) return null;
+  const match = tripPrice.match(/\(([0-9][0-9.,]*)\s*AZN/i);
+  if (!match) return null;
+  return parseStoredAzn(match[1]);
+}
+
+export function resolveFinanceExpenseAzn(tx: {
+  mesarifPrice?: string;
+  mesarifCurrency?: string;
+  mesarifAzn?: string;
+  edvliMesarifPrice?: string;
+  edvliMesarifCurrency?: string;
+  edvliMesarifAzn?: string;
+}): number {
+  const stored =
+    parseStoredAzn(tx.mesarifAzn) ??
+    parseStoredAzn(tx.edvliMesarifAzn);
+  if (stored !== null) return stored;
+
+  const price = parseFloat(tx.mesarifPrice || tx.edvliMesarifPrice || "0") || 0;
+  if (!price) return 0;
+  const currency = (tx.mesarifCurrency || tx.edvliMesarifCurrency || "AZN").toUpperCase();
+  return currency === "AZN" ? price : 0;
+}
+
+export function resolveFinanceRevenueAzn(tx: {
+  tarifPrice?: string;
+  tarifCurrency?: string;
+  tarifAzn?: string;
+  edvliTarifPrice?: string;
+  edvliTarifCurrency?: string;
+  edvliTarifAzn?: string;
+}): number {
+  const stored =
+    parseStoredAzn(tx.tarifAzn) ??
+    parseStoredAzn(tx.edvliTarifAzn);
+  if (stored !== null) return stored;
+
+  const price = parseFloat(tx.tarifPrice || tx.edvliTarifPrice || "0") || 0;
+  if (!price) return 0;
+  const currency = (tx.tarifCurrency || tx.edvliTarifCurrency || "AZN").toUpperCase();
+  return currency === "AZN" ? price : 0;
+}
+
+export function resolveVoyageExpenseAzn(voyage: {
+  valueAzn?: number | null;
+  price?: string;
+  tripPrice?: string;
+}): number {
+  if (typeof voyage.valueAzn === "number" && Number.isFinite(voyage.valueAzn)) {
+    return voyage.valueAzn;
+  }
+  return parseAznFromTripPrice(voyage.price || voyage.tripPrice) ?? 0;
+}

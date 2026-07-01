@@ -6,14 +6,20 @@ export type AyarlarTab =
   | "contact-positions"
   | "transport-types";
 
+export const AYARLAR_TITLE = "Parametrlər";
+
 export const AYARLAR_TABS: { id: AyarlarTab; label: string }[] = [
   { id: "users", label: "İstifadəçilər" },
-  { id: "cargo-specs", label: "Cargo specifications" },
-  { id: "incoterms", label: "Incoterms" },
+  { id: "cargo-specs", label: "Yükün parametrləri" },
+  { id: "incoterms", label: "İnkoterms" },
   { id: "contact-persons", label: "Əlaqədar şəxslər" },
   { id: "contact-positions", label: "Vəzifələr" },
   { id: "transport-types", label: "Nəqliyyat tipləri" },
 ];
+
+export function getAyarlarTabLabel(id: AyarlarTab): string {
+  return AYARLAR_TABS.find((tab) => tab.id === id)?.label ?? AYARLAR_TITLE;
+}
 
 export function parseAyarlarTab(tab: string | null): AyarlarTab {
   if (

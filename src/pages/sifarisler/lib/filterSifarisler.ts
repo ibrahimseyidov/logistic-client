@@ -42,7 +42,7 @@ export function applySifarisFilters(
     ) {
       return false;
     }
-    if (!inRange(r.orderDate, f.orderDateFrom, f.orderDateTo)) return false;
+    if (!inRange(r.orderDateIso || r.orderDate, f.orderDateFrom, f.orderDateTo)) return false;
     if (!inRange(r.actCreatedAt, f.actCreatedFrom, f.actCreatedTo)) return false;
     if (!inRange(r.actDate, f.actDateFrom, f.actDateTo)) return false;
     if (!inRange(r.cmrUnloadDate, f.cmrUnloadFrom, f.cmrUnloadTo)) return false;
