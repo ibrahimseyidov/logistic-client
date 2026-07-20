@@ -28,6 +28,10 @@ function resolveHeaderTitle(pathname: string): string {
   if (pathname.startsWith("/sorgular/") && sorguRest.length > 0) {
     return "Sorğu detalı";
   }
+  const sifarisRest = pathname.slice("/sifarisler/".length);
+  if (pathname.startsWith("/sifarisler/") && sifarisRest.length > 0) {
+    return "Sifariş detalı";
+  }
   const musteriRest = pathname.slice("/musteriler/".length);
   if (pathname.startsWith("/musteriler/") && musteriRest.length > 0) {
     return "Müştəri detalı";

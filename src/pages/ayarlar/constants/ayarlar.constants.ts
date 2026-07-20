@@ -4,7 +4,8 @@ export type AyarlarTab =
   | "incoterms"
   | "contact-persons"
   | "contact-positions"
-  | "transport-types";
+  | "transport-types"
+  | "documents";
 
 export const AYARLAR_TITLE = "Parametrlər";
 
@@ -15,6 +16,7 @@ export const AYARLAR_TABS: { id: AyarlarTab; label: string }[] = [
   { id: "contact-persons", label: "Əlaqədar şəxslər" },
   { id: "contact-positions", label: "Vəzifələr" },
   { id: "transport-types", label: "Nəqliyyat tipləri" },
+  { id: "documents", label: "Sənədlər" },
 ];
 
 export function getAyarlarTabLabel(id: AyarlarTab): string {
@@ -27,7 +29,8 @@ export function parseAyarlarTab(tab: string | null): AyarlarTab {
     tab === "incoterms" ||
     tab === "contact-persons" ||
     tab === "contact-positions" ||
-    tab === "transport-types"
+    tab === "transport-types" ||
+    tab === "documents"
   ) {
     return tab;
   }

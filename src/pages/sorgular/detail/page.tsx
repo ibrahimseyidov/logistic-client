@@ -24,10 +24,11 @@ import type { LogisticQueryRow } from "../types/sorgu.types";
 import styles from "./page.module.css";
 import { QueryOffersList } from "./components/QueryOffersList";
 import { QueryCommentsList } from "./components/QueryCommentsList";
-import { QueryDocumentsList } from "./components/QueryDocumentsList";
 import { showNotification } from "../../../common/store/modalSlice";
 import { useAppDispatch } from "../../../common/store/hooks";
 import { ConfirmModal } from "../../../common/components/ConfirmModal";
+import EntityTasksPanel from "../../../common/components/tasks/EntityTasksPanel";
+import DocumentGeneratePanel from "../../../common/components/documents/DocumentGeneratePanel";
 import { SorgularEditModal, type NewSorguFormPayload, SorgularOfferModal } from "../components";
 
 function SectionCard({
@@ -535,23 +536,25 @@ export default function SorguDetailPage() {
               />
             )}
             {tab === "documents" && (
-              <QueryDocumentsList 
-                documents={documents.map(d => ({
+              <DocumentGeneratePanel
+                scope="query"
+                queryId={row.id}
+                existingDocs={documents.map((d) => ({
                   id: d.id,
                   name: d.name,
-                  type: d.type,
+                  url: d.url.startsWith("http") ? d.url : `http://localhost:5000${d.url}`,
                   size: d.size,
                   createdAt: d.createdAt,
-                  url: d.url.startsWith("http") ? d.url : `http://localhost:5000${d.url}`
-                }))} 
+                }))}
                 onUpload={handleUploadDocument}
-                onDelete={handleDeleteDocument}
+                onDeleteExisting={handleDeleteDocument}
+                onGenerated={() => {
+                  if (row) fetchDocumentsAction(row.id).then(setDocuments);
+                }}
               />
             )}
             {tab === "tasks" && (
-              <p style={{ fontSize: 14, color: "#64748b", textAlign: "center", padding: "2rem" }}>
-                Tapşırıqlar tezliklə.
-              </p>
+              <EntityTasksPanel queryId={row.id} />
             )}
           </div>
         </div>

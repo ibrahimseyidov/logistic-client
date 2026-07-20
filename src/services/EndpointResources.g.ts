@@ -64,4 +64,21 @@ export const ENDPOINTS = {
     BASE: `${API}/invoices`,
     BY_ID: (id: number) => `${API}/invoices/${id}`,
   },
+  TASK: {
+    BASE: `${API}/task`,
+    BY_ID: (id: number | string) => `${API}/task/${id}`,
+    UPLOAD: `${API}/task/upload`,
+  },
+  NOTIFICATIONS: {
+    BASE: `${API}/notifications`,
+    UNREAD_COUNT: `${API}/notifications/unread-count`,
+    READ_ALL: `${API}/notifications/read-all`,
+    READ: (id: number | string) => `${API}/notifications/${id}/read`,
+  },
+  DOCUMENTS: {
+    TEMPLATES: `${API}/documents/templates`,
+    PLACEHOLDERS: `${API}/documents/placeholders`,
+    GENERATE: `${API}/documents/generate`,
+    ORDER_DOCS: (orderId: number | string) => `${API}/documents/orders/${orderId}`,
+  },
 } as const;

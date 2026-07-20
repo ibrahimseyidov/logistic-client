@@ -19,6 +19,20 @@ export interface SelectOption {
   disabled?: boolean;
 }
 
+/** Normalize AZ/TR letters so "ibrahim" matches "İbrahim". */
+function foldSearchText(value: string): string {
+  return String(value || "")
+    .toLocaleLowerCase("tr-TR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ı/g, "i")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c");
+}
+
 interface SelectProps {
   value: any;
   options: SelectOption[];
@@ -59,9 +73,13 @@ export default function Select({
     const gap = 8;
     const estimatedMenuHeight = 260;
     const spaceBelow = viewportHeight - rect.bottom - gap;
-    const safeSpaceBelow = Math.max(0, spaceBelow);
-    const maxHeight = Math.max(90, Math.min(estimatedMenuHeight, safeSpaceBelow));
-    const top = rect.bottom + 6;
+    const spaceAbove = rect.top - gap;
+    const openUp = spaceBelow < 160 && spaceAbove > spaceBelow;
+    const available = openUp ? spaceAbove : spaceBelow;
+    const maxHeight = Math.max(120, Math.min(estimatedMenuHeight, Math.max(0, available)));
+    const top = openUp
+      ? Math.max(gap, rect.top - maxHeight - 6)
+      : rect.bottom + 6;
 
     setMenuBox({
       top,
@@ -176,10 +194,12 @@ export default function Select({
 
   const filteredOptions = useMemo(() => {
     if (!searchTerm.trim()) return options;
-    const term = searchTerm.trim().toLowerCase();
-    return options.filter((option) =>
-      option.label.toLowerCase().includes(term),
-    );
+    const term = foldSearchText(searchTerm.trim());
+    return options.filter((option) => {
+      const label = foldSearchText(option.label);
+      const value = foldSearchText(option.value);
+      return label.includes(term) || value.includes(term);
+    });
   }, [options, searchTerm]);
 
   return (

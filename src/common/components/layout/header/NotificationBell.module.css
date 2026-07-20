@@ -1,0 +1,148 @@
+.root {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.bellButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.625rem;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.bellButton:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(360px, calc(100vw - 24px));
+  max-height: 420px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dropdownHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.dropdownHeader strong {
+  font-size: 0.9rem;
+  color: #0f172a;
+}
+
+.markAll {
+  border: 0;
+  background: transparent;
+  color: #16a34a;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.markAll:hover {
+  text-decoration: underline;
+}
+
+.list {
+  overflow-y: auto;
+  max-height: 360px;
+}
+
+.empty {
+  margin: 0;
+  padding: 1.5rem 1rem;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  padding: 0.85rem 1rem;
+  border: 0;
+  border-bottom: 1px solid #f8fafc;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.item:hover {
+  background: #f8fafc;
+}
+
+.itemUnread {
+  background: #f0fdf4;
+}
+
+.itemUnread:hover {
+  background: #ecfdf5;
+}
+
+.itemTitle {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.itemMessage {
+  font-size: 0.78rem;
+  color: #475569;
+  line-height: 1.35;
+}
+
+.itemTime {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  margin-top: 0.15rem;
+}

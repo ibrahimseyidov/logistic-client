@@ -14,11 +14,6 @@ import Select from "../../../common/components/select/Select";
 import type { SelectOption } from "../../../common/components/select/Select";
 import datePickerStyles from "./TaskFiltersDrawer.module.css";
 
-const AUTHOR_OPTS: SelectOption[] = [
-  { value: "ulvi", label: "Ulvi Adilzadə (Satış şöbəsi)" },
-  { value: "nargiz", label: "Nərgiz K. (Logistika)" },
-];
-
 const REMIND_OPTS: SelectOption[] = [
   { value: "day", label: "İcra günündə" },
   { value: "1d", label: "1 gün əvvəl" },
@@ -53,11 +48,15 @@ interface ChecklistItem {
   done: boolean;
 }
 
+export type TaskModalExecutor = { id: number; name: string };
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSave: (payload: TaskModalSavePayload) => void;
   initialData?: TaskModalInitialData | null;
+  userOptions?: SelectOption[];
+  authorLabel?: string;
 }
 
 export interface TaskModalSavePayload {
@@ -65,10 +64,16 @@ export interface TaskModalSavePayload {
   description: string;
   counterparty: string;
   author: string;
-  executors: string[];
+  executors: TaskModalExecutor[];
   deadlineDate: string;
   deadlineTime: string;
+  deadlineUntil: string;
   destinationColumn: string;
+  recurring: boolean;
+  remindEnabled: boolean;
+  remindWhen: string;
+  remindTime: string;
+  checklist: ChecklistItem[];
 }
 
 export interface TaskModalInitialData {
@@ -76,10 +81,16 @@ export interface TaskModalInitialData {
   description: string;
   counterparty: string;
   author: string;
-  executors: string[];
+  executors: TaskModalExecutor[];
   deadlineDate: string;
   deadlineTime: string;
+  deadlineUntil?: string;
   destinationColumn: string;
+  recurring?: boolean;
+  remindEnabled?: boolean;
+  remindWhen?: string;
+  remindTime?: string;
+  checklist?: ChecklistItem[];
 }
 
 const fieldBox = styles.fieldBox;
@@ -89,19 +100,21 @@ export default function TaskViewModal({
   onClose,
   onSave,
   initialData,
+  userOptions = [],
+  authorLabel = "",
 }: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [author, setAuthor] = useState("ulvi");
-  const [executorInput, setExecutorInput] = useState("");
-  const [executorTags, setExecutorTags] = useState<string[]>([
-    "Ulvi Adilzadə (Satış şöbəsi)",
-  ]);
+  const [author, setAuthor] = useState("");
+  const [executorPick, setExecutorPick] = useState("");
+  const [executorTags, setExecutorTags] = useState<TaskModalExecutor[]>([]);
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [recurring, setRecurring] = useState(false);
-  const [createdDate] = useState("2026-04-06");
-  const [createdTime] = useState("22:00");
+  const [createdDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [createdTime] = useState(() =>
+    new Date().toLocaleTimeString("az-AZ", { hour: "2-digit", minute: "2-digit", hour12: false }),
+  );
   const [deadlineDate, setDeadlineDate] = useState("");
   const [deadlineTime, setDeadlineTime] = useState("");
   const [deadlineUntil, setDeadlineUntil] = useState("");
@@ -129,25 +142,36 @@ export default function TaskViewModal({
   const [deadlineCalendarMonth, setDeadlineCalendarMonth] = useState(new Date());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Only hydrate when modal opens — not on every parent re-render of initialData
   useEffect(() => {
     if (!isOpen) return;
 
     if (initialData) {
       setTitle(initialData.title);
       setDescription(initialData.description);
-      setAuthor(initialData.author || "ulvi");
-      setExecutorTags(initialData.executors.length ? initialData.executors : []);
+      setAuthor(initialData.author || authorLabel);
+      setExecutorTags(
+        Array.isArray(initialData.executors) ? [...initialData.executors] : [],
+      );
       setDeadlineDate(initialData.deadlineDate);
       setDeadlineTime(initialData.deadlineTime);
+      setDeadlineUntil(initialData.deadlineUntil || "");
       setDestinationColumn(initialData.destinationColumn || "todo");
+      setRecurring(initialData.recurring ?? false);
+      setRemindEnabled(initialData.remindEnabled ?? true);
+      setRemindWhen(initialData.remindWhen || "day");
+      setRemindTime(initialData.remindTime || "10:00");
+      setChecklistItems(initialData.checklist || []);
+      setAttachedFiles([]);
+      setExecutorPick("");
       return;
     }
 
     setTitle("");
     setDescription("");
-    setAuthor("ulvi");
-    setExecutorInput("");
-    setExecutorTags(["Ulvi Adilzadə (Satış şöbəsi)"]);
+    setAuthor(authorLabel);
+    setExecutorPick("");
+    setExecutorTags([]);
     setChecklistItems([]);
     setAttachedFiles([]);
     setRecurring(false);
@@ -158,7 +182,8 @@ export default function TaskViewModal({
     setRemindWhen("day");
     setRemindTime("10:00");
     setDestinationColumn("todo");
-  }, [isOpen, initialData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   useEffect(() => {
     const formattedDeadline = deadlineDate
@@ -235,19 +260,25 @@ export default function TaskViewModal({
 
   if (!isOpen) return null;
 
-  const removeExecutorTag = (t: string) => {
-    setExecutorTags((prev) => prev.filter((x) => x !== t));
+  const removeExecutorTag = (id: number) => {
+    setExecutorTags((prev) => prev.filter((x) => x.id !== id));
+  };
+
+  const addExecutorByValue = (value: string) => {
+    if (!value) return;
+    const option = userOptions.find((o) => o.value === value);
+    if (!option) return;
+    const id = Number(option.value);
+    if (!Number.isFinite(id) || id <= 0) return;
+    setExecutorTags((prev) => {
+      if (prev.some((e) => e.id === id)) return prev;
+      return [...prev, { id, name: option.label }];
+    });
+    setExecutorPick("");
   };
 
   const addExecutorTag = () => {
-    const next = executorInput.trim();
-    if (!next) return;
-    if (executorTags.includes(next)) {
-      setExecutorInput("");
-      return;
-    }
-    setExecutorTags((prev) => [...prev, next]);
-    setExecutorInput("");
+    addExecutorByValue(executorPick);
   };
 
   const addChecklistItem = () => {
@@ -290,15 +321,31 @@ export default function TaskViewModal({
     const normalizedTitle = title.trim();
     if (!normalizedTitle) return;
 
+    // Include pending select value even if user didn't click "+"
+    let executorsToSave = executorTags;
+    if (executorPick) {
+      const option = userOptions.find((o) => o.value === executorPick);
+      const id = Number(option?.value);
+      if (option && Number.isFinite(id) && id > 0 && !executorsToSave.some((e) => e.id === id)) {
+        executorsToSave = [...executorsToSave, { id, name: option.label }];
+      }
+    }
+
     onSave({
       title: normalizedTitle,
       description: description.trim(),
       counterparty: "",
-      author,
-      executors: executorTags,
+      author: author || authorLabel,
+      executors: executorsToSave,
       deadlineDate,
       deadlineTime,
+      deadlineUntil,
       destinationColumn,
+      recurring,
+      remindEnabled,
+      remindWhen,
+      remindTime,
+      checklist: checklistItems,
     });
   };
 
@@ -574,10 +621,12 @@ export default function TaskViewModal({
             <div className={styles.rightCol}>
               <div className={fieldBox}>
                 <span className={styles.fieldLabel}>Müəllif</span>
-                <Select
-                  value={author}
-                  options={AUTHOR_OPTS}
-                  onChange={setAuthor}
+                <input
+                  type="text"
+                  className={styles.inputControl}
+                  value={author || authorLabel}
+                  readOnly
+                  disabled
                 />
               </div>
 
@@ -593,34 +642,32 @@ export default function TaskViewModal({
               <div className={fieldBox}>
                 <span className={styles.fieldLabel}>İcraçı</span>
                 <div className={styles.executorInputRow}>
-                  <input
-                    type="text"
-                    value={executorInput}
-                    onChange={(event) => setExecutorInput(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        addExecutorTag();
-                      }
-                    }}
-                    className={styles.inputControl}
-                    placeholder="Ad yazın və əlavə edin"
+                  <Select
+                    value={executorPick}
+                    options={[
+                      { value: "", label: "İstifadəçi seçin" },
+                      ...userOptions.filter(
+                        (o) => !executorTags.some((e) => String(e.id) === o.value),
+                      ),
+                    ]}
+                    onChange={(value) => addExecutorByValue(value)}
                   />
                   <button
                     type="button"
                     onClick={addExecutorTag}
                     className={styles.addMiniButton}
+                    title="İcraçı əlavə et"
                   >
                     <FaPlus aria-hidden />
                   </button>
                 </div>
                 <div className={styles.tagList}>
                   {executorTags.map((t) => (
-                    <span key={t} className={styles.tagItem}>
-                      {t}
+                    <span key={t.id} className={styles.tagItem}>
+                      {t.name}
                       <button
                         type="button"
-                        onClick={() => removeExecutorTag(t)}
+                        onClick={() => removeExecutorTag(t.id)}
                         className={styles.tagRemove}
                         aria-label="Sil"
                       >

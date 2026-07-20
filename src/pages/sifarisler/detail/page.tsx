@@ -36,6 +36,8 @@ import ReysViewModal from "../components/ReysViewModal";
 import ReysEditModal from "../components/ReysEditModal";
 import ReysDeleteModal from "../components/ReysDeleteModal";
 import { ConfirmModal } from "../../../common/components/ConfirmModal";
+import EntityTasksPanel from "../../../common/components/tasks/EntityTasksPanel";
+import DocumentGeneratePanel from "../../../common/components/documents/DocumentGeneratePanel";
 import styles from "./page.module.css";
 import { convertCurrencyToAzn, resolveFinanceExpenseAzn, resolveFinanceRevenueAzn, resolveVoyageExpenseAzn } from "../../../common/utils/currency.utils";
 
@@ -2014,6 +2016,13 @@ export default function SifarisDetailPage() {
 
             {activeTab === "documents" && (
               <div>
+                <div style={{ marginBottom: "1.5rem" }}>
+                  <DocumentGeneratePanel
+                    scope="order"
+                    orderId={order?.id ? Number(order.id) : null}
+                    queryId={(order as any)?.queryId ? Number((order as any).queryId) : null}
+                  />
+                </div>
                 {/* 3 Green Underlined Sub-Tabs */}
                 <div
                   style={{
@@ -2573,141 +2582,7 @@ export default function SifarisDetailPage() {
                   </div>
 
                   {/* Right Column: Tasks List */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "2px solid #f1f5f9", paddingBottom: "0.75rem" }}>
-                      <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#1e293b" }}>Tapşırıqlar ({tasksList.length})</h3>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedTaskForEdit(null);
-                          setTaskTitle("");
-                          setTaskDescription("");
-                          setTaskChecklist([]);
-                          setTaskContractor("Dəyəri seçin");
-                          setTaskDepartment("Dəyəri seçin");
-                          setTaskAuthor("Ulvi Adilzade (Satış şöbəsi)");
-                          setTaskExecutor("Ulvi Adilzade (Satış şöbəsi)");
-                          setTaskIsRecurring(false);
-                          setTaskCreatedDate("27.05.2026");
-                          setTaskCreatedTime("17:54");
-                          setTaskDueDate("");
-                          setTaskDueTime("");
-                          setTaskDueAmount("");
-                          setTaskRemind(true);
-                          setTaskRemindDay("İcra günündə");
-                          setTaskRemindTime("10:00");
-                          setIsTaskModalOpen(true);
-                        }}
-                        style={{
-                          background: "#16a34a",
-                          color: "#ffffff",
-                          border: 0,
-                          borderRadius: "0.375rem",
-                          padding: "0.45rem 1rem",
-                          fontSize: "0.825rem",
-                          fontWeight: 600,
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "0.375rem"
-                        }}
-                      >
-                        <FiPlus />
-                        Tapşırıq əlavə et
-                      </button>
-                    </div>
-
-                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxHeight: "450px", overflowY: "auto", paddingRight: "0.25rem" }}>
-                      {tasksList.map((task) => (
-                        <div
-                          key={task.id}
-                          style={{
-                            background: "#ffffff",
-                            padding: "1.25rem",
-                            borderRadius: "0.5rem",
-                            border: "1px solid #e2e8f0",
-                            boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "0.75rem",
-                            cursor: "pointer",
-                            transition: "all 0.2s"
-                          }}
-                          onClick={() => {
-                            setSelectedTaskForEdit(task);
-                            setTaskTitle(task.title);
-                            setTaskDescription(task.description);
-                            setTaskChecklist(task.checklist);
-                            setTaskAuthor(task.author);
-                            setTaskExecutor(task.executor);
-                            setTaskIsRecurring(task.isRecurring);
-                            setTaskCreatedDate(task.createdDate);
-                            setTaskCreatedTime(task.createdTime);
-                            setTaskDueDate(task.dueDate);
-                            setTaskDueTime(task.dueTime);
-                            setTaskDueAmount(task.dueAmount);
-                            setTaskRemind(task.remind);
-                            setTaskRemindDay(task.remindDay);
-                            setTaskRemindTime(task.remindTime);
-                            setIsTaskModalOpen(true);
-                          }}
-                          onMouseOver={(e) => {
-                            e.currentTarget.style.borderColor = "#16a34a";
-                            e.currentTarget.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.05)";
-                          }}
-                          onMouseOut={(e) => {
-                            e.currentTarget.style.borderColor = "#e2e8f0";
-                            e.currentTarget.style.boxShadow = "0 1px 3px 0 rgba(0, 0, 0, 0.05)";
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
-                            <input
-                              type="checkbox"
-                              checked={task.completed}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                const updated = tasksList.map(t => t.id === task.id ? { ...t, completed: e.target.checked } : t);
-                                setTasksList(updated);
-                              }}
-                              style={{ width: "1.15rem", height: "1.15rem", accentColor: "#16a34a", cursor: "pointer", marginTop: "0.15rem" }}
-                            />
-                            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", flex: 1 }}>
-                              <span style={{ fontWeight: 700, fontSize: "0.925rem", color: "#1e293b", textDecoration: task.completed ? "line-through" : "none" }}>
-                                {task.title}
-                              </span>
-                              {task.description && (
-                                <span style={{ fontSize: "0.825rem", color: "#64748b", textDecoration: task.completed ? "line-through" : "none" }}>
-                                  {task.description.length > 70 ? `${task.description.slice(0, 70)}...` : task.description}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          
-                          {task.checklist && task.checklist.length > 0 && (
-                            <div style={{ paddingLeft: "1.9rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                              {task.checklist.map((item, idx) => (
-                                <span key={idx} style={{ fontSize: "0.775rem", color: "#64748b", display: "flex", alignItems: "center", gap: "0.375rem" }}>
-                                  <span style={{ width: "4px", height: "4px", borderRadius: "50%", backgroundColor: "#cbd5e1" }} />
-                                  {item}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.725rem", color: "#94a3b8", borderTop: "1px dashed #f1f5f9", paddingTop: "0.5rem", marginTop: "0.25rem" }}>
-                            <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-                              <FiUser /> {task.executor.split(" ")[0]}
-                            </span>
-                            {task.dueDate && (
-                              <span style={{ background: "#fee2e2", color: "#b91c1c", padding: "0.15rem 0.45rem", borderRadius: "0.25rem", fontWeight: 600 }}>
-                                Son: {task.dueDate}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  <EntityTasksPanel orderId={order?.id ? Number(order.id) : null} />
 
                 </div>
               </div>

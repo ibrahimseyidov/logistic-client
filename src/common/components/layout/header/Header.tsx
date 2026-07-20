@@ -1,10 +1,11 @@
 "use client";
 
 import React from "react";
-import { FaBars, FaChevronLeft } from "react-icons/fa";
+import { FaBars } from "react-icons/fa";
 import { useSidebarLayout } from "../SidebarLayoutContext";
 import styles from "./header.module.css";
 import UserProfile from "../userProfile/userProfile";
+import NotificationBell from "./NotificationBell";
 
 interface HeaderProps {
   title?: string;
@@ -35,7 +36,10 @@ const Header: React.FC<HeaderProps> = ({ title = "Sorğular", subtitle }) => {
           <h1 className={styles.title}>{title}</h1>
         </div>
       </div>
-      <UserProfile />
+      <div className={styles.headerRight}>
+        <NotificationBell />
+        <UserProfile />
+      </div>
     </header>
   );
 };

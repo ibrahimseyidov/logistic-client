@@ -1,14 +1,15 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useState,
+  type DragEvent,
 } from "react";
 import styles from "./tapshiriqlar.module.css";
 import {
   FaEdit,
-  FaMinus,
   FaPlus,
   FaTrash,
 } from "react-icons/fa";
@@ -26,30 +27,24 @@ import type { TaskFilterState } from "./components/TaskFiltersDrawer";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import sorguLayoutStyles from "../sorgular/sorgular.module.css";
 import sorguActionBarStyles from "../sorgular/components/SorgularActionBar.module.css";
-import sorguTableStyles from "../sorgular/components/SorgularTable.module.css";
+import {
+  createTaskAction,
+  deleteTaskAction,
+  fetchTasksAction,
+  updateTaskAction,
+  type TaskDto,
+} from "../../common/actions/task.actions";
+import { fetchUserDirectoryAction } from "../../common/actions/user.actions";
+import { useAuth } from "../../common/contexts/AuthContext";
+import Loading from "../../common/components/loading/Loading";
 
-const PLACEHOLDER_OPTS: SelectOption[] = [{ value: "", label: "Dəyəri seçin" }];
-
-const DEMO_OPTS = (
-  extra: { value: string; label: string }[],
-): SelectOption[] => [...PLACEHOLDER_OPTS, ...extra];
-
-interface KanbanCard {
-  id: string;
-  title: string;
-  author: string;
-  executor: string;
-  counterparty: string;
-  deadline: string;
-  status: string;
-  tag: string;
-}
-
-interface KanbanColumn {
-  id: string;
-  title: string;
-  cards: KanbanCard[];
-}
+const BOARD_COLUMNS = [
+  { id: "backlog", title: "Backlog" },
+  { id: "todo", title: "To Do" },
+  { id: "in-progress", title: "In Progress" },
+  { id: "review", title: "Review" },
+  { id: "done", title: "Done" },
+] as const;
 
 const emptyTaskFilter = (): TaskFilterState => ({
   author: "",
@@ -61,192 +56,278 @@ const emptyTaskFilter = (): TaskFilterState => ({
   taskName: "",
 });
 
+function clipText(value: string, max: number) {
+  const text = (value || "").trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, max)}…`;
+}
+
+function ownerNames(task: TaskDto) {
+  if (task.executors?.length) {
+    return task.executors.map((e) => e.name || `#${e.id}`);
+  }
+  if (task.author?.name) return [task.author.name];
+  return [] as string[];
+}
+
 export default function TapshiriqlarPage() {
   const dispatch = useAppDispatch();
+  const { user } = useAuth();
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
-
+  const [loading, setLoading] = useState(true);
+  const [tasks, setTasks] = useState<TaskDto[]>([]);
+  const [userOptions, setUserOptions] = useState<SelectOption[]>([]);
   const [filterDraft, setFilterDraft] = useState<TaskFilterState>(emptyTaskFilter);
-  const [kanbanColumns, setKanbanColumns] = useState<KanbanColumn[]>([
-    { id: "backlog", title: "Backlog", cards: [] },
-    { id: "todo", title: "To Do", cards: [] },
-    { id: "in-progress", title: "In Progress", cards: [] },
-    { id: "review", title: "Review", cards: [] },
-    { id: "done", title: "Done", cards: [] },
-  ]);
-  const [editingTask, setEditingTask] = useState<{
-    cardId: string;
-    columnId: string;
-  } | null>(null);
   const [appliedFilters, setAppliedFilters] = useState<TaskFilterState>(emptyTaskFilter);
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
+  const [createStatus, setCreateStatus] = useState<string>("todo");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [taskToDelete, setTaskToDelete] = useState<{ id: string; columnId: string } | null>(null);
+  const [taskToDelete, setTaskToDelete] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
-  const authorOptions = DEMO_OPTS([
-    { value: "u1", label: "Ulvi Adilzadə" },
-    { value: "u2", label: "Nərgiz K." },
-  ]);
-  const executorOptions = DEMO_OPTS([
-    { value: "e1", label: "Elçin Məmmədov" },
-    { value: "e2", label: "Rəşad Hüseynov" },
-  ]);
-  const counterpartyOptions = DEMO_OPTS([
-    { value: "c1", label: "Karat MMC" },
-    { value: "c2", label: "Ziyafreight" },
-  ]);
-  const statusOptions = DEMO_OPTS([
-    { value: "open", label: "Açıq" },
-    { value: "progress", label: "İcrada" },
-    { value: "done", label: "Bitib" },
-  ]);
-  const tagOptions = DEMO_OPTS([
-    { value: "urgent", label: "Təcili" },
-    { value: "finance", label: "Maliyyə" },
-  ]);
+  const authorOptions = useMemo(
+    () => [{ value: "", label: "Dəyəri seçin" }, ...userOptions],
+    [userOptions],
+  );
+  const executorOptions = authorOptions;
+  const statusOptions: SelectOption[] = [
+    { value: "", label: "Dəyəri seçin" },
+    ...BOARD_COLUMNS.map((c) => ({ value: c.id, label: c.title })),
+  ];
+  const counterpartyOptions: SelectOption[] = [{ value: "", label: "Dəyəri seçin" }];
+  const tagOptions: SelectOption[] = [{ value: "", label: "Dəyəri seçin" }];
 
-  const handleTaskSave = (payload: TaskModalSavePayload) => {
-    if (editingTask) {
-      setKanbanColumns((prev) => {
-        let currentCard: KanbanCard | null = null;
-        const withoutCurrent = prev.map((column) => {
-          if (column.id !== editingTask.columnId) return column;
-          const nextCards = column.cards.filter((card) => {
-            if (card.id === editingTask.cardId) {
-              currentCard = card;
-              return false;
-            }
-            return true;
-          });
-          return { ...column, cards: nextCards };
-        });
+  const loadTasks = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await fetchTasksAction();
+      setTasks(data);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-        if (!currentCard) return withoutCurrent;
+  useEffect(() => {
+    void loadTasks();
+    void fetchUserDirectoryAction().then((users) => {
+      setUserOptions(
+        users.map((u) => ({
+          value: String(u.id),
+          label: u.name,
+        })),
+      );
+    });
+  }, [loadTasks]);
 
-        const updatedCard: KanbanCard = {
-          ...(currentCard as KanbanCard),
-          title: payload.title,
-          author: payload.author,
-          executor: payload.executors.join(", "),
-          counterparty: payload.counterparty,
-          deadline: payload.deadlineDate,
-          status: payload.destinationColumn,
-        };
+  const editingTask = useMemo(
+    () => (editingTaskId == null ? null : tasks.find((t) => t.id === editingTaskId) || null),
+    [editingTaskId, tasks],
+  );
 
-        return withoutCurrent.map((column) =>
-          column.id === payload.destinationColumn
-            ? { ...column, cards: [...column.cards, updatedCard] }
-            : column,
+  const editingTaskInitialData: TaskModalInitialData | null = editingTask
+    ? {
+        title: editingTask.title,
+        description: editingTask.description || "",
+        counterparty: editingTask.counterparty || "",
+        author: editingTask.author?.name || "",
+        executors: editingTask.executors || [],
+        deadlineDate: editingTask.deadlineDate || "",
+        deadlineTime: editingTask.deadlineTime || "",
+        deadlineUntil: editingTask.deadlineUntil || "",
+        destinationColumn: editingTask.status || "todo",
+        recurring: editingTask.recurring,
+        remindEnabled: editingTask.remindEnabled,
+        remindWhen: editingTask.remindWhen,
+        remindTime: editingTask.remindTime,
+        checklist: (editingTask.checklist || []).map((c, idx) => ({
+          id: c.id || String(idx),
+          text: c.text,
+          done: Boolean(c.done),
+        })),
+      }
+    : null;
+
+  const handleTaskSave = async (payload: TaskModalSavePayload) => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const body = {
+        title: payload.title,
+        description: payload.description,
+        status: payload.destinationColumn,
+        executors: payload.executors,
+        counterparty: payload.counterparty,
+        deadlineDate: payload.deadlineDate || null,
+        deadlineTime: payload.deadlineTime || null,
+        deadlineUntil: payload.deadlineUntil || null,
+        recurring: payload.recurring,
+        remindEnabled: payload.remindEnabled,
+        remindWhen: payload.remindWhen,
+        remindTime: payload.remindTime,
+        checklist: payload.checklist,
+      };
+
+      if (editingTaskId != null) {
+        const updated = await updateTaskAction(editingTaskId, body);
+        setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+        dispatch(
+          showNotification({
+            message: "Tapşırıq yeniləndi.",
+            type: "success",
+            autoCloseDuration: 2800,
+          }),
         );
-      });
-      setEditingTask(null);
+      } else {
+        const created = await createTaskAction(body);
+        setTasks((prev) => [created, ...prev]);
+        dispatch(
+          showNotification({
+            message: "Tapşırıq yaradıldı.",
+            type: "success",
+            autoCloseDuration: 2800,
+          }),
+        );
+      }
+      setEditingTaskId(null);
       setTaskModalOpen(false);
+    } catch (err) {
+      console.error(err);
       dispatch(
         showNotification({
-          message: "Tapşırıq yeniləndi.",
-          type: "success",
-          autoCloseDuration: 2800,
+          message: "Tapşırıq saxlanılarkən xəta baş verdi.",
+          type: "error",
+          autoCloseDuration: 3500,
         }),
       );
-      return;
+    } finally {
+      setSaving(false);
     }
-
-    const taskCard: KanbanCard = {
-      id: crypto.randomUUID(),
-      title: payload.title,
-      author: payload.author,
-      executor: payload.executors.join(", "),
-      counterparty: payload.counterparty,
-      deadline: payload.deadlineDate,
-      status: payload.destinationColumn,
-      tag: "",
-    };
-
-    setKanbanColumns((prev) =>
-      prev.map((column) =>
-        column.id === payload.destinationColumn
-          ? { ...column, cards: [...column.cards, taskCard] }
-          : column,
-      ),
-    );
-    setTaskModalOpen(false);
-    dispatch(
-      showNotification({
-        message: "Tapşırıq yaradıldı.",
-        type: "success",
-        autoCloseDuration: 2800,
-      }),
-    );
   };
 
-  const handleOpenCreateTask = () => {
-    setEditingTask(null);
+  const handleOpenCreateTask = (status = "todo") => {
+    setCreateStatus(status);
+    setEditingTaskId(null);
     setTaskModalOpen(true);
   };
 
-  const handleOpenEditTask = (cardId: string, columnId: string) => {
-    setEditingTask({ cardId, columnId });
+  const handleOpenEditTask = (id: number) => {
+    setEditingTaskId(id);
     setTaskModalOpen(true);
   };
 
-  const editingTaskInitialData: TaskModalInitialData | null = (() => {
-    if (!editingTask) return null;
-    const sourceColumn = kanbanColumns.find(
-      (column) => column.id === editingTask.columnId,
-    );
-    const card = sourceColumn?.cards.find((item) => item.id === editingTask.cardId);
-    if (!card) return null;
-    return {
-      title: card.title,
-      description: "",
-      counterparty: card.counterparty,
-      author: card.author,
-      executors: card.executor
-        ? card.executor.split(",").map((item) => item.trim())
-        : [],
-      deadlineDate: card.deadline,
-      deadlineTime: "",
-      destinationColumn: sourceColumn?.id ?? "todo",
-    };
-  })();
+  const moveTaskToColumn = async (taskId: number, status: string) => {
+    const current = tasks.find((t) => t.id === taskId);
+    if (!current || current.status === status) return;
 
-  const matchesFilters = (card: KanbanCard) => {
-    if (appliedFilters.author && card.author !== appliedFilters.author) {
-      return false;
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, status } : t)),
+    );
+
+    try {
+      const updated = await updateTaskAction(taskId, { status });
+      setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    } catch (err) {
+      console.error(err);
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, status: current.status } : t)),
+      );
+      dispatch(
+        showNotification({
+          message: "Status dəyişdirilmədi.",
+          type: "error",
+          autoCloseDuration: 3000,
+        }),
+      );
     }
-    if (appliedFilters.executor && card.executor !== appliedFilters.executor) {
-      return false;
+  };
+
+  const onCardDragStart = (e: DragEvent, taskId: number) => {
+    setDraggingId(taskId);
+    e.dataTransfer.setData("text/plain", String(taskId));
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const onCardDragEnd = () => {
+    setDraggingId(null);
+    setDragOverColumn(null);
+  };
+
+  const onColumnDragOver = (e: DragEvent, columnId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverColumn(columnId);
+  };
+
+  const onColumnDrop = (e: DragEvent, columnId: string) => {
+    e.preventDefault();
+    const id = Number(e.dataTransfer.getData("text/plain") || draggingId);
+    setDragOverColumn(null);
+    setDraggingId(null);
+    if (!Number.isFinite(id)) return;
+    void moveTaskToColumn(id, columnId);
+  };
+
+  const fold = (value: string) =>
+    String(value || "")
+      .toLocaleLowerCase("tr-TR")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/ı/g, "i")
+      .replace(/ğ/g, "g")
+      .replace(/ü/g, "u")
+      .replace(/ş/g, "s")
+      .replace(/ö/g, "o")
+      .replace(/ç/g, "c");
+
+  const matchesFilters = (task: TaskDto) => {
+    if (appliedFilters.author) {
+      const authorOpt = authorOptions.find((o) => o.value === appliedFilters.author);
+      const authorNeedle = fold(authorOpt?.label || appliedFilters.author);
+      const authorMatch =
+        String(task.authorId) === appliedFilters.author ||
+        fold(task.author?.name || "") === authorNeedle ||
+        fold(task.author?.name || "").includes(authorNeedle);
+      if (!authorMatch) return false;
+    }
+    if (appliedFilters.executor) {
+      const executorOpt = executorOptions.find(
+        (o) => o.value === appliedFilters.executor,
+      );
+      const executorNeedle = fold(executorOpt?.label || appliedFilters.executor);
+      const ok = (task.executors || []).some((e) => {
+        const idMatch = String(e.id) === String(appliedFilters.executor);
+        const nameFolded = fold(e.name || "");
+        return (
+          idMatch ||
+          nameFolded === executorNeedle ||
+          (executorNeedle.length > 0 && nameFolded.includes(executorNeedle))
+        );
+      });
+      if (!ok) return false;
     }
     if (
       appliedFilters.counterparty &&
-      card.counterparty !== appliedFilters.counterparty
+      task.counterparty !== appliedFilters.counterparty
     ) {
       return false;
     }
-    if (appliedFilters.deadline && card.deadline !== appliedFilters.deadline) {
+    if (appliedFilters.deadline && task.deadlineDate !== appliedFilters.deadline) {
       return false;
     }
-    if (appliedFilters.status && card.status !== appliedFilters.status) {
-      return false;
-    }
-    if (appliedFilters.tag && card.tag !== appliedFilters.tag) {
+    if (appliedFilters.status && task.status !== appliedFilters.status) {
       return false;
     }
     if (
       appliedFilters.taskName &&
-      !card.title.toLowerCase().includes(appliedFilters.taskName.toLowerCase())
+      !task.title.toLowerCase().includes(appliedFilters.taskName.toLowerCase())
     ) {
       return false;
     }
     return true;
   };
-
-  const allCardsWithColumn = kanbanColumns.flatMap((column) =>
-    column.cards.map((card) => ({
-      ...card,
-      columnId: column.id,
-      columnTitle: column.title,
-    })),
-  );
 
   const handleFilterChange = (field: keyof TaskFilterState, value: string) => {
     setFilterDraft((prev) => ({ ...prev, [field]: value }));
@@ -257,7 +338,7 @@ export default function TapshiriqlarPage() {
     setIsFilterPanelOpen(false);
     dispatch(
       showNotification({
-        message: "Filtr tətbiq edildi (demo).",
+        message: "Filtr tətbiq edildi.",
         type: "success",
         autoCloseDuration: 2200,
       }),
@@ -304,19 +385,82 @@ export default function TapshiriqlarPage() {
     };
   }, [isFilterPanelOpen]);
 
-  const allFilteredCards = allCardsWithColumn.filter(matchesFilters);
+  const filteredTasks = tasks.filter(matchesFilters);
+
+  const tasksByColumn = useMemo(() => {
+    const map: Record<string, TaskDto[]> = {};
+    for (const col of BOARD_COLUMNS) map[col.id] = [];
+    for (const task of filteredTasks) {
+      const key = map[task.status] ? task.status : "todo";
+      map[key].push(task);
+    }
+    return map;
+  }, [filteredTasks]);
+
+  const confirmDelete = async () => {
+    if (taskToDelete == null) return;
+    try {
+      await deleteTaskAction(taskToDelete);
+      setTasks((prev) => prev.filter((t) => t.id !== taskToDelete));
+      dispatch(
+        showNotification({
+          message: "Tapşırıq silindi.",
+          type: "success",
+          autoCloseDuration: 2500,
+        }),
+      );
+    } catch (err) {
+      console.error(err);
+      dispatch(
+        showNotification({
+          message: "Tapşırıq silinərkən xəta baş verdi.",
+          type: "error",
+          autoCloseDuration: 3500,
+        }),
+      );
+    } finally {
+      setDeleteConfirmOpen(false);
+      setTaskToDelete(null);
+    }
+  };
+
+  if (loading) {
+    return <Loading />;
+  }
+
+  const createInitialData: TaskModalInitialData | null =
+    editingTaskId == null
+      ? {
+          title: "",
+          description: "",
+          counterparty: "",
+          author: user?.name || "",
+          executors: [],
+          deadlineDate: "",
+          deadlineTime: "",
+          deadlineUntil: "",
+          destinationColumn: createStatus,
+          recurring: false,
+          remindEnabled: false,
+          remindWhen: "same-day",
+          remindTime: "09:00",
+          checklist: [],
+        }
+      : editingTaskInitialData;
 
   return (
-    <div className={sorguLayoutStyles.container}>
-
+    <div className={`${sorguLayoutStyles.container} ${styles.pageRoot}`}>
       <TaskViewModal
+        key={editingTaskId != null ? `edit-${editingTaskId}` : `new-${createStatus}`}
         isOpen={taskModalOpen}
         onClose={() => {
           setTaskModalOpen(false);
-          setEditingTask(null);
+          setEditingTaskId(null);
         }}
         onSave={handleTaskSave}
-        initialData={editingTaskInitialData}
+        initialData={createInitialData}
+        userOptions={userOptions}
+        authorLabel={user?.name || ""}
       />
 
       <div className={sorguLayoutStyles.header}>
@@ -324,7 +468,7 @@ export default function TapshiriqlarPage() {
           <div className={sorguActionBarStyles.group}>
             <button
               type="button"
-              onClick={handleOpenCreateTask}
+              onClick={() => handleOpenCreateTask("todo")}
               className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonPrimary}`}
             >
               <FaPlus aria-hidden />
@@ -344,119 +488,141 @@ export default function TapshiriqlarPage() {
           </div>
           <div className={sorguActionBarStyles.statsGroup}>
             <span className={sorguActionBarStyles.statPill}>
-              Cəmi: {allFilteredCards.length}
+              Cəmi: {filteredTasks.length}
             </span>
-          </div>
-          <div className={sorguActionBarStyles.group}>
-            <button
-              type="button"
-              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonSecondary}`}
-            >
-              Excel-dən idxal et
-            </button>
-            <button
-              type="button"
-              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonSecondary}`}
-            >
-              Excel-ə ixrac et
-            </button>
           </div>
         </section>
       </div>
 
-      <div className={sorguLayoutStyles.body}>
-        <table className={sorguTableStyles.table}>
-          <thead className={sorguTableStyles.head}>
-            <tr>
-              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min240}`}>
-                Tapşırıq
-              </th>
-              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min150}`}>
-                Müəllif
-              </th>
-              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min170}`}>
-                İcraçı
-              </th>
-              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min150}`}>
-                Kontragent
-              </th>
-              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min140}`}>
-                Son tarix
-              </th>
-              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min140}`}>
-                Bölmə
-              </th>
-              <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>
-                Əməliyyatlar
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {allFilteredCards.length === 0 ? (
-              <tr className={sorguTableStyles.rowEven}>
-                <td
-                  className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}
-                  colSpan={7}
-                >
-                  Tapşırıq siyahısı boşdur
-                </td>
-              </tr>
-            ) : (
-              allFilteredCards.map((card, index) => (
-                <tr
-                  key={card.id}
-                  className={index % 2 === 0 ? sorguTableStyles.rowEven : sorguTableStyles.rowOdd}
-                >
-                  <td
-                    className={`${sorguTableStyles.cell} ${sorguTableStyles.bodyText} ${sorguTableStyles.center}`}
+      <div className={`${sorguLayoutStyles.body} ${styles.boardBody}`}>
+        <div className={styles.kanbanBoard}>
+          {BOARD_COLUMNS.map((column) => {
+            const columnTasks = tasksByColumn[column.id] || [];
+            return (
+              <section
+                key={column.id}
+                className={`${styles.kanbanColumn} ${styles.kanbanColumnDropZone} ${
+                  dragOverColumn === column.id ? styles.kanbanColumnActive : ""
+                }`}
+                onDragOver={(e) => onColumnDragOver(e, column.id)}
+                onDragLeave={() =>
+                  setDragOverColumn((prev) => (prev === column.id ? null : prev))
+                }
+                onDrop={(e) => onColumnDrop(e, column.id)}
+              >
+                <header className={styles.kanbanColumnHeader}>
+                  <span>{column.title}</span>
+                  <span className={styles.kanbanCount}>{columnTasks.length}</span>
+                </header>
+
+                <div className={styles.kanbanColumnBody}>
+                  <button
+                    type="button"
+                    className={styles.createTriggerButton}
+                    onClick={() => handleOpenCreateTask(column.id)}
                   >
-                    {card.title}
-                  </td>
-                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                    {card.author || <FaMinus className={sorguTableStyles.mutedText} />}
-                  </td>
-                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                    {card.executor || <FaMinus className={sorguTableStyles.mutedText} />}
-                  </td>
-                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                    {card.counterparty || <FaMinus className={sorguTableStyles.mutedText} />}
-                  </td>
-                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                    {card.deadline || <FaMinus className={sorguTableStyles.mutedText} />}
-                  </td>
-                  <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                    {card.columnTitle}
-                  </td>
-                  <td className={`${sorguTableStyles.actionCell} ${sorguTableStyles.center}`}>
-                    <div className={sorguTableStyles.actionRow}>
-                      <button
-                        type="button"
-                        className={`${sorguTableStyles.iconButton} ${sorguTableStyles.detailsButton}`}
-                        onClick={() => handleOpenEditTask(card.id, card.columnId)}
-                        title="Düzəliş et"
-                        aria-label="Düzəliş et"
-                      >
-                        <FaEdit />
-                      </button>
-                      <button
-                        type="button"
-                        className={`${sorguTableStyles.iconButton} ${sorguTableStyles.deleteButton}`}
-                        title="Sil"
-                        aria-label="Sil"
-                        onClick={() => {
-                          setTaskToDelete({ id: card.id, columnId: card.columnId });
-                          setDeleteConfirmOpen(true);
-                        }}
-                      >
-                        <FaTrash />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                    + Kart əlavə et
+                  </button>
+
+                  <div className={styles.cardStack}>
+                    {columnTasks.length === 0 ? (
+                      <p className={styles.kanbanEmptyText}>Boş</p>
+                    ) : (
+                      columnTasks.map((task) => (
+                        <article
+                          key={task.id}
+                          className={`${styles.taskCard} ${
+                            draggingId === task.id ? styles.taskCardDragging : ""
+                          }`}
+                          draggable
+                          onDragStart={(e) => onCardDragStart(e, task.id)}
+                          onDragEnd={onCardDragEnd}
+                          onDoubleClick={() => handleOpenEditTask(task.id)}
+                        >
+                          <div className={styles.taskCardTop}>
+                            <h3 className={styles.taskCardTitle} title={task.title}>
+                              {clipText(task.title, 48)}
+                            </h3>
+                            <div className={styles.taskCardActions}>
+                              <button
+                                type="button"
+                                className={styles.cardIconBtn}
+                                title="Düzəliş et"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenEditTask(task.id);
+                                }}
+                              >
+                                <FaEdit />
+                              </button>
+                              <button
+                                type="button"
+                                className={`${styles.cardIconBtn} ${styles.cardIconDanger}`}
+                                title="Sil"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTaskToDelete(task.id);
+                                  setDeleteConfirmOpen(true);
+                                }}
+                              >
+                                <FaTrash />
+                              </button>
+                            </div>
+                          </div>
+
+                          {task.description ? (
+                            <p className={styles.taskCardDesc} title={task.description}>
+                              {clipText(task.description, 80)}
+                            </p>
+                          ) : null}
+
+                          <div className={styles.ownerRow}>
+                            {ownerNames(task).length ? (
+                              ownerNames(task).map((name) => (
+                                <span
+                                  key={`${task.id}-${name}`}
+                                  className={styles.ownerBadge}
+                                  title={name}
+                                >
+                                  {clipText(name, 22)}
+                                </span>
+                              ))
+                            ) : (
+                              <span className={styles.ownerEmpty}>Təyin olunmayıb</span>
+                            )}
+                          </div>
+
+                          {task.author?.name ? (
+                            <p
+                              className={styles.taskCardMeta}
+                              title={task.author.name}
+                            >
+                              Müəllif: {clipText(task.author.name, 28)}
+                            </p>
+                          ) : null}
+                          {task.deadlineDate ? (
+                            <p className={styles.taskCardDeadline}>
+                              Son tarix: {task.deadlineDate}
+                              {task.deadlineTime ? ` ${task.deadlineTime}` : ""}
+                            </p>
+                          ) : null}
+                          {task.counterparty ? (
+                            <p
+                              className={styles.taskCardMeta}
+                              title={task.counterparty}
+                            >
+                              Kontragent: {clipText(task.counterparty, 28)}
+                            </p>
+                          ) : null}
+                        </article>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </section>
+            );
+          })}
+        </div>
       </div>
 
       <div
@@ -491,20 +657,7 @@ export default function TapshiriqlarPage() {
         title="Tapşırığı sil"
         message="Bu tapşırığı silmək istədiyinizə əminsiniz?"
         onConfirm={() => {
-          if (taskToDelete) {
-            setKanbanColumns((prev) =>
-              prev.map((column) =>
-                column.id === taskToDelete.columnId
-                  ? {
-                      ...column,
-                      cards: column.cards.filter((item) => item.id !== taskToDelete.id),
-                    }
-                  : column,
-              ),
-            );
-          }
-          setDeleteConfirmOpen(false);
-          setTaskToDelete(null);
+          void confirmDelete();
         }}
         onCancel={() => {
           setDeleteConfirmOpen(false);

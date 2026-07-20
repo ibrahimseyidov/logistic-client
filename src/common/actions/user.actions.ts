@@ -13,6 +13,21 @@ export async function fetchUsersAction(): Promise<UserRow[]> {
   return res.data;
 }
 
+/** Active users for task assignment (available to all authenticated users). */
+export async function fetchUserDirectoryAction(): Promise<
+  Array<{ id: number; name: string; email: string; role: string }>
+> {
+  const token = getAuthToken();
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  try {
+    const res = await axios.get(buildApiUrl("/api/user/directory"), { headers });
+    return Array.isArray(res.data) ? res.data : [];
+  } catch (err) {
+    console.error("Error fetching user directory", err);
+    return [];
+  }
+}
+
 export async function createUserAction(fields: any): Promise<UserRow> {
   const token = getAuthToken();
   const headers = token ? { Authorization: `Bearer ${token}` } : {};

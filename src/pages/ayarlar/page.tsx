@@ -12,6 +12,7 @@ import { LookupOptionsSection } from "./components/LookupOptionsSection";
 import { ApiLookupOptionsSection } from "./components/ApiLookupOptionsSection";
 import { UsersSection } from "./components/UsersSection";
 import { ContactPersonsSection } from "./components/ContactPersonsSection";
+import { DocumentsSection } from "./components/DocumentsSection";
 import ayarlarStyles from "./ayarlar.module.css";
 import { CONTACT_POSITIONS_LOOKUP_TYPE } from "../../common/utils/contactPosition.utils";
 
@@ -80,6 +81,8 @@ const AyarlarPage: React.FC = () => {
           seed={CARGO_TRANSPORT_OPTIONS}
         />
       )}
+
+      {activeTab === "documents" && <DocumentsSection />}
     </div>
   );
 };
