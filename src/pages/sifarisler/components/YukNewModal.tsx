@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { FiX, FiCalendar, FiClock, FiMapPin, FiPlus, FiMinus, FiUsers, FiTruck } from "react-icons/fi";
 import { FaPlane, FaShip, FaTrain, FaTruck } from "react-icons/fa";
-import { buildYukPrefillFromOrder } from "../lib/yukPrefill.utils";
+import { buildYukPrefillFromOrder, enrichPlaceFields, resolveTransportFromOrder } from "../lib/yukPrefill.utils";
 
 interface Props {
   isOpen: boolean;
@@ -221,37 +221,98 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad, orde
     }
   ]);
 
+  const [activeTransport, setActiveTransport] = useState<string>("truck");
+
   useEffect(() => {
     if (isOpen && editLoad) {
+      const query = orderContext?.query || {};
       setName(editLoad.name || "");
       setContainerNumber(editLoad.containerNumber || "");
       setLoadingNumber(editLoad.rawPayload?.loadingNumber || editLoad.loadingNumber || "");
       setTemperature(editLoad.rawPayload?.temperature || editLoad.temperature || "");
       setIsIncomplete(editLoad.rawPayload?.isIncomplete || editLoad.isIncomplete || false);
-      if (editLoad.rawPayload?.loadingPlaces) {
-        setLoadingPlaces(editLoad.rawPayload.loadingPlaces);
-      } else {
-        setLoadingPlaces([
-          {
-            id: "lp-1",
-            startDate: editLoad.loadDate && editLoad.loadDate !== "—" ? editLoad.loadDate : "", endDate: "", startTime: "", endTime: "", coords: "",
-            company: editLoad.sender !== "—" ? editLoad.sender : "", country: "Dəyəri seçin", sender: editLoad.sender !== "—" ? editLoad.sender : "Dəyəri seçin",
-            city: "", postal: "", address: editLoad.loadPlace !== "—" ? editLoad.loadPlace : "", contact: "", saveTerminal: false
-          }
-        ]);
-      }
-      if (editLoad.rawPayload?.unloadingPlaces) {
-        setUnloadingPlaces(editLoad.rawPayload.unloadingPlaces);
-      } else {
-        setUnloadingPlaces([
-          {
-            id: "up-1",
-            startDate: editLoad.unloadDate && editLoad.unloadDate !== "—" ? editLoad.unloadDate : "", endDate: "", startTime: "", endTime: "", coords: "",
-            company: editLoad.receiver !== "—" ? editLoad.receiver : "", country: "Dəyəri seçin", receiver: editLoad.receiver !== "—" ? editLoad.receiver : "Dəyəri seçin",
-            city: "", postal: "", address: editLoad.unloadPlace !== "—" ? editLoad.unloadPlace : "", contact: "", saveTerminal: false
-          }
-        ]);
-      }
+      setActiveTransport(resolveTransportFromOrder(orderContext, editLoad));
+
+      const baseLoading = Array.isArray(editLoad.rawPayload?.loadingPlaces) &&
+        editLoad.rawPayload.loadingPlaces.length > 0
+        ? editLoad.rawPayload.loadingPlaces
+        : [
+            {
+              id: "lp-1",
+              startDate: editLoad.loadDate && editLoad.loadDate !== "—" ? editLoad.loadDate : "",
+              endDate: "",
+              startTime: "",
+              endTime: "",
+              coords: "",
+              company: editLoad.sender !== "—" ? editLoad.sender : "",
+              country: "Dəyəri seçin",
+              sender: editLoad.sender !== "—" ? editLoad.sender : "Dəyəri seçin",
+              city: "",
+              postal: "",
+              address: editLoad.loadPlace !== "—" ? editLoad.loadPlace : "",
+              contact: "",
+              saveTerminal: false,
+            },
+          ];
+
+      const enrichedLoading = baseLoading.map((lp: any, idx: number) =>
+        enrichPlaceFields(lp, {
+          company: query.loadPlaceCompany || query.sender || editLoad.sender,
+          city: query.loadCity,
+          country: query.loadCountry,
+          postal: query.loadPostal,
+          address: query.loadAddress,
+          contact: query.contactPerson || orderContext?.contactPerson,
+          coords: query.loadCoordinates,
+          sender: query.sender || editLoad.sender,
+          composite:
+            idx === 0
+              ? editLoad.loadPlace || query.loadPlace || query.loadAddress
+              : lp.address,
+        }),
+      );
+      setLoadingPlaces(enrichedLoading);
+
+      const baseUnloading = Array.isArray(editLoad.rawPayload?.unloadingPlaces) &&
+        editLoad.rawPayload.unloadingPlaces.length > 0
+        ? editLoad.rawPayload.unloadingPlaces
+        : [
+            {
+              id: "up-1",
+              startDate: editLoad.unloadDate && editLoad.unloadDate !== "—" ? editLoad.unloadDate : "",
+              endDate: "",
+              startTime: "",
+              endTime: "",
+              coords: "",
+              company: editLoad.receiver !== "—" ? editLoad.receiver : "",
+              country: "Dəyəri seçin",
+              receiver: editLoad.receiver !== "—" ? editLoad.receiver : "Dəyəri seçin",
+              city: "",
+              postal: "",
+              address: editLoad.unloadPlace !== "—" ? editLoad.unloadPlace : "",
+              contact: "",
+              saveTerminal: false,
+            },
+          ];
+
+      const enrichedUnloading = baseUnloading.map((up: any, idx: number) =>
+        enrichPlaceFields(up, {
+          company: query.unloadPlaceCompany || query.recipient || editLoad.receiver,
+          city: query.unloadCity,
+          country: query.unloadCountry,
+          postal: query.unloadPostal,
+          address: query.unloadAddress,
+          contact: query.contactPerson || orderContext?.contactPerson,
+          coords: query.unloadCoordinates,
+          receiver: query.recipient || editLoad.receiver,
+          composite:
+            idx === 0
+              ? editLoad.unloadPlace || query.unloadPlace || query.unloadAddress
+              : up.address,
+        }),
+      );
+      setUnloadingPlaces(enrichedUnloading);
+
       if (editLoad.rawPayload?.loadingCustoms) {
         setLoadingCustoms(editLoad.rawPayload.loadingCustoms);
       }
@@ -261,6 +322,39 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad, orde
       if (editLoad.rawPayload?.parameters) {
         setParameters(editLoad.rawPayload.parameters);
       }
+
+      const countrySet = new Set(
+        [
+          "Azərbaycan",
+          "Almaniya",
+          "Türkiyə",
+          "Gürcüstan",
+          "Çin",
+          ...enrichedLoading.map((p: any) => p.country),
+          ...enrichedUnloading.map((p: any) => p.country),
+        ].filter((c) => c && c !== "Dəyəri seçin"),
+      );
+      setCountries(Array.from(countrySet));
+      setSenders(
+        Array.from(
+          new Set(
+            [
+              ...enrichedLoading.map((p: any) => p.company),
+              ...enrichedLoading.map((p: any) => p.sender),
+            ].filter((v) => v && v !== "Dəyəri seçin"),
+          ),
+        ),
+      );
+      setReceivers(
+        Array.from(
+          new Set(
+            [
+              ...enrichedUnloading.map((p: any) => p.company),
+              ...enrichedUnloading.map((p: any) => p.receiver),
+            ].filter((v) => v && v !== "Dəyəri seçin"),
+          ),
+        ),
+      );
     } else if (isOpen && !editLoad) {
       const prefill = orderContext
         ? buildYukPrefillFromOrder(orderContext, orderContext.voyage)
@@ -280,7 +374,10 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad, orde
         setCountries(prefill.countries);
         setSenders(prefill.senders);
         setReceivers(prefill.receivers);
-        setActiveTransport(prefill.activeTransport);
+        setActiveTransport(
+          prefill.activeTransport ||
+            resolveTransportFromOrder(orderContext),
+        );
       } else {
         setName("");
         setContainerNumber("");
@@ -321,7 +418,7 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad, orde
         setCountries(["Azərbaycan", "Almaniya", "Türkiyə", "Gürcüstan"]);
         setSenders([]);
         setReceivers([]);
-        setActiveTransport("truck");
+        setActiveTransport(resolveTransportFromOrder(orderContext) || "truck");
       }
     }
   }, [isOpen, editLoad, orderContext]);
@@ -332,7 +429,6 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad, orde
   const [receivers, setReceivers] = useState<string[]>(["Ziyafreight Receiver", "Baku Retail Group", "Azeri Logistics"]);
 
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
-  const [activeTransport, setActiveTransport] = useState<string>("truck");
 
   // Add Handlers
   const addLoadingPlace = () => {
@@ -816,31 +912,11 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad, orde
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b" }}>Konteynerin nömrəsi</label>
+              <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b" }}>Truck nömrəsi</label>
               <input
                 type="text"
                 value={containerNumber}
                 onChange={(e) => setContainerNumber(e.target.value)}
-                style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", color: "#1e293b", outline: "none", width: "100%", boxSizing: "border-box" }}
-              />
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b" }}>Yükləmə nömrəsi</label>
-              <input
-                type="text"
-                value={loadingNumber}
-                onChange={(e) => setLoadingNumber(e.target.value)}
-                style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", color: "#1e293b", outline: "none", width: "100%", boxSizing: "border-box" }}
-              />
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b" }}>Temperatur</label>
-              <input
-                type="text"
-                value={temperature}
-                onChange={(e) => setTemperature(e.target.value)}
                 style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", color: "#1e293b", outline: "none", width: "100%", boxSizing: "border-box" }}
               />
             </div>
@@ -929,32 +1005,6 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad, orde
                   <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1.2fr 1fr 0.9fr 1.5fr", gap: "1rem" }}>
                     {/* Column 1 */}
                     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Tarix</label>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.375rem" }}>
-                          <div style={{ position: "relative" }}>
-                            <input
-                              type="text"
-                              placeholder="Tarixindən"
-                              value={lp.startDate}
-                              onChange={(e) => updateLoadingPlace(lp.id, "startDate", e.target.value)}
-                              style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.5rem 0.45rem 1.85rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box", outline: "none" }}
-                            />
-                            <FiCalendar style={{ position: "absolute", left: "0.55rem", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: "0.9rem" }} />
-                          </div>
-                          <div style={{ position: "relative" }}>
-                            <input
-                              type="text"
-                              placeholder="Tarixinə qədər"
-                              value={lp.endDate}
-                              onChange={(e) => updateLoadingPlace(lp.id, "endDate", e.target.value)}
-                              style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.5rem 0.45rem 1.85rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box", outline: "none" }}
-                            />
-                            <FiCalendar style={{ position: "absolute", left: "0.55rem", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: "0.9rem" }} />
-                          </div>
-                        </div>
-                      </div>
-
                       <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
                         <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Vaxt</label>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.375rem" }}>
@@ -1302,32 +1352,6 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad, orde
                   <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1.2fr 1fr 0.9fr 1.5fr", gap: "1rem" }}>
                     {/* Column 1 */}
                     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Tarix</label>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.375rem" }}>
-                          <div style={{ position: "relative" }}>
-                            <input
-                              type="text"
-                              placeholder="Tarixindən"
-                              value={up.startDate}
-                              onChange={(e) => updateUnloadingPlace(up.id, "startDate", e.target.value)}
-                              style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.5rem 0.45rem 1.85rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box", outline: "none" }}
-                            />
-                            <FiCalendar style={{ position: "absolute", left: "0.55rem", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: "0.9rem" }} />
-                          </div>
-                          <div style={{ position: "relative" }}>
-                            <input
-                              type="text"
-                              placeholder="Tarixinə qədər"
-                              value={up.endDate}
-                              onChange={(e) => updateUnloadingPlace(up.id, "endDate", e.target.value)}
-                              style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.5rem 0.45rem 1.85rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box", outline: "none" }}
-                            />
-                            <FiCalendar style={{ position: "absolute", left: "0.55rem", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: "0.9rem" }} />
-                          </div>
-                        </div>
-                      </div>
-
                       <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
                         <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Vaxt</label>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.375rem" }}>

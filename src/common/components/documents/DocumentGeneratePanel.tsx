@@ -91,6 +91,14 @@ export default function DocumentGeneratePanel({
     [placeholders, scope],
   );
 
+  const visibleTemplates = useMemo(() => {
+    if (scope !== "order") return templates;
+    // Sifarişdə yalnız order şablonları — Request / Daşıma sorğuya məxsusdur
+    return templates.filter(
+      (t) => t.code !== "request" && t.code !== "shipping_info",
+    );
+  }, [templates, scope]);
+
   const handleGenerate = async (template: DocumentTemplate) => {
     if (scope === "query" && !queryId) {
       dispatch(
@@ -297,7 +305,7 @@ export default function DocumentGeneratePanel({
             gap: "0.85rem",
           }}
         >
-          {templates.map((tpl) => (
+          {visibleTemplates.map((tpl) => (
             <div
               key={tpl.id}
               style={{

@@ -60,6 +60,12 @@ export default function PriceOfferSelectionModal({ isOpen, onClose, query, onApp
                   <div className={styles.offerProvider}>{offer.carrierName || "Daşıyıcı"}</div>
                   <div className={styles.offerStats}>
                     <span><strong>Qiymət:</strong> {offer.price || 0} {offer.currency || "USD"}</span>
+                    {offer.expense ? (
+                      <span><strong>Xərc:</strong> {offer.expense} {offer.currency || "USD"}</span>
+                    ) : null}
+                    {offer.salesPrice ? (
+                      <span><strong>Satış:</strong> {offer.salesPrice} {offer.currency || "USD"}</span>
+                    ) : null}
                     {offer.notes && <span><strong>Qeyd:</strong> {offer.notes}</span>}
                   </div>
                 </div>

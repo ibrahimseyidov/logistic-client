@@ -8,6 +8,27 @@ interface Props {
   onClose: () => void;
   onConfirm: (payload: any) => void;
   editVoyage?: any;
+  availableLoads?: Array<{
+    id: string | number;
+    name?: string;
+    number?: string;
+    containerNumber?: string;
+    params?: string;
+    packagingType?: string;
+    sender?: string;
+    receiver?: string;
+    loadPlace?: string;
+    unloadPlace?: string;
+    status?: string;
+    weightKg?: number;
+    volumeM3?: number;
+    ldm?: number;
+    loadDate?: string;
+    unloadDate?: string;
+    voyageId?: string | number | null;
+    rawPayload?: any;
+  }>;
+  orderNumber?: string;
 }
 
 // Reusable label component with inline [+] trigger
@@ -88,8 +109,16 @@ function SquarePlusTrigger({ label, onClick }: { label: string; onClick: () => v
   );
 }
 
-export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }: Props) {
+export default function ReysEditModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  editVoyage,
+  availableLoads = [],
+  orderNumber = "",
+}: Props) {
   const [activeTab, setActiveTab] = useState<"general" | "routes">("general");
+  const [selectedLoadIds, setSelectedLoadIds] = useState<string[]>([]);
 
   // Tab 1: General States
   const [expeditor, setExpeditor] = useState("Ulvi Adilzade");
@@ -294,6 +323,27 @@ export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }
         setUpCountry(up.country || "Dəyəri seçin");
         setUpReceiver(up.receiver || "Dəyəri seçin");
       }
+
+      const voyageId = String(editVoyage.id ?? "");
+      const fromPayload = Array.isArray(payload.selectedLoadIds)
+        ? payload.selectedLoadIds.map((id: any) => String(id))
+        : [];
+      const linked = availableLoads
+        .filter(
+          (l) =>
+            l.voyageId != null &&
+            String(l.voyageId) === voyageId,
+        )
+        .map((l) => String(l.id));
+      const initialSelected =
+        fromPayload.length > 0
+          ? fromPayload
+          : linked.length > 0
+            ? linked
+            : availableLoads.length === 1
+              ? [String(availableLoads[0].id)]
+              : [];
+      setSelectedLoadIds(initialSelected);
     } else if (isOpen && !editVoyage) {
       // Clear values to defaults
       setExpeditor("Ulvi Adilzade");
@@ -319,8 +369,75 @@ export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }
       setDriverPassport("");
       setLpStartDate(""); setLpEndDate(""); setLpCompany(""); setLpCity(""); setLpAddress(""); setLpCountry("Dəyəri seçin"); setLpSender("Dəyəri seçin");
       setUpStartDate(""); setUpEndDate(""); setUpCompany(""); setUpCity(""); setUpAddress(""); setUpCountry("Dəyəri seçin"); setUpReceiver("Dəyəri seçin");
+      setSelectedLoadIds(
+        availableLoads.length === 1 ? [String(availableLoads[0].id)] : [],
+      );
     }
-  }, [isOpen, editVoyage]);
+  }, [isOpen, editVoyage, availableLoads]);
+
+  const selectedLoads = useMemo(
+    () =>
+      availableLoads.filter((l) => selectedLoadIds.includes(String(l.id))),
+    [availableLoads, selectedLoadIds],
+  );
+
+  const selectedTotals = useMemo(() => {
+    return selectedLoads.reduce(
+      (acc, l) => ({
+        weight: acc.weight + (Number(l.weightKg) || 0),
+        ldm: acc.ldm + (Number(l.ldm) || 0),
+        volume: acc.volume + (Number(l.volumeM3) || 0),
+      }),
+      { weight: 0, ldm: 0, volume: 0 },
+    );
+  }, [selectedLoads]);
+
+  const toggleLoadSelected = (id: string) => {
+    setSelectedLoadIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const toggleSelectAllLoads = () => {
+    if (
+      availableLoads.length > 0 &&
+      selectedLoadIds.length === availableLoads.length
+    ) {
+      setSelectedLoadIds([]);
+    } else {
+      setSelectedLoadIds(availableLoads.map((l) => String(l.id)));
+    }
+  };
+
+  const copyRouteFromSelectedLoad = () => {
+    const load = selectedLoads[0] || availableLoads.find((l) => selectedLoadIds.includes(String(l.id)));
+    if (!load) {
+      alert("Əvvəlcə daşınacaq yükü seçin!");
+      return;
+    }
+    const raw = load.rawPayload || {};
+    const firstLp =
+      (Array.isArray(raw.loadingPlaces) && raw.loadingPlaces[0]) || null;
+    const firstUp =
+      (Array.isArray(raw.unloadingPlaces) && raw.unloadingPlaces[0]) || null;
+
+    setLpCompany(String(firstLp?.company || load.sender || "").trim());
+    setLpCity(String(firstLp?.city || "").trim());
+    setLpAddress(String(firstLp?.address || load.loadPlace || "").trim());
+    setLpCountry(String(firstLp?.country || "Dəyəri seçin").trim() || "Dəyəri seçin");
+    setLpSender(String(firstLp?.sender || load.sender || "Dəyəri seçin").trim() || "Dəyəri seçin");
+    setLpStartDate(String(firstLp?.startDate || load.loadDate || "").trim());
+
+    setUpCompany(String(firstUp?.company || load.receiver || "").trim());
+    setUpCity(String(firstUp?.city || "").trim());
+    setUpAddress(String(firstUp?.address || load.unloadPlace || "").trim());
+    setUpCountry(String(firstUp?.country || "Dəyəri seçin").trim() || "Dəyəri seçin");
+    setUpReceiver(String(firstUp?.receiver || load.receiver || "Dəyəri seçin").trim() || "Dəyəri seçin");
+    setUpStartDate(String(firstUp?.startDate || load.unloadDate || "").trim());
+
+    setIsLpOpen(true);
+    setIsUpOpen(true);
+  };
 
   // 1. Yeni Daşıyıcı Save Handler
   const handleSaveCarrier = () => {
@@ -429,6 +546,14 @@ export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }
     const calculatedAznPrice = aznAmount.toFixed(2);
     const formattedPriceString = `${price} ${currency} ƏDV ilə (${calculatedAznPrice} AZN ƏDV ilə)`;
 
+    const selectedNames = selectedLoads
+      .map((l) => l.name || l.number || `Y-${l.id}`)
+      .filter(Boolean);
+    const loadsLabel =
+      selectedNames.length > 0
+        ? `${voyageNumber.trim()} - ${selectedNames.join(", ")}`
+        : `${voyageNumber.trim()}`;
+
     onConfirm({
       number: voyageNumber.trim(),
       tags: tags !== "Dəyəri seçin" ? tags : "",
@@ -445,7 +570,8 @@ export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }
       carNumber: vehicleNumber || "—",
       expeditor,
       invoices: "",
-      loads: `${voyageNumber.trim()} - Dental Goods`,
+      loads: loadsLabel,
+      selectedLoadIds,
       rawPayload: {
         expeditor,
         carrierCompany,
@@ -469,6 +595,7 @@ export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }
         driverSurname,
         driverPhone,
         driverPassport,
+        selectedLoadIds,
         loadingPlaces: [
           {
             startDate: lpStartDate,
@@ -864,7 +991,17 @@ export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem", textAlign: "left" }}>
                   <thead>
                     <tr style={{ background: "#eff6ff", borderBottom: "1px solid #e2e8f0" }}>
-                      <th style={{ padding: "0.6rem 0.85rem" }}><input type="checkbox" defaultChecked /></th>
+                      <th style={{ padding: "0.6rem 0.85rem" }}>
+                        <input
+                          type="checkbox"
+                          checked={
+                            availableLoads.length > 0 &&
+                            selectedLoadIds.length === availableLoads.length
+                          }
+                          onChange={toggleSelectAllLoads}
+                          title="Hamısını seç"
+                        />
+                      </th>
                       <th style={{ padding: "0.6rem 0.85rem", color: "#475569", fontWeight: 600 }}>Yükün adı</th>
                       <th style={{ padding: "0.6rem 0.85rem", color: "#475569", fontWeight: 600 }}>Yükün nömrəsi</th>
                       <th style={{ padding: "0.6rem 0.85rem", color: "#475569", fontWeight: 600 }}>Konteynerin nömrəsi</th>
@@ -876,17 +1013,67 @@ export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }
                     </tr>
                   </thead>
                   <tbody>
-                    <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                      <td style={{ padding: "0.6rem 0.85rem" }}><input type="checkbox" defaultChecked /></td>
-                      <td style={{ padding: "0.6rem 0.85rem", color: "#3b82f6", fontWeight: 700 }}>Dental Goods</td>
-                      <td style={{ padding: "0.6rem 0.85rem", fontWeight: 600 }}>ZF26094-1</td>
-                      <td style={{ padding: "0.6rem 0.85rem" }}>—</td>
-                      <td style={{ padding: "0.6rem 0.85rem", fontWeight: 600 }}>0 m3 / 533 kq</td>
-                      <td style={{ padding: "0.6rem 0.85rem" }}>—</td>
-                      <td style={{ padding: "0.6rem 0.85rem", color: "#9333ea", fontWeight: 700 }}>ZF26094</td>
-                      <td style={{ padding: "0.6rem 0.85rem" }}>CN, Changzhou...</td>
-                      <td style={{ padding: "0.6rem 0.85rem", color: "#475569" }}>Yüklənmədə</td>
-                    </tr>
+                    {availableLoads.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} style={{ padding: "1rem 0.85rem", color: "#64748b" }}>
+                          Bu sifarişdə seçilə bilən yük yoxdur.
+                        </td>
+                      </tr>
+                    ) : (
+                      availableLoads.map((load) => {
+                        const id = String(load.id);
+                        const checked = selectedLoadIds.includes(id);
+                        const route = [load.loadPlace, load.unloadPlace]
+                          .map((x) => String(x || "").trim())
+                          .filter((x) => x && x !== "—")
+                          .join(" → ") || "—";
+                        const dims = `${Number(load.volumeM3) || 0} m³ / ${Number(load.weightKg) || 0} kq`;
+                        return (
+                          <tr
+                            key={id}
+                            style={{
+                              borderBottom: "1px solid #e2e8f0",
+                              background: checked ? "#f0fdf4" : "#ffffff",
+                            }}
+                          >
+                            <td style={{ padding: "0.6rem 0.85rem" }}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleLoadSelected(id)}
+                                title="Bu yükü reysə bağla"
+                              />
+                            </td>
+                            <td style={{ padding: "0.6rem 0.85rem", color: "#3b82f6", fontWeight: 700 }}>
+                              {load.name || "—"}
+                            </td>
+                            <td style={{ padding: "0.6rem 0.85rem", fontWeight: 600 }}>
+                              {load.number || `Y-${load.id}`}
+                            </td>
+                            <td style={{ padding: "0.6rem 0.85rem" }}>
+                              {load.containerNumber && load.containerNumber !== "—"
+                                ? load.containerNumber
+                                : "—"}
+                            </td>
+                            <td style={{ padding: "0.6rem 0.85rem", fontWeight: 600 }}>{dims}</td>
+                            <td style={{ padding: "0.6rem 0.85rem" }}>
+                              {load.packagingType && load.packagingType !== "—"
+                                ? load.packagingType
+                                : "—"}
+                            </td>
+                            <td style={{ padding: "0.6rem 0.85rem", color: "#9333ea", fontWeight: 700 }}>
+                              {orderNumber || "—"}
+                            </td>
+                            <td style={{ padding: "0.6rem 0.85rem" }} title={route}>
+                              {route.length > 28 ? `${route.slice(0, 28)}...` : route}
+                            </td>
+                            <td style={{ padding: "0.6rem 0.85rem", color: "#475569" }}>
+                              {load.status || "—"}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -895,6 +1082,7 @@ export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <button
                   type="button"
+                  onClick={copyRouteFromSelectedLoad}
                   style={{
                     background: "#22c55e",
                     border: 0,
@@ -910,7 +1098,16 @@ export default function ReysEditModal({ isOpen, onClose, onConfirm, editVoyage }
                 </button>
 
                 <span style={{ fontSize: "0.8rem", color: "#475569", fontWeight: 600 }}>
-                  Ümumi ölçü: <span style={{ fontWeight: 700 }}>Çəkisi: 533; LDM: 0 m; Həcmi: 0 m3</span>
+                  Ümumi ölçü:{" "}
+                  <span style={{ fontWeight: 700 }}>
+                    Çəkisi: {selectedTotals.weight}; LDM: {selectedTotals.ldm} m; Həcmi:{" "}
+                    {selectedTotals.volume} m3
+                  </span>
+                  {selectedLoadIds.length > 0 && (
+                    <span style={{ marginLeft: "0.5rem", color: "#16a34a" }}>
+                      ({selectedLoadIds.length} yük seçilib)
+                    </span>
+                  )}
                 </span>
               </div>
 

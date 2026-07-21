@@ -40,6 +40,16 @@ export interface SifarisOrderRow {
   voyageNumber: string;
   route: string;
   cargoParams: string;
+  cargoItems?: Array<{
+    id?: string | number;
+    name: string;
+    weight?: string | number | null;
+    ldm?: string | number | null;
+    volume?: string | number | null;
+    transportType?: string | null;
+    cargoValue?: string | number | null;
+    currency?: string | null;
+  }>;
   freight: string;
   extraCosts: string;
   profit: string;

@@ -7,6 +7,7 @@ import StatusBadge from "../../../common/components/StatusBadge";
 import type { OrderStatusKind, SifarisOrderRow } from "../types/sifaris.types";
 import { CUSTOMER_OPTIONS } from "../../sorgular/constants/options.constants";
 import { formatDateOnly } from "../lib/formatDate";
+import { getCargoTransportLabel } from "../lib/orderCargoDisplay";
 import styles from "./SifarisTable.module.css";
 
 
@@ -390,9 +391,65 @@ export default function SifarisTable({
               {row.route}
             </td>
             <td
-              className={`${styles.cell} ${styles.mutedText} ${styles.preLine} ${styles.smallText} ${styles.max240} ${styles.center}`}
+              className={`${styles.cell} ${styles.bodyText} ${styles.smallText} ${styles.max240}`}
             >
-              {row.cargoParams ? row.cargoParams.replace(/\n?Say:\s*\d+/gi, "") : ""}
+              {Array.isArray(row.cargoItems) && row.cargoItems.length > 0 ? (
+                <div style={{ textAlign: "left" }}>
+                  {row.cargoItems.map((item, idx) => (
+                    <div
+                      key={item.id ?? idx}
+                      style={{
+                        marginBottom:
+                          idx < row.cargoItems!.length - 1 ? "8px" : 0,
+                        paddingBottom:
+                          idx < row.cargoItems!.length - 1 ? "6px" : 0,
+                        borderBottom:
+                          idx < row.cargoItems!.length - 1
+                            ? "1px dashed #e2e8f0"
+                            : "none",
+                      }}
+                    >
+                      <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                        {item.name || "Adsız yük"}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "#64748b",
+                          marginTop: "2px",
+                        }}
+                      >
+                        {[
+                          item.weight ? `${item.weight} kq` : "",
+                          item.ldm ? `LDM: ${item.ldm}` : "",
+                          item.volume ? `${item.volume} m³` : "",
+                          item.transportType
+                            ? getCargoTransportLabel(String(item.transportType))
+                            : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" | ")}
+                      </div>
+                      {(item.cargoValue || item.currency) && (
+                        <div
+                          style={{
+                            fontSize: "0.72rem",
+                            color: "#2563eb",
+                            marginTop: "2px",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {item.cargoValue || "0"} {item.currency || ""}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : row.cargoParams && row.cargoParams !== "—" ? (
+                row.cargoParams.replace(/\n?Say:\s*\d+/gi, "")
+              ) : (
+                "—"
+              )}
             </td>
             <td
               className={`${styles.cell} ${styles.bodyText} ${styles.nowrap}`}

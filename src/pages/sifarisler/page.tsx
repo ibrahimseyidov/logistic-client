@@ -99,6 +99,12 @@ import type {
 import { emptyEmekFilter } from "./types/emek.types";
 import axios from "axios";
 import { fetchCustomersAction } from "../../common/actions/customer.actions";
+import {
+  formatCargoParamsText,
+  resolveOrderCargoItems,
+  sumOrderCargoTotals,
+} from "./lib/orderCargoDisplay";
+import { resolveOfferExpenseFallbackAzn } from "./lib/offerExpense.utils";
 
 const YUK_ACCOUNT_OPTIONS: SelectOption[] = [
   { value: "", label: "Təfərrüatlı hesab irəli sür" },
@@ -149,7 +155,8 @@ export default function SifarislerPage() {
           const res = await axios.get(ENDPOINTS.ORDERS.BASE, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } }).catch(() => ({ data: [] }));
           const mapped = (res.data || []).map((o: any) => {
             const voyages = o.voyages || [];
-            const loads = o.loads || [];
+            const cargoItems = resolveOrderCargoItems(o);
+            const totals = sumOrderCargoTotals(o);
             return {
               ...o,
               queryNumber: o.query?.number || "—",
@@ -160,8 +167,34 @@ export default function SifarislerPage() {
               voyageNumber: voyages.length > 0 ? voyages.map((v: any) => v.tripRef || (v.id ? `R-${v.id}` : "—")).join(", ") : "—",
               carriers: voyages.length > 0 ? voyages.map((v: any) => v.carrier || "—").join(", ") : "—",
               route: voyages.length > 0 ? voyages.map((v: any) => `${v.loading || "—"} → ${v.unloading || "—"}`).join(" | ") : "—",
-              cargoParams: loads.length > 0 ? loads.map((l: any) => l.cargoName || "—").join(", ") : "—",
-              freight: o.freight ? o.freight.split(" + ")[0] : "—"
+              cargoItems,
+              cargoParams: formatCargoParamsText(cargoItems),
+              weightKg: totals.weightKg || Number(o.weightKg) || 0,
+              volumeM3: totals.volumeM3 || Number(o.volumeM3) || 0,
+              ldm: totals.ldm || Number(o.ldm) || 0,
+              freight: o.freight ? o.freight.split(" + ")[0] : "—",
+              extraCosts: (() => {
+                if (o.extraCosts) return o.extraCosts;
+                const azn = resolveOfferExpenseFallbackAzn({
+                  order: o,
+                  voyages: voyages,
+                  financeTransactions: [],
+                });
+                return azn > 0 ? `${azn.toFixed(2)} AZN` : "—";
+              })(),
+              profit: (() => {
+                if (o.profit) return o.profit;
+                const freightAzn = Number(o.freightAzn) || 0;
+                const expAzn = resolveOfferExpenseFallbackAzn({
+                  order: o,
+                  voyages: voyages,
+                  financeTransactions: [],
+                });
+                if (freightAzn > 0 || expAzn > 0) {
+                  return `${(freightAzn - expAzn).toFixed(2)} AZN`;
+                }
+                return o.profit || "—";
+              })(),
             };
           });
           setOrders(mapped);

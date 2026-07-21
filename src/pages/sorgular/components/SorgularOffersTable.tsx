@@ -67,6 +67,25 @@ function getCustomerFullName(row: LogisticQueryRow, customers?: any[]) {
   return "";
 }
 
+function getLoadPlaceLabel(row: LogisticQueryRow) {
+  const anyRow = row as any;
+  const toText = (value: unknown) =>
+    typeof value === "string" ? value.trim() : "";
+
+  const city = toText(anyRow.loadCity);
+  const country = toText(anyRow.loadCountry);
+  const fromParts = [city, country].filter(Boolean).join(", ");
+  if (fromParts) return fromParts;
+
+  const loadPlace = toText(anyRow.loadPlace);
+  if (loadPlace) return loadPlace;
+
+  const company = toText(anyRow.loadPlaceCompany);
+  if (company) return company;
+
+  return "—";
+}
+
 export const SorgularOffersTable: React.FC<Props> = ({ rows, customers, onDeleteOffer, onEditQuery }) => {
   return (
     <div className={styles.tableWrapper}>
@@ -81,7 +100,7 @@ export const SorgularOffersTable: React.FC<Props> = ({ rows, customers, onDelete
               <th className={styles.headerCell}>Satış qiyməti</th>
               <th className={styles.headerCell}>Müştəri</th>
               <th className={styles.headerCell}>Satıcı</th>
-              <th className={styles.headerCell}>Yükləmə / Boşaltma</th>
+              <th className={styles.headerCell}>Yükləmə</th>
               <th className={styles.headerCell}>Tarix</th>
               <th className={styles.headerCell}>Əməliyyatlar</th>
             </tr>
@@ -102,11 +121,8 @@ export const SorgularOffersTable: React.FC<Props> = ({ rows, customers, onDelete
                   <td className={styles.cell} style={{ textAlign: "center", color: "#2563eb", fontWeight: 700 }}>{row.offerItem?.salesPrice || "—"}</td>
                   <td className={styles.cell} style={{ textAlign: "center" }}>{getCustomerFullName(row, customers)}</td>
                   <td className={styles.cell} style={{ textAlign: "center" }}>{row.seller || row.createdByName || "—"}</td>
-                  <td className={styles.cell} style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: "0.85rem" }}>
-                      <div style={{ fontWeight: 500 }}>{row.loadPlace}</div>
-                      <div style={{ color: "#94a3b8" }}>{row.unloadPlace}</div>
-                    </div>
+                  <td className={styles.cell} style={{ textAlign: "center", fontWeight: 500 }}>
+                    {getLoadPlaceLabel(row)}
                   </td>
                   <td className={styles.cell} style={{ textAlign: "center" }}>{new Date(row.offerItem?.createdAt || row.createdAt).toLocaleDateString("az-AZ")}</td>
                   <td className={styles.cell}>

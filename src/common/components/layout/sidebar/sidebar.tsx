@@ -63,16 +63,6 @@ const NAV_SECTIONS: NavSection[] = [
         label: "Sifarişlər",
         icon: <FaShoppingCart />,
         to: "/sifarisler",
-        children: [
-          { to: "/sifarisler?tab=orders", label: "Sifarişlər", matchTab: "orders" },
-          { to: "/sifarisler?tab=loads", label: "Yüklər", matchTab: "loads" },
-          { to: "/sifarisler?tab=voyages", label: "Reyslər", matchTab: "voyages" },
-          {
-            to: "/sifarisler?tab=payroll",
-            label: "Əmək haqqının hesablanması",
-            matchTab: "payroll",
-          },
-        ],
       },
     ],
   },
