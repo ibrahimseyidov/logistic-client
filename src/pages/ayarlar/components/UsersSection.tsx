@@ -14,6 +14,7 @@ import ayarlarStyles from "../ayarlar.module.css";
 import type { UserRow } from "../types/user.types";
 import { AyarlarToolbar } from "./AyarlarToolbar";
 import { UserModal } from "./UserModal";
+import { UserPermissionsModal } from "./UserPermissionsModal";
 import { UsersTable } from "./UsersTable";
 
 export const UsersSection: React.FC = () => {
@@ -21,6 +22,7 @@ export const UsersSection: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
+  const [permissionsUser, setPermissionsUser] = useState<UserRow | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -57,6 +59,10 @@ export const UsersSection: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  const handlePermissions = (user: UserRow) => {
+    setPermissionsUser(user);
+  };
+
   const handleDelete = (id: number) => {
     setUserToDelete(id);
     setDeleteConfirmOpen(true);
@@ -88,14 +94,22 @@ export const UsersSection: React.FC = () => {
     status: string;
   }) => {
     try {
+      const payload: Record<string, unknown> = {
+        name: data.name,
+        email: data.email,
+        status: data.status,
+        role: data.role || "operator",
+      };
+      if (data.password?.trim()) payload.password = data.password;
+
       if (selectedUser) {
-        const updated = await updateUserAction(selectedUser.id, data);
-        setUsers(users.map((u) => (u.id === selectedUser.id ? updated : u)));
+        const updated = await updateUserAction(selectedUser.id, payload);
+        setUsers(users.map((u) => (u.id === selectedUser.id ? { ...u, ...updated } : u)));
         dispatch(
           showNotification({ message: "İstifadəçi yeniləndi", type: "success" }),
         );
       } else {
-        const created = await createUserAction(data);
+        const created = await createUserAction(payload);
         setUsers([created, ...users]);
         dispatch(
           showNotification({
@@ -120,6 +134,36 @@ export const UsersSection: React.FC = () => {
           ? error.response.data.error
           : "Xəta baş verdi!";
       dispatch(showNotification({ message, type: "error" }));
+    }
+  };
+
+  const handleSavePermissions = async (permissionsJson: string) => {
+    if (!permissionsUser) return;
+    try {
+      const updated = await updateUserAction(permissionsUser.id, {
+        permissions: permissionsJson,
+      });
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === permissionsUser.id
+            ? { ...u, ...updated, permissions: permissionsJson }
+            : u,
+        ),
+      );
+      dispatch(
+        showNotification({
+          message: "İcazələr yadda saxlanıldı",
+          type: "success",
+        }),
+      );
+      setPermissionsUser(null);
+    } catch {
+      dispatch(
+        showNotification({
+          message: "İcazələr saxlanılarkən xəta!",
+          type: "error",
+        }),
+      );
     }
   };
 
@@ -171,7 +215,12 @@ export const UsersSection: React.FC = () => {
         {loading ? (
           <div style={{ padding: "2rem", textAlign: "center" }}>Yüklənir...</div>
         ) : (
-          <UsersTable rows={users} onEdit={handleEdit} onDelete={handleDelete} />
+          <UsersTable
+            rows={users}
+            onEdit={handleEdit}
+            onPermissions={handlePermissions}
+            onDelete={handleDelete}
+          />
         )}
       </div>
 
@@ -180,6 +229,13 @@ export const UsersSection: React.FC = () => {
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleSubmit}
         initialValues={selectedUser}
+      />
+
+      <UserPermissionsModal
+        isOpen={Boolean(permissionsUser)}
+        user={permissionsUser}
+        onClose={() => setPermissionsUser(null)}
+        onSave={handleSavePermissions}
       />
 
       <ConfirmModal

@@ -468,14 +468,16 @@ export default function SorgularTable({ rows, customers, onUpdate, onDelete, onA
                             {offer.carrierName}
                           </div>
                           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                            <span style={{ color: "#059669", fontWeight: 700 }}>
-                              Alış: {offer.price} {offer.currency}
+                            <span style={{ color: "#7c3aed", fontWeight: 700 }}>
+                              Total: {offer.totalPrice || "—"}{" "}
+                              {offer.totalPrice
+                                ? offer.totalCurrency || offer.currency || ""
+                                : ""}
                             </span>
-                            {offer.totalPrice && (
-                              <span style={{ color: "#7c3aed", fontWeight: 700 }}>
-                                Total: {offer.totalPrice} {offer.totalCurrency || offer.currency}
-                              </span>
-                            )}
+                            <span style={{ color: "#059669", fontWeight: 700 }}>
+                              Satış: {offer.salesPrice || "—"}{" "}
+                              {offer.salesPrice ? offer.currency || "" : ""}
+                            </span>
                           </div>
                         </div>
                       ))}

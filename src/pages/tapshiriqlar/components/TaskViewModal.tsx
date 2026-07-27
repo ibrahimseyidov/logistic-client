@@ -9,10 +9,41 @@ import {
   FaSave,
   FaTimes,
 } from "react-icons/fa";
-import { FiCalendar, FiChevronDown, FiClock } from "react-icons/fi";
+import { FiCalendar, FiChevronDown, FiClock, FiFile, FiImage } from "react-icons/fi";
 import Select from "../../../common/components/select/Select";
 import type { SelectOption } from "../../../common/components/select/Select";
+import {
+  uploadTaskFileAction,
+  type TaskFileInfo,
+} from "../../../common/actions/task.actions";
+import { buildApiUrl } from "../../../common/utils/fetch.utils";
+import { useAppDispatch } from "../../../common/store/hooks";
+import { showNotification } from "../../../common/store/modalSlice";
 import datePickerStyles from "./TaskFiltersDrawer.module.css";
+
+const FILE_ACCEPT =
+  "image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.rar,.7z,.ppt,.pptx";
+
+function isImageFile(nameOrType: string) {
+  const v = nameOrType.toLowerCase();
+  return (
+    v.startsWith("image/") ||
+    /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(v)
+  );
+}
+
+function formatFileSize(bytes?: number) {
+  if (!bytes || bytes <= 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function resolveFileUrl(url: string) {
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url) || url.startsWith("blob:")) return url;
+  return buildApiUrl(url);
+}
 
 const REMIND_OPTS: SelectOption[] = [
   { value: "day", label: "İcra günündə" },
@@ -20,11 +51,11 @@ const REMIND_OPTS: SelectOption[] = [
   { value: "1w", label: "1 həftə əvvəl" },
 ];
 const DESTINATION_OPTS: SelectOption[] = [
-  { value: "backlog", label: "Backlog" },
-  { value: "todo", label: "To Do" },
-  { value: "in-progress", label: "In Progress" },
-  { value: "review", label: "Review" },
-  { value: "done", label: "Done" },
+  { value: "backlog", label: "Gözləmə" },
+  { value: "todo", label: "Ediləcək" },
+  { value: "in-progress", label: "İcrada" },
+  { value: "review", label: "Yoxlama" },
+  { value: "done", label: "Tamamlandı" },
 ];
 
 const MONTH_NAMES = [
@@ -74,6 +105,7 @@ export interface TaskModalSavePayload {
   remindWhen: string;
   remindTime: string;
   checklist: ChecklistItem[];
+  files: TaskFileInfo[];
 }
 
 export interface TaskModalInitialData {
@@ -91,6 +123,7 @@ export interface TaskModalInitialData {
   remindWhen?: string;
   remindTime?: string;
   checklist?: ChecklistItem[];
+  files?: TaskFileInfo[];
 }
 
 const fieldBox = styles.fieldBox;
@@ -103,13 +136,16 @@ export default function TaskViewModal({
   userOptions = [],
   authorLabel = "",
 }: Props) {
+  const dispatch = useAppDispatch();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [author, setAuthor] = useState("");
   const [executorPick, setExecutorPick] = useState("");
   const [executorTags, setExecutorTags] = useState<TaskModalExecutor[]>([]);
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
-  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [savedFiles, setSavedFiles] = useState<TaskFileInfo[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [recurring, setRecurring] = useState(false);
   const [createdDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [createdTime] = useState(() =>
@@ -162,7 +198,12 @@ export default function TaskViewModal({
       setRemindWhen(initialData.remindWhen || "day");
       setRemindTime(initialData.remindTime || "10:00");
       setChecklistItems(initialData.checklist || []);
-      setAttachedFiles([]);
+      setSavedFiles(
+        Array.isArray(initialData.files)
+          ? initialData.files.filter((f) => f?.url)
+          : [],
+      );
+      setPendingFiles([]);
       setExecutorPick("");
       return;
     }
@@ -173,7 +214,8 @@ export default function TaskViewModal({
     setExecutorPick("");
     setExecutorTags([]);
     setChecklistItems([]);
-    setAttachedFiles([]);
+    setSavedFiles([]);
+    setPendingFiles([]);
     setRecurring(false);
     setDeadlineDate("");
     setDeadlineTime("");
@@ -300,7 +342,7 @@ export default function TaskViewModal({
 
   const appendFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    setAttachedFiles((prev) => [...prev, ...Array.from(files)]);
+    setPendingFiles((prev) => [...prev, ...Array.from(files)]);
   };
 
   const onFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -313,13 +355,17 @@ export default function TaskViewModal({
     appendFiles(event.dataTransfer.files);
   };
 
-  const removeFile = (index: number) => {
-    setAttachedFiles((prev) => prev.filter((_, idx) => idx !== index));
+  const removeSavedFile = (index: number) => {
+    setSavedFiles((prev) => prev.filter((_, idx) => idx !== index));
   };
 
-  const handleSaveClick = () => {
+  const removePendingFile = (index: number) => {
+    setPendingFiles((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleSaveClick = async () => {
     const normalizedTitle = title.trim();
-    if (!normalizedTitle) return;
+    if (!normalizedTitle || uploading) return;
 
     // Include pending select value even if user didn't click "+"
     let executorsToSave = executorTags;
@@ -330,6 +376,30 @@ export default function TaskViewModal({
         executorsToSave = [...executorsToSave, { id, name: option.label }];
       }
     }
+
+    let uploaded: TaskFileInfo[] = [];
+    if (pendingFiles.length) {
+      setUploading(true);
+      try {
+        uploaded = await Promise.all(
+          pendingFiles.map((file) => uploadTaskFileAction(file)),
+        );
+      } catch (err) {
+        console.error(err);
+        setUploading(false);
+        dispatch(
+          showNotification({
+            message: "Fayl yüklənərkən xəta baş verdi.",
+            type: "error",
+            autoCloseDuration: 3500,
+          }),
+        );
+        return;
+      }
+      setUploading(false);
+    }
+
+    const filesToSave = [...savedFiles, ...uploaded];
 
     onSave({
       title: normalizedTitle,
@@ -346,6 +416,7 @@ export default function TaskViewModal({
       remindWhen,
       remindTime,
       checklist: checklistItems,
+      files: filesToSave,
     });
   };
 
@@ -578,6 +649,7 @@ export default function TaskViewModal({
                   ref={fileInputRef}
                   type="file"
                   multiple
+                  accept={FILE_ACCEPT}
                   className={styles.hiddenFileInput}
                   onChange={onFileInputChange}
                 />
@@ -596,23 +668,95 @@ export default function TaskViewModal({
                   }}
                 >
                   <FaCloudUploadAlt className={styles.fileDropIcon} aria-hidden />
-                  <span>Faylınızı sürüşdürün &amp; buraxın ya da seçin</span>
+                  <span>Foto və ya faylı sürüşdürün &amp; buraxın ya da seçin</span>
+                  <span className={styles.fileDropHint}>
+                    Şəkil, PDF, Word, Excel və digər sənədlər
+                  </span>
                 </div>
-                {attachedFiles.length > 0 ? (
+                {savedFiles.length > 0 || pendingFiles.length > 0 ? (
                   <div className={styles.fileList}>
-                    {attachedFiles.map((file, index) => (
-                      <div key={`${file.name}-${index}`} className={styles.fileItem}>
-                        <span className={styles.fileName}>{file.name}</span>
-                        <button
-                          type="button"
-                          className={styles.fileRemove}
-                          onClick={() => removeFile(index)}
-                          aria-label="Faylı sil"
-                        >
-                          <FaTimes />
-                        </button>
-                      </div>
-                    ))}
+                    {savedFiles.map((file, index) => {
+                      const href = resolveFileUrl(file.url);
+                      const image = isImageFile(file.name || file.url);
+                      return (
+                        <div key={`saved-${file.url}-${index}`} className={styles.fileItem}>
+                          <div className={styles.fileMeta}>
+                            {image ? (
+                              <a
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={styles.fileThumbLink}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <img
+                                  src={href}
+                                  alt={file.name}
+                                  className={styles.fileThumb}
+                                />
+                              </a>
+                            ) : (
+                              <span className={styles.fileIconWrap}>
+                                <FiFile />
+                              </span>
+                            )}
+                            <div className={styles.fileTextCol}>
+                              <a
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={styles.fileName}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {file.name}
+                              </a>
+                              {file.size ? (
+                                <span className={styles.fileSize}>
+                                  {formatFileSize(file.size)}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className={styles.fileRemove}
+                            onClick={() => removeSavedFile(index)}
+                            aria-label="Faylı sil"
+                          >
+                            <FaTimes />
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {pendingFiles.map((file, index) => (
+                        <div key={`pending-${file.name}-${index}`} className={styles.fileItem}>
+                          <div className={styles.fileMeta}>
+                            <span className={styles.fileIconWrap}>
+                              {isImageFile(file.type || file.name) ? (
+                                <FiImage />
+                              ) : (
+                                <FiFile />
+                              )}
+                            </span>
+                            <div className={styles.fileTextCol}>
+                              <span className={styles.fileName}>{file.name}</span>
+                              <span className={styles.fileSize}>
+                                {formatFileSize(file.size)}
+                                {formatFileSize(file.size) ? " · " : ""}
+                                saxlananda yüklənəcək
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className={styles.fileRemove}
+                            onClick={() => removePendingFile(index)}
+                            aria-label="Faylı sil"
+                          >
+                            <FaTimes />
+                          </button>
+                        </div>
+                      ))}
                   </div>
                 ) : null}
               </div>
@@ -1054,11 +1198,14 @@ export default function TaskViewModal({
         <div className={styles.footer}>
           <button
             type="button"
-            onClick={handleSaveClick}
+            onClick={() => {
+              void handleSaveClick();
+            }}
             className={styles.saveButton}
+            disabled={uploading}
           >
             <FaSave aria-hidden />
-            Yaddaşda saxla və çıx
+            {uploading ? "Fayllar yüklənir..." : "Yaddaşda saxla və çıx"}
           </button>
         </div>
       </div>

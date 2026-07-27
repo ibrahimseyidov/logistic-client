@@ -129,11 +129,9 @@ export async function deleteTaskAction(id: number): Promise<void> {
 export async function uploadTaskFileAction(file: File): Promise<TaskFileInfo> {
   const formData = new FormData();
   formData.append("file", file);
+  // Content-Type-u əl ilə verməyin — boundary axios tərəfindən qoyulmalıdır
   const res = await axios.post(buildApiUrl("/api/task/upload"), formData, {
-    headers: {
-      ...getHeaders(),
-      "Content-Type": "multipart/form-data",
-    },
+    headers: getHeaders(),
   });
   return res.data;
 }

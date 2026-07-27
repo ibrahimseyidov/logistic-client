@@ -4,9 +4,9 @@ export interface UserRow {
   email: string;
   role: string;
   status: string;
+  permissions?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-export type UserRole = "admin" | "manager" | "operator";
 export type UserStatus = "active" | "deactive";

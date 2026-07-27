@@ -17,7 +17,6 @@ import {
   CARGO_CURRENCY_OPTIONS,
   CARGO_TRANSPORT_OPTIONS,
   COMPANY_OPTIONS,
-  COUNTRY_OPTIONS,
   CUSTOMER_OPTIONS,
   DEPT_OPTIONS,
   PACKAGING_TYPE_OPTIONS,
@@ -46,7 +45,18 @@ import {
   lookupRowsToPositionOptions,
   withCustomPositionOption,
 } from "../../../common/utils/contactPosition.utils";
-import { normalizeCarrierContacts } from "../../../common/utils/carrierDisplay.utils";
+import {
+  normalizeCarrierContacts,
+  parseCarrierDocuments,
+} from "../../../common/utils/carrierDisplay.utils";
+
+function formatCustomerDocumentLabel(doc: {
+  number: string;
+  documentType?: string;
+  date: string;
+}) {
+  return [doc.date, doc.number, doc.documentType].filter(Boolean).join(" — ");
+}
 
 function customerContactPersons(
   customerObj: { id?: string | number; contactPersons?: unknown } | undefined,
@@ -97,11 +107,7 @@ const placeholderOpts = (extra: SelectOption[] = []): SelectOption[] => [
 // companyOptions is now dynamically generated in the component
 const deptOptions = placeholderOpts(DEPT_OPTIONS);
 const customerOptions = placeholderOpts(CUSTOMER_OPTIONS);
-const contractOptions = placeholderOpts([
-  { value: "ctr-2026-01", label: "CTR-2026/01" },
-]);
 const simpleSelect = placeholderOpts();
-const countryOptions = placeholderOpts(COUNTRY_OPTIONS);
 const transportParentKindOptions = placeholderOpts(TRANSPORT_PARENT_KIND_OPTIONS);
 const cargoCurrencyOptions = placeholderOpts(CARGO_CURRENCY_OPTIONS);
 const packagingTypeOptions = placeholderOpts(PACKAGING_TYPE_OPTIONS);
@@ -211,6 +217,7 @@ export default function SorgularNewModal({
   const [purposesData, setPurposesData] = useState<any[]>([]);
   const [specsData, setSpecsData] = useState<any[]>([]);
   const [incotermsData, setIncotermsData] = useState<any[]>([]);
+  const [countriesData, setCountriesData] = useState<any[]>([]);
   const [contactPositionsData, setContactPositionsData] = useState<any[]>([]);
   const [companiesData, setCompaniesData] = useState<any[]>([]);
 
@@ -335,11 +342,17 @@ export default function SorgularNewModal({
     setCustomerDrawerOpen(true);
   }, []);
 
+  const handleCustomerChange = useCallback((nextCustomer: string) => {
+    setCustomer(nextCustomer);
+    setContractNumber("");
+  }, []);
+
   const handleCustomerCreated = useCallback(
     async (created: { id: string; name: string }) => {
       try {
         const data = await fetchCustomersAction();
         setCustomersData(data);
+        setContractNumber("");
         if (created.id) {
           setCustomer(created.id);
         } else {
@@ -417,7 +430,7 @@ export default function SorgularNewModal({
 
   const loadData = useCallback(async () => {
     try {
-      const [u, c, cust, t, s, p, sp, inc, positions, comps] = await Promise.all([
+      const [u, c, cust, t, s, p, sp, inc, countries, positions, comps] = await Promise.all([
         fetchUsersAction(),
         fetchContactPersonsAction(),
         fetchCustomersAction(),
@@ -426,6 +439,7 @@ export default function SorgularNewModal({
         fetchLookupAction("inquiry-purposes"),
         fetchLookupAction("cargo-specs"),
         fetchLookupAction("incoterms"),
+        fetchLookupAction("countries"),
         fetchLookupAction(CONTACT_POSITIONS_LOOKUP_TYPE),
         fetchCompaniesAction()
       ]);
@@ -437,6 +451,7 @@ export default function SorgularNewModal({
       setPurposesData(p);
       setSpecsData(sp);
       setIncotermsData(inc);
+      setCountriesData(countries);
       setContactPositionsData(positions);
       setCompaniesData(comps);
       if (!manager && user?.id) {
@@ -468,6 +483,7 @@ export default function SorgularNewModal({
       case "inquiry-purposes": setPurposesData(newData); break;
       case "cargo-specs": setSpecsData(newData); break;
       case "incoterms": setIncotermsData(newData); break;
+      case "countries": setCountriesData(newData); break;
       case CONTACT_POSITIONS_LOOKUP_TYPE: setContactPositionsData(newData); break;
     }
   };
@@ -717,6 +733,22 @@ export default function SorgularNewModal({
   const filteredContacts = customerContactPersons(selectedCustomerObj, contactsData);
   
   const contactOpts = placeholderOpts(filteredContacts.map((c: any) => ({ value: c.fullName, label: c.position ? `${c.fullName} (${c.position})` : c.fullName })));
+
+  const customerDocuments = parseCarrierDocuments(
+    selectedCustomerObj?.documents ?? selectedCustomerObj?.documentsJson,
+  );
+  const contractDocumentOpts = customerDocuments
+    .filter((doc) => doc.number.trim())
+    .map((doc) => ({
+      value: doc.number,
+      label: formatCustomerDocumentLabel(doc),
+    }));
+  const contractOpts = placeholderOpts(
+    contractNumber &&
+      !contractDocumentOpts.some((opt) => opt.value === contractNumber)
+      ? [...contractDocumentOpts, { value: contractNumber, label: contractNumber }]
+      : contractDocumentOpts,
+  );
   
   const customerOpts = placeholderOpts(customersData.map((c: any) => ({ value: c.id?.toString(), label: c.name || c.companyName || c.fullName })));
   const tagOpts = placeholderOpts(tagsData.map((t: any) => ({ value: t.value, label: t.value })));
@@ -724,6 +756,12 @@ export default function SorgularNewModal({
   const purposeOpts = placeholderOpts(purposesData.map((p: any) => ({ value: p.value, label: p.value })));
   const specsOpts = placeholderOpts(specsData.map((s: any) => ({ value: s.value, label: s.value })));
   const incotermOpts = placeholderOpts(incotermsData.map((i: any) => ({ value: i.value, label: i.value })));
+  const countryOpts = placeholderOpts(
+    countriesData.map((c: any) => ({
+      value: c.value,
+      label: c.label || c.value,
+    })),
+  );
   const companyOptions = placeholderOpts(companiesData.map((c: any) => ({ value: c.name, label: c.name })));
 
   const rowSelect = (
@@ -853,7 +891,7 @@ export default function SorgularNewModal({
                         <Label required>Müştəri</Label>,
                         customer,
                         customerOpts,
-                        setCustomer,
+                        handleCustomerChange,
                         {
                           title: "Yeni müştəri",
                           onClick: openNewCustomerModal,
@@ -864,14 +902,12 @@ export default function SorgularNewModal({
                         },
                       )}
 
-                      <div className={styles.fieldStack}>
-                        <Label>Müştəri ilə müqavilənin nömrəsi</Label>
-                        <input
-                          className={styles.input}
-                          value={contractNumber}
-                          onChange={(e) => setContractNumber(e.target.value)}
-                        />
-                      </div>
+                      {rowSelect(
+                        <Label>Müştəri ilə müqavilənin nömrəsi</Label>,
+                        contractNumber,
+                        contractOpts,
+                        setContractNumber,
+                      )}
 
                       {rowSelect(
                         <Label>Əlaqədar şəxs</Label>,
@@ -972,10 +1008,11 @@ export default function SorgularNewModal({
                       {rowSelect(
                         <Label required>Ölkə</Label>,
                         loadCountry,
-                        countryOptions,
+                        countryOpts,
                         setLoadCountry,
                         {
                           title: "Yeni ölkə",
+                          onClick: () => openLookupModal("countries", "Ölkələr"),
                           className:
                             showErrors && errors.loadCountry
                               ? styles.inputError
@@ -1045,10 +1082,11 @@ export default function SorgularNewModal({
                       {rowSelect(
                         <Label required>Ölkə</Label>,
                         unloadCountry,
-                        countryOptions,
+                        countryOpts,
                         setUnloadCountry,
                         {
                           title: "Yeni ölkə",
+                          onClick: () => openLookupModal("countries", "Ölkələr"),
                           className:
                             showErrors && errors.unloadCountry
                               ? styles.inputError

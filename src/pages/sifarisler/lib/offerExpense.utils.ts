@@ -50,7 +50,7 @@ function collectCarrierNames(order: any, voyages: any[]): Set<string> {
 
 /**
  * When finance rows have no mesarif yet, fall back to the linked query's
- * price-offer "Xərc" (expense) values for the selected carrier(s).
+ * price-offer total cost (alış + xərc) for the selected carrier(s).
  */
 export function resolveOfferExpenseFallbackAzn(params: {
   order: any;
@@ -89,11 +89,15 @@ export function resolveOfferExpenseFallbackAzn(params: {
 
   const rate = inferAznRate(financeTransactions);
   return useOffers.reduce((sum, offer) => {
+    const purchase = toNumber(offer?.price);
     const expense = toNumber(offer?.expense);
-    if (!(expense > 0)) return sum;
+    const total =
+      toNumber(offer?.totalPrice) ||
+      (purchase > 0 || expense > 0 ? purchase + expense : 0);
+    if (!(total > 0)) return sum;
     const currency = String(offer?.currency || "AZN").toUpperCase();
-    if (currency === "AZN") return sum + expense;
-    return sum + expense * rate;
+    if (currency === "AZN") return sum + total;
+    return sum + total * rate;
   }, 0);
 }
 

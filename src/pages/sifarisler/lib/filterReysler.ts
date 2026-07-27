@@ -14,8 +14,12 @@ export function filterByTransport(rows: ReysRow[], mode: ReysTransportMode): Rey
 
 export function applyReysFilters(rows: ReysRow[], f: ReysFilterFormState): ReysRow[] {
   return rows.filter((r) => {
-    if (f.tripNumber.trim() && !r.tripRef.toLowerCase().includes(f.tripNumber.trim().toLowerCase())) {
-      return false;
+    if (f.tripNumber.trim()) {
+      const q = f.tripNumber.trim().toLowerCase();
+      const label = (r.id ? `R-${r.id}` : r.tripRef || "").toLowerCase();
+      if (!label.includes(q) && !(r.tripRef || "").toLowerCase().includes(q)) {
+        return false;
+      }
     }
     if (f.company && r.company !== f.company) return false;
     if (!inRange(r.orderDateIso, f.orderDateFrom, f.orderDateTo)) return false;

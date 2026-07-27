@@ -104,7 +104,7 @@ import {
   resolveOrderCargoItems,
   sumOrderCargoTotals,
 } from "./lib/orderCargoDisplay";
-import { resolveOfferExpenseFallbackAzn } from "./lib/offerExpense.utils";
+import { resolveOfferExpenseFallbackAzn, resolveOfferSalesTotalSummary } from "./lib/offerExpense.utils";
 
 const YUK_ACCOUNT_OPTIONS: SelectOption[] = [
   { value: "", label: "Təfərrüatlı hesab irəli sür" },
@@ -164,7 +164,7 @@ export default function SifarislerPage() {
               orderDateIso: toDateIso(o.orderDate),
               orderDate: formatDateOnly(o.orderDate),
               customer: o.customerName || "—",
-              voyageNumber: voyages.length > 0 ? voyages.map((v: any) => v.tripRef || (v.id ? `R-${v.id}` : "—")).join(", ") : "—",
+              voyageNumber: voyages.length > 0 ? voyages.map((v: any) => (v.id ? `R-${v.id}` : "—")).join(", ") : "—",
               carriers: voyages.length > 0 ? voyages.map((v: any) => v.carrier || "—").join(", ") : "—",
               route: voyages.length > 0 ? voyages.map((v: any) => `${v.loading || "—"} → ${v.unloading || "—"}`).join(" | ") : "—",
               cargoItems,
@@ -174,6 +174,14 @@ export default function SifarislerPage() {
               ldm: totals.ldm || Number(o.ldm) || 0,
               freight: o.freight ? o.freight.split(" + ")[0] : "—",
               extraCosts: (() => {
+                const summary = resolveOfferSalesTotalSummary({
+                  order: o,
+                  voyages,
+                  financeTransactions: [],
+                });
+                if (summary?.labelTotal && summary.labelTotal !== "—") {
+                  return summary.labelTotal;
+                }
                 if (o.extraCosts) return o.extraCosts;
                 const azn = resolveOfferExpenseFallbackAzn({
                   order: o,
@@ -185,11 +193,18 @@ export default function SifarislerPage() {
               profit: (() => {
                 if (o.profit) return o.profit;
                 const freightAzn = Number(o.freightAzn) || 0;
-                const expAzn = resolveOfferExpenseFallbackAzn({
+                const summary = resolveOfferSalesTotalSummary({
                   order: o,
-                  voyages: voyages,
+                  voyages,
                   financeTransactions: [],
                 });
+                const expAzn =
+                  summary?.totalAzn ||
+                  resolveOfferExpenseFallbackAzn({
+                    order: o,
+                    voyages: voyages,
+                    financeTransactions: [],
+                  });
                 if (freightAzn > 0 || expAzn > 0) {
                   return `${(freightAzn - expAzn).toFixed(2)} AZN`;
                 }
@@ -202,6 +217,7 @@ export default function SifarislerPage() {
           const res = await axios.get(ENDPOINTS.VOYAGES.BASE, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } }).catch(() => ({ data: [] }));
           const mapped = (res.data || []).map((v: any) => ({
             ...v,
+            tripRef: v.id ? `R-${v.id}` : "—",
             orderRef: v.order?.orderNumber || "—",
             orderDate: v.order?.orderDate ? new Date(v.order.orderDate).toLocaleDateString("az-AZ") : "—"
           }));
@@ -211,7 +227,7 @@ export default function SifarislerPage() {
           const mapped = (res.data || []).map((l: any) => ({
             ...l,
             orderRef: l.order?.orderNumber || "—",
-            tripId: l.voyage?.tripRef || l.voyage?.id || "—",
+            tripId: l.voyage?.id ? `R-${l.voyage.id}` : "—",
             cargoStatus: l.status || "—",
             recipient: l.receiver || "—",
             cargoNumber: l.id ? `Y-${l.id}` : "—",

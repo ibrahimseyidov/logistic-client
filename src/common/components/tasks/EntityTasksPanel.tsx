@@ -24,9 +24,28 @@ type Props = {
   queryId?: number | null;
 };
 
+const STATUS_OPTIONS: { value: string; label: string; color: string; bg: string }[] = [
+  { value: "backlog", label: "Gözləmə", color: "#64748b", bg: "#f1f5f9" },
+  { value: "todo", label: "Ediləcək", color: "#1d4ed8", bg: "#dbeafe" },
+  { value: "in-progress", label: "İcrada", color: "#b45309", bg: "#fef3c7" },
+  { value: "review", label: "Yoxlama", color: "#7c3aed", bg: "#ede9fe" },
+  { value: "done", label: "Tamamlandı", color: "#15803d", bg: "#dcfce7" },
+];
+
 function executorLabel(task: TaskDto) {
   if (!task.executors?.length) return "—";
   return task.executors.map((e) => e.name || `#${e.id}`).join(", ");
+}
+
+function statusMeta(status: string) {
+  return (
+    STATUS_OPTIONS.find((s) => s.value === status) || {
+      value: status,
+      label: status,
+      color: "#64748b",
+      bg: "#f1f5f9",
+    }
+  );
 }
 
 export default function EntityTasksPanel({ orderId, queryId }: Props) {
@@ -92,6 +111,7 @@ export default function EntityTasksPanel({ orderId, queryId }: Props) {
           text: c.text,
           done: Boolean(c.done),
         })),
+        files: editing.files || [],
       }
     : null;
 
@@ -113,6 +133,7 @@ export default function EntityTasksPanel({ orderId, queryId }: Props) {
         remindWhen: payload.remindWhen,
         remindTime: payload.remindTime,
         checklist: payload.checklist,
+        files: payload.files || [],
         orderId: orderId ?? null,
         queryId: queryId ?? null,
       };
@@ -153,13 +174,17 @@ export default function EntityTasksPanel({ orderId, queryId }: Props) {
     }
   };
 
-  const toggleDone = async (task: TaskDto, completed: boolean) => {
+  const changeStatus = async (task: TaskDto, status: string) => {
+    if (task.status === status) return;
+    const prevStatus = task.status;
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status } : t)));
     try {
-      const updated = await updateTaskAction(task.id, {
-        status: completed ? "done" : "todo",
-      });
+      const updated = await updateTaskAction(task.id, { status });
       setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
     } catch {
+      setTasks((prev) =>
+        prev.map((t) => (t.id === task.id ? { ...t, status: prevStatus } : t)),
+      );
       dispatch(
         showNotification({
           message: "Status yenilənərkən xəta baş verdi.",
@@ -229,7 +254,8 @@ export default function EntityTasksPanel({ orderId, queryId }: Props) {
           </p>
         ) : (
           tasks.map((task) => {
-            const completed = task.status === "done";
+            const meta = statusMeta(task.status || "todo");
+            const isDone = task.status === "done";
             return (
               <div
                 key={task.id}
@@ -249,29 +275,21 @@ export default function EntityTasksPanel({ orderId, queryId }: Props) {
                   setModalOpen(true);
                 }}
               >
-                <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
-                  <input
-                    type="checkbox"
-                    checked={completed}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      void toggleDone(task, e.target.checked);
-                    }}
-                    style={{
-                      width: "1.15rem",
-                      height: "1.15rem",
-                      accentColor: "#16a34a",
-                      cursor: "pointer",
-                      marginTop: "0.15rem",
-                    }}
-                  />
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", flex: 1 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    gap: "0.75rem",
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", flex: 1, minWidth: 0 }}>
                     <span
                       style={{
                         fontWeight: 700,
                         fontSize: "0.925rem",
                         color: "#1e293b",
-                        textDecoration: completed ? "line-through" : "none",
+                        textDecoration: isDone ? "line-through" : "none",
                       }}
                     >
                       {task.title}
@@ -281,7 +299,7 @@ export default function EntityTasksPanel({ orderId, queryId }: Props) {
                         style={{
                           fontSize: "0.825rem",
                           color: "#64748b",
-                          textDecoration: completed ? "line-through" : "none",
+                          textDecoration: isDone ? "line-through" : "none",
                         }}
                       >
                         {task.description.length > 70
@@ -290,6 +308,34 @@ export default function EntityTasksPanel({ orderId, queryId }: Props) {
                       </span>
                     ) : null}
                   </div>
+
+                  <select
+                    value={STATUS_OPTIONS.some((s) => s.value === task.status) ? task.status : "todo"}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      void changeStatus(task, e.target.value);
+                    }}
+                    style={{
+                      flexShrink: 0,
+                      border: `1px solid ${meta.color}33`,
+                      background: meta.bg,
+                      color: meta.color,
+                      borderRadius: "0.4rem",
+                      padding: "0.3rem 0.5rem",
+                      fontSize: "0.72rem",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      maxWidth: "8.5rem",
+                    }}
+                    aria-label="Status"
+                  >
+                    {STATUS_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div
@@ -306,19 +352,34 @@ export default function EntityTasksPanel({ orderId, queryId }: Props) {
                   <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
                     <FiUser /> {executorLabel(task)}
                   </span>
-                  {task.deadlineDate ? (
-                    <span
-                      style={{
-                        background: "#fee2e2",
-                        color: "#b91c1c",
-                        padding: "0.15rem 0.45rem",
-                        borderRadius: "0.25rem",
-                        fontWeight: 600,
-                      }}
-                    >
-                      Son: {task.deadlineDate}
-                    </span>
-                  ) : null}
+                  <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    {task.files?.length ? (
+                      <span
+                        style={{
+                          background: "#eff6ff",
+                          color: "#1d4ed8",
+                          padding: "0.15rem 0.45rem",
+                          borderRadius: "0.25rem",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {task.files.length} fayl
+                      </span>
+                    ) : null}
+                    {task.deadlineDate ? (
+                      <span
+                        style={{
+                          background: "#fee2e2",
+                          color: "#b91c1c",
+                          padding: "0.15rem 0.45rem",
+                          borderRadius: "0.25rem",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Son: {task.deadlineDate}
+                      </span>
+                    ) : null}
+                  </span>
                 </div>
               </div>
             );

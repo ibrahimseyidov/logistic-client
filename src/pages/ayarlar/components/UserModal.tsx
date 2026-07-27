@@ -15,7 +15,6 @@ export const UserModal: React.FC<Props> = ({ isOpen, onClose, onSubmit, initialV
     name: "",
     email: "",
     password: "",
-    role: "operator",
     status: "active",
   });
   const [isVisible, setIsVisible] = useState(false);
@@ -27,7 +26,6 @@ export const UserModal: React.FC<Props> = ({ isOpen, onClose, onSubmit, initialV
           name: initialValues.name,
           email: initialValues.email,
           password: "",
-          role: initialValues.role,
           status: initialValues.status,
         });
       } else {
@@ -35,7 +33,6 @@ export const UserModal: React.FC<Props> = ({ isOpen, onClose, onSubmit, initialV
           name: "",
           email: "",
           password: "",
-          role: "operator",
           status: "active",
         });
       }
@@ -49,18 +46,27 @@ export const UserModal: React.FC<Props> = ({ isOpen, onClose, onSubmit, initialV
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    onSubmit({
+      ...formData,
+      // Yetki UI-dan çıxarıldı — mövcud role saxlanılır / yenidə operator
+      role: initialValues?.role || "operator",
+    });
   };
 
   return (
     <div className={styles.dialogRoot}>
-      <div 
-        className={`${styles.dialogBackdrop} ${isVisible ? styles.dialogBackdropVisible : ""}`} 
+      <div
+        className={`${styles.dialogBackdrop} ${isVisible ? styles.dialogBackdropVisible : ""}`}
       />
       <aside className={`${styles.dialogPanel} ${isVisible ? styles.dialogPanelVisible : ""}`}>
         <div className={styles.dialogHeader}>
           <div className={styles.dialogHeaderText}>
-            <h2 className={styles.dialogTitle}>{initialValues ? "İstifadəçini Redaktə Et" : "Yeni İstifadəçi"}</h2>
+            <h2 className={styles.dialogTitle}>
+              {initialValues ? "İstifadəçini Redaktə Et" : "Yeni İstifadəçi"}
+            </h2>
+            <p style={{ margin: "0.35rem 0 0", fontSize: "0.8rem", color: "#64748b" }}>
+              Səhifə icazələri əməliyyatlardakı qalxan düyməsi ilə ayarlanır
+            </p>
           </div>
           <button className={styles.closeButton} onClick={onClose} type="button">
             <FiX />
@@ -89,7 +95,9 @@ export const UserModal: React.FC<Props> = ({ isOpen, onClose, onSubmit, initialV
               />
             </label>
             <label className={styles.fieldStack}>
-              <span className={styles.label}>{initialValues ? "Şifrə (Dəyişmək üçün doldurun)" : "Şifrə"}</span>
+              <span className={styles.label}>
+                {initialValues ? "Şifrə (Dəyişmək üçün doldurun)" : "Şifrə"}
+              </span>
               <input
                 className={styles.input}
                 type="password"
@@ -97,18 +105,6 @@ export const UserModal: React.FC<Props> = ({ isOpen, onClose, onSubmit, initialV
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 required={!initialValues}
               />
-            </label>
-            <label className={styles.fieldStack}>
-              <span className={styles.label}>Yetki</span>
-              <select
-                className={styles.input}
-                value={formData.role}
-                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-              >
-                <option value="admin">Admin</option>
-                <option value="manager">Menecer</option>
-                <option value="operator">Operator</option>
-              </select>
             </label>
             <label className={styles.fieldStack}>
               <span className={styles.label}>Status</span>
@@ -125,8 +121,12 @@ export const UserModal: React.FC<Props> = ({ isOpen, onClose, onSubmit, initialV
         </form>
 
         <div className={styles.dialogFooter}>
-          <button className={styles.secondaryButton} onClick={onClose} type="button">Ləğv et</button>
-          <button className={styles.primaryButton} onClick={handleSubmit} type="submit">Yadda saxla</button>
+          <button className={styles.secondaryButton} onClick={onClose} type="button">
+            Ləğv et
+          </button>
+          <button className={styles.primaryButton} onClick={handleSubmit} type="submit">
+            Yadda saxla
+          </button>
         </div>
       </aside>
     </div>

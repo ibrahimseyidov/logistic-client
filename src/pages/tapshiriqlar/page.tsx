@@ -8,11 +8,7 @@ import {
   type DragEvent,
 } from "react";
 import styles from "./tapshiriqlar.module.css";
-import {
-  FaEdit,
-  FaPlus,
-  FaTrash,
-} from "react-icons/fa";
+import { FaEdit, FaPlus, FaTrash } from "react-icons/fa";
 import { FiFilter } from "react-icons/fi";
 import { useAppDispatch } from "../../common/store/hooks";
 import { showNotification } from "../../common/store/modalSlice";
@@ -39,11 +35,11 @@ import { useAuth } from "../../common/contexts/AuthContext";
 import Loading from "../../common/components/loading/Loading";
 
 const BOARD_COLUMNS = [
-  { id: "backlog", title: "Backlog" },
-  { id: "todo", title: "To Do" },
-  { id: "in-progress", title: "In Progress" },
-  { id: "review", title: "Review" },
-  { id: "done", title: "Done" },
+  { id: "backlog", title: "Gözləmə" },
+  { id: "todo", title: "Ediləcək" },
+  { id: "in-progress", title: "İcrada" },
+  { id: "review", title: "Yoxlama" },
+  { id: "done", title: "Tamamlandı" },
 ] as const;
 
 const emptyTaskFilter = (): TaskFilterState => ({
@@ -78,8 +74,10 @@ export default function TapshiriqlarPage() {
   const [loading, setLoading] = useState(true);
   const [tasks, setTasks] = useState<TaskDto[]>([]);
   const [userOptions, setUserOptions] = useState<SelectOption[]>([]);
-  const [filterDraft, setFilterDraft] = useState<TaskFilterState>(emptyTaskFilter);
-  const [appliedFilters, setAppliedFilters] = useState<TaskFilterState>(emptyTaskFilter);
+  const [filterDraft, setFilterDraft] =
+    useState<TaskFilterState>(emptyTaskFilter);
+  const [appliedFilters, setAppliedFilters] =
+    useState<TaskFilterState>(emptyTaskFilter);
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [createStatus, setCreateStatus] = useState<string>("todo");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -97,7 +95,9 @@ export default function TapshiriqlarPage() {
     { value: "", label: "Dəyəri seçin" },
     ...BOARD_COLUMNS.map((c) => ({ value: c.id, label: c.title })),
   ];
-  const counterpartyOptions: SelectOption[] = [{ value: "", label: "Dəyəri seçin" }];
+  const counterpartyOptions: SelectOption[] = [
+    { value: "", label: "Dəyəri seçin" },
+  ];
   const tagOptions: SelectOption[] = [{ value: "", label: "Dəyəri seçin" }];
 
   const loadTasks = useCallback(async () => {
@@ -123,7 +123,10 @@ export default function TapshiriqlarPage() {
   }, [loadTasks]);
 
   const editingTask = useMemo(
-    () => (editingTaskId == null ? null : tasks.find((t) => t.id === editingTaskId) || null),
+    () =>
+      editingTaskId == null
+        ? null
+        : tasks.find((t) => t.id === editingTaskId) || null,
     [editingTaskId, tasks],
   );
 
@@ -147,6 +150,7 @@ export default function TapshiriqlarPage() {
           text: c.text,
           done: Boolean(c.done),
         })),
+        files: editingTask.files || [],
       }
     : null;
 
@@ -168,11 +172,14 @@ export default function TapshiriqlarPage() {
         remindWhen: payload.remindWhen,
         remindTime: payload.remindTime,
         checklist: payload.checklist,
+        files: payload.files || [],
       };
 
       if (editingTaskId != null) {
         const updated = await updateTaskAction(editingTaskId, body);
-        setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+        setTasks((prev) =>
+          prev.map((t) => (t.id === updated.id ? updated : t)),
+        );
         dispatch(
           showNotification({
             message: "Tapşırıq yeniləndi.",
@@ -232,7 +239,9 @@ export default function TapshiriqlarPage() {
     } catch (err) {
       console.error(err);
       setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, status: current.status } : t)),
+        prev.map((t) =>
+          t.id === taskId ? { ...t, status: current.status } : t,
+        ),
       );
       dispatch(
         showNotification({
@@ -284,27 +293,26 @@ export default function TapshiriqlarPage() {
 
   const matchesFilters = (task: TaskDto) => {
     if (appliedFilters.author) {
-      const authorOpt = authorOptions.find((o) => o.value === appliedFilters.author);
+      const authorOpt = authorOptions.find(
+        (o) => o.value === appliedFilters.author,
+      );
       const authorNeedle = fold(authorOpt?.label || appliedFilters.author);
       const authorMatch =
         String(task.authorId) === appliedFilters.author ||
-        fold(task.author?.name || "") === authorNeedle ||
-        fold(task.author?.name || "").includes(authorNeedle);
+        fold(task.author?.name || "") === authorNeedle;
       if (!authorMatch) return false;
     }
     if (appliedFilters.executor) {
       const executorOpt = executorOptions.find(
         (o) => o.value === appliedFilters.executor,
       );
-      const executorNeedle = fold(executorOpt?.label || appliedFilters.executor);
+      const executorNeedle = fold(
+        executorOpt?.label || appliedFilters.executor,
+      );
       const ok = (task.executors || []).some((e) => {
         const idMatch = String(e.id) === String(appliedFilters.executor);
         const nameFolded = fold(e.name || "");
-        return (
-          idMatch ||
-          nameFolded === executorNeedle ||
-          (executorNeedle.length > 0 && nameFolded.includes(executorNeedle))
-        );
+        return idMatch || nameFolded === executorNeedle;
       });
       if (!ok) return false;
     }
@@ -314,7 +322,10 @@ export default function TapshiriqlarPage() {
     ) {
       return false;
     }
-    if (appliedFilters.deadline && task.deadlineDate !== appliedFilters.deadline) {
+    if (
+      appliedFilters.deadline &&
+      task.deadlineDate !== appliedFilters.deadline
+    ) {
       return false;
     }
     if (appliedFilters.status && task.status !== appliedFilters.status) {
@@ -353,7 +364,8 @@ export default function TapshiriqlarPage() {
 
   const activeFilterCount = useMemo(
     () =>
-      Object.values(appliedFilters).filter((value) => value.trim() !== "").length,
+      Object.values(appliedFilters).filter((value) => value.trim() !== "")
+        .length,
     [appliedFilters],
   );
 
@@ -451,7 +463,11 @@ export default function TapshiriqlarPage() {
   return (
     <div className={`${sorguLayoutStyles.container} ${styles.pageRoot}`}>
       <TaskViewModal
-        key={editingTaskId != null ? `edit-${editingTaskId}` : `new-${createStatus}`}
+        key={
+          editingTaskId != null
+            ? `edit-${editingTaskId}`
+            : `new-${createStatus}`
+        }
         isOpen={taskModalOpen}
         onClose={() => {
           setTaskModalOpen(false);
@@ -482,7 +498,9 @@ export default function TapshiriqlarPage() {
               <FiFilter aria-hidden />
               Filtrlər
               {activeFilterCount > 0 ? (
-                <span className={sorguActionBarStyles.badge}>{activeFilterCount}</span>
+                <span className={sorguActionBarStyles.badge}>
+                  {activeFilterCount}
+                </span>
               ) : null}
             </button>
           </div>
@@ -506,13 +524,17 @@ export default function TapshiriqlarPage() {
                 }`}
                 onDragOver={(e) => onColumnDragOver(e, column.id)}
                 onDragLeave={() =>
-                  setDragOverColumn((prev) => (prev === column.id ? null : prev))
+                  setDragOverColumn((prev) =>
+                    prev === column.id ? null : prev,
+                  )
                 }
                 onDrop={(e) => onColumnDrop(e, column.id)}
               >
                 <header className={styles.kanbanColumnHeader}>
                   <span>{column.title}</span>
-                  <span className={styles.kanbanCount}>{columnTasks.length}</span>
+                  <span className={styles.kanbanCount}>
+                    {columnTasks.length}
+                  </span>
                 </header>
 
                 <div className={styles.kanbanColumnBody}>
@@ -532,7 +554,9 @@ export default function TapshiriqlarPage() {
                         <article
                           key={task.id}
                           className={`${styles.taskCard} ${
-                            draggingId === task.id ? styles.taskCardDragging : ""
+                            draggingId === task.id
+                              ? styles.taskCardDragging
+                              : ""
                           }`}
                           draggable
                           onDragStart={(e) => onCardDragStart(e, task.id)}
@@ -540,7 +564,10 @@ export default function TapshiriqlarPage() {
                           onDoubleClick={() => handleOpenEditTask(task.id)}
                         >
                           <div className={styles.taskCardTop}>
-                            <h3 className={styles.taskCardTitle} title={task.title}>
+                            <h3
+                              className={styles.taskCardTitle}
+                              title={task.title}
+                            >
                               {clipText(task.title, 48)}
                             </h3>
                             <div className={styles.taskCardActions}>
@@ -571,7 +598,10 @@ export default function TapshiriqlarPage() {
                           </div>
 
                           {task.description ? (
-                            <p className={styles.taskCardDesc} title={task.description}>
+                            <p
+                              className={styles.taskCardDesc}
+                              title={task.description}
+                            >
                               {clipText(task.description, 80)}
                             </p>
                           ) : null}
@@ -588,7 +618,9 @@ export default function TapshiriqlarPage() {
                                 </span>
                               ))
                             ) : (
-                              <span className={styles.ownerEmpty}>Təyin olunmayıb</span>
+                              <span className={styles.ownerEmpty}>
+                                Təyin olunmayıb
+                              </span>
                             )}
                           </div>
 
@@ -649,7 +681,7 @@ export default function TapshiriqlarPage() {
       </aside>
 
       <footer className={sorguLayoutStyles.footer}>
-        <p className={styles.footerText}>Logistra Copyright © 2013-2026</p>
+        <p className={styles.footerText}>Ziyalog Copyright © 2013-2026</p>
       </footer>
 
       <ConfirmModal

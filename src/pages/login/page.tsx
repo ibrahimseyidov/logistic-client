@@ -50,7 +50,7 @@ export default function LoginPage() {
       <div className={styles.centerPanel}>
         <div className={styles.card}>
           <div className={styles.title}>
-            <h2 className={styles.titleText}>Logistra Logo</h2>
+            <h2 className={styles.titleText}>Ziyalog Logo</h2>
             <p className={styles.demoText}>
               Demo giriş: ibrahim@gmail.com / 1234
             </p>
@@ -160,7 +160,7 @@ export default function LoginPage() {
               fontSize: "0.8rem",
             }}
           >
-            <p>© Logistra - 2026</p>
+            <p>© Ziyalog - 2026</p>
           </div>
         </div>
       </div>

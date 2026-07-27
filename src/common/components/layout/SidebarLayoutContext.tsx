@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 
-const STORAGE_KEY = "logistra-sidebar-collapsed";
+const STORAGE_KEY = "Ziyalog-sidebar-collapsed";
 
 type SidebarLayoutContextValue = {
   collapsed: boolean;
@@ -73,7 +73,9 @@ export function SidebarLayoutProvider({
 export function useSidebarLayout(): SidebarLayoutContextValue {
   const ctx = useContext(SidebarLayoutContext);
   if (!ctx) {
-    throw new Error("useSidebarLayout must be used within SidebarLayoutProvider");
+    throw new Error(
+      "useSidebarLayout must be used within SidebarLayoutProvider",
+    );
   }
   return ctx;
 }

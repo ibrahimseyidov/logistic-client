@@ -62,7 +62,7 @@ export default function ReysTable({ rows }: Props) {
             <td
               className={`${styles.cell} ${styles.primaryText} ${styles.nowrap}`}
             >
-              {row.tripRef}
+              {row.id ? `R-${row.id}` : row.tripRef || "—"}
             </td>
             <td className={`${styles.cell} ${styles.center}`}>
               <StatusBadge label={row.tripStatus} kind={row.tripStatusKind} />

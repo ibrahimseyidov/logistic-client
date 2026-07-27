@@ -15,6 +15,7 @@ import AyarlarPage from "./pages/ayarlar/page";
 import DasiyicilarPage from "./pages/dasiyicilar/page";
 import DasiyiciDetailPage from "./pages/dasiyicilar/detail/page";
 import MaliyyePage from "./pages/maliyye/page";
+import MaliyyeHesabatPage from "./pages/maliyye/hesabat/page";
 import RequireAuth from "./common/components/auth/RequireAuth";
 
 function App() {
@@ -109,6 +110,14 @@ function App() {
               element={
                 <RequireAuth>
                   <MaliyyePage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/maliyye/hesabat"
+              element={
+                <RequireAuth>
+                  <MaliyyeHesabatPage />
                 </RequireAuth>
               }
             />

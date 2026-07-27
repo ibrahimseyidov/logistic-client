@@ -3,15 +3,18 @@ import styles from "./SorgularNewModal.module.css";
 import { FiX, FiPlus, FiTrash2 } from "react-icons/fi";
 import Select from "../../../common/components/select/Select";
 import { fetchLookupAction, type LookupRow } from "../../../common/actions/lookup.actions";
+import { fetchCarriersAction } from "../../../common/actions/carrier.actions";
 import {
-  createCarrierAction,
-  fetchCarriersAction,
-} from "../../../common/actions/carrier.actions";
+  CarrierCreateDrawer,
+  type CreatedCarrierSummary,
+} from "../../dasiyicilar/components/CarrierCreateDrawer";
 import {
   calcExpenseFromPurchasePrice,
   getCarrierDisplayName,
   resolveCarrierTypePercentage,
 } from "../lib/carrierExpense";
+import { useAppDispatch } from "../../../common/store/hooks";
+import { showNotification } from "../../../common/store/modalSlice";
 
 interface PriceOfferItem {
   id: string;
@@ -60,17 +63,13 @@ export const SorgularOfferModal: React.FC<Props> = ({
   initialOffers = [],
   queryNumber,
 }) => {
+  const dispatch = useAppDispatch();
   const [offers, setOffers] = useState<PriceOfferItem[]>([]);
   const [isVisible, setIsVisible] = useState(false);
   const [carrierOptions, setCarrierOptions] = useState<{ value: string; label: string }[]>([]);
   const [carrierRecords, setCarrierRecords] = useState<any[]>([]);
   const [carrierTypes, setCarrierTypes] = useState<LookupRow[]>([]);
   const [carrierPlusOfferId, setCarrierPlusOfferId] = useState<string | null>(null);
-  const [newCarrierName, setNewCarrierName] = useState("");
-  const [newCarrierShortName, setNewCarrierShortName] = useState("");
-  const [newCarrierType, setNewCarrierType] = useState("");
-  const [isSavingCarrier, setIsSavingCarrier] = useState(false);
-  const [carrierSaveError, setCarrierSaveError] = useState<string | null>(null);
 
   const loadReferenceData = useCallback(async () => {
     try {
@@ -88,10 +87,6 @@ export const SorgularOfferModal: React.FC<Props> = ({
           })
           .filter(Boolean) as { value: string; label: string }[],
       );
-      setNewCarrierType((prev) => {
-        if (prev) return prev;
-        return types[0]?.value || types[0]?.label || "";
-      });
     } catch (e) {
       console.error(e);
     }
@@ -150,14 +145,13 @@ export const SorgularOfferModal: React.FC<Props> = ({
         ]);
       }
       setCarrierPlusOfferId(null);
-      setNewCarrierName("");
-      setNewCarrierShortName("");
-      setCarrierSaveError(null);
       setTimeout(() => setIsVisible(true), 10);
     } else {
       setIsVisible(false);
     }
-  }, [isOpen, initialOffers]);
+    // Yalnız açılışda hydrate et — parent re-render formu sıfırlamasın
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -209,79 +203,54 @@ export const SorgularOfferModal: React.FC<Props> = ({
 
   const openCarrierPlusModal = (offerId: string) => {
     setCarrierPlusOfferId(offerId);
-    setNewCarrierName("");
-    setNewCarrierShortName("");
-    setCarrierSaveError(null);
-    if (carrierTypes.length > 0 && !newCarrierType) {
-      setNewCarrierType(carrierTypes[0]?.value || carrierTypes[0]?.label || "");
-    }
   };
 
   const closeCarrierPlusModal = () => {
-    if (isSavingCarrier) return;
     setCarrierPlusOfferId(null);
-    setNewCarrierName("");
-    setNewCarrierShortName("");
-    setCarrierSaveError(null);
   };
 
-  const handleSaveNewCarrier = async () => {
-    const company = newCarrierName.trim();
-    if (!company) {
-      setCarrierSaveError("Daşıyıcı adı mütləqdir");
-      return;
+  const handleCarrierCreated = async (created: CreatedCarrierSummary) => {
+    await loadReferenceData();
+    const displayName =
+      getCarrierDisplayName(created) ||
+      created.shortName?.trim() ||
+      created.name;
+    if (carrierPlusOfferId && displayName) {
+      handleChange(carrierPlusOfferId, "carrierName", displayName);
     }
-    setIsSavingCarrier(true);
-    setCarrierSaveError(null);
-    try {
-      const typeLabel =
-        carrierTypes.find((t) => t.value === newCarrierType || t.label === newCarrierType)
-          ?.label ||
-        newCarrierType ||
-        "Yeni daşıyıcı";
-      const created = await createCarrierAction({
-        name: company,
-        company,
-        shortName: newCarrierShortName.trim() || company,
-        carrierType: typeLabel,
-        contactPersons: [],
-        contactPerson: [],
-        phone: "",
-        address: "",
-        activityType: "",
-        voen: "",
-        country: "",
-        documents: [],
-      });
-      await loadReferenceData();
-      const displayName =
-        getCarrierDisplayName(created) ||
-        newCarrierShortName.trim() ||
-        company;
-      if (carrierPlusOfferId) {
-        handleChange(carrierPlusOfferId, "carrierName", displayName);
-      }
-      setCarrierPlusOfferId(null);
-      setNewCarrierName("");
-      setNewCarrierShortName("");
-      setCarrierSaveError(null);
-    } catch (error) {
-      console.error(error);
-      setCarrierSaveError("Daşıyıcı yaradıla bilmədi");
-    } finally {
-      setIsSavingCarrier(false);
-    }
+    setCarrierPlusOfferId(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!offers.length) {
+      dispatch(
+        showNotification({
+          message: "Ən azı bir qiymət təklifi əlavə edin!",
+          type: "error",
+          autoCloseDuration: 3500,
+        }),
+      );
+      return;
+    }
+
+    const missingCarrier = offers.findIndex(
+      (o) => !String(o.carrierName || "").trim(),
+    );
+    if (missingCarrier !== -1) {
+      dispatch(
+        showNotification({
+          message: `Təklif #${missingCarrier + 1}: daşıyıcı seçilməlidir!`,
+          type: "error",
+          autoCloseDuration: 3500,
+        }),
+      );
+      return;
+    }
+
     onSubmit(offers);
   };
-
-  const carrierTypeOptions = carrierTypes.map((t) => ({
-    value: t.value || t.label,
-    label: t.label || t.value,
-  }));
 
   return (
     <div className={styles.dialogRoot}>
@@ -291,7 +260,9 @@ export const SorgularOfferModal: React.FC<Props> = ({
       <aside className={`${styles.dialogPanel} ${isVisible ? styles.dialogPanelVisible : ""}`}>
         <div className={styles.dialogHeader}>
           <div className={styles.dialogHeaderText}>
-            <h2 className={styles.dialogTitle}>Qiymət Təklifləri</h2>
+            <h2 className={styles.dialogTitle}>
+              {initialOffers.length > 0 ? "Qiymət təkliflərini redaktə et" : "Yeni qiymət təklifi"}
+            </h2>
             {queryNumber && <p className={styles.dialogDescription}>Sorğu: {queryNumber}</p>}
           </div>
           <button className={styles.closeButton} onClick={onClose} type="button">
@@ -478,83 +449,11 @@ export const SorgularOfferModal: React.FC<Props> = ({
         </div>
       </aside>
 
-      {carrierPlusOfferId ? (
-        <div className={styles.nestedModalRoot} role="dialog" aria-modal="true">
-          <button
-            type="button"
-            className={styles.nestedModalBackdrop}
-            aria-label="Bağla"
-            onClick={closeCarrierPlusModal}
-          />
-          <div className={styles.nestedModalCard}>
-            <div className={styles.nestedModalHead}>
-              <h3>Yeni daşıyıcı</h3>
-              <button
-                type="button"
-                className={styles.closeButton}
-                onClick={closeCarrierPlusModal}
-                disabled={isSavingCarrier}
-              >
-                <FiX />
-              </button>
-            </div>
-            <div className={styles.nestedModalBody}>
-              <label className={styles.fieldStack}>
-                <span className={styles.label}>Şirkət adı *</span>
-                <input
-                  className={styles.input}
-                  value={newCarrierName}
-                  onChange={(e) => setNewCarrierName(e.target.value)}
-                  placeholder="Məs: Chinabase"
-                  autoFocus
-                />
-              </label>
-              <label className={styles.fieldStack}>
-                <span className={styles.label}>Qısa ad</span>
-                <input
-                  className={styles.input}
-                  value={newCarrierShortName}
-                  onChange={(e) => setNewCarrierShortName(e.target.value)}
-                  placeholder="İstəyə görə"
-                />
-              </label>
-              {carrierTypeOptions.length > 0 ? (
-                <label className={styles.fieldStack}>
-                  <span className={styles.label}>Daşıyıcı tipi</span>
-                  <Select
-                    value={newCarrierType}
-                    onChange={setNewCarrierType}
-                    options={carrierTypeOptions}
-                    placeholder="Tip seçin"
-                    className={styles.selectControl}
-                  />
-                </label>
-              ) : null}
-              {carrierSaveError ? (
-                <p className={styles.nestedModalError}>{carrierSaveError}</p>
-              ) : null}
-            </div>
-            <div className={styles.nestedModalFooter}>
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                onClick={closeCarrierPlusModal}
-                disabled={isSavingCarrier}
-              >
-                Ləğv et
-              </button>
-              <button
-                type="button"
-                className={styles.primaryButton}
-                onClick={() => void handleSaveNewCarrier()}
-                disabled={isSavingCarrier}
-              >
-                {isSavingCarrier ? "Saxlanır..." : "Əlavə et"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <CarrierCreateDrawer
+        isOpen={Boolean(carrierPlusOfferId)}
+        onClose={closeCarrierPlusModal}
+        onCreated={handleCarrierCreated}
+      />
     </div>
   );
 };

@@ -1,22 +1,22 @@
 export type AyarlarTab =
   | "users"
+  | "cash"
   | "cargo-specs"
   | "incoterms"
-  | "contact-persons"
-  | "contact-positions"
   | "transport-types"
-  | "documents";
+  | "documents"
+  | "logs";
 
 export const AYARLAR_TITLE = "Parametrlər";
 
 export const AYARLAR_TABS: { id: AyarlarTab; label: string }[] = [
   { id: "users", label: "İstifadəçilər" },
+  { id: "cash", label: "Kassa / Bank" },
   { id: "cargo-specs", label: "Yükün parametrləri" },
   { id: "incoterms", label: "İnkoterms" },
-  { id: "contact-persons", label: "Əlaqədar şəxslər" },
-  { id: "contact-positions", label: "Vəzifələr" },
   { id: "transport-types", label: "Nəqliyyat tipləri" },
   { id: "documents", label: "Sənədlər" },
+  { id: "logs", label: "Loglar" },
 ];
 
 export function getAyarlarTabLabel(id: AyarlarTab): string {
@@ -25,12 +25,12 @@ export function getAyarlarTabLabel(id: AyarlarTab): string {
 
 export function parseAyarlarTab(tab: string | null): AyarlarTab {
   if (
+    tab === "cash" ||
     tab === "cargo-specs" ||
     tab === "incoterms" ||
-    tab === "contact-persons" ||
-    tab === "contact-positions" ||
     tab === "transport-types" ||
-    tab === "documents"
+    tab === "documents" ||
+    tab === "logs"
   ) {
     return tab;
   }

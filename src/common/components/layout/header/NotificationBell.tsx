@@ -13,7 +13,7 @@ import {
 import { useAuth } from "../../../contexts/AuthContext";
 import styles from "./NotificationBell.module.css";
 
-const POLL_MS = 15000;
+const POLL_MS = 8000;
 
 function formatRelative(iso: string) {
   const date = new Date(iso);
@@ -28,6 +28,32 @@ function formatRelative(iso: string) {
   return `${days} gün əvvəl`;
 }
 
+function ensureBrowserPermission() {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission === "default") {
+    void Notification.requestPermission();
+  }
+}
+
+function showBrowserToast(item: AppNotification) {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+  if (document.visibilityState === "visible") return;
+
+  try {
+    const n = new Notification(item.title || "Yeni bildiriş", {
+      body: item.message,
+      tag: `Ziyalog-n-${item.id}`,
+    });
+    n.onclick = () => {
+      window.focus();
+      n.close();
+    };
+  } catch {
+    /* ignore */
+  }
+}
+
 export default function NotificationBell() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -35,6 +61,8 @@ export default function NotificationBell() {
   const [items, setItems] = useState<AppNotification[]>([]);
   const [unread, setUnread] = useState(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const knownIdsRef = useRef<Set<number>>(new Set());
+  const primedRef = useRef(false);
 
   const refresh = useCallback(async () => {
     if (!user) return;
@@ -42,17 +70,42 @@ export default function NotificationBell() {
       fetchNotificationsAction(),
       fetchUnreadNotificationCountAction(),
     ]);
+
+    if (!primedRef.current) {
+      knownIdsRef.current = new Set(list.map((n) => n.id));
+      primedRef.current = true;
+    } else {
+      for (const item of list) {
+        if (!item.read && !knownIdsRef.current.has(item.id)) {
+          showBrowserToast(item);
+        }
+      }
+      knownIdsRef.current = new Set(list.map((n) => n.id));
+    }
+
     setItems(list);
     setUnread(count);
   }, [user]);
 
   useEffect(() => {
     if (!user) return undefined;
+    ensureBrowserPermission();
     void refresh();
     const timer = window.setInterval(() => {
       void refresh();
     }, POLL_MS);
-    return () => window.clearInterval(timer);
+
+    const onFocus = () => {
+      void refresh();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
   }, [user, refresh]);
 
   useEffect(() => {
@@ -123,7 +176,11 @@ export default function NotificationBell() {
           <div className={styles.dropdownHeader}>
             <strong>Bildirimlər</strong>
             {unread > 0 ? (
-              <button type="button" className={styles.markAll} onClick={handleMarkAll}>
+              <button
+                type="button"
+                className={styles.markAll}
+                onClick={handleMarkAll}
+              >
                 Hamısını oxu
               </button>
             ) : null}
@@ -143,7 +200,9 @@ export default function NotificationBell() {
                 >
                   <span className={styles.itemTitle}>{item.title}</span>
                   <span className={styles.itemMessage}>{item.message}</span>
-                  <span className={styles.itemTime}>{formatRelative(item.createdAt)}</span>
+                  <span className={styles.itemTime}>
+                    {formatRelative(item.createdAt)}
+                  </span>
                 </button>
               ))
             )}

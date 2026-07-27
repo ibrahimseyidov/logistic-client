@@ -47,29 +47,26 @@
 
 .overlay {
   position: fixed;
-  top: var(--shell-header-height);
-  right: 0;
-  bottom: 0;
-  left: var(--shell-sidebar-width);
-  z-index: 40;
+  inset: 0;
+  z-index: 1100;
   opacity: 0;
   pointer-events: none;
   transition: opacity 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .overlayOpen {
-  background: rgba(15, 23, 42, 0.15);
+  background: rgba(15, 23, 42, 0.2);
   opacity: 1;
   pointer-events: auto;
 }
 
 .drawer {
   position: fixed;
-  top: var(--shell-header-height);
+  top: 0;
   right: 0;
   bottom: 0;
   left: auto;
-  z-index: 50;
+  z-index: 1110;
   width: 100%;
   max-width: 640px;
   border-left: 1px solid #e2e8f0;

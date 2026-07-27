@@ -53,7 +53,7 @@ const LOCAL_AUTH_BOOTSTRAP: AuthBootstrapData = {
     role: "admin",
     roleId: 1,
   },
-  companyName: "Logistra",
+  companyName: "Ziyalog",
   branches: [
     {
       id: 1,

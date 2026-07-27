@@ -9,12 +9,11 @@ import {
   type AyarlarTab,
 } from "./constants/ayarlar.constants";
 import { LookupOptionsSection } from "./components/LookupOptionsSection";
-import { ApiLookupOptionsSection } from "./components/ApiLookupOptionsSection";
 import { UsersSection } from "./components/UsersSection";
-import { ContactPersonsSection } from "./components/ContactPersonsSection";
 import { DocumentsSection } from "./components/DocumentsSection";
+import { LogsSection } from "./components/LogsSection";
+import { CashSettingsSection } from "./components/CashSettingsSection";
 import ayarlarStyles from "./ayarlar.module.css";
-import { CONTACT_POSITIONS_LOOKUP_TYPE } from "../../common/utils/contactPosition.utils";
 
 const CARGO_SPECS_SEED = [
   { value: "stackable", label: "Stackable" },
@@ -38,8 +37,6 @@ const AyarlarPage: React.FC = () => {
     return <Navigate to="/" replace />;
   }
 
-  // If user is null (still loading bootstrap data), we could show a loader, but AppShell handles the main layout.
-  // We can just return null or let it render (it will redirect once user is loaded).
   if (!user) {
     return null;
   }
@@ -47,6 +44,8 @@ const AyarlarPage: React.FC = () => {
   return (
     <div className={ayarlarStyles.page}>
       {activeTab === "users" && <UsersSection />}
+
+      {activeTab === "cash" && <CashSettingsSection />}
 
       {activeTab === "cargo-specs" && (
         <LookupOptionsSection
@@ -64,16 +63,6 @@ const AyarlarPage: React.FC = () => {
         />
       )}
 
-      {activeTab === "contact-persons" && <ContactPersonsSection />}
-
-      {activeTab === "contact-positions" && (
-        <ApiLookupOptionsSection
-          lookupType={CONTACT_POSITIONS_LOOKUP_TYPE}
-          title="Vəzifə"
-          singleField
-        />
-      )}
-
       {activeTab === "transport-types" && (
         <LookupOptionsSection
           storageKey="transport-types"
@@ -83,6 +72,8 @@ const AyarlarPage: React.FC = () => {
       )}
 
       {activeTab === "documents" && <DocumentsSection />}
+
+      {activeTab === "logs" && <LogsSection />}
     </div>
   );
 };

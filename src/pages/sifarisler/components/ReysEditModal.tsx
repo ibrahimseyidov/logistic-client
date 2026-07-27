@@ -1,7 +1,81 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { FiX, FiCalendar, FiClock, FiMapPin, FiPlus, FiMinus } from "react-icons/fi";
 import { useCurrencyRates } from "../../../common/hooks/useCurrencyRates";
 import { formatAzn, formatRateLine } from "../../../common/utils/currency.utils";
+import { fetchCarriersAction } from "../../../common/actions/carrier.actions";
+import { fetchContactPersonsAction } from "../../../common/actions/contact.actions";
+import {
+  getCarrierDisplayName,
+} from "../../sorgular/lib/carrierExpense";
+import {
+  normalizeCarrierContacts,
+  parseCarrierDocuments,
+} from "../../../common/utils/carrierDisplay.utils";
+
+const PLACEHOLDER = "Dəyəri seçin";
+
+function todayAzDate() {
+  return new Date().toLocaleDateString("az-AZ");
+}
+
+function parseTripPriceFields(tripPrice?: string | null): {
+  price: string;
+  currency: string;
+} {
+  const text = String(tripPrice || "").trim();
+  const match = text.match(/^([0-9]+(?:[.,][0-9]+)?)\s*([A-Za-z]{3})/);
+  if (!match) return { price: "", currency: "" };
+  return {
+    price: match[1].replace(",", "."),
+    currency: match[2].toUpperCase(),
+  };
+}
+
+function offerPurchaseFields(offer: any | null | undefined): {
+  price: string;
+  currency: string;
+  carrierName: string;
+} {
+  if (!offer) return { price: "", currency: "", carrierName: "" };
+  const raw = String(offer.price ?? "").replace(",", ".").trim();
+  const num = Number.parseFloat(raw);
+  return {
+    price: Number.isFinite(num) && num > 0 ? String(num) : "",
+    currency: String(offer.currency || "").trim().toUpperCase() || "",
+    carrierName: String(offer.carrierName || "").trim(),
+  };
+}
+
+/** Prefer offer matching order carrier tag, else first offer with alış price. */
+function resolveOfferForOrder(order: any, priceOffers: any[]): any | null {
+  if (!Array.isArray(priceOffers) || priceOffers.length === 0) return null;
+  const tagMatch = String(order?.tags || "").match(/Daşıyıcı:\s*(.+)/i);
+  const carrierHint = String(
+    tagMatch?.[1] || order?.carriers || "",
+  )
+    .trim()
+    .toLowerCase();
+  if (carrierHint) {
+    const matched = priceOffers.find(
+      (o) =>
+        String(o?.carrierName || "").trim().toLowerCase() === carrierHint,
+    );
+    if (matched) return matched;
+  }
+  return (
+    priceOffers.find((o) => Number.parseFloat(String(o?.price ?? "").replace(",", ".")) > 0) ||
+    priceOffers[0] ||
+    null
+  );
+}
+
+function formatCarrierDocumentLabel(doc: {
+  number: string;
+  documentType?: string;
+  date: string;
+}) {
+  return [doc.date, doc.number, doc.documentType].filter(Boolean).join(" — ");
+}
 
 interface Props {
   isOpen: boolean;
@@ -29,6 +103,14 @@ interface Props {
     rawPayload?: any;
   }>;
   orderNumber?: string;
+  /** Order for defaults (manager, etc.) */
+  order?: any;
+  /** Query price offers (alış = price) */
+  priceOffers?: any[];
+  /** Resolved display name for order manager / expeditor */
+  defaultExpeditor?: string;
+  /** User display names for ekspeditor select */
+  expeditorOptions?: string[];
 }
 
 // Reusable label component with inline [+] trigger
@@ -116,28 +198,32 @@ export default function ReysEditModal({
   editVoyage,
   availableLoads = [],
   orderNumber = "",
+  order,
+  priceOffers = [],
+  defaultExpeditor = "",
+  expeditorOptions = [],
 }: Props) {
   const [activeTab, setActiveTab] = useState<"general" | "routes">("general");
   const [selectedLoadIds, setSelectedLoadIds] = useState<string[]>([]);
 
   // Tab 1: General States
-  const [expeditor, setExpeditor] = useState("Ulvi Adilzade");
-  const [carrierCompany, setCarrierCompany] = useState("Makeasy");
-  const [contactPerson, setContactPerson] = useState("Dəyəri seçin");
-  const [carrierContract, setCarrierContract] = useState("Dəyəri seçin");
+  const [expeditor, setExpeditor] = useState("");
+  const [carrierCompany, setCarrierCompany] = useState("");
+  const [contactPerson, setContactPerson] = useState("");
+  const [carrierContract, setCarrierContract] = useState("");
 
-  const [voyageNumber, setVoyageNumber] = useState("ZF26094-1");
+  const [voyageNumber, setVoyageNumber] = useState("Avtomatik");
   const [tags, setTags] = useState("Dəyəri seçin");
-  const [price, setPrice] = useState("1205");
-  const [currency, setCurrency] = useState("USD");
-  const [exchangeDate, setExchangeDate] = useState("25.05.2026");
+  const [price, setPrice] = useState("");
+  const [currency, setCurrency] = useState("AZN");
+  const [exchangeDate, setExchangeDate] = useState(todayAzDate);
   const { toAzn, getRate, ratesData } = useCurrencyRates(exchangeDate);
   const parsedPrice = parseFloat(price) || 0;
   const calculatedAznPrice = useMemo(
     () => toAzn(parsedPrice, currency),
     [parsedPrice, currency, toAzn],
   );
-  const [priceWithVat, setPriceWithVat] = useState("1205");
+  const [priceWithVat, setPriceWithVat] = useState("");
   const [vatRate, setVatRate] = useState("0%");
   const [paymentTerms, setPaymentTerms] = useState("Dəyəri seçin");
   const [paymentDelay, setPaymentDelay] = useState("");
@@ -173,21 +259,20 @@ export default function ReysEditModal({
   const [upCountry, setUpCountry] = useState("Dəyəri seçin");
   const [upReceiver, setUpReceiver] = useState("Dəyəri seçin");
 
-  // Option lists states so we can dynamically add values
-  const [carrierOptions, setCarrierOptions] = useState<string[]>(["Makeasy", "Baku Express"]);
-  const [contactOptions, setContactOptions] = useState<string[]>(["Dəyəri seçin", "Gavin"]);
+  // Real carriers + dynamic option lists
+  const [carriersData, setCarriersData] = useState<any[]>([]);
+  const [carrierContactRows, setCarrierContactRows] = useState<any[]>([]);
   const [tagOptions, setTagOptions] = useState<string[]>(["Dəyəri seçin", "Dental"]);
   const [vehicleTypeOptions, setVehicleTypeOptions] = useState<string[]>(["Dəyəri seçin", "Volvo FH16"]);
   const [loadingMethodOptions, setLoadingMethodOptions] = useState<string[]>(["Dəyəri seçin", "Tent"]);
 
   // Sub-modal triggers
-  const [isCarrierModalOpen, setIsCarrierModalOpen] = useState(false);
-  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isTagModalOpen, setIsTagModalOpen] = useState(false);
   const [isVehicleTypeModalOpen, setIsVehicleTypeModalOpen] = useState(false);
   const [isLoadingMethodModalOpen, setIsLoadingMethodModalOpen] = useState(false);
 
-  // 1. Yeni Daşıyıcı Form State
+  // 1. Yeni Daşıyıcı Form State (legacy modal – unused, kept for compatibility)
+  const [isCarrierModalOpen, setIsCarrierModalOpen] = useState(false);
   const [carrierModalName, setCarrierModalName] = useState("");
   const [carrierModalAbbrName, setCarrierModalAbbrName] = useState("");
   const [carrierModalType, setCarrierModalType] = useState("Yeni");
@@ -242,11 +327,6 @@ export default function ReysEditModal({
   const countries = ["Azerbaijan", "Georgia", "Turkey", "Russia", "Germany"];
   const banks = ["AccessBank", "Pasha Bank", "Kapital Bank", "ABB"];
 
-  // 2. Yeni Əlaqədar Şəxs Form State
-  const [contactModalName, setContactModalName] = useState("");
-  const [contactModalPhone, setContactModalPhone] = useState("");
-  const [contactModalEmail, setContactModalEmail] = useState("");
-
   // 3. Nəqliyyatın Yeni Tipi Form State
   const [vehicleTypeModalName, setVehicleTypeModalName] = useState("");
   const [vehicleTypeModalType, setVehicleTypeModalType] = useState("Avtoreyslər");
@@ -261,19 +341,173 @@ export default function ReysEditModal({
   const [loadMethodModalName, setLoadMethodModalName] = useState("");
   const [loadMethodModalActive, setLoadMethodModalActive] = useState(true);
 
+  const loadCarriers = useCallback(async () => {
+    try {
+      const data = await fetchCarriersAction();
+      setCarriersData(Array.isArray(data) ? data : []);
+    } catch {
+      setCarriersData([]);
+    }
+  }, []);
+
+  const selectedCarrierObj = useMemo(() => {
+    if (!carrierCompany) return null;
+    return (
+      carriersData.find((c: any) => {
+        const name = getCarrierDisplayName(c) || c.name || c.company || "";
+        return name === carrierCompany || String(c.id) === carrierCompany;
+      }) || null
+    );
+  }, [carriersData, carrierCompany]);
+
+  const carrierOptions = useMemo(() => {
+    const names = carriersData
+      .map((c: any) => getCarrierDisplayName(c) || c.name || c.company || "")
+      .filter(Boolean);
+    if (carrierCompany && !names.includes(carrierCompany)) {
+      return [PLACEHOLDER, carrierCompany, ...names];
+    }
+    return [PLACEHOLDER, ...names];
+  }, [carriersData, carrierCompany]);
+
+  const contactOptions = useMemo(() => {
+    const fromCarrier = normalizeCarrierContacts(
+      selectedCarrierObj?.contactPersons || [],
+      carrierContactRows as any,
+    );
+    const names = fromCarrier
+      .map((c: any) =>
+        c.position ? `${c.fullName} (${c.position})` : c.fullName,
+      )
+      .filter(Boolean);
+    const valueNames = fromCarrier.map((c: any) => c.fullName).filter(Boolean);
+    const options = [PLACEHOLDER, ...valueNames];
+    if (contactPerson && contactPerson !== PLACEHOLDER && !options.includes(contactPerson)) {
+      return [...options, contactPerson];
+    }
+    // Keep label map via fullName as value; display uses fullName
+    void names;
+    return options;
+  }, [selectedCarrierObj, carrierContactRows, contactPerson]);
+
+  const contractOptions = useMemo(() => {
+    const docs = parseCarrierDocuments(
+      selectedCarrierObj?.documents ?? selectedCarrierObj?.documentsJson,
+    );
+    const opts = docs
+      .filter((d) => d.number.trim())
+      .map((d) => ({
+        value: d.number,
+        label: formatCarrierDocumentLabel(d),
+      }));
+    if (
+      carrierContract &&
+      carrierContract !== PLACEHOLDER &&
+      !opts.some((o) => o.value === carrierContract)
+    ) {
+      return [
+        { value: "", label: PLACEHOLDER },
+        ...opts,
+        { value: carrierContract, label: carrierContract },
+      ];
+    }
+    return [{ value: "", label: PLACEHOLDER }, ...opts];
+  }, [selectedCarrierObj, carrierContract]);
+
+  const refreshCarrierContacts = useCallback(async (carrierId?: string | number | null) => {
+    if (!carrierId) {
+      setCarrierContactRows([]);
+      return;
+    }
+    try {
+      const rows = await fetchContactPersonsAction({
+        entityType: "carrier",
+        entityId: carrierId,
+      });
+      setCarrierContactRows(Array.isArray(rows) ? rows : []);
+    } catch {
+      setCarrierContactRows([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    void loadCarriers();
+  }, [isOpen, loadCarriers]);
+
+  useEffect(() => {
+    void refreshCarrierContacts(selectedCarrierObj?.id);
+  }, [selectedCarrierObj?.id, refreshCarrierContacts]);
+
+  const handleCarrierCompanyChange = (next: string) => {
+    const value = next === PLACEHOLDER ? "" : next;
+    setCarrierCompany(value);
+    setContactPerson("");
+    setCarrierContract("");
+    if (!value) return;
+    const offer =
+      priceOffers.find(
+        (o: any) =>
+          String(o?.carrierName || "").trim().toLowerCase() ===
+          value.trim().toLowerCase(),
+      ) || null;
+    const fields = offerPurchaseFields(offer);
+    if (fields.price) {
+      setPrice(fields.price);
+      setPriceWithVat(fields.price);
+    }
+    if (fields.currency) setCurrency(fields.currency);
+  };
+
   useEffect(() => {
     if (isOpen && editVoyage) {
       const payload = editVoyage.rawPayload || {};
-      setExpeditor(payload.expeditor || "Ulvi Adilzade");
-      setCarrierCompany(payload.carrierCompany || "Makeasy");
-      setContactPerson(payload.contactPerson || "Dəyəri seçin");
-      setCarrierContract(payload.carrierContract || "Dəyəri seçin");
-      setVoyageNumber(editVoyage.number || "ZF26094-1");
-      setTags(payload.tags || "Dəyəri seçin");
-      setPrice(payload.price || "1205");
-      setCurrency(payload.currency || "USD");
-      setExchangeDate(payload.exchangeDate || "25.05.2026");
-      setPriceWithVat(payload.priceWithVat || "1205");
+      const fromTrip = parseTripPriceFields(
+        editVoyage.tripPrice || editVoyage.price,
+      );
+      const matchedOffer = offerPurchaseFields(
+        priceOffers.find(
+          (o: any) =>
+            String(o?.carrierName || "")
+              .trim()
+              .toLowerCase() ===
+            String(payload.carrierCompany || editVoyage.carrier || "")
+              .trim()
+              .toLowerCase(),
+        ),
+      );
+      const resolvedPrice =
+        fromTrip.price || payload.price || matchedOffer.price || "";
+      const resolvedCurrency =
+        fromTrip.currency ||
+        payload.currency ||
+        matchedOffer.currency ||
+        "AZN";
+
+      setExpeditor(
+        payload.expeditor || defaultExpeditor || "",
+      );
+      setCarrierCompany(
+        payload.carrierCompany || editVoyage.carrier || "",
+      );
+      setContactPerson(
+        payload.contactPerson && payload.contactPerson !== PLACEHOLDER
+          ? payload.contactPerson
+          : "",
+      );
+      setCarrierContract(
+        payload.carrierContract && payload.carrierContract !== PLACEHOLDER
+          ? payload.carrierContract
+          : "",
+      );
+      setVoyageNumber(
+        editVoyage.id ? `R-${editVoyage.id}` : editVoyage.number || "Avtomatik",
+      );
+      setTags(payload.tags || editVoyage.tags || "Dəyəri seçin");
+      setPrice(resolvedPrice);
+      setCurrency(resolvedCurrency);
+      setExchangeDate(payload.exchangeDate || todayAzDate());
+      setPriceWithVat(payload.priceWithVat || resolvedPrice);
       setVatRate(payload.vatRate || "0%");
       setPaymentTerms(payload.paymentTerms || "Dəyəri seçin");
       setPaymentDelay(payload.paymentDelay || "");
@@ -286,21 +520,14 @@ export default function ReysEditModal({
       setDriverPhone(payload.driverPhone || "");
       setDriverPassport(payload.driverPassport || "");
 
-      // Dynamically add loaded options to lists if missing
-      if (payload.carrierCompany && !carrierOptions.includes(payload.carrierCompany)) {
-        setCarrierOptions(prev => [...prev, payload.carrierCompany]);
-      }
-      if (payload.contactPerson && !contactOptions.includes(payload.contactPerson)) {
-        setContactOptions(prev => [...prev, payload.contactPerson]);
-      }
       if (payload.tags && !tagOptions.includes(payload.tags)) {
-        setTagOptions(prev => [...prev, payload.tags]);
+        setTagOptions((prev) => [...prev, payload.tags]);
       }
       if (payload.vehicleType && !vehicleTypeOptions.includes(payload.vehicleType)) {
-        setVehicleTypeOptions(prev => [...prev, payload.vehicleType]);
+        setVehicleTypeOptions((prev) => [...prev, payload.vehicleType]);
       }
       if (payload.loadingMethod && !loadingMethodOptions.includes(payload.loadingMethod)) {
-        setLoadingMethodOptions(prev => [...prev, payload.loadingMethod]);
+        setLoadingMethodOptions((prev) => [...prev, payload.loadingMethod]);
       }
 
       if (payload.loadingPlaces?.[0]) {
@@ -312,6 +539,9 @@ export default function ReysEditModal({
         setLpAddress(lp.address || "");
         setLpCountry(lp.country || "Dəyəri seçin");
         setLpSender(lp.sender || "Dəyəri seçin");
+      } else {
+        setLpCompany(editVoyage.sender || "");
+        setLpAddress(editVoyage.loading || editVoyage.loadPlace || "");
       }
       if (payload.unloadingPlaces?.[0]) {
         const up = payload.unloadingPlaces[0];
@@ -322,6 +552,9 @@ export default function ReysEditModal({
         setUpAddress(up.address || "");
         setUpCountry(up.country || "Dəyəri seçin");
         setUpReceiver(up.receiver || "Dəyəri seçin");
+      } else {
+        setUpCompany(editVoyage.receiver || "");
+        setUpAddress(editVoyage.unloading || editVoyage.unloadPlace || "");
       }
 
       const voyageId = String(editVoyage.id ?? "");
@@ -345,17 +578,22 @@ export default function ReysEditModal({
               : [];
       setSelectedLoadIds(initialSelected);
     } else if (isOpen && !editVoyage) {
-      // Clear values to defaults
-      setExpeditor("Ulvi Adilzade");
-      setCarrierCompany("Makeasy");
-      setContactPerson("Dəyəri seçin");
-      setCarrierContract("Dəyəri seçin");
-      setVoyageNumber(`ZF26094-${Date.now().toString().slice(-3)}`);
+      const primaryOffer =
+        priceOffers.length === 1
+          ? priceOffers[0]
+          : resolveOfferForOrder(order, priceOffers);
+      const fields = offerPurchaseFields(primaryOffer);
+
+      setExpeditor(defaultExpeditor || "");
+      setCarrierCompany(fields.carrierName || "");
+      setContactPerson("");
+      setCarrierContract("");
+      setVoyageNumber("Avtomatik");
       setTags("Dəyəri seçin");
-      setPrice("1205");
-      setCurrency("USD");
-      setExchangeDate("25.05.2026");
-      setPriceWithVat("1205");
+      setPrice(fields.price || "");
+      setCurrency(fields.currency || "AZN");
+      setExchangeDate(todayAzDate());
+      setPriceWithVat(fields.price || "");
       setVatRate("0%");
       setPaymentTerms("Dəyəri seçin");
       setPaymentDelay("");
@@ -373,7 +611,18 @@ export default function ReysEditModal({
         availableLoads.length === 1 ? [String(availableLoads[0].id)] : [],
       );
     }
-  }, [isOpen, editVoyage, availableLoads]);
+  }, [isOpen, editVoyage, availableLoads, priceOffers, defaultExpeditor, order]);
+
+  const expeditorSelectOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const n of expeditorOptions || []) {
+      const t = String(n || "").trim();
+      if (t) set.add(t);
+    }
+    if (defaultExpeditor?.trim()) set.add(defaultExpeditor.trim());
+    if (expeditor?.trim()) set.add(expeditor.trim());
+    return Array.from(set);
+  }, [expeditorOptions, defaultExpeditor, expeditor]);
 
   const selectedLoads = useMemo(
     () =>
@@ -439,50 +688,8 @@ export default function ReysEditModal({
     setIsUpOpen(true);
   };
 
-  // 1. Yeni Daşıyıcı Save Handler
   const handleSaveCarrier = () => {
-    if (!carrierModalAbbrName.trim()) {
-      alert("Name (abbreviated) mütləq daxil edilməlidir!");
-      return;
-    }
-    const newCarrier = carrierModalAbbrName.trim();
-    if (!carrierOptions.includes(newCarrier)) {
-      setCarrierOptions(prev => [...prev, newCarrier]);
-    }
-    setCarrierCompany(newCarrier);
     setIsCarrierModalOpen(false);
-    
-    // Clear state
-    setCarrierModalName("");
-    setCarrierModalAbbrName("");
-    setCarrierModalType("Yeni");
-    setCarrierModalVoen("");
-    setCarrierModalVoun("");
-    setCarrierModalMtut("");
-    setCarrierModalEdqn("");
-    setCarrierModalUak("");
-    setCarrierModalBin("");
-    setCarrierModalVatCode("");
-    setCarrierModalNotes("");
-  };
-
-  // 2. Yeni Əlaqədar Şəxs Save Handler
-  const handleSaveContact = () => {
-    if (!contactModalName.trim()) {
-      alert("Tam adı mütləq daxil edilməlidir!");
-      return;
-    }
-    const newContact = contactModalName.trim();
-    if (!contactOptions.includes(newContact)) {
-      setContactOptions(prev => [...prev, newContact]);
-    }
-    setContactPerson(newContact);
-    setIsContactModalOpen(false);
-    
-    // Clear state
-    setContactModalName("");
-    setContactModalPhone("");
-    setContactModalEmail("");
   };
 
   // 3. Nəqliyyatın Yeni Tipi Save Handler
@@ -537,10 +744,12 @@ export default function ReysEditModal({
   };
 
   const handleSave = () => {
-    if (!voyageNumber.trim()) {
-      alert("Reysin nömrəsi mütləq daxil edilməlidir!");
-      return;
-    }
+    const resolvedNumber =
+      editVoyage?.id
+        ? `R-${editVoyage.id}`
+        : voyageNumber.trim() && voyageNumber !== "Avtomatik"
+          ? voyageNumber.trim()
+          : "Avtomatik";
 
     const aznAmount = toAzn(parseFloat(price) || 0, currency);
     const calculatedAznPrice = aznAmount.toFixed(2);
@@ -551,11 +760,11 @@ export default function ReysEditModal({
       .filter(Boolean);
     const loadsLabel =
       selectedNames.length > 0
-        ? `${voyageNumber.trim()} - ${selectedNames.join(", ")}`
-        : `${voyageNumber.trim()}`;
+        ? `${resolvedNumber} - ${selectedNames.join(", ")}`
+        : `${resolvedNumber}`;
 
     onConfirm({
-      number: voyageNumber.trim(),
+      number: resolvedNumber,
       tags: tags !== "Dəyəri seçin" ? tags : "",
       sender: lpCompany || "—",
       loadPlace: lpAddress || lpCity || "—",
@@ -577,7 +786,7 @@ export default function ReysEditModal({
         carrierCompany,
         contactPerson,
         carrierContract,
-        voyageNumber: voyageNumber.trim(),
+        voyageNumber: resolvedNumber,
         tags,
         price,
         priceAzn: calculatedAznPrice,
@@ -759,44 +968,65 @@ export default function ReysEditModal({
                       onChange={(e) => setExpeditor(e.target.value)}
                       style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", width: "100%", background: "#ffffff", outline: "none", boxSizing: "border-box" }}
                     >
-                      <option value="Ulvi Adilzade">Ulvi Adilzade</option>
-                      <option value="Nijat Shabanly">Nijat Shabanly</option>
+                      {expeditorSelectOptions.length === 0 && (
+                        <option value="">Seçin</option>
+                      )}
+                      {expeditorSelectOptions.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
                   <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#475569", marginTop: "0.5rem" }}>Daşıyıcının məlumatları</span>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                    <LabelWithPlus label="Daşıyıcının şirkəti" onPlusClick={() => setIsCarrierModalOpen(true)} />
+                    <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Daşıyıcının şirkəti</label>
                     <select
-                      value={carrierCompany}
-                      onChange={(e) => setCarrierCompany(e.target.value)}
+                      value={carrierCompany || PLACEHOLDER}
+                      onChange={(e) => handleCarrierCompanyChange(e.target.value)}
                       style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", width: "100%", background: "#ffffff", outline: "none", boxSizing: "border-box" }}
                     >
-                      {carrierOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      {carrierOptions.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                    <LabelWithPlus label="Əlaqədar şəxs" onPlusClick={() => setIsContactModalOpen(true)} />
+                    <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Əlaqədar şəxs</label>
                     <select
-                      value={contactPerson}
-                      onChange={(e) => setContactPerson(e.target.value)}
+                      value={contactPerson || PLACEHOLDER}
+                      onChange={(e) =>
+                        setContactPerson(
+                          e.target.value === PLACEHOLDER ? "" : e.target.value,
+                        )
+                      }
                       style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", width: "100%", background: "#ffffff", outline: "none", boxSizing: "border-box" }}
                     >
-                      {contactOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      {contactOptions.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
                     <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Daşıyıcı ilə müqavilənin nömrəsi</label>
                     <select
-                      value={carrierContract}
+                      value={carrierContract || ""}
                       onChange={(e) => setCarrierContract(e.target.value)}
                       style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", width: "100%", background: "#ffffff", outline: "none", boxSizing: "border-box" }}
                     >
-                      <option value="Dəyəri seçin">Dəyəri seçin</option>
-                      <option value="AGR-2026-09">AGR-2026-09</option>
+                      {contractOptions.map((opt) => (
+                        <option key={opt.value || "empty"} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -812,8 +1042,9 @@ export default function ReysEditModal({
                       <input
                         type="text"
                         value={voyageNumber}
-                        onChange={(e) => setVoyageNumber(e.target.value)}
-                        style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box", outline: "none", background: "#ffffff" }}
+                        readOnly
+                        title="Reys nömrəsi avtomatik R-{id} formatında təyin olunur"
+                        style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box", outline: "none", background: "#f8fafc", color: "#64748b" }}
                       />
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
@@ -918,65 +1149,6 @@ export default function ReysEditModal({
                       onChange={(e) => setPaymentDelay(e.target.value)}
                       style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box", outline: "none", background: "#ffffff" }}
                     />
-                  </div>
-                </div>
-              </div>
-
-              {/* Bottom Row: Nəqliyyat & Sürücü */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2.5rem", marginTop: "1rem" }}>
-                {/* Nəqliyyat section */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                  <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#475569" }}>Nəqliyyat</span>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Nəqliyyat vasitəsinin nömrəsi</label>
-                      <input type="text" value={vehicleNumber} onChange={(e) => setVehicleNumber(e.target.value)} style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box", outline: "none" }} />
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Qoşqunun nömrəsi</label>
-                      <input type="text" value={trailerNumber} onChange={(e) => setTrailerNumber(e.target.value)} style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box", outline: "none" }} />
-                    </div>
-                  </div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <LabelWithPlus label="Nəqliyyatın tipi" onPlusClick={() => setIsVehicleTypeModalOpen(true)} />
-                      <select value={vehicleType} onChange={(e) => setVehicleType(e.target.value)} style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", width: "100%", background: "#ffffff", outline: "none" }}>
-                        {vehicleTypeOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                      </select>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <LabelWithPlus label="Yükləmənin üsulu" onPlusClick={() => setIsLoadingMethodModalOpen(true)} />
-                      <select value={loadingMethod} onChange={(e) => setLoadingMethod(e.target.value)} style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", width: "100%", background: "#ffffff", outline: "none" }}>
-                        {loadingMethodOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Sürücü section */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                  <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#475569" }}>Sürücü</span>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Adı</label>
-                      <input type="text" value={driverName} onChange={(e) => setDriverName(e.target.value)} style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box", outline: "none" }} />
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Soyadı</label>
-                      <input type="text" value={driverSurname} onChange={(e) => setDriverSurname(e.target.value)} style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box", outline: "none" }} />
-                    </div>
-                  </div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Telefon</label>
-                      <input type="text" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box", outline: "none" }} />
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Pasportun nömrəsi</label>
-                      <input type="text" value={driverPassport} onChange={(e) => setDriverPassport(e.target.value)} style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box", outline: "none" }} />
-                    </div>
                   </div>
                 </div>
               </div>
@@ -1687,40 +1859,6 @@ export default function ReysEditModal({
         </div>
       )}
 
-      {/* Sub-modal 2: Yeni əlaqədar şəxs (Photo 2) */}
-      {isContactModalOpen && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 10006, display: "flex", justifyContent: "center", alignItems: "center" }}>
-          <div style={{ position: "absolute", inset: 0, background: "rgba(15, 23, 42, 0.4)", backdropFilter: "blur(4px)" }} />
-          <div style={{ position: "relative", background: "#f1f5f9", width: "min(96%, 480px)", borderRadius: "0.5rem", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "inherit", boxSizing: "border-box" }}>
-            {/* Header */}
-            <div style={{ background: "#ffffff", padding: "0.85rem 1.25rem", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "#475569" }}>Yeni əlaqədar şəxs</span>
-              <button type="button" onClick={() => setIsContactModalOpen(false)} style={{ background: "transparent", border: 0, cursor: "pointer", fontSize: "1.25rem", color: "#64748b", display: "flex", alignItems: "center", padding: "0.25rem" }}><FiX /></button>
-            </div>
-            {/* Body */}
-            <div style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1rem", boxSizing: "border-box" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Tam adı <span style={{ color: "#ef4444" }}>*</span></label>
-                <input type="text" value={contactModalName} onChange={(e) => setContactModalName(e.target.value)} style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box", background: "#ffffff", outline: "none" }} />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Telefon nömrələri</label>
-                <input type="text" value={contactModalPhone} onChange={(e) => setContactModalPhone(e.target.value)} style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box", background: "#ffffff", outline: "none" }} />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>El.poçtu</label>
-                <input type="text" value={contactModalEmail} onChange={(e) => setContactModalEmail(e.target.value)} style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.75rem", fontSize: "0.8rem", width: "100%", boxSizing: "border-box", background: "#ffffff", outline: "none" }} />
-              </div>
-            </div>
-            {/* Footer */}
-            <div style={{ padding: "1rem 1.25rem", background: "#f8fafc", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
-              <button type="button" onClick={() => setIsContactModalOpen(false)} style={{ background: "transparent", border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 1.25rem", fontSize: "0.8rem", fontWeight: 600, color: "#475569", cursor: "pointer" }}>Ləğv et</button>
-              <button type="button" onClick={handleSaveContact} style={{ background: "#22c55e", border: "1px solid #22c55e", borderRadius: "0.375rem", padding: "0.5rem 1.5rem", fontSize: "0.8rem", fontWeight: 600, color: "#ffffff", cursor: "pointer" }}>Yaddaşda saxlamaq</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Sub-modal 3: Nəqliyyatın yeni tipi (Photo 3) */}
       {isVehicleTypeModalOpen && (
         <div style={{ position: "fixed", inset: 0, zIndex: 10006, display: "flex", justifyContent: "center", alignItems: "center" }}>
@@ -1842,6 +1980,7 @@ export default function ReysEditModal({
           </div>
         </div>
       )}
+
     </div>
   );
 }

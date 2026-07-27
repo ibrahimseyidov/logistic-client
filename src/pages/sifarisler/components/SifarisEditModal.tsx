@@ -5,7 +5,10 @@ import styles from "../../sorgular/components/SorgularNewModal.module.css";
 import { fetchUsersAction } from "../../../common/actions/user.actions";
 import { fetchContactPersonsAction } from "../../../common/actions/contact.actions";
 import { fetchCustomersAction } from "../../../common/actions/customer.actions";
-import { fetchLookupAction, createLookupAction } from "../../../common/actions/lookup.actions";
+import {
+  fetchLookupAction,
+  createLookupAction,
+} from "../../../common/actions/lookup.actions";
 
 interface Props {
   isOpen: boolean;
@@ -32,7 +35,9 @@ export default function SifarisEditModal({
   const [isNewTagModalOpen, setIsNewTagModalOpen] = useState(false);
 
   // New Client Form States
-  const [clientActiveTab, setClientActiveTab] = useState<"general" | "contact" | "finance">("general");
+  const [clientActiveTab, setClientActiveTab] = useState<
+    "general" | "contact" | "finance"
+  >("general");
   const [clientNameFull, setClientNameFull] = useState("");
   const [clientNameAbbr, setClientNameAbbr] = useState("");
   const [clientType, setClientType] = useState("Yeni müştəri");
@@ -46,7 +51,9 @@ export default function SifarisEditModal({
   const [clientVatCode, setClientVatCode] = useState("");
   const [clientDate, setClientDate] = useState("27.05.2026");
   const [clientLang, setClientLang] = useState("Dəyəri seçin");
-  const [clientManagers, setClientManagers] = useState<string[]>(["Ulvi Adilzade"]);
+  const [clientManagers, setClientManagers] = useState<string[]>([
+    "Ulvi Adilzade",
+  ]);
   const [clientPermitted, setClientPermitted] = useState(true);
   const [clientInfo, setClientInfo] = useState("");
 
@@ -66,7 +73,11 @@ export default function SifarisEditModal({
 
   useEffect(() => {
     if (isOpen) {
-      Promise.all([fetchUsersAction(), fetchContactPersonsAction(), fetchCustomersAction()])
+      Promise.all([
+        fetchUsersAction(),
+        fetchContactPersonsAction(),
+        fetchCustomersAction(),
+      ])
         .then(([u, c, cust]) => {
           setUsersData(u);
           setContactsData(c);
@@ -75,7 +86,7 @@ export default function SifarisEditModal({
         .catch((e) => console.error(e));
     }
   }, [isOpen]);
-  
+
   // Contacts column ("Əlaqələr")
   const [customer, setCustomer] = useState("");
   const [contractNumber, setContractNumber] = useState("");
@@ -104,13 +115,19 @@ export default function SifarisEditModal({
       setOrderDate(order.orderDate || "");
       setCustomerOrderRef(order.customerOrderRef || "");
       setTags(order.tags || "");
-      
+
       setCustomer(order.customer || "");
-      setContractNumber(order.contractNumber || "13.01.2026 - ZFAZ02/26 - Müqavilə");
+      setContractNumber(
+        order.contractNumber || "13.01.2026 - ZFAZ02/26 - Müqavilə",
+      );
       setContactPerson(order.contactPerson || "Nijat Shabanly");
       setManager(order.manager || "Ulvi Adilzade");
       setExpeditor(order.expeditor || "Ulvi Adilzade");
-      setExtraManagers(order.extraManagers ? order.extraManagers.split(", ").filter(Boolean) : ["Ulvi Adilzade"]);
+      setExtraManagers(
+        order.extraManagers
+          ? order.extraManagers.split(", ").filter(Boolean)
+          : ["Ulvi Adilzade"],
+      );
       setCompany(order.company || "Ziyafreight");
       setExtraInfo(order.extraInfo || "");
 
@@ -207,7 +224,14 @@ export default function SifarisEditModal({
             justifyContent: "space-between",
           }}
         >
-          <h3 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 700, color: "#1e293b" }}>
+          <h3
+            style={{
+              margin: 0,
+              fontSize: "1.25rem",
+              fontWeight: 700,
+              color: "#1e293b",
+            }}
+          >
             Sifarişi dəyiş
           </h3>
           <button
@@ -277,8 +301,20 @@ export default function SifarisEditModal({
             }}
           >
             {/* Sifarişin nömrəsi */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-              <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.375rem",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  color: "#94a3b8",
+                }}
+              >
                 Sifarişin nömrəsi
               </label>
               <input
@@ -298,8 +334,20 @@ export default function SifarisEditModal({
             </div>
 
             {/* Sifarişin tarixi */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-              <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.375rem",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  color: "#94a3b8",
+                }}
+              >
                 Sifarişin tarixi <span style={{ color: "#ef4444" }}>*</span>
               </label>
               <div style={{ position: "relative" }}>
@@ -333,8 +381,20 @@ export default function SifarisEditModal({
             </div>
 
             {/* Müştəridə olan sifarişin nömrəsi */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-              <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.375rem",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  color: "#94a3b8",
+                }}
+              >
                 Müştəridə olan sifarişin nömrəsi
               </label>
               <input
@@ -354,9 +414,29 @@ export default function SifarisEditModal({
             </div>
 
             {/* Teqlər */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>Teqlər</label>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.375rem",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    color: "#94a3b8",
+                  }}
+                >
+                  Teqlər
+                </label>
                 <button
                   type="button"
                   onClick={() => {
@@ -397,11 +477,33 @@ export default function SifarisEditModal({
           </div>
 
           {/* Two-Column Form Area */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2.5rem" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "2.5rem",
+            }}
+          >
             {/* Column 1: Əlaqələr */}
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", marginBottom: "1rem" }}>
-                <h4 style={{ margin: 0, fontSize: "0.875rem", fontWeight: 700, color: "#16a34a", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.375rem",
+                  marginBottom: "1rem",
+                }}
+              >
+                <h4
+                  style={{
+                    margin: 0,
+                    fontSize: "0.875rem",
+                    fontWeight: 700,
+                    color: "#16a34a",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                  }}
+                >
                   Əlaqələr
                 </h4>
                 <div
@@ -424,11 +526,35 @@ export default function SifarisEditModal({
                 </div>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "1rem",
+                }}
+              >
                 {/* Müştəri */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color: "#94a3b8",
+                      }}
+                    >
                       Müştəri <span style={{ color: "#ef4444" }}>*</span>
                     </label>
                     <button
@@ -481,8 +607,20 @@ export default function SifarisEditModal({
                 </div>
 
                 {/* Müqavilənin nömrəsi */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#94a3b8",
+                    }}
+                  >
                     Müştəri ilə müqavilənin nömrəsi
                   </label>
                   <div style={{ position: "relative", display: "flex" }}>
@@ -504,9 +642,29 @@ export default function SifarisEditModal({
                 </div>
 
                 {/* Əlaqədar şəxs */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>Əlaqədar şəxs</label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color: "#94a3b8",
+                      }}
+                    >
+                      Əlaqədar şəxs
+                    </label>
                     <button
                       type="button"
                       onClick={() => {
@@ -546,18 +704,38 @@ export default function SifarisEditModal({
                   >
                     <option value="">Dəyəri seçin</option>
                     {(() => {
-                      const cust = customersData.find((c: any) => c.id?.toString() === customer);
+                      const cust = customersData.find(
+                        (c: any) => c.id?.toString() === customer,
+                      );
                       const contacts = cust?.contactPersons || [];
                       return contacts.map((c: any) => (
-                        <option key={c.id} value={c.fullName}>{c.position ? `${c.fullName} (${c.position})` : c.fullName}</option>
+                        <option key={c.id} value={c.fullName}>
+                          {c.position
+                            ? `${c.fullName} (${c.position})`
+                            : c.fullName}
+                        </option>
                       ));
                     })()}
                   </select>
                 </div>
 
                 {/* Menecer */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>Menecer</label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#94a3b8",
+                    }}
+                  >
+                    Menecer
+                  </label>
                   <select
                     value={manager}
                     onChange={(e) => setManager(e.target.value)}
@@ -574,14 +752,30 @@ export default function SifarisEditModal({
                   >
                     <option value="">Dəyəri seçin</option>
                     {usersData.map((u: any) => (
-                      <option key={u.id} value={u.id?.toString()}>{u.name}</option>
+                      <option key={u.id} value={u.id?.toString()}>
+                        {u.name}
+                      </option>
                     ))}
                   </select>
                 </div>
 
                 {/* Ekspeditor */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>Ekspeditor</label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#94a3b8",
+                    }}
+                  >
+                    Ekspeditor
+                  </label>
                   <select
                     value={expeditor}
                     onChange={(e) => setExpeditor(e.target.value)}
@@ -598,14 +792,30 @@ export default function SifarisEditModal({
                   >
                     <option value="">Dəyəri seçin</option>
                     {usersData.map((u: any) => (
-                      <option key={u.id} value={u.id?.toString()}>{u.name}</option>
+                      <option key={u.id} value={u.id?.toString()}>
+                        {u.name}
+                      </option>
                     ))}
                   </select>
                 </div>
 
                 {/* Əlavə menecerlər */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>Əlavə menecerlər</label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#94a3b8",
+                    }}
+                  >
+                    Əlavə menecerlər
+                  </label>
                   <div
                     style={{
                       border: "1px solid #cbd5e1",
@@ -636,7 +846,11 @@ export default function SifarisEditModal({
                       >
                         <span
                           style={{ cursor: "pointer", fontWeight: 700 }}
-                          onClick={() => setExtraManagers(extraManagers.filter((_, i) => i !== idx))}
+                          onClick={() =>
+                            setExtraManagers(
+                              extraManagers.filter((_, i) => i !== idx),
+                            )
+                          }
                         >
                           ×
                         </span>
@@ -645,7 +859,9 @@ export default function SifarisEditModal({
                     ))}
                     <input
                       type="text"
-                      placeholder={extraManagers.length === 0 ? "Menecer əlavə edin" : ""}
+                      placeholder={
+                        extraManagers.length === 0 ? "Menecer əlavə edin" : ""
+                      }
                       style={{
                         border: 0,
                         outline: "none",
@@ -655,7 +871,10 @@ export default function SifarisEditModal({
                       }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && e.currentTarget.value.trim()) {
-                          setExtraManagers([...extraManagers, e.currentTarget.value.trim()]);
+                          setExtraManagers([
+                            ...extraManagers,
+                            e.currentTarget.value.trim(),
+                          ]);
                           e.currentTarget.value = "";
                         }
                       }}
@@ -664,8 +883,20 @@ export default function SifarisEditModal({
                 </div>
 
                 {/* Şirkət */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#94a3b8",
+                    }}
+                  >
                     Şirkət <span style={{ color: "#ef4444" }}>*</span>
                   </label>
                   <select
@@ -683,13 +914,27 @@ export default function SifarisEditModal({
                     }}
                   >
                     <option value="Ziyafreight">Ziyafreight</option>
-                    <option value="Logistra LLC">Logistra LLC</option>
+                    <option value="Ziyalog LLC">Ziyalog LLC</option>
                   </select>
                 </div>
 
                 {/* Əlavə məlumat */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>Əlavə məlumat</label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#94a3b8",
+                    }}
+                  >
+                    Əlavə məlumat
+                  </label>
                   <input
                     type="text"
                     value={extraInfo}
@@ -710,8 +955,24 @@ export default function SifarisEditModal({
 
             {/* Column 2: Qiymət kağızı */}
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", marginBottom: "1rem" }}>
-                <h4 style={{ margin: 0, fontSize: "0.875rem", fontWeight: 700, color: "#16a34a", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.375rem",
+                  marginBottom: "1rem",
+                }}
+              >
+                <h4
+                  style={{
+                    margin: 0,
+                    fontSize: "0.875rem",
+                    fontWeight: 700,
+                    color: "#16a34a",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                  }}
+                >
                   Qiymət kağızı
                 </h4>
                 <div
@@ -734,10 +995,30 @@ export default function SifarisEditModal({
                 </div>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "1rem",
+                }}
+              >
                 {/* Xidmətin adı */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>Xidmətin adı</label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#94a3b8",
+                    }}
+                  >
+                    Xidmətin adı
+                  </label>
                   <div style={{ position: "relative" }}>
                     <input
                       type="text"
@@ -768,8 +1049,22 @@ export default function SifarisEditModal({
                 </div>
 
                 {/* Başlanğıc tarif */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>Başlanğıc tarif</label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#94a3b8",
+                    }}
+                  >
+                    Başlanğıc tarif
+                  </label>
                   <input
                     type="number"
                     value={freight}
@@ -789,8 +1084,22 @@ export default function SifarisEditModal({
                 </div>
 
                 {/* ƏDV ilə başlanğıc tarif */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>ƏDV ilə başlanğıc tarif</label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#94a3b8",
+                    }}
+                  >
+                    ƏDV ilə başlanğıc tarif
+                  </label>
                   <input
                     type="number"
                     value={freightWithVat}
@@ -807,8 +1116,22 @@ export default function SifarisEditModal({
                 </div>
 
                 {/* ƏDV-nin tarifi */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>ƏDV-nin tarifi</label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#94a3b8",
+                    }}
+                  >
+                    ƏDV-nin tarifi
+                  </label>
                   <select
                     value={vatRate}
                     onChange={(e) => setVatRate(e.target.value)}
@@ -829,8 +1152,20 @@ export default function SifarisEditModal({
                 </div>
 
                 {/* Valyuta */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#94a3b8",
+                    }}
+                  >
                     Valyuta <span style={{ color: "#ef4444" }}>*</span>
                   </label>
                   <select
@@ -854,8 +1189,22 @@ export default function SifarisEditModal({
                 </div>
 
                 {/* Məzənnənin tarixi */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>Məzənnənin tarixi</label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#94a3b8",
+                    }}
+                  >
+                    Məzənnənin tarixi
+                  </label>
                   <div style={{ position: "relative" }}>
                     <input
                       type="text"
@@ -886,8 +1235,20 @@ export default function SifarisEditModal({
                 </div>
 
                 {/* Ödənişlərin təxirə salınması şərtləri */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#94a3b8",
+                    }}
+                  >
                     Ödənişlərin təxirə salınması şərtləri
                   </label>
                   <select
@@ -904,14 +1265,28 @@ export default function SifarisEditModal({
                       cursor: "pointer",
                     }}
                   >
-                    <option value="B/k 30 təqvim günü.">B/k 30 təqvim günü.</option>
+                    <option value="B/k 30 təqvim günü.">
+                      B/k 30 təqvim günü.
+                    </option>
                     <option value="Nağd ödəniş">Nağd ödəniş</option>
                   </select>
                 </div>
 
                 {/* Ödənişlərin təxirə salınması (günlər) */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#94a3b8",
+                    }}
+                  >
                     Ödənişlərin təxirə salınması (günlər)
                   </label>
                   <input
@@ -930,8 +1305,22 @@ export default function SifarisEditModal({
                 </div>
 
                 {/* Incoterms */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8" }}>Incoterms</label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#94a3b8",
+                    }}
+                  >
+                    Incoterms
+                  </label>
                   <select
                     value={incoterms}
                     onChange={(e) => setIncoterms(e.target.value)}
@@ -1037,8 +1426,8 @@ export default function SifarisEditModal({
                 inset: 0,
                 background: "rgba(15, 23, 42, 0.4)",
                 backdropFilter: "blur(4px)",
-            }}
-          />
+              }}
+            />
             <div
               style={{
                 position: "relative",
@@ -1051,7 +1440,7 @@ export default function SifarisEditModal({
                 display: "flex",
                 flexDirection: "column",
                 maxHeight: "95vh",
-                zIndex: 10001
+                zIndex: 10001,
               }}
             >
               {/* Header */}
@@ -1062,27 +1451,74 @@ export default function SifarisEditModal({
                   alignItems: "center",
                   justifyContent: "space-between",
                   borderBottom: "1px solid #cbd5e1",
-                  background: "#ffffff"
+                  background: "#ffffff",
                 }}
               >
                 <div>
-                  <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b" }}>Yeni müştəri</span>
-                  <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
+                  <span
+                    style={{
+                      fontSize: "1.1rem",
+                      fontWeight: 700,
+                      color: "#1e293b",
+                    }}
+                  >
+                    Yeni müştəri
+                  </span>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "1rem",
+                      marginTop: "0.5rem",
+                    }}
+                  >
                     <span
                       onClick={() => setClientActiveTab("general")}
-                      style={{ fontSize: "0.85rem", fontWeight: 600, color: clientActiveTab === "general" ? "#3b82f6" : "#64748b", borderBottom: clientActiveTab === "general" ? "2px solid #3b82f6" : "none", paddingBottom: "0.25rem", cursor: "pointer" }}
+                      style={{
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        color:
+                          clientActiveTab === "general" ? "#3b82f6" : "#64748b",
+                        borderBottom:
+                          clientActiveTab === "general"
+                            ? "2px solid #3b82f6"
+                            : "none",
+                        paddingBottom: "0.25rem",
+                        cursor: "pointer",
+                      }}
                     >
                       Əsas məlumatlar
                     </span>
                     <span
                       onClick={() => setClientActiveTab("contact")}
-                      style={{ fontSize: "0.85rem", fontWeight: 600, color: clientActiveTab === "contact" ? "#3b82f6" : "#64748b", borderBottom: clientActiveTab === "contact" ? "2px solid #3b82f6" : "none", paddingBottom: "0.25rem", cursor: "pointer" }}
+                      style={{
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        color:
+                          clientActiveTab === "contact" ? "#3b82f6" : "#64748b",
+                        borderBottom:
+                          clientActiveTab === "contact"
+                            ? "2px solid #3b82f6"
+                            : "none",
+                        paddingBottom: "0.25rem",
+                        cursor: "pointer",
+                      }}
                     >
                       Əlaqə məlumatları
                     </span>
                     <span
                       onClick={() => setClientActiveTab("finance")}
-                      style={{ fontSize: "0.85rem", fontWeight: 600, color: clientActiveTab === "finance" ? "#3b82f6" : "#64748b", borderBottom: clientActiveTab === "finance" ? "2px solid #3b82f6" : "none", paddingBottom: "0.25rem", cursor: "pointer" }}
+                      style={{
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        color:
+                          clientActiveTab === "finance" ? "#3b82f6" : "#64748b",
+                        borderBottom:
+                          clientActiveTab === "finance"
+                            ? "2px solid #3b82f6"
+                            : "none",
+                        paddingBottom: "0.25rem",
+                        cursor: "pointer",
+                      }}
                     >
                       Maliyyələr
                     </span>
@@ -1091,7 +1527,13 @@ export default function SifarisEditModal({
                 <button
                   type="button"
                   onClick={() => setIsNewClientModalOpen(false)}
-                  style={{ background: "transparent", border: 0, cursor: "pointer", fontSize: "1.5rem", color: "#0f172a" }}
+                  style={{
+                    background: "transparent",
+                    border: 0,
+                    cursor: "pointer",
+                    fontSize: "1.5rem",
+                    color: "#0f172a",
+                  }}
                 >
                   <FiX />
                 </button>
@@ -1099,154 +1541,483 @@ export default function SifarisEditModal({
 
               {/* Body */}
               <div style={{ padding: "2rem", overflowY: "auto", flex: 1 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "2.5rem" }}>
-                  
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.2fr 1fr",
+                    gap: "2.5rem",
+                  }}
+                >
                   {/* Left Column: Şirkətin rekvizitləri */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-                    <span style={{ fontSize: "0.9rem", fontWeight: 700, color: "#475569" }}>Şirkətin rekvizitləri</span>
-                    
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", gridColumn: "span 2" }}>
-                        <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Name (full)</label>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "1.25rem",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.9rem",
+                        fontWeight: 700,
+                        color: "#475569",
+                      }}
+                    >
+                      Şirkətin rekvizitləri
+                    </span>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "1rem",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                          gridColumn: "span 2",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          Name (full)
+                        </label>
                         <input
                           type="text"
                           placeholder="Limited liability company"
                           value={clientNameFull}
                           onChange={(e) => setClientNameFull(e.target.value)}
-                          style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff" }}
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "0.85rem",
+                            outline: "none",
+                            backgroundColor: "#ffffff",
+                          }}
                         />
                       </div>
 
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                        <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Name (abbreviated) *</label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          Name (abbreviated) *
+                        </label>
                         <input
                           type="text"
                           placeholder="LLC Company Name"
                           value={clientNameAbbr}
                           onChange={(e) => setClientNameAbbr(e.target.value)}
-                          style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff" }}
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "0.85rem",
+                            outline: "none",
+                            backgroundColor: "#ffffff",
+                          }}
                         />
                       </div>
 
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                        <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Fəaliyyət növü</label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          Fəaliyyət növü
+                        </label>
                         <select
                           value={clientActivity}
                           onChange={(e) => setClientActivity(e.target.value)}
-                          style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff" }}
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "0.85rem",
+                            outline: "none",
+                            backgroundColor: "#ffffff",
+                          }}
                         >
                           <option value="Dəyəri seçin">Dəyəri seçin</option>
                           <option value="Logistika">Logistika</option>
                         </select>
                       </div>
 
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                        <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Müştəri tipi</label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          Müştəri tipi
+                        </label>
                         <select
                           value={clientType}
                           onChange={(e) => setClientType(e.target.value)}
-                          style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff" }}
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "0.85rem",
+                            outline: "none",
+                            backgroundColor: "#ffffff",
+                          }}
                         >
                           <option value="Yeni müştəri">Yeni müştəri</option>
                         </select>
                       </div>
 
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                        <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>VÖUN/UMTVDR/VATNº</label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          VÖUN/UMTVDR/VATNº
+                        </label>
                         <input
                           type="text"
                           value={clientVoun}
                           onChange={(e) => setClientVoun(e.target.value)}
-                          style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff" }}
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "0.85rem",
+                            outline: "none",
+                            backgroundColor: "#ffffff",
+                          }}
                         />
                       </div>
 
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                        <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>VÖEN</label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          VÖEN
+                        </label>
                         <input
                           type="text"
                           value={clientVoen}
                           onChange={(e) => setClientVoen(e.target.value)}
-                          style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff" }}
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "0.85rem",
+                            outline: "none",
+                            backgroundColor: "#ffffff",
+                          }}
                         />
                       </div>
 
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                        <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>MTÜT</label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          MTÜT
+                        </label>
                         <input
                           type="text"
                           value={clientMtut}
                           onChange={(e) => setClientMtut(e.target.value)}
-                          style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff" }}
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "0.85rem",
+                            outline: "none",
+                            backgroundColor: "#ffffff",
+                          }}
                         />
                       </div>
 
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                        <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>ƏDQN</label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          ƏDQN
+                        </label>
                         <input
                           type="text"
                           value={clientEdqn}
                           onChange={(e) => setClientEdqn(e.target.value)}
-                          style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff" }}
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "0.85rem",
+                            outline: "none",
+                            backgroundColor: "#ffffff",
+                          }}
                         />
                       </div>
 
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                        <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>UAK</label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          UAK
+                        </label>
                         <input
                           type="text"
                           value={clientUak}
                           onChange={(e) => setClientUak(e.target.value)}
-                          style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff" }}
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "0.85rem",
+                            outline: "none",
+                            backgroundColor: "#ffffff",
+                          }}
                         />
                       </div>
 
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                        <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>BİN</label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          BİN
+                        </label>
                         <input
                           type="text"
                           value={clientBin}
                           onChange={(e) => setClientBin(e.target.value)}
-                          style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff" }}
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "0.85rem",
+                            outline: "none",
+                            backgroundColor: "#ffffff",
+                          }}
                         />
                       </div>
 
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                        <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Ödəyicinin ƏDV kodu</label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          Ödəyicinin ƏDV kodu
+                        </label>
                         <input
                           type="text"
                           value={clientVatCode}
                           onChange={(e) => setClientVatCode(e.target.value)}
-                          style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff" }}
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "0.85rem",
+                            outline: "none",
+                            backgroundColor: "#ffffff",
+                          }}
                         />
                       </div>
                     </div>
                   </div>
 
                   {/* Right Column: Client settings */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-                    <span style={{ fontSize: "0.9rem", fontWeight: 700, color: "#475569" }}>Client settings</span>
-                    
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                        <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Yaradılması tarixi</label>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "1.25rem",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.9rem",
+                        fontWeight: 700,
+                        color: "#475569",
+                      }}
+                    >
+                      Client settings
+                    </span>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "1rem",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          Yaradılması tarixi
+                        </label>
                         <div style={{ position: "relative" }}>
                           <input
                             type="text"
                             value={clientDate}
                             onChange={(e) => setClientDate(e.target.value)}
-                            style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 2.25rem 0.5rem 0.75rem", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff", boxSizing: "border-box" }}
+                            style={{
+                              width: "100%",
+                              border: "1px solid #cbd5e1",
+                              borderRadius: "0.375rem",
+                              padding: "0.5rem 2.25rem 0.5rem 0.75rem",
+                              fontSize: "0.85rem",
+                              outline: "none",
+                              backgroundColor: "#ffffff",
+                              boxSizing: "border-box",
+                            }}
                           />
-                          <FiCalendar style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                          <FiCalendar
+                            style={{
+                              position: "absolute",
+                              right: "0.75rem",
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              color: "#94a3b8",
+                            }}
+                          />
                         </div>
                       </div>
 
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                        <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Language of notifications</label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          Language of notifications
+                        </label>
                         <select
                           value={clientLang}
                           onChange={(e) => setClientLang(e.target.value)}
-                          style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff" }}
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "0.85rem",
+                            outline: "none",
+                            backgroundColor: "#ffffff",
+                          }}
                         >
                           <option value="Dəyəri seçin">Dəyəri seçin</option>
                           <option value="Azerbaijani">Azerbaijani</option>
@@ -1254,45 +2025,146 @@ export default function SifarisEditModal({
                         </select>
                       </div>
 
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", gridColumn: "span 2" }}>
-                        <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Menecerlər</label>
-                        <div style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.45rem 0.65rem", display: "flex", flexWrap: "wrap", gap: "0.375rem", backgroundColor: "#ffffff" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                          gridColumn: "span 2",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          Menecerlər
+                        </label>
+                        <div
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.45rem 0.65rem",
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "0.375rem",
+                            backgroundColor: "#ffffff",
+                          }}
+                        >
                           {clientManagers.map((m, idx) => (
-                            <span key={idx} style={{ background: "#e2e8f0", padding: "2px 6px", borderRadius: "0.25rem", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                            <span
+                              key={idx}
+                              style={{
+                                background: "#e2e8f0",
+                                padding: "2px 6px",
+                                borderRadius: "0.25rem",
+                                fontSize: "0.75rem",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.25rem",
+                              }}
+                            >
                               {m}
-                              <button type="button" onClick={() => setClientManagers(clientManagers.filter((_, i) => i !== idx))} style={{ border: 0, background: "transparent", cursor: "pointer", fontSize: "0.75rem" }}>×</button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setClientManagers(
+                                    clientManagers.filter((_, i) => i !== idx),
+                                  )
+                                }
+                                style={{
+                                  border: 0,
+                                  background: "transparent",
+                                  cursor: "pointer",
+                                  fontSize: "0.75rem",
+                                }}
+                              >
+                                ×
+                              </button>
                             </span>
                           ))}
                         </div>
                       </div>
 
-                      <div style={{ gridColumn: "span 2", display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.5rem" }}>
+                      <div
+                        style={{
+                          gridColumn: "span 2",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.5rem",
+                          marginTop: "0.5rem",
+                        }}
+                      >
                         <input
                           type="checkbox"
                           checked={clientPermitted}
                           onChange={(e) => setClientPermitted(e.target.checked)}
-                          style={{ width: "1.1rem", height: "1.1rem", accentColor: "#16a34a" }}
+                          style={{
+                            width: "1.1rem",
+                            height: "1.1rem",
+                            accentColor: "#16a34a",
+                          }}
                         />
-                        <label style={{ fontSize: "0.85rem", fontWeight: 700, color: "#334155" }}>İşə icazə verilmişdir</label>
+                        <label
+                          style={{
+                            fontSize: "0.85rem",
+                            fontWeight: 700,
+                            color: "#334155",
+                          }}
+                        >
+                          İşə icazə verilmişdir
+                        </label>
                       </div>
 
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", gridColumn: "span 2" }}>
-                        <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Əlavə məlumat</label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                          gridColumn: "span 2",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          Əlavə məlumat
+                        </label>
                         <textarea
                           value={clientInfo}
                           onChange={(e) => setClientInfo(e.target.value)}
                           rows={4}
-                          style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff", resize: "vertical" }}
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "0.85rem",
+                            outline: "none",
+                            backgroundColor: "#ffffff",
+                            resize: "vertical",
+                          }}
                         />
                       </div>
                     </div>
                   </div>
-
                 </div>
               </div>
 
               {/* Footer */}
-              <div style={{ padding: "1.25rem 2rem", display: "flex", justifyContent: "flex-end", borderTop: "1px solid #cbd5e1", background: "#ffffff" }}>
+              <div
+                style={{
+                  padding: "1.25rem 2rem",
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  borderTop: "1px solid #cbd5e1",
+                  background: "#ffffff",
+                }}
+              >
                 <button
                   type="button"
                   onClick={() => {
@@ -1311,7 +2183,7 @@ export default function SifarisEditModal({
                     padding: "0.625rem 2rem",
                     fontWeight: 600,
                     fontSize: "0.9rem",
-                    cursor: "pointer"
+                    cursor: "pointer",
                   }}
                 >
                   Yaddaşda saxlamaq
@@ -1339,8 +2211,8 @@ export default function SifarisEditModal({
                 inset: 0,
                 background: "rgba(15, 23, 42, 0.4)",
                 backdropFilter: "blur(4px)",
-            }}
-          />
+              }}
+            />
             <div
               style={{
                 position: "relative",
@@ -1353,50 +2225,139 @@ export default function SifarisEditModal({
                 flexDirection: "column",
                 padding: "2rem",
                 gap: "1.5rem",
-                zIndex: 10001
+                zIndex: 10001,
               }}
             >
               {/* Header */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "#475569" }}>Yeni əlaqədar şəxs</span>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "1.1rem",
+                    fontWeight: 700,
+                    color: "#475569",
+                  }}
+                >
+                  Yeni əlaqədar şəxs
+                </span>
                 <button
                   type="button"
                   onClick={() => setIsNewContactModalOpen(false)}
-                  style={{ background: "transparent", border: 0, cursor: "pointer", fontSize: "1.5rem", color: "#0f172a" }}
+                  style={{
+                    background: "transparent",
+                    border: 0,
+                    cursor: "pointer",
+                    fontSize: "1.5rem",
+                    color: "#0f172a",
+                  }}
                 >
                   <FiX />
                 </button>
               </div>
 
               {/* Inputs */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Tam adı <span style={{ color: "#ef4444" }}>*</span></label>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "1rem",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      color: "#64748b",
+                    }}
+                  >
+                    Tam adı <span style={{ color: "#ef4444" }}>*</span>
+                  </label>
                   <input
                     type="text"
                     value={contactName}
                     onChange={(e) => setContactName(e.target.value)}
-                    style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff" }}
+                    style={{
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "0.375rem",
+                      padding: "0.5rem 0.75rem",
+                      fontSize: "0.85rem",
+                      outline: "none",
+                      backgroundColor: "#ffffff",
+                    }}
                   />
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Telefon nömrələri</label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      color: "#64748b",
+                    }}
+                  >
+                    Telefon nömrələri
+                  </label>
                   <input
                     type="text"
                     value={contactPhone}
                     onChange={(e) => setContactPhone(e.target.value)}
-                    style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff" }}
+                    style={{
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "0.375rem",
+                      padding: "0.5rem 0.75rem",
+                      fontSize: "0.85rem",
+                      outline: "none",
+                      backgroundColor: "#ffffff",
+                    }}
                   />
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>El.poçtu</label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      color: "#64748b",
+                    }}
+                  >
+                    El.poçtu
+                  </label>
                   <input
                     type="text"
                     value={contactEmail}
                     onChange={(e) => setContactEmail(e.target.value)}
-                    style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff" }}
+                    style={{
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "0.375rem",
+                      padding: "0.5rem 0.75rem",
+                      fontSize: "0.85rem",
+                      outline: "none",
+                      backgroundColor: "#ffffff",
+                    }}
                   />
                 </div>
               </div>
@@ -1412,7 +2373,10 @@ export default function SifarisEditModal({
                     }
                     const formatted = `${contactName.trim()}${contactPhone.trim() ? ` (${contactPhone.trim()})` : ""}`;
                     if (!contactPersonOptions.includes(formatted)) {
-                      setContactPersonOptions([...contactPersonOptions, formatted]);
+                      setContactPersonOptions([
+                        ...contactPersonOptions,
+                        formatted,
+                      ]);
                     }
                     setContactPerson(formatted);
                     setIsNewContactModalOpen(false);
@@ -1425,7 +2389,7 @@ export default function SifarisEditModal({
                     padding: "0.625rem 2rem",
                     fontWeight: 600,
                     fontSize: "0.9rem",
-                    cursor: "pointer"
+                    cursor: "pointer",
                   }}
                 >
                   Yaddaşda saxlamaq
@@ -1453,8 +2417,8 @@ export default function SifarisEditModal({
                 inset: 0,
                 background: "rgba(15, 23, 42, 0.4)",
                 backdropFilter: "blur(4px)",
-            }}
-          />
+              }}
+            />
             <div
               style={{
                 position: "relative",
@@ -1467,41 +2431,101 @@ export default function SifarisEditModal({
                 flexDirection: "column",
                 padding: "2rem",
                 gap: "1.5rem",
-                zIndex: 10001
+                zIndex: 10001,
               }}
             >
               {/* Header */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "#475569" }}>Əlavə et</span>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "1.1rem",
+                    fontWeight: 700,
+                    color: "#475569",
+                  }}
+                >
+                  Əlavə et
+                </span>
                 <button
                   type="button"
                   onClick={() => setIsNewTagModalOpen(false)}
-                  style={{ background: "transparent", border: 0, cursor: "pointer", fontSize: "1.5rem", color: "#0f172a" }}
+                  style={{
+                    background: "transparent",
+                    border: 0,
+                    cursor: "pointer",
+                    fontSize: "1.5rem",
+                    color: "#0f172a",
+                  }}
                 >
                   <FiX />
                 </button>
               </div>
 
               {/* Inputs */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Teq <span style={{ color: "#ef4444" }}>*</span></label>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "1rem",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      color: "#64748b",
+                    }}
+                  >
+                    Teq <span style={{ color: "#ef4444" }}>*</span>
+                  </label>
                   <input
                     type="text"
                     value={newTagName}
                     onChange={(e) => setNewTagName(e.target.value)}
-                    style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", outline: "none", backgroundColor: "#ffffff" }}
+                    style={{
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "0.375rem",
+                      padding: "0.5rem 0.75rem",
+                      fontSize: "0.85rem",
+                      outline: "none",
+                      backgroundColor: "#ffffff",
+                    }}
                   />
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.5rem" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    marginTop: "0.5rem",
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={newTagActive}
                     onChange={(e) => setNewTagActive(e.target.checked)}
-                    style={{ width: "1.1rem", height: "1.1rem", accentColor: "#16a34a" }}
+                    style={{
+                      width: "1.1rem",
+                      height: "1.1rem",
+                      accentColor: "#16a34a",
+                    }}
                   />
-                  <label style={{ fontSize: "0.85rem", color: "#475569" }}>Aktivdir</label>
+                  <label style={{ fontSize: "0.85rem", color: "#475569" }}>
+                    Aktivdir
+                  </label>
                 </div>
               </div>
 
@@ -1527,7 +2551,7 @@ export default function SifarisEditModal({
                     padding: "0.625rem 2rem",
                     fontWeight: 600,
                     fontSize: "0.9rem",
-                    cursor: "pointer"
+                    cursor: "pointer",
                   }}
                 >
                   Yaddaşda saxlamaq
@@ -1536,8 +2560,8 @@ export default function SifarisEditModal({
             </div>
           </div>
         )}
-      
-      {/* Footer */}
+
+        {/* Footer */}
       </div>
     </div>
   );

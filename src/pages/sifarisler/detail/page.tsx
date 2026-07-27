@@ -23,12 +23,16 @@ import {
   FiPlus,
   FiCalendar,
   FiX,
-  FiUpload
+  FiUpload,
 } from "react-icons/fi";
 import axios from "axios";
 import { ENDPOINTS } from "../../../services/EndpointResources.g";
 import type { SifarisOrderRow, OrderStatusKind } from "../types/sifaris.types";
-import { buildLoadApiPayload, formatVoyageLabel, mapLoadRow } from "../lib/mapLoadRow";
+import {
+  buildLoadApiPayload,
+  formatVoyageLabel,
+  mapLoadRow,
+} from "../lib/mapLoadRow";
 import { formatDateOnly } from "../lib/formatDate";
 import SifarisEditModal from "../components/SifarisEditModal";
 import YukNewModal from "../components/YukNewModal";
@@ -39,9 +43,19 @@ import ReysDeleteModal from "../components/ReysDeleteModal";
 import { ConfirmModal } from "../../../common/components/ConfirmModal";
 import EntityTasksPanel from "../../../common/components/tasks/EntityTasksPanel";
 import DocumentGeneratePanel from "../../../common/components/documents/DocumentGeneratePanel";
+import { useAppDispatch } from "../../../common/store/hooks";
+import { showNotification } from "../../../common/store/modalSlice";
 import styles from "./page.module.css";
-import { convertCurrencyToAzn, resolveFinanceExpenseAzn, resolveFinanceRevenueAzn, resolveVoyageExpenseAzn } from "../../../common/utils/currency.utils";
-import { resolveOfferExpenseFallbackAzn, resolveOfferSalesTotalSummary } from "../lib/offerExpense.utils";
+import {
+  convertCurrencyToAzn,
+  resolveFinanceExpenseAzn,
+  resolveFinanceRevenueAzn,
+  resolveVoyageExpenseAzn,
+} from "../../../common/utils/currency.utils";
+import {
+  resolveOfferExpenseFallbackAzn,
+  resolveOfferSalesTotalSummary,
+} from "../lib/offerExpense.utils";
 import {
   formatVolumeLabel,
   sumOrderCargoTotals,
@@ -52,7 +66,6 @@ import {
   fetchCustomerDetailAction,
   fetchCustomersAction,
 } from "../../../common/actions/customer.actions";
-import { fetchCarriersAction } from "../../../common/actions/carrier.actions";
 import { updateQueryAction } from "../../../common/actions/query.actions";
 import { parseCarrierDocuments } from "../../../common/utils/carrierDisplay.utils";
 import type { UserRow } from "../../ayarlar/types/user.types";
@@ -65,8 +78,14 @@ type InvoiceDocumentItem = {
   createdAt: string;
 };
 
-function resolveUserDisplayName(value: unknown, users?: Array<{ id?: number | string; name?: string }>): string {
-  const raw = typeof value === "string" || typeof value === "number" ? String(value).trim() : "";
+function resolveUserDisplayName(
+  value: unknown,
+  users?: Array<{ id?: number | string; name?: string }>,
+): string {
+  const raw =
+    typeof value === "string" || typeof value === "number"
+      ? String(value).trim()
+      : "";
   if (!raw) return "";
   if (Array.isArray(users)) {
     const found = users.find((u) => String(u.id) === raw);
@@ -77,7 +96,13 @@ function resolveUserDisplayName(value: unknown, users?: Array<{ id?: number | st
 
 function resolveCustomerDisplayName(
   value: unknown,
-  customers?: Array<{ id?: number | string; name?: string; companyName?: string; company?: string; fullName?: string }>,
+  customers?: Array<{
+    id?: number | string;
+    name?: string;
+    companyName?: string;
+    company?: string;
+    fullName?: string;
+  }>,
 ): string {
   const raw =
     typeof value === "string" || typeof value === "number"
@@ -105,13 +130,7 @@ function looksLikeNumericId(value: unknown): boolean {
 }
 
 // Helper components for key-value layout
-function DlRow({
-  label,
-  value,
-}: {
-  label: string;
-  value?: React.ReactNode;
-}) {
+function DlRow({ label, value }: { label: string; value?: React.ReactNode }) {
   return (
     <div className={styles.dlRow}>
       <span className={styles.dlLabel}>{label}</span>
@@ -129,17 +148,46 @@ function DlRow({
 const countries = ["Azerbaijan", "Germany", "Turkey", "Georgia", "Russia"];
 const banks = ["ABB Bank", "Kapital Bank", "Pasha Bank", "Unibank"];
 
-const LabelWithPlus = ({ label, onPlusClick }: { label: string; onPlusClick?: () => void }) => (
-  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-    <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>{label}</span>
+const LabelWithPlus = ({
+  label,
+  onPlusClick,
+}: {
+  label: string;
+  onPlusClick?: () => void;
+}) => (
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+    }}
+  >
+    <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+      {label}
+    </span>
     {onPlusClick && (
-      <button type="button" onClick={onPlusClick} style={{ background: "transparent", border: 0, padding: 0, color: "#3b82f6", cursor: "pointer", fontSize: "0.85rem", fontWeight: "bold" }}>+</button>
+      <button
+        type="button"
+        onClick={onPlusClick}
+        style={{
+          background: "transparent",
+          border: 0,
+          padding: 0,
+          color: "#3b82f6",
+          cursor: "pointer",
+          fontSize: "0.85rem",
+          fontWeight: "bold",
+        }}
+      >
+        +
+      </button>
     )}
   </div>
 );
 
 export default function SifarisDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
+  const dispatch = useAppDispatch();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [customerNameOverride, setCustomerNameOverride] = useState("");
@@ -149,65 +197,78 @@ export default function SifarisDetailPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isYukModalOpen, setIsYukModalOpen] = useState(false);
 
-  const [loadsList, setLoadsList] = useState<Array<{
-    id: string;
-    number: string;
-    name: string;
-    containerNumber: string;
-    params: string;
-    sender: string;
-    loadPlace: string;
-    loadDate: string;
-    receiver: string;
-    unloadPlace: string;
-    unloadDate: string;
-    voyage: any;
-    voyageId?: string | number | null;
-    rawPayload?: any;
-    ldm?: number;
-    volumeM3?: number;
-    weightKg?: number;
-    packagingType?: string;
-    status?: string;
-  }>>([]);
+  const [loadsList, setLoadsList] = useState<
+    Array<{
+      id: string;
+      number: string;
+      name: string;
+      containerNumber: string;
+      params: string;
+      sender: string;
+      loadPlace: string;
+      loadDate: string;
+      receiver: string;
+      unloadPlace: string;
+      unloadDate: string;
+      voyage: any;
+      voyageId?: string | number | null;
+      rawPayload?: any;
+      ldm?: number;
+      volumeM3?: number;
+      weightKg?: number;
+      packagingType?: string;
+      status?: string;
+    }>
+  >([]);
 
-  const [selectedLoadForView, setSelectedLoadForView] = useState<any | null>(null);
+  const [selectedLoadForView, setSelectedLoadForView] = useState<any | null>(
+    null,
+  );
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [selectedLoadForEdit, setSelectedLoadForEdit] = useState<any | null>(null);
+  const [selectedLoadForEdit, setSelectedLoadForEdit] = useState<any | null>(
+    null,
+  );
   const [isYukEditModalOpen, setIsYukEditModalOpen] = useState(false);
 
   // Finance States
-  const [financeTransactions, setFinanceTransactions] = useState<Array<{
-    id: string;
-    name: string;
-    partner: string;
-    tarifPrice: string;
-    tarifCurrency: string;
-    tarifAzn: string;
-    edvliTarifPrice: string;
-    edvliTarifCurrency: string;
-    edvliTarifAzn: string;
-    mesarifPrice: string;
-    mesarifCurrency: string;
-    mesarifAzn?: string;
-    edvliMesarifPrice: string;
-    edvliMesarifCurrency: string;
-    edvliMesarifAzn?: string;
-    profit: string;
-    user: string;
-    invoiceWritten: boolean;
-    invoiceReceived: boolean;
-    costDate: string;
-  }>>([]);
+  const [financeTransactions, setFinanceTransactions] = useState<
+    Array<{
+      id: string;
+      name: string;
+      partner: string;
+      tarifPrice: string;
+      tarifCurrency: string;
+      tarifAzn: string;
+      edvliTarifPrice: string;
+      edvliTarifCurrency: string;
+      edvliTarifAzn: string;
+      mesarifPrice: string;
+      mesarifCurrency: string;
+      mesarifAzn?: string;
+      edvliMesarifPrice: string;
+      edvliMesarifCurrency: string;
+      edvliMesarifAzn?: string;
+      profit: string;
+      user: string;
+      invoiceWritten: boolean;
+      invoiceReceived: boolean;
+      costDate: string;
+    }>
+  >([]);
 
-  const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] = useState(false);
+  const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] =
+    useState(false);
   const [selectedTxForEdit, setSelectedTxForEdit] = useState<any | null>(null);
 
   // Nested Finance Modals States
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
-  const [isExpenseCategoryModalOpen, setIsExpenseCategoryModalOpen] = useState(false);
+  const [isExpenseCategoryModalOpen, setIsExpenseCategoryModalOpen] =
+    useState(false);
   const [isPartnerMenuOpen, setIsPartnerMenuOpen] = useState(false);
-  const [partnerMenuCoords, setPartnerMenuCoords] = useState<{ x: number; y: number } | null>(null);
+  const [partnerMenuCoords, setPartnerMenuCoords] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const [isPartnerModalOpen, setIsPartnerModalOpen] = useState(false);
   const [isBankModalOpen, setIsBankModalOpen] = useState(false);
   const [isCountryModalOpen, setIsCountryModalOpen] = useState(false);
@@ -217,34 +278,44 @@ export default function SifarisDetailPage() {
   const [isDefaultCountry, setIsDefaultCountry] = useState(false);
   const [isActiveCountry, setIsActiveCountry] = useState(true);
   const [parentCountry, setParentCountry] = useState("Dəyəri seçin");
-  const [partnerModalType, setPartnerModalType] = useState<"client" | "carrier">("client");
-  const [partnerActiveTab, setPartnerActiveTab] = useState<"general" | "contact" | "finance">("general");
+  const [partnerModalType, setPartnerModalType] = useState<
+    "client" | "carrier"
+  >("client");
+  const [partnerActiveTab, setPartnerActiveTab] = useState<
+    "general" | "contact" | "finance"
+  >("general");
 
   // High-fidelity Documents Sub-tabs and lists
-  const [docsActiveSubTab, setDocsActiveSubTab] = useState<"aktlar" | "fotos" | "requested">("aktlar");
+  const [docsActiveSubTab, setDocsActiveSubTab] = useState<
+    "aktlar" | "fotos" | "requested"
+  >("aktlar");
   const [isNewActModalOpen, setIsNewActModalOpen] = useState(false);
   const [isNewDocModalOpen, setIsNewDocModalOpen] = useState(false);
   const [isEditDocModalOpen, setIsEditDocModalOpen] = useState(false);
-  const [selectedDocForEdit, setSelectedDocForEdit] = useState<any | null>(null);
+  const [selectedDocForEdit, setSelectedDocForEdit] = useState<any | null>(
+    null,
+  );
   const [docToDelete, setDocToDelete] = useState<any | null>(null);
   const [isDocDeleteConfirmOpen, setIsDocDeleteConfirmOpen] = useState(false);
 
   // Acts (Aktlar) List
-  const [aktlarList, setAktlarList] = useState<Array<{
-    id: string;
-    company: string;
-    type: string;
-    template: string;
-    number: string;
-    date: string;
-    name: string;
-    hasValidity: boolean;
-    isContract: boolean;
-    isSendNotif: boolean;
-    noSeals: boolean;
-    provideAccess: boolean;
-    comments: string;
-  }>>([
+  const [aktlarList, setAktlarList] = useState<
+    Array<{
+      id: string;
+      company: string;
+      type: string;
+      template: string;
+      number: string;
+      date: string;
+      name: string;
+      hasValidity: boolean;
+      isContract: boolean;
+      isSendNotif: boolean;
+      noSeals: boolean;
+      provideAccess: boolean;
+      comments: string;
+    }>
+  >([
     {
       id: "1",
       company: "Ziyafreight",
@@ -258,31 +329,35 @@ export default function SifarisDetailPage() {
       isSendNotif: false,
       noSeals: false,
       provideAccess: false,
-      comments: ""
-    }
+      comments: "",
+    },
   ]);
 
   // Photos (Fotoşəkillər) List
-  const [fotosList, setFotosList] = useState<Array<{
-    id: string;
-    name: string;
-    url: string;
-    size: string;
-    createdAt: string;
-  }>>([]);
+  const [fotosList, setFotosList] = useState<
+    Array<{
+      id: string;
+      name: string;
+      url: string;
+      size: string;
+      createdAt: string;
+    }>
+  >([]);
 
   // Requested Documents List
-  const [requestedDocsList, setRequestedDocsList] = useState<Array<{
-    id: string;
-    name: string;
-    comments: string;
-    createdAt: string;
-    isAvailableToCustomer: boolean;
-    isAvailableToCarrier: boolean;
-    sendNotif: boolean;
-    type: string;
-    template: string;
-  }>>([
+  const [requestedDocsList, setRequestedDocsList] = useState<
+    Array<{
+      id: string;
+      name: string;
+      comments: string;
+      createdAt: string;
+      isAvailableToCustomer: boolean;
+      isAvailableToCarrier: boolean;
+      sendNotif: boolean;
+      type: string;
+      template: string;
+    }>
+  >([
     {
       id: "1",
       name: "Daşıma məlumatları",
@@ -292,8 +367,8 @@ export default function SifarisDetailPage() {
       isAvailableToCarrier: false,
       sendNotif: false,
       type: "Sənədin şablonu",
-      template: "Dəyəri seçin"
-    }
+      template: "Dəyəri seçin",
+    },
   ]);
 
   // Form states for New Act Modal
@@ -313,8 +388,10 @@ export default function SifarisDetailPage() {
   // Form states for New Document Modal
   const [newDocName, setNewDocName] = useState("");
   const [newDocDate, setNewDocDate] = useState("27.05.2026");
-  const [newDocProvideAccessCustomer, setNewDocProvideAccessCustomer] = useState(false);
-  const [newDocProvideAccessCarrier, setNewDocProvideAccessCarrier] = useState(false);
+  const [newDocProvideAccessCustomer, setNewDocProvideAccessCustomer] =
+    useState(false);
+  const [newDocProvideAccessCarrier, setNewDocProvideAccessCarrier] =
+    useState(false);
   const [newDocComments, setNewDocComments] = useState("");
   const [newDocLink, setNewDocLink] = useState("");
 
@@ -322,8 +399,10 @@ export default function SifarisDetailPage() {
   const [editDocType, setEditDocType] = useState("Sənədin şablonu");
   const [editDocTemplate, setEditDocTemplate] = useState("Dəyəri seçin");
   const [editDocName, setEditDocName] = useState("");
-  const [editDocProvideAccessCustomer, setEditDocProvideAccessCustomer] = useState(false);
-  const [editDocProvideAccessCarrier, setEditDocProvideAccessCarrier] = useState(false);
+  const [editDocProvideAccessCustomer, setEditDocProvideAccessCustomer] =
+    useState(false);
+  const [editDocProvideAccessCarrier, setEditDocProvideAccessCarrier] =
+    useState(false);
   const [editDocSendNotif, setEditDocSendNotif] = useState(false);
   const [editDocComments, setEditDocComments] = useState("");
 
@@ -331,7 +410,8 @@ export default function SifarisDetailPage() {
   const [partnerFullName, setPartnerFullName] = useState("");
   const [partnerAbbrevName, setPartnerAbbrevName] = useState("");
   const [partnerType, setPartnerType] = useState("Yeni müştəri");
-  const [partnerActivityType, setPartnerActivityType] = useState("Dəyəri seçin");
+  const [partnerActivityType, setPartnerActivityType] =
+    useState("Dəyəri seçin");
   const [partnerVoun, setPartnerVoun] = useState("");
   const [partnerVoen, setPartnerVoen] = useState("");
   const [partnerMtut, setPartnerMtut] = useState("");
@@ -341,7 +421,9 @@ export default function SifarisDetailPage() {
   const [partnerVatCode, setPartnerVatCode] = useState("");
   const [partnerCreationDate, setPartnerCreationDate] = useState("27.05.2026");
   const [partnerLang, setPartnerLang] = useState("Dəyəri seçin");
-  const [partnerManagers, setPartnerManagers] = useState<string[]>(["Ulvi Adilzade"]);
+  const [partnerManagers, setPartnerManagers] = useState<string[]>([
+    "Ulvi Adilzade",
+  ]);
   const [partnerPermitted, setPartnerPermitted] = useState(true);
   const [partnerExtraInfo, setPartnerExtraInfo] = useState("");
 
@@ -360,15 +442,17 @@ export default function SifarisDetailPage() {
   const [physicalZip, setPhysicalZip] = useState("");
 
   // Finance tab states
-  const [bankAccounts, setBankAccounts] = useState<Array<{
-    id: string;
-    currency: string;
-    account: string;
-    bank: string;
-    transitAccount: string;
-    corrBank: string;
-    corrAccount: string;
-  }>>([
+  const [bankAccounts, setBankAccounts] = useState<
+    Array<{
+      id: string;
+      currency: string;
+      account: string;
+      bank: string;
+      transitAccount: string;
+      corrBank: string;
+      corrAccount: string;
+    }>
+  >([
     {
       id: "1",
       currency: "Dəyəri ...",
@@ -376,12 +460,16 @@ export default function SifarisDetailPage() {
       bank: "Dəyəri seçin",
       transitAccount: "",
       corrBank: "Dəyəri seçin",
-      corrAccount: ""
-    }
+      corrAccount: "",
+    },
   ]);
   const [financeDelay, setFinanceDelay] = useState("");
-  const [financeDelayTerms, setFinanceDelayTerms] = useState("B/k 30 təqvim günü.");
-  const [financeDocTerms, setFinanceDocTerms] = useState("Hesabın, aktın və qəbul edən tərəfindən təsdiqlənmiş CMR-in orijinallarını aldıqdan sonra 30 təq");
+  const [financeDelayTerms, setFinanceDelayTerms] = useState(
+    "B/k 30 təqvim günü.",
+  );
+  const [financeDocTerms, setFinanceDocTerms] = useState(
+    "Hesabın, aktın və qəbul edən tərəfindən təsdiqlənmiş CMR-in orijinallarını aldıqdan sonra 30 təq",
+  );
   const [financeCreditLimit, setFinanceCreditLimit] = useState("");
   const [financeEmailDocs, setFinanceEmailDocs] = useState("");
   const [financeSendReminders, setFinanceSendReminders] = useState(true);
@@ -473,14 +561,20 @@ export default function SifarisDetailPage() {
         unit: "Marşrut",
         qty: 1,
         price: 0,
-        vatRate: "0%"
-      }
+        vatRate: "0%",
+      },
     ]);
   };
 
   const handleRemoveInvoiceRow = (id: string) => {
     if (invoiceRows.length <= 1) {
-      alert("Ən azı bir hesab sətri olmalıdır!");
+      dispatch(
+        showNotification({
+          message: "Ən azı bir hesab sətri olmalıdır!",
+          type: "error",
+          autoCloseDuration: 3500,
+        }),
+      );
       return;
     }
     openDeleteConfirm(
@@ -492,7 +586,13 @@ export default function SifarisDetailPage() {
 
   const handleSaveInvoice = async () => {
     if (!invoiceNumber.trim()) {
-      alert("Lütfən hesab nömrəsini daxil edin!");
+      dispatch(
+        showNotification({
+          message: "Lütfən hesab nömrəsini daxil edin!",
+          type: "error",
+          autoCloseDuration: 3500,
+        }),
+      );
       return;
     }
 
@@ -514,12 +614,12 @@ export default function SifarisDetailPage() {
         const updatedFinance = await Promise.all(
           financeTransactions.map(async (tx) => {
             const txPrice =
-              Number.parseFloat(String(tx.tarifPrice || "").replace(",", ".")) ||
-              0;
+              Number.parseFloat(
+                String(tx.tarifPrice || "").replace(",", "."),
+              ) || 0;
             const sameCurrency =
               !tx.tarifCurrency ||
-              String(tx.tarifCurrency).toUpperCase() ===
-                currency.toUpperCase();
+              String(tx.tarifCurrency).toUpperCase() === currency.toUpperCase();
             const matchesOld =
               sameCurrency && Math.abs(txPrice - topPrice) < 0.0001;
             if (!matchesOld) return tx;
@@ -558,17 +658,16 @@ export default function SifarisDetailPage() {
 
         // Sorğu təklifi: yalnız xərcsiz qiymət (price) — expense toxunulmur
         const queryId =
-          (order as any)?.queryId ||
-          (order as any)?.query?.id ||
-          null;
+          (order as any)?.queryId || (order as any)?.query?.id || null;
         if (queryId && invoiceCarrier) {
           const updatedOffers = orderPriceOffers.map((o: any) => {
-            const name = String(o?.carrierName || "").trim().toLowerCase();
+            const name = String(o?.carrierName || "")
+              .trim()
+              .toLowerCase();
             if (name !== invoiceCarrier.trim().toLowerCase()) return o;
             const expenseNum =
-              Number.parseFloat(
-                String(o?.expense ?? "").replace(",", "."),
-              ) || 0;
+              Number.parseFloat(String(o?.expense ?? "").replace(",", ".")) ||
+              0;
             const next: any = {
               ...o,
               price: newPriceStr,
@@ -603,7 +702,14 @@ export default function SifarisDetailPage() {
         }
       } catch (e) {
         console.error(e);
-        alert("Qiymət yenilənərkən xəta baş verdi. Hesab yenə də saxlanıldı.");
+        dispatch(
+          showNotification({
+            message:
+              "Qiymət yenilənərkən xəta baş verdi. Hesab yenə də saxlanıldı.",
+            type: "error",
+            autoCloseDuration: 3500,
+          }),
+        );
       }
     }
 
@@ -616,6 +722,7 @@ export default function SifarisDetailPage() {
       type: invoicesSubTab,
       orderNumber: order?.orderNumber || "",
       carrier: invoiceCarrier,
+      payer: invoiceCarrier,
       voyageNumber: invoiceVoyageNumber,
       contract: invoiceContract,
       creator: invoiceCreator,
@@ -656,7 +763,13 @@ export default function SifarisDetailPage() {
 
   const handleSaveTransaction = async () => {
     if (!txName.trim()) {
-      alert("Lütfən adı daxil edin!");
+      dispatch(
+        showNotification({
+          message: "Lütfən adı daxil edin!",
+          type: "error",
+          autoCloseDuration: 3500,
+        }),
+      );
       return;
     }
 
@@ -690,16 +803,43 @@ export default function SifarisDetailPage() {
         profit: `${profitVal.toFixed(2)} AZN`,
         costDate: selectedTxForEdit.costDate,
       };
-      axios.put(ENDPOINTS.FINANCE.BASE + "/" + selectedTxForEdit.id, updateData, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
-        .then(res => {
-          setFinanceTransactions(financeTransactions.map(t => t.id === selectedTxForEdit.id ? res.data : t));
+      axios
+        .put(ENDPOINTS.FINANCE.BASE + "/" + selectedTxForEdit.id, updateData, {
+          headers: { Authorization: "Bearer " + localStorage.getItem("token") },
+        })
+        .then((res) => {
+          setFinanceTransactions(
+            financeTransactions.map((t) =>
+              t.id === selectedTxForEdit.id ? res.data : t,
+            ),
+          );
         })
         .catch(console.error);
     } else {
       const newTx = {
         orderId: order?.id,
         name: txName,
-        partner: "Müştəri",
+        partner:
+          resolveCustomerDisplayName(
+            (order as any)?.customerName || (order as any)?.customerId,
+            customers,
+          ) ||
+          String((order as any)?.customerName || "").trim() ||
+          "Müştəri",
+        customerId: (() => {
+          const raw = (order as any)?.customerId;
+          if (raw != null && /^\d+$/.test(String(raw))) return Number(raw);
+          const found = customers.find(
+            (c) =>
+              String(c.name || "").trim() ===
+                String((order as any)?.customerName || "").trim() ||
+              String(c.company || "").trim() ===
+                String((order as any)?.customerName || "").trim(),
+          );
+          return found?.id != null ? Number(found.id) : null;
+        })(),
+        paymentMethod: "Sifariş",
+        category: "ORDER_BOOK",
         tarifPrice: txRevTarif,
         tarifCurrency: txRevCurrency,
         tarifAzn: revAzn.toFixed(2),
@@ -716,11 +856,14 @@ export default function SifarisDetailPage() {
         user: txUser,
         invoiceWritten: false,
         invoiceReceived: false,
-        costDate: new Date().toLocaleDateString("az-AZ")
+        costDate: new Date().toLocaleDateString("az-AZ"),
       };
-      axios.post(ENDPOINTS.FINANCE.BASE, newTx, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
-        .then(res => {
-          setFinanceTransactions([...financeTransactions, res.data]);
+      axios
+        .post(ENDPOINTS.FINANCE.BASE, newTx, {
+          headers: { Authorization: "Bearer " + localStorage.getItem("token") },
+        })
+        .then((res) => {
+          setFinanceTransactions([res.data, ...financeTransactions]);
         })
         .catch(console.error);
     }
@@ -735,32 +878,39 @@ export default function SifarisDetailPage() {
     setTxDescription("");
   };
 
+  const [voyagesList, setVoyagesList] = useState<
+    Array<{
+      id: string;
+      number: string;
+      tags: string;
+      sender: string;
+      loadPlace: string;
+      receiver: string;
+      unloadPlace: string;
+      status: string;
+      loadDate: string;
+      unloadDate: string;
+      price: string;
+      carrier: string;
+      carNumber: string;
+      expeditor: string;
+      invoices: string;
+      loads: string;
+      rawPayload?: any;
+    }>
+  >([]);
 
-  const [voyagesList, setVoyagesList] = useState<Array<{
-    id: string;
-    number: string;
-    tags: string;
-    sender: string;
-    loadPlace: string;
-    receiver: string;
-    unloadPlace: string;
-    status: string;
-    loadDate: string;
-    unloadDate: string;
-    price: string;
-    carrier: string;
-    carNumber: string;
-    expeditor: string;
-    invoices: string;
-    loads: string;
-    rawPayload?: any;
-  }>>([]);
-
-  const [selectedVoyageForView, setSelectedVoyageForView] = useState<any | null>(null);
+  const [selectedVoyageForView, setSelectedVoyageForView] = useState<
+    any | null
+  >(null);
   const [isVoyageViewOpen, setIsVoyageViewOpen] = useState(false);
-  const [selectedVoyageForEdit, setSelectedVoyageForEdit] = useState<any | null>(null);
+  const [selectedVoyageForEdit, setSelectedVoyageForEdit] = useState<
+    any | null
+  >(null);
   const [isVoyageEditOpen, setIsVoyageEditOpen] = useState(false);
-  const [selectedVoyageForDelete, setSelectedVoyageForDelete] = useState<any | null>(null);
+  const [selectedVoyageForDelete, setSelectedVoyageForDelete] = useState<
+    any | null
+  >(null);
   const [isVoyageDeleteOpen, setIsVoyageDeleteOpen] = useState(false);
 
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -799,18 +949,24 @@ export default function SifarisDetailPage() {
     const fetchOrders = async () => {
       try {
         const res = await axios.get(ENDPOINTS.ORDERS.BASE, {
-          headers: { Authorization: "Bearer " + localStorage.getItem("token") }
+          headers: { Authorization: "Bearer " + localStorage.getItem("token") },
         });
         const mapped = (res.data || []).map((o: any) => {
           const voyages = Array.isArray(o.voyages) ? o.voyages : [];
           const voyageCarriers = voyages
             .map((v: any) => String(v?.carrier || "").trim())
-            .filter((name: string) => name && name !== "—" && name !== "Daşıyıcı");
-          const carriersFromVoyages = Array.from(new Set(voyageCarriers)).join(", ");
+            .filter(
+              (name: string) => name && name !== "—" && name !== "Daşıyıcı",
+            );
+          const carriersFromVoyages = Array.from(new Set(voyageCarriers)).join(
+            ", ",
+          );
           return {
             ...o,
             queryNumber: o.query?.number || "—",
-            queryDate: o.query?.createdAt ? new Date(o.query.createdAt).toLocaleDateString("az-AZ") : "—",
+            queryDate: o.query?.createdAt
+              ? new Date(o.query.createdAt).toLocaleDateString("az-AZ")
+              : "—",
             customer: o.customerName || o.query?.customer || "—",
             customerId: o.customerName || o.query?.customer || "",
             carriers: o.carriers || carriersFromVoyages || "",
@@ -825,7 +981,11 @@ export default function SifarisDetailPage() {
   }, []);
 
   const order = useMemo(() => {
-    return orders.find((o) => String(o.id) === String(orderId) || o.orderNumber === orderId) || null;
+    return (
+      orders.find(
+        (o) => String(o.id) === String(orderId) || o.orderNumber === orderId,
+      ) || null
+    );
   }, [orders, orderId]);
 
   const displayCustomerName = useMemo(() => {
@@ -864,7 +1024,9 @@ export default function SifarisDetailPage() {
 
     const voyageCarriers = [
       ...voyagesList.map((v) => clean(v.carrier)),
-      ...(((order as any)?.voyages as any[]) || []).map((v) => clean(v?.carrier)),
+      ...(((order as any)?.voyages as any[]) || []).map((v) =>
+        clean(v?.carrier),
+      ),
     ].filter(Boolean);
 
     if (voyageCarriers.length > 0) {
@@ -877,7 +1039,10 @@ export default function SifarisDetailPage() {
     const offerItems = (() => {
       const query = (order as any)?.query;
       if (Array.isArray(query?.priceOfferItems)) return query.priceOfferItems;
-      if (typeof query?.priceOffersJson === "string" && query.priceOffersJson.trim()) {
+      if (
+        typeof query?.priceOffersJson === "string" &&
+        query.priceOffersJson.trim()
+      ) {
         try {
           const parsed = JSON.parse(query.priceOffersJson);
           return Array.isArray(parsed) ? parsed : [];
@@ -919,13 +1084,12 @@ export default function SifarisDetailPage() {
     setCustomerNameOverride("");
     if (!order) return;
 
-    const raw =
-      String(
-        order.customer ||
-          (order as any).customerName ||
-          (order as any).query?.customer ||
-          "",
-      ).trim();
+    const raw = String(
+      order.customer ||
+        (order as any).customerName ||
+        (order as any).query?.customer ||
+        "",
+    ).trim();
 
     if (!looksLikeNumericId(raw)) return;
     if (resolveCustomerDisplayName(raw, customers) !== raw) return;
@@ -953,25 +1117,41 @@ export default function SifarisDetailPage() {
     if (order) {
       const fetchAll = async () => {
         try {
-          const headers = { Authorization: "Bearer " + localStorage.getItem("token") };
+          const headers = {
+            Authorization: "Bearer " + localStorage.getItem("token"),
+          };
           const [finRes, loadRes, voyRes, invRes] = await Promise.all([
-            axios.get(ENDPOINTS.FINANCE.BASE + "?orderId=" + order.id, { headers }).catch(() => ({ data: [] })),
-            axios.get(ENDPOINTS.LOADS.BASE + "?orderId=" + order.id, { headers }).catch(() => ({ data: [] })),
-            axios.get(ENDPOINTS.VOYAGES.BASE + "?orderId=" + order.id, { headers }).catch(() => ({ data: [] })),
-            axios.get(ENDPOINTS.INVOICES.BASE + "?orderId=" + order.id, { headers }).catch(() => ({ data: [] }))
+            axios
+              .get(ENDPOINTS.FINANCE.BASE + "?orderId=" + order.id, { headers })
+              .catch(() => ({ data: [] })),
+            axios
+              .get(ENDPOINTS.LOADS.BASE + "?orderId=" + order.id, { headers })
+              .catch(() => ({ data: [] })),
+            axios
+              .get(ENDPOINTS.VOYAGES.BASE + "?orderId=" + order.id, { headers })
+              .catch(() => ({ data: [] })),
+            axios
+              .get(ENDPOINTS.INVOICES.BASE + "?orderId=" + order.id, {
+                headers,
+              })
+              .catch(() => ({ data: [] })),
           ]);
           setFinanceTransactions(finRes.data || []);
-          
+
           const mappedLoads = (loadRes.data || [])
             .filter((l: any) => String(l.orderId) === String(order.id))
             .map((l: any) => mapLoadRow(l, order));
           setLoadsList(mappedLoads);
-          
+
           const mappedVoyages = (voyRes.data || [])
             .filter((v: any) => String(v.orderId) === String(order.id))
             .map((v: any) => {
               let rawPayload = v.rawPayload;
-              if (!rawPayload && typeof v.rawPayloadJson === "string" && v.rawPayloadJson.trim()) {
+              if (
+                !rawPayload &&
+                typeof v.rawPayloadJson === "string" &&
+                v.rawPayloadJson.trim()
+              ) {
                 try {
                   rawPayload = JSON.parse(v.rawPayloadJson);
                 } catch {
@@ -980,17 +1160,18 @@ export default function SifarisDetailPage() {
               }
               return {
                 ...v,
-                number: v.tripRef || (v.id ? `R-${v.id}` : "—"),
+                number: v.id ? `R-${v.id}` : "—",
                 loadPlace: v.loading || "—",
                 unloadPlace: v.unloading || "—",
                 status: v.tripStatus || "—",
                 price: v.tripPrice || "—",
-                valueAzn: typeof v.valueAzn === "number" ? v.valueAzn : undefined,
+                valueAzn:
+                  typeof v.valueAzn === "number" ? v.valueAzn : undefined,
                 rawPayload,
               };
             });
           setVoyagesList(mappedVoyages);
-          
+
           setInvoicesList(invRes.data || []);
         } catch (e) {
           console.error(e);
@@ -1003,7 +1184,10 @@ export default function SifarisDetailPage() {
   const saveFinanceTransactions = (newList: typeof financeTransactions) => {
     setFinanceTransactions(newList);
     if (order) {
-      localStorage.setItem(`logistic_finance_${order.id}`, JSON.stringify(newList));
+      localStorage.setItem(
+        `logistic_finance_${order.id}`,
+        JSON.stringify(newList),
+      );
     }
   };
 
@@ -1017,61 +1201,249 @@ export default function SifarisDetailPage() {
     [order, voyagesList, financeTransactions],
   );
 
+  /** Seçilib yaradılan Başlanğıc tarif sətri — sidebar/banner üçün mənbə */
+  const baslangicTarifDisplay = useMemo(() => {
+    const tx = financeTransactions.find(
+      (t) => String(t.name || "").trim() === "Başlanğıc tarif",
+    );
+    if (tx) {
+      const price =
+        Number.parseFloat(
+          String(tx.tarifPrice || tx.edvliTarifPrice || "").replace(",", "."),
+        ) || 0;
+      const currency =
+        String(tx.tarifCurrency || tx.edvliTarifCurrency || "AZN")
+          .trim()
+          .toUpperCase() || "AZN";
+      const azn =
+        Number.parseFloat(
+          String(tx.tarifAzn || tx.edvliTarifAzn || "").replace(",", "."),
+        ) ||
+        resolveFinanceRevenueAzn(tx) ||
+        0;
+
+      if (price > 0) {
+        if (currency === "AZN") {
+          return `${price} AZN`;
+        }
+        const aznPart = azn > 0 ? ` (${azn.toFixed(2)} AZN)` : "";
+        return `${price} ${currency}${aznPart}`;
+      }
+      if (azn > 0) return `${azn.toFixed(2)} AZN`;
+    }
+
+    if (offerSalesTotal?.labelSales && offerSalesTotal.labelSales !== "—") {
+      return offerSalesTotal.labelSales;
+    }
+    return order?.freight || "—";
+  }, [financeTransactions, offerSalesTotal, order]);
+
   const financeTotals = useMemo(() => {
-    let totalRevAzn = 0;
-    let totalExpAzn = 0;
+    const isVoyageFinanceName = (name: unknown) =>
+      /^Reys R-\d+$/i.test(String(name || "").trim());
+
+    const rates: Record<string, number> = { AZN: 1 };
+    const learnRate = (amount: number, currency: string, azn: number) => {
+      const curr = (currency || "AZN").toUpperCase();
+      if (curr === "AZN" || !(amount > 0) || !(azn > 0)) return;
+      rates[curr] = azn / amount;
+    };
+
     financeTransactions.forEach((t) => {
-      totalRevAzn += resolveFinanceRevenueAzn(t);
-      totalExpAzn += resolveFinanceExpenseAzn(t);
+      const mPrice =
+        Number.parseFloat(
+          String(t.mesarifPrice || t.edvliMesarifPrice || "").replace(",", "."),
+        ) || 0;
+      const mAzn =
+        Number.parseFloat(
+          String(t.mesarifAzn || t.edvliMesarifAzn || "").replace(",", "."),
+        ) || 0;
+      learnRate(
+        mPrice,
+        String(t.mesarifCurrency || t.edvliMesarifCurrency || "AZN"),
+        mAzn,
+      );
+      const tPrice =
+        Number.parseFloat(
+          String(t.tarifPrice || t.edvliTarifPrice || "").replace(",", "."),
+        ) || 0;
+      const tAzn =
+        Number.parseFloat(
+          String(t.tarifAzn || t.edvliTarifAzn || "").replace(",", "."),
+        ) || 0;
+      learnRate(
+        tPrice,
+        String(t.tarifCurrency || t.edvliTarifCurrency || "AZN"),
+        tAzn,
+      );
     });
 
     voyagesList.forEach((v) => {
-      totalExpAzn += resolveVoyageExpenseAzn(v);
+      const text = String(v.price || v.tripPrice || "");
+      const m = text.match(
+        /^([0-9]+(?:[.,][0-9]+)?)\s*([A-Za-z]{3}).*?\(([0-9]+(?:[.,][0-9]+)?)\s*AZN/i,
+      );
+      if (m) {
+        learnRate(
+          Number.parseFloat(m[1].replace(",", ".")) || 0,
+          m[2],
+          Number.parseFloat(m[3].replace(",", ".")) || 0,
+        );
+      }
+    });
+    if (!rates.USD) rates.USD = 1.7;
+    if (!rates.EUR) rates.EUR = 1.93;
+
+    const toAznAmount = (amount: number, currency: string) => {
+      const curr = (currency || "AZN").toUpperCase();
+      if (!(amount > 0)) return 0;
+      if (curr === "AZN") return amount;
+      return amount * (rates[curr] || 1);
+    };
+
+    const resolveVoyageParts = (v: any) => {
+      const text = String(v.price || v.tripPrice || "");
+      const match = text.match(/^([0-9]+(?:[.,][0-9]+)?)\s*([A-Za-z]{3})/);
+      const amount = match
+        ? Number.parseFloat(match[1].replace(",", ".")) || 0
+        : 0;
+      const currency = match ? match[2].toUpperCase() : "AZN";
+      let azn = resolveVoyageExpenseAzn(v);
+      if (!(azn > 0) && amount > 0) {
+        azn = toAznAmount(amount, currency);
+      }
+      return { amount, currency, azn };
+    };
+
+    let financeRevAzn = 0;
+    let otherFinanceExpAzn = 0;
+
+    financeTransactions.forEach((t) => {
+      financeRevAzn += resolveFinanceRevenueAzn(t);
+
+      const name = String(t.name || "").trim();
+      if (isVoyageFinanceName(name)) return;
+      if (name === "Başlanğıc tarif") return;
+
+      otherFinanceExpAzn += resolveFinanceExpenseAzn(t);
     });
 
-    // Daşıyıcı təklifindəki "Xərc" hələ maliyyəyə yazılmayıbsa, avtomatik əlavə et
-    totalExpAzn += resolveOfferExpenseFallbackAzn({
-      order,
-      voyages: voyagesList,
-      financeTransactions,
+    let voyageExpAzn = 0;
+    voyagesList.forEach((v) => {
+      voyageExpAzn += resolveVoyageParts(v).azn;
     });
 
-    // Satış qiyməti / Total qiymət üstünlük təşkil edir
-    if (offerSalesTotal) {
-      if (offerSalesTotal.salesAzn > 0) totalRevAzn = offerSalesTotal.salesAzn;
-      if (offerSalesTotal.totalAzn > 0) totalExpAzn = offerSalesTotal.totalAzn;
+    let totalRevAzn = financeRevAzn;
+    let totalExpAzn = voyageExpAzn + otherFinanceExpAzn;
+
+    if (totalExpAzn <= 0) {
+      totalExpAzn += resolveOfferExpenseFallbackAzn({
+        order,
+        voyages: voyagesList,
+        financeTransactions,
+      });
+      if (totalExpAzn <= 0 && offerSalesTotal && offerSalesTotal.totalAzn > 0) {
+        totalExpAzn = offerSalesTotal.totalAzn;
+      }
+    }
+
+    if (financeRevAzn <= 0 && offerSalesTotal && offerSalesTotal.salesAzn > 0) {
+      totalRevAzn = offerSalesTotal.salesAzn;
     }
 
     return {
       totalRevAzn,
       totalExpAzn,
       profitAzn: totalRevAzn - totalExpAzn,
+      voyageExpAzn,
+      otherFinanceExpAzn,
+      resolveVoyageParts,
+      toAznAmount,
+      hasFinanceRevenue: financeRevAzn > 0,
+      hasFinanceExpense: totalExpAzn > 0,
     };
   }, [financeTransactions, voyagesList, order, offerSalesTotal]);
+
+  const financeExpenseLabel = useMemo(() => {
+    const byCurrency: Record<string, { amount: number; azn: number }> = {};
+
+    const addPart = (amount: number, currency: string, azn: number) => {
+      if (!(azn > 0) && !(amount > 0)) return;
+      const curr = (currency || "AZN").toUpperCase();
+      if (!byCurrency[curr]) byCurrency[curr] = { amount: 0, azn: 0 };
+      byCurrency[curr].amount += amount > 0 ? amount : azn;
+      byCurrency[curr].azn += azn > 0 ? azn : amount;
+    };
+
+    voyagesList.forEach((v) => {
+      const parts = financeTotals.resolveVoyageParts(v);
+      if (parts.azn > 0 || parts.amount > 0) {
+        addPart(parts.amount, parts.currency, parts.azn);
+      }
+    });
+
+    financeTransactions.forEach((t) => {
+      const name = String(t.name || "").trim();
+      if (/^Reys R-\d+$/i.test(name)) return;
+      if (name === "Başlanğıc tarif") return;
+      const azn = resolveFinanceExpenseAzn(t);
+      if (!(azn > 0)) return;
+      const amount =
+        Number.parseFloat(
+          String(t.mesarifPrice || t.edvliMesarifPrice || "").replace(",", "."),
+        ) || azn;
+      const curr = String(
+        t.mesarifCurrency || t.edvliMesarifCurrency || "AZN",
+      ).toUpperCase();
+      addPart(amount, curr, azn);
+    });
+
+    const parts = Object.entries(byCurrency).map(([curr, g]) => {
+      if (curr === "AZN") return `${g.amount.toFixed(2)} AZN`;
+      return `${g.amount.toFixed(2)} ${curr} (${g.azn.toFixed(2)} AZN)`;
+    });
+
+    if (parts.length > 0) return parts.join(" + ");
+
+    if (offerSalesTotal?.labelTotal && offerSalesTotal.labelTotal !== "—") {
+      return offerSalesTotal.labelTotal;
+    }
+    return `${financeTotals.totalExpAzn.toFixed(2)} AZN`;
+  }, [financeTotals, financeTransactions, voyagesList, offerSalesTotal]);
 
   // Removed previous unused useEffects
 
   // Removed previous unused useEffects
 
   // Tab State
-  type SifarisTabId = "loads" | "voyages" | "finance" | "documents" | "invoices" | "comments";
+  type SifarisTabId =
+    | "loads"
+    | "voyages"
+    | "finance"
+    | "documents"
+    | "invoices"
+    | "comments";
   const [activeTab, setActiveTab] = useState<SifarisTabId>("loads");
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
   // Invoice Sub-tab and list states
-  const [invoicesSubTab, setInvoicesSubTab] = useState<"ireli" | "ilkin" | "alinmis">("ireli");
+  const [invoicesSubTab, setInvoicesSubTab] = useState<
+    "ireli" | "ilkin" | "alinmis"
+  >("ireli");
   const [isNewInvoiceModalOpen, setIsNewInvoiceModalOpen] = useState(false);
-  const [invoicesList, setInvoicesList] = useState<Array<{
-    id: string;
-    number: string;
-    date: string;
-    payer?: string;
-    amount: string;
-    status: string;
-    type: "ireli" | "ilkin" | "alinmis";
-    documents?: InvoiceDocumentItem[];
-    [key: string]: any;
-  }>>([
+  const [invoicesList, setInvoicesList] = useState<
+    Array<{
+      id: string;
+      number: string;
+      date: string;
+      payer?: string;
+      amount: string;
+      status: string;
+      type: "ireli" | "ilkin" | "alinmis";
+      documents?: InvoiceDocumentItem[];
+      [key: string]: any;
+    }>
+  >([
     {
       id: "inv-mock-1",
       number: "INV-2026-004",
@@ -1088,14 +1460,18 @@ export default function SifarisDetailPage() {
           unit: "Marşrut",
           qty: 1,
           price: 1450,
-          vatRate: "0%"
-        }
-      ]
-    }
+          vatRate: "0%",
+        },
+      ],
+    },
   ]);
 
-  const [invoiceDocsViewId, setInvoiceDocsViewId] = useState<string | null>(null);
-  const [invoiceUploadTargetId, setInvoiceUploadTargetId] = useState<string | null>(null);
+  const [invoiceDocsViewId, setInvoiceDocsViewId] = useState<string | null>(
+    null,
+  );
+  const [invoiceUploadTargetId, setInvoiceUploadTargetId] = useState<
+    string | null
+  >(null);
   const invoiceFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleInvoiceDocUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1145,38 +1521,50 @@ export default function SifarisDetailPage() {
   const [invoiceCurrency, setInvoiceCurrency] = useState("EUR");
   const [invoiceRateDate, setInvoiceRateDate] = useState("27.05.2026");
   const [invoiceCarriersList, setInvoiceCarriersList] = useState<
-    Array<{ id: string; name: string; documents: ReturnType<typeof parseCarrierDocuments> }>
+    Array<{
+      id: string;
+      name: string;
+      documents: ReturnType<typeof parseCarrierDocuments>;
+    }>
   >([]);
-  
+
   const [invoiceUseNonStandard, setInvoiceUseNonStandard] = useState(false);
   const [invoiceNoStampSign, setInvoiceNoStampSign] = useState(false);
   const [invoiceSendNotif, setInvoiceSendNotif] = useState(false);
 
-  const [invoiceRows, setInvoiceRows] = useState<Array<{
-    id: string;
-    text: string;
-    unit: string;
-    qty: number;
-    price: number;
-    vatRate: string;
-  }>>([
+  const [invoiceRows, setInvoiceRows] = useState<
+    Array<{
+      id: string;
+      text: string;
+      unit: string;
+      qty: number;
+      price: number;
+      vatRate: string;
+    }>
+  >([
     {
       id: "1",
       text: "Freight Charges EXW Changzhou, up to FOA Baku\n\nSender: Changzhou Sifary Medical Technology\nConsinger: Limon Dental MMC\nTrace number:",
       unit: "Marşrut",
       qty: 1,
       price: 0,
-      vatRate: "0%"
-    }
+      vatRate: "0%",
+    },
   ]);
 
   const orderPriceOffers = useMemo(() => {
     const query = (order as any)?.query;
     if (!query) return [] as any[];
-    if (Array.isArray(query.priceOfferItems) && query.priceOfferItems.length > 0) {
+    if (
+      Array.isArray(query.priceOfferItems) &&
+      query.priceOfferItems.length > 0
+    ) {
       return query.priceOfferItems;
     }
-    if (typeof query.priceOffersJson === "string" && query.priceOffersJson.trim()) {
+    if (
+      typeof query.priceOffersJson === "string" &&
+      query.priceOffersJson.trim()
+    ) {
       try {
         const parsed = JSON.parse(query.priceOffersJson);
         return Array.isArray(parsed) ? parsed : [];
@@ -1195,8 +1583,7 @@ export default function SifarisDetailPage() {
     const byCarrier = carrierName
       ? voyagesList.find(
           (v) =>
-            clean(v.carrier).toLowerCase() ===
-            carrierName.trim().toLowerCase(),
+            clean(v.carrier).toLowerCase() === carrierName.trim().toLowerCase(),
         )
       : null;
     const voyage = byCarrier || voyagesList[0];
@@ -1215,19 +1602,70 @@ export default function SifarisDetailPage() {
     }
     const offer = orderPriceOffers.find(
       (o: any) =>
-        String(o?.carrierName || "").trim().toLowerCase() ===
-        carrierName.trim().toLowerCase(),
+        String(o?.carrierName || "")
+          .trim()
+          .toLowerCase() === carrierName.trim().toLowerCase(),
     );
     // Təklifdəki xərcsiz alış qiyməti (price) + valyuta
-    const raw = String(offer?.price ?? "").replace(",", ".").trim();
+    const raw = String(offer?.price ?? "")
+      .replace(",", ".")
+      .trim();
     const num = Number.parseFloat(raw);
     const price = Number.isFinite(num) ? num : 0;
-    const currency = String(offer?.currency || "EUR").trim() || "EUR";
+    const currency =
+      String(offer?.currency || resolveOrderCurrency()).trim() || "EUR";
     setInvoiceFreightPrice(price > 0 ? String(price) : raw || "");
     setInvoiceCurrency(currency);
     setInvoiceRows((rows) =>
       rows.map((r, idx) => (idx === 0 ? { ...r, price } : r)),
     );
+  };
+
+  const resolveOrderCurrency = () => {
+    const pick = (value: unknown) => {
+      const text = String(value ?? "")
+        .trim()
+        .toUpperCase();
+      if (["AZN", "USD", "EUR", "TRY"].includes(text)) return text;
+      return "";
+    };
+
+    for (const offer of orderPriceOffers) {
+      const sales = Number.parseFloat(
+        String(offer?.salesPrice ?? "").replace(",", "."),
+      );
+      if (Number.isFinite(sales) && sales > 0) {
+        const curr = pick(offer?.currency) || pick(offer?.totalCurrency);
+        if (curr) return curr;
+      }
+    }
+    for (const offer of orderPriceOffers) {
+      const curr = pick(offer?.currency) || pick(offer?.totalCurrency);
+      if (curr) return curr;
+    }
+
+    for (const tx of financeTransactions) {
+      if (resolveFinanceRevenueAzn(tx) > 0) {
+        const curr = pick(tx.tarifCurrency) || pick(tx.edvliTarifCurrency);
+        if (curr) return curr;
+      }
+    }
+    for (const tx of financeTransactions) {
+      const curr = pick(tx.tarifCurrency) || pick(tx.edvliTarifCurrency);
+      if (curr) return curr;
+    }
+
+    const fromFreight = String(
+      (order as any)?.freight || offerSalesTotal?.labelSales || "",
+    ).match(/\b(AZN|USD|EUR|TRY)\b/i);
+    if (fromFreight?.[1]) return fromFreight[1].toUpperCase();
+
+    const fromVoyage = String(voyagesList[0]?.price || "").match(
+      /\b(AZN|USD|EUR|TRY)\b/i,
+    );
+    if (fromVoyage?.[1]) return fromVoyage[1].toUpperCase();
+
+    return "EUR";
   };
 
   const buildInvoiceFreightText = () => {
@@ -1298,10 +1736,16 @@ export default function SifarisDetailPage() {
       try {
         const parts = invoiceDate.split(".");
         if (parts.length === 3) {
-          const d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+          const d = new Date(
+            parseInt(parts[2]),
+            parseInt(parts[1]) - 1,
+            parseInt(parts[0]),
+          );
           d.setDate(d.getDate() + days);
           const pad = (n: number) => n.toString().padStart(2, "0");
-          setInvoicePayUntilDate(`${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`);
+          setInvoicePayUntilDate(
+            `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`,
+          );
         }
       } catch (e) {
         // Fallback
@@ -1310,26 +1754,44 @@ export default function SifarisDetailPage() {
   }, [invoiceDate, invoiceDelayDays]);
 
   // Dynamic comments
-  const [comments, setComments] = useState<Array<{ id: string; text: string; userName: string; createdAt: string }>>([
-    { id: "1", text: "Yükləmə nöqtəsindən gömrük sənədləri qəbul edildi.", userName: "Ulvi Adilzade", createdAt: "26.05.2026 10:15" },
-    { id: "2", text: "Reys uğurla təyin olunmuşdur.", userName: "Nijat Shabanly", createdAt: "26.05.2026 11:42" }
+  const [comments, setComments] = useState<
+    Array<{ id: string; text: string; userName: string; createdAt: string }>
+  >([
+    {
+      id: "1",
+      text: "Yükləmə nöqtəsindən gömrük sənədləri qəbul edildi.",
+      userName: "Ulvi Adilzade",
+      createdAt: "26.05.2026 10:15",
+    },
+    {
+      id: "2",
+      text: "Reys uğurla təyin olunmuşdur.",
+      userName: "Nijat Shabanly",
+      createdAt: "26.05.2026 11:42",
+    },
   ]);
   const [commentInput, setCommentInput] = useState("");
 
   // Combined Comments & Tasks States
   const [isNewCommentModalOpen, setIsNewCommentModalOpen] = useState(false);
   const [commentCategory, setCommentCategory] = useState("Sifariş");
-  const [commentProvideAccessCustomer, setCommentProvideAccessCustomer] = useState(false);
-  const [commentProvideAccessCarrier, setCommentProvideAccessCarrier] = useState(false);
+  const [commentProvideAccessCustomer, setCommentProvideAccessCustomer] =
+    useState(false);
+  const [commentProvideAccessCarrier, setCommentProvideAccessCarrier] =
+    useState(false);
   const [commentText, setCommentText] = useState("");
 
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-  const [selectedTaskForEdit, setSelectedTaskForEdit] = useState<any | null>(null);
+  const [selectedTaskForEdit, setSelectedTaskForEdit] = useState<any | null>(
+    null,
+  );
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
   const [taskChecklist, setTaskChecklist] = useState<string[]>([]);
   const [taskAuthor, setTaskAuthor] = useState("Ulvi Adilzade (Satış şöbəsi)");
-  const [taskExecutor, setTaskExecutor] = useState("Ulvi Adilzade (Satış şöbəsi)");
+  const [taskExecutor, setTaskExecutor] = useState(
+    "Ulvi Adilzade (Satış şöbəsi)",
+  );
   const [taskIsRecurring, setTaskIsRecurring] = useState(false);
   const [taskCreatedDate, setTaskCreatedDate] = useState("27.05.2026");
   const [taskCreatedTime, setTaskCreatedTime] = useState("17:54");
@@ -1344,7 +1806,9 @@ export default function SifarisDetailPage() {
   // Yeni Müqavilə States
   const [isNewContractModalOpen, setIsNewContractModalOpen] = useState(false);
   const [contractCompany, setContractCompany] = useState("Ziyafreight");
-  const [contractType, setContractType] = useState<"template" | "file">("template");
+  const [contractType, setContractType] = useState<"template" | "file">(
+    "template",
+  );
   const [contractVoyage, setContractVoyage] = useState("ZF26094-1, Makeasy");
   const [contractLoad, setContractLoad] = useState("Dəyəri seçin");
   const [contractTemplate, setContractTemplate] = useState("Dəyəri seçin");
@@ -1352,33 +1816,38 @@ export default function SifarisDetailPage() {
   const [contractDocDate, setContractDocDate] = useState("27.05.2026");
   const [contractDocName, setContractDocName] = useState("");
   const [contractHasValidity, setContractHasValidity] = useState(false);
-  const [contractProvideAccessCustomer, setContractProvideAccessCustomer] = useState(false);
-  const [contractProvideAccessCarrier, setContractProvideAccessCarrier] = useState(false);
+  const [contractProvideAccessCustomer, setContractProvideAccessCustomer] =
+    useState(false);
+  const [contractProvideAccessCarrier, setContractProvideAccessCarrier] =
+    useState(false);
   const [contractSendNotif, setContractSendNotif] = useState(false);
   const [contractComments, setContractComments] = useState("");
 
-  const [tasksList, setTasksList] = useState<Array<{
-    id: string;
-    title: string;
-    description: string;
-    checklist: string[];
-    completed: boolean;
-    author: string;
-    executor: string;
-    isRecurring: boolean;
-    createdDate: string;
-    createdTime: string;
-    dueDate: string;
-    dueTime: string;
-    dueAmount: string;
-    remind: boolean;
-    remindDay: string;
-    remindTime: string;
-  }>>([
+  const [tasksList, setTasksList] = useState<
+    Array<{
+      id: string;
+      title: string;
+      description: string;
+      checklist: string[];
+      completed: boolean;
+      author: string;
+      executor: string;
+      isRecurring: boolean;
+      createdDate: string;
+      createdTime: string;
+      dueDate: string;
+      dueTime: string;
+      dueAmount: string;
+      remind: boolean;
+      remindDay: string;
+      remindTime: string;
+    }>
+  >([
     {
       id: "t1",
       title: "Müştəri müqaviləsini yoxlamaq",
-      description: "Limon Dental MMC müqaviləsi imzalanıb-imzalanmadığını yoxlayın",
+      description:
+        "Limon Dental MMC müqaviləsi imzalanıb-imzalanmadığını yoxlayın",
       checklist: ["Müqavilə nömrəsini təsdiqlə", "Skanner nüsxəsini yüklə"],
       completed: true,
       author: "Ulvi Adilzade (Satış şöbəsi)",
@@ -1391,7 +1860,7 @@ export default function SifarisDetailPage() {
       dueAmount: "",
       remind: true,
       remindDay: "İcra günündə",
-      remindTime: "10:00"
+      remindTime: "10:00",
     },
     {
       id: "t2",
@@ -1409,20 +1878,28 @@ export default function SifarisDetailPage() {
       dueAmount: "",
       remind: false,
       remindDay: "İcra günündə",
-      remindTime: "10:00"
-    }
+      remindTime: "10:00",
+    },
   ]);
 
   const handleSaveNewComment = () => {
     if (!commentText.trim()) {
-      alert("Lütfən şərhi daxil edin!");
+      dispatch(
+        showNotification({
+          message: "Lütfən şərhi daxil edin!",
+          type: "error",
+          autoCloseDuration: 3500,
+        }),
+      );
       return;
     }
     const newComment = {
       id: String(Date.now()),
       text: commentText.trim(),
       userName: "Ulvi Adilzade",
-      createdAt: new Date().toLocaleString("az-AZ", { hour12: false }).replace(/\//g, ".")
+      createdAt: new Date()
+        .toLocaleString("az-AZ", { hour12: false })
+        .replace(/\//g, "."),
     };
     setComments([newComment, ...comments]);
     setIsNewCommentModalOpen(false);
@@ -1431,27 +1908,37 @@ export default function SifarisDetailPage() {
 
   const handleSaveTask = () => {
     if (!taskTitle.trim()) {
-      alert("Lütfən tapşırığın adını daxil edin!");
+      dispatch(
+        showNotification({
+          message: "Lütfən tapşırığın adını daxil edin!",
+          type: "error",
+          autoCloseDuration: 3500,
+        }),
+      );
       return;
     }
     if (selectedTaskForEdit) {
-      const updated = tasksList.map(t => t.id === selectedTaskForEdit.id ? {
-        ...t,
-        title: taskTitle,
-        description: taskDescription,
-        checklist: taskChecklist,
-        author: taskAuthor,
-        executor: taskExecutor,
-        isRecurring: taskIsRecurring,
-        createdDate: taskCreatedDate,
-        createdTime: taskCreatedTime,
-        dueDate: taskDueDate,
-        dueTime: taskDueTime,
-        dueAmount: taskDueAmount,
-        remind: taskRemind,
-        remindDay: taskRemindDay,
-        remindTime: taskRemindTime
-      } : t);
+      const updated = tasksList.map((t) =>
+        t.id === selectedTaskForEdit.id
+          ? {
+              ...t,
+              title: taskTitle,
+              description: taskDescription,
+              checklist: taskChecklist,
+              author: taskAuthor,
+              executor: taskExecutor,
+              isRecurring: taskIsRecurring,
+              createdDate: taskCreatedDate,
+              createdTime: taskCreatedTime,
+              dueDate: taskDueDate,
+              dueTime: taskDueTime,
+              dueAmount: taskDueAmount,
+              remind: taskRemind,
+              remindDay: taskRemindDay,
+              remindTime: taskRemindTime,
+            }
+          : t,
+      );
       setTasksList(updated);
     } else {
       const newTask = {
@@ -1470,7 +1957,7 @@ export default function SifarisDetailPage() {
         dueAmount: taskDueAmount,
         remind: taskRemind,
         remindDay: taskRemindDay,
-        remindTime: taskRemindTime
+        remindTime: taskRemindTime,
       };
       setTasksList([...tasksList, newTask]);
     }
@@ -1496,16 +1983,30 @@ export default function SifarisDetailPage() {
       id: String(Date.now()),
       text: commentInput.trim(),
       userName: "Sistem Meneceri",
-      createdAt: new Date().toLocaleString("az-AZ", { hour12: false }).replace(/\//g, ".")
+      createdAt: new Date()
+        .toLocaleString("az-AZ", { hour12: false })
+        .replace(/\//g, "."),
     };
     setComments([newComment, ...comments]);
     setCommentInput("");
   };
 
   // Dynamic Documents
-  const [documents, setDocuments] = useState<Array<{ id: string; name: string; size: string; createdAt: string }>>([
-    { id: "1", name: "CMR_Senedi.pdf", size: "1.4 MB", createdAt: "26.05.2026" },
-    { id: "2", name: "Hesab-faktura.xlsx", size: "320 KB", createdAt: "26.05.2026" }
+  const [documents, setDocuments] = useState<
+    Array<{ id: string; name: string; size: string; createdAt: string }>
+  >([
+    {
+      id: "1",
+      name: "CMR_Senedi.pdf",
+      size: "1.4 MB",
+      createdAt: "26.05.2026",
+    },
+    {
+      id: "2",
+      name: "Hesab-faktura.xlsx",
+      size: "320 KB",
+      createdAt: "26.05.2026",
+    },
   ]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1516,7 +2017,7 @@ export default function SifarisDetailPage() {
       id: String(Date.now()),
       name: file.name,
       size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
-      createdAt: new Date().toLocaleDateString("az-AZ").split("T")[0]
+      createdAt: new Date().toLocaleDateString("az-AZ").split("T")[0],
     };
     setDocuments([...documents, newDoc]);
   };
@@ -1531,7 +2032,8 @@ export default function SifarisDetailPage() {
 
   // Dynamic status change
   const [currentStatus, setCurrentStatus] = useState<string>("planned");
-  const [currentStatusLabel, setCurrentStatusLabel] = useState<string>("Planlaşdırılır");
+  const [currentStatusLabel, setCurrentStatusLabel] =
+    useState<string>("Planlaşdırılır");
 
   useEffect(() => {
     if (order) {
@@ -1544,7 +2046,8 @@ export default function SifarisDetailPage() {
     let label = "Planlaşdırılıb";
     if (nextStatus === "progress") label = "Davam edir";
     else if (nextStatus === "completed") label = "Tamamlandı";
-    else if (nextStatus === "finance_closed") label = "Maliyyə cəhətdən bağlandı";
+    else if (nextStatus === "finance_closed")
+      label = "Maliyyə cəhətdən bağlandı";
     else if (nextStatus === "cancelled") label = "Sifariş ləğv edildi";
 
     setCurrentStatus(nextStatus);
@@ -1554,8 +2057,8 @@ export default function SifarisDetailPage() {
       ...(order?.statusHistory || []),
       {
         status: label,
-        date: `${new Date().toLocaleString("az-AZ", { hour12: false }).replace(/\//g, ".")} (tərəfindən: Ulvi Adilzade)`
-      }
+        date: `${new Date().toLocaleString("az-AZ", { hour12: false }).replace(/\//g, ".")} (tərəfindən: Ulvi Adilzade)`,
+      },
     ];
 
     const updatedList = orders.map((o) => {
@@ -1564,7 +2067,7 @@ export default function SifarisDetailPage() {
           ...o,
           statusKind: nextStatus,
           statusLabel: label,
-          statusHistory: nextHistory
+          statusHistory: nextHistory,
         };
       }
       return o;
@@ -1579,7 +2082,9 @@ export default function SifarisDetailPage() {
   };
 
   const handleSaveEdit = (updatedOrder: SifarisOrderRow) => {
-    const updatedList = orders.map((o) => (o.id === updatedOrder.id ? updatedOrder : o));
+    const updatedList = orders.map((o) =>
+      o.id === updatedOrder.id ? updatedOrder : o,
+    );
     setOrders(updatedList);
     try {
       localStorage.setItem("logistic_sifarisler", JSON.stringify(updatedList));
@@ -1592,8 +2097,11 @@ export default function SifarisDetailPage() {
   const handleYukAdd = (payload: any) => {
     if (!order?.id) return;
     const newLoad = buildLoadApiPayload(payload, order.id);
-    axios.post(ENDPOINTS.LOADS.BASE, newLoad, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
-      .then(res => {
+    axios
+      .post(ENDPOINTS.LOADS.BASE, newLoad, {
+        headers: { Authorization: "Bearer " + localStorage.getItem("token") },
+      })
+      .then((res) => {
         setLoadsList([...loadsList, mapLoadRow(res.data, order)]);
         setIsYukModalOpen(false);
       })
@@ -1602,10 +2110,22 @@ export default function SifarisDetailPage() {
 
   const handleYukEdit = (payload: any) => {
     if (!selectedLoadForEdit) return;
-    const updateData = buildLoadApiPayload(payload, order?.id || selectedLoadForEdit.orderId);
-    axios.put(ENDPOINTS.LOADS.BASE + "/" + selectedLoadForEdit.id, updateData, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
-      .then(res => {
-        setLoadsList(loadsList.map(load => load.id === selectedLoadForEdit.id ? mapLoadRow(res.data, order) : load));
+    const updateData = buildLoadApiPayload(
+      payload,
+      order?.id || selectedLoadForEdit.orderId,
+    );
+    axios
+      .put(ENDPOINTS.LOADS.BASE + "/" + selectedLoadForEdit.id, updateData, {
+        headers: { Authorization: "Bearer " + localStorage.getItem("token") },
+      })
+      .then((res) => {
+        setLoadsList(
+          loadsList.map((load) =>
+            load.id === selectedLoadForEdit.id
+              ? mapLoadRow(res.data, order)
+              : load,
+          ),
+        );
         setIsYukEditModalOpen(false);
         setSelectedLoadForEdit(null);
       })
@@ -1651,80 +2171,287 @@ export default function SifarisDetailPage() {
       setLoadsList(nextLoads);
     };
 
+    /** Reys qiyməti → Maliyyəyə `Reys R-{id}` məxaric sətri; Başlanğıc təkrarını sil */
+    const syncVoyageFinanceExpense = async (opts: {
+      voyageId: string | number;
+      carrier: string;
+      priceNum: number;
+      currency: string;
+      priceAzn: number;
+    }) => {
+      if (!order?.id || !(opts.priceNum > 0)) return;
+
+      const carrier =
+        String(opts.carrier || "").trim() && String(opts.carrier).trim() !== "—"
+          ? String(opts.carrier).trim()
+          : "Daşıyıcı";
+      const voyageName = `Reys R-${opts.voyageId}`;
+
+      let carrierId: number | null = null;
+      try {
+        const { fetchCarriersAction } =
+          await import("../../../common/actions/carrier.actions");
+        const list = await fetchCarriersAction();
+        const arr = Array.isArray(list) ? list : [];
+        const fold = (s: unknown) =>
+          String(s || "")
+            .trim()
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "");
+        const target = fold(carrier);
+        const found = arr.find((c: any) => {
+          const aliases = [c.name, c.company, c.companyName]
+            .map(fold)
+            .filter(Boolean);
+          return aliases.some((n) => n === target);
+        });
+        if (found?.id != null) carrierId = Number(found.id);
+      } catch {
+        /* ignore */
+      }
+
+      const mesarifPayload = {
+        partner: carrier,
+        carrierId,
+        customerId: null,
+        paymentMethod: "Sifariş",
+        category: "ORDER_BOOK",
+        mesarifPrice: String(opts.priceNum),
+        mesarifCurrency: opts.currency,
+        mesarifAzn: opts.priceAzn.toFixed(2),
+        edvliMesarifPrice: String(opts.priceNum),
+        edvliMesarifCurrency: opts.currency,
+        edvliMesarifAzn: opts.priceAzn.toFixed(2),
+      };
+
+      try {
+        const finRes = await axios.get(
+          ENDPOINTS.FINANCE.BASE + "?orderId=" + order.id,
+          { headers: authHeaders },
+        );
+        const txs: any[] = Array.isArray(finRes.data) ? finRes.data : [];
+
+        const existing =
+          txs.find((t) => String(t.name || "").trim() === voyageName) || null;
+
+        if (existing?.id) {
+          const revAzn = resolveFinanceRevenueAzn(existing);
+          await axios.put(
+            ENDPOINTS.FINANCE.BASE + "/" + existing.id,
+            {
+              ...mesarifPayload,
+              profit: `${(revAzn - opts.priceAzn).toFixed(2)} AZN`,
+            },
+            { headers: authHeaders },
+          );
+        } else {
+          await axios.post(
+            ENDPOINTS.FINANCE.BASE,
+            {
+              orderId: Number(order.id),
+              name: voyageName,
+              ...mesarifPayload,
+              paymentMethod: "Sifariş",
+              category: "ORDER_BOOK",
+              tarifPrice: "",
+              tarifCurrency: "",
+              tarifAzn: "",
+              edvliTarifPrice: "",
+              edvliTarifCurrency: "",
+              edvliTarifAzn: "",
+              profit: `${(-opts.priceAzn).toFixed(2)} AZN`,
+              user:
+                resolveUserDisplayName(order.manager, users) ||
+                order.manager ||
+                "",
+              invoiceWritten: false,
+              invoiceReceived: false,
+              costDate: new Date().toLocaleDateString("az-AZ"),
+            },
+            { headers: authHeaders },
+          );
+        }
+
+        // Köhnə təklif alışını (Başlanğıc mesarif) təmizlə — təkrar sayılmasın
+        const baslangic = txs.find(
+          (t) => String(t.name || "").trim() === "Başlanğıc tarif",
+        );
+        if (baslangic?.id && resolveFinanceExpenseAzn(baslangic) > 0) {
+          const revAzn = resolveFinanceRevenueAzn(baslangic);
+          await axios.put(
+            ENDPOINTS.FINANCE.BASE + "/" + baslangic.id,
+            {
+              mesarifPrice: "",
+              mesarifCurrency: "",
+              mesarifAzn: "",
+              edvliMesarifPrice: "",
+              edvliMesarifCurrency: "",
+              edvliMesarifAzn: "",
+              profit: `${revAzn.toFixed(2)} AZN`,
+            },
+            { headers: authHeaders },
+          );
+        }
+
+        const refreshed = await axios.get(
+          ENDPOINTS.FINANCE.BASE + "?orderId=" + order.id,
+          { headers: authHeaders },
+        );
+        setFinanceTransactions(
+          Array.isArray(refreshed.data) ? refreshed.data : [],
+        );
+      } catch (e) {
+        console.error("Voyage finance sync failed", e);
+      }
+    };
+
+    const priceNum =
+      Number.parseFloat(
+        String(payload.rawPayload?.price ?? "").replace(",", "."),
+      ) ||
+      Number.parseFloat(
+        String(payload.price || "")
+          .match(/^([0-9]+(?:[.,][0-9]+)?)/)?.[1]
+          ?.replace(",", ".") || "0",
+      ) ||
+      0;
+    const priceCurrency =
+      String(payload.rawPayload?.currency || "AZN")
+        .trim()
+        .toUpperCase() || "AZN";
+    const priceAzn =
+      Number.parseFloat(String(payload.priceAzn || "").replace(",", ".")) || 0;
+
+    const mapVoyageRow = (raw: any, extras: Record<string, any> = {}) => ({
+      ...raw,
+      number: raw?.id ? `R-${raw.id}` : extras.number || "—",
+      loadPlace: raw?.loading || extras.loadPlace || "—",
+      unloadPlace: raw?.unloading || extras.unloadPlace || "—",
+      status: raw?.tripStatus || extras.status || "—",
+      price: extras.price || raw?.tripPrice || "—",
+      tripPrice: extras.price || raw?.tripPrice || "",
+      valueAzn:
+        extras.valueAzn ??
+        (typeof raw?.valueAzn === "number" ? raw.valueAzn : undefined),
+      expeditor: extras.expeditor ?? raw?.expeditor,
+      rawPayload: extras.rawPayload ?? raw?.rawPayload,
+    });
+
     if (selectedVoyageForEdit) {
+      const voyageId = selectedVoyageForEdit.id;
       const updateData = {
         tripStatus: payload.status || "Planlaşdırılıb",
-        carrier: payload.carrier,
+        carrier: payload.carrier || "",
         tripPrice: payload.price,
-        valueAzn: payload.priceAzn ? Number(payload.priceAzn) : undefined,
+        valueAzn: priceAzn > 0 ? priceAzn : undefined,
         sender: payload.sender,
         loading: payload.loadPlace,
         receiver: payload.receiver,
         unloading: payload.unloadPlace,
         tags: payload.tags,
         cargoInfo: payload.loads || "",
-        tripRef: payload.number || undefined,
+        tripRef: voyageId ? `R-${voyageId}` : undefined,
       };
       try {
         const res = await axios.put(
-          ENDPOINTS.VOYAGES.BASE + "/" + selectedVoyageForEdit.id,
+          ENDPOINTS.VOYAGES.BASE + "/" + voyageId,
           updateData,
           { headers: authHeaders },
         );
-        const saved = {
-          ...res.data,
-          number:
-            res.data.tripRef ||
-            payload.number ||
-            (res.data.id ? `R-${res.data.id}` : "—"),
+        const saved = mapVoyageRow(res.data, {
+          price: payload.price,
+          valueAzn: priceAzn > 0 ? priceAzn : undefined,
           rawPayload: payload.rawPayload || selectedVoyageForEdit.rawPayload,
-        };
-        setVoyagesList(
-          voyagesList.map((v) =>
-            v.id === selectedVoyageForEdit.id ? { ...v, ...saved } : v,
+          expeditor: payload.expeditor,
+        });
+        setVoyagesList((prev) =>
+          prev.map((v) =>
+            String(v.id) === String(voyageId) ? { ...v, ...saved } : v,
           ),
         );
-        await syncLoadVoyageLinks(selectedVoyageForEdit.id);
+        await syncLoadVoyageLinks(voyageId);
+        await syncVoyageFinanceExpense({
+          voyageId,
+          carrier: payload.carrier || "",
+          priceNum,
+          currency: priceCurrency,
+          priceAzn,
+        });
         setIsVoyageEditOpen(false);
         setSelectedVoyageForEdit(null);
       } catch (e) {
         console.error(e);
+        dispatch(
+          showNotification({
+            message: "Reys yenilənərkən xəta baş verdi",
+            type: "error",
+            autoCloseDuration: 3500,
+          }),
+        );
       }
     } else {
       const newVoyage = {
-        orderId: order?.id,
+        orderId: Number(order?.id),
         tripStatus: payload.status || "Planlaşdırılıb",
         customer: order?.customer || "",
-        carrier: payload.carrier,
+        carrier: payload.carrier || "",
         tripPrice: payload.price,
-        valueAzn: payload.priceAzn ? Number(payload.priceAzn) : undefined,
+        valueAzn: priceAzn > 0 ? priceAzn : undefined,
         sender: payload.sender,
         loading: payload.loadPlace,
         receiver: payload.receiver,
         unloading: payload.unloadPlace,
         tags: payload.tags,
-        tripRef: payload.number,
         cargoInfo: payload.loads || "",
       };
       try {
         const res = await axios.post(ENDPOINTS.VOYAGES.BASE, newVoyage, {
           headers: authHeaders,
         });
-        const saved = {
-          ...res.data,
-          number:
-            res.data.tripRef ||
-            payload.number ||
-            (res.data.id ? `R-${res.data.id}` : "—"),
+        const newId = res.data?.id;
+        const tripRef = newId ? `R-${newId}` : "";
+        let savedVoyage = res.data;
+        if (tripRef && newId) {
+          try {
+            const updated = await axios.put(
+              ENDPOINTS.VOYAGES.BASE + "/" + newId,
+              { tripRef },
+              { headers: authHeaders },
+            );
+            savedVoyage = updated.data || { ...res.data, tripRef };
+          } catch {
+            savedVoyage = { ...res.data, tripRef };
+          }
+        }
+        const saved = mapVoyageRow(savedVoyage, {
+          number: tripRef || "—",
+          price: payload.price,
+          valueAzn: priceAzn > 0 ? priceAzn : undefined,
           rawPayload: payload.rawPayload,
-        };
-        setVoyagesList([...voyagesList, saved]);
-        if (res.data?.id) {
-          await syncLoadVoyageLinks(res.data.id);
+          expeditor: payload.expeditor,
+        });
+        setVoyagesList((prev) => [...prev, saved]);
+        if (newId) {
+          await syncLoadVoyageLinks(newId);
+          await syncVoyageFinanceExpense({
+            voyageId: newId,
+            carrier: payload.carrier || "",
+            priceNum,
+            currency: priceCurrency,
+            priceAzn,
+          });
         }
         setIsVoyageEditOpen(false);
       } catch (e) {
         console.error(e);
+        dispatch(
+          showNotification({
+            message: "Reys yaradılarkən xəta baş verdi",
+            type: "error",
+            autoCloseDuration: 3500,
+          }),
+        );
       }
     }
   };
@@ -1733,7 +2460,11 @@ export default function SifarisDetailPage() {
     return (
       <div style={{ padding: "4rem", textAlign: "center" }}>
         <h2 style={{ color: "#ef4444" }}>Sifariş tapılmadı</h2>
-        <Link to="/sifarisler" className={styles.backBtn} style={{ marginTop: "1rem" }}>
+        <Link
+          to="/sifarisler"
+          className={styles.backBtn}
+          style={{ marginTop: "1rem" }}
+        >
           <FiArrowLeft /> Siyahıya qayıt
         </Link>
       </div>
@@ -1784,7 +2515,7 @@ export default function SifarisDetailPage() {
     padding: 0,
     lineHeight: 1,
     fontWeight: "bold",
-    marginLeft: "0.25rem"
+    marginLeft: "0.25rem",
   };
 
   const clearIconStyle: React.CSSProperties = {
@@ -1805,12 +2536,32 @@ export default function SifarisDetailPage() {
 
   // Tabs navigation
   const tabItems = [
-    { id: "loads" as SifarisTabId, label: `Yüklər (${loadsList.length})`, icon: <FiBox /> },
-    { id: "voyages" as SifarisTabId, label: `Reyslər (${voyagesList.length})`, icon: <FiTruck /> },
-    { id: "finance" as SifarisTabId, label: `Maliyyə (${financeTransactions.length})`, icon: <FiDollarSign /> },
-    { id: "documents" as SifarisTabId, label: `Sənədlər (${documents.length})`, icon: <FiFileText /> },
+    {
+      id: "loads" as SifarisTabId,
+      label: `Yüklər (${loadsList.length})`,
+      icon: <FiBox />,
+    },
+    {
+      id: "voyages" as SifarisTabId,
+      label: `Reyslər (${voyagesList.length})`,
+      icon: <FiTruck />,
+    },
+    {
+      id: "finance" as SifarisTabId,
+      label: `Maliyyə (${financeTransactions.length})`,
+      icon: <FiDollarSign />,
+    },
+    {
+      id: "documents" as SifarisTabId,
+      label: `Sənədlər (${documents.length})`,
+      icon: <FiFileText />,
+    },
     { id: "invoices" as SifarisTabId, label: "Hesablar", icon: <FiFile /> },
-    { id: "comments" as SifarisTabId, label: `Şərhlər və Tapşırıqlar`, icon: <FiMessageSquare /> }
+    {
+      id: "comments" as SifarisTabId,
+      label: `Şərhlər və Tapşırıqlar`,
+      icon: <FiMessageSquare />,
+    },
   ];
 
   return (
@@ -1845,17 +2596,76 @@ export default function SifarisDetailPage() {
             </button>
 
             {/* Status Section */}
-            <div className={styles.statusWrapper} style={{ border: "none", background: "transparent", padding: 0, marginTop: "1rem" }}>
-              <div style={{ position: "relative", display: "inline-flex", alignItems: "center", flex: 1 }}>
+            <div
+              className={styles.statusWrapper}
+              style={{
+                border: "none",
+                background: "transparent",
+                padding: 0,
+                marginTop: "1rem",
+              }}
+            >
+              <div
+                style={{
+                  position: "relative",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  flex: 1,
+                }}
+              >
                 {(() => {
-                  const STATUS_OPTIONS: Array<{ value: OrderStatusKind; label: string; bg: string; text: string; dot: string; border: string }> = [
-                    { value: "planned", label: "Planlaşdırılıb", bg: "#eff6ff", text: "#1d4ed8", dot: "#3b82f6", border: "#bfdbfe" },
-                    { value: "progress", label: "Davam edir", bg: "#fef3c7", text: "#b45309", dot: "#f59e0b", border: "#fde68a" },
-                    { value: "completed", label: "Tamamlandı", bg: "#ecfdf5", text: "#047857", dot: "#10b981", border: "#a7f3d0" },
-                    { value: "finance_closed", label: "Maliyyə cəhətdən bağlandı", bg: "#e0e7ff", text: "#4338ca", dot: "#6366f1", border: "#c7d2fe" },
-                    { value: "cancelled", label: "Sifariş ləğv edildi", bg: "#fee2e2", text: "#b91c1c", dot: "#ef4444", border: "#fecaca" },
+                  const STATUS_OPTIONS: Array<{
+                    value: OrderStatusKind;
+                    label: string;
+                    bg: string;
+                    text: string;
+                    dot: string;
+                    border: string;
+                  }> = [
+                    {
+                      value: "planned",
+                      label: "Planlaşdırılıb",
+                      bg: "#eff6ff",
+                      text: "#1d4ed8",
+                      dot: "#3b82f6",
+                      border: "#bfdbfe",
+                    },
+                    {
+                      value: "progress",
+                      label: "Davam edir",
+                      bg: "#fef3c7",
+                      text: "#b45309",
+                      dot: "#f59e0b",
+                      border: "#fde68a",
+                    },
+                    {
+                      value: "completed",
+                      label: "Tamamlandı",
+                      bg: "#ecfdf5",
+                      text: "#047857",
+                      dot: "#10b981",
+                      border: "#a7f3d0",
+                    },
+                    {
+                      value: "finance_closed",
+                      label: "Maliyyə cəhətdən bağlandı",
+                      bg: "#e0e7ff",
+                      text: "#4338ca",
+                      dot: "#6366f1",
+                      border: "#c7d2fe",
+                    },
+                    {
+                      value: "cancelled",
+                      label: "Sifariş ləğv edildi",
+                      bg: "#fee2e2",
+                      text: "#b91c1c",
+                      dot: "#ef4444",
+                      border: "#fecaca",
+                    },
                   ];
-                  const currentOpt = STATUS_OPTIONS.find((o) => o.value === currentStatus) || STATUS_OPTIONS[0];
+                  const currentOpt =
+                    STATUS_OPTIONS.find((o) => o.value === currentStatus) ||
+                    STATUS_OPTIONS[0];
                   return (
                     <Popover.Root>
                       <Popover.Trigger asChild>
@@ -1880,20 +2690,47 @@ export default function SifarisDetailPage() {
                             boxSizing: "border-box",
                           }}
                           onMouseOver={(e) => {
-                            e.currentTarget.style.transform = "translateY(-1px)";
-                            e.currentTarget.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.05)";
+                            e.currentTarget.style.transform =
+                              "translateY(-1px)";
+                            e.currentTarget.style.boxShadow =
+                              "0 4px 6px -1px rgba(0, 0, 0, 0.05)";
                           }}
                           onMouseOut={(e) => {
                             e.currentTarget.style.transform = "translateY(0)";
                             e.currentTarget.style.boxShadow = "none";
                           }}
                         >
-                          <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                            <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: currentOpt.dot }} />
+                          <span
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: "6px",
+                                height: "6px",
+                                borderRadius: "50%",
+                                backgroundColor: currentOpt.dot,
+                              }}
+                            />
                             {currentOpt.label}
                           </span>
-                          <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          <svg
+                            width="10"
+                            height="6"
+                            viewBox="0 0 10 6"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              d="M1 1L5 5L9 1"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
                           </svg>
                         </button>
                       </Popover.Trigger>
@@ -1906,13 +2743,20 @@ export default function SifarisDetailPage() {
                             border: "1px solid #e2e8f0",
                             backgroundColor: "#ffffff",
                             padding: "0.5rem",
-                            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+                            boxShadow:
+                              "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
                             outline: "none",
                           }}
                           sideOffset={6}
                           align="start"
                         >
-                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "2px",
+                            }}
+                          >
                             {STATUS_OPTIONS.map((opt) => {
                               const isSelected = currentStatus === opt.value;
                               return (
@@ -1925,7 +2769,9 @@ export default function SifarisDetailPage() {
                                     alignItems: "center",
                                     justifyContent: "space-between",
                                     border: 0,
-                                    background: isSelected ? "#f1f5f9" : "transparent",
+                                    background: isSelected
+                                      ? "#f1f5f9"
+                                      : "transparent",
                                     color: isSelected ? opt.text : "#334155",
                                     borderRadius: "0.5rem",
                                     padding: "0.625rem 0.85rem",
@@ -1937,19 +2783,43 @@ export default function SifarisDetailPage() {
                                     width: "100%",
                                   }}
                                   onMouseOver={(e) => {
-                                    e.currentTarget.style.background = isSelected ? "#f1f5f9" : "#f8fafc";
-                                    if (!isSelected) e.currentTarget.style.color = opt.text;
+                                    e.currentTarget.style.background =
+                                      isSelected ? "#f1f5f9" : "#f8fafc";
+                                    if (!isSelected)
+                                      e.currentTarget.style.color = opt.text;
                                   }}
                                   onMouseOut={(e) => {
-                                    e.currentTarget.style.background = isSelected ? "#f1f5f9" : "transparent";
-                                    if (!isSelected) e.currentTarget.style.color = "#334155";
+                                    e.currentTarget.style.background =
+                                      isSelected ? "#f1f5f9" : "transparent";
+                                    if (!isSelected)
+                                      e.currentTarget.style.color = "#334155";
                                   }}
                                 >
-                                  <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: opt.dot }} />
+                                  <span
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "0.5rem",
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        width: "6px",
+                                        height: "6px",
+                                        borderRadius: "50%",
+                                        backgroundColor: opt.dot,
+                                      }}
+                                    />
                                     {opt.label}
                                   </span>
-                                  {isSelected && <FiCheck style={{ color: opt.text, fontSize: "0.95rem" }} />}
+                                  {isSelected && (
+                                    <FiCheck
+                                      style={{
+                                        color: opt.text,
+                                        fontSize: "0.95rem",
+                                      }}
+                                    />
+                                  )}
                                 </button>
                               );
                             })}
@@ -1982,35 +2852,42 @@ export default function SifarisDetailPage() {
 
             {/* Fields List */}
             <div className={styles.dlList}>
-              <DlRow label="Sorğu" value={`${order.queryNumber}, ${order.queryDate || "20.05.2026"}\nTəsdiq edilmişdir: Vaxtında`} />
+              <DlRow
+                label="Sorğu"
+                value={`${order.queryNumber}, ${order.queryDate || "20.05.2026"}\nTəsdiq edilmişdir: Vaxtında`}
+              />
               <DlRow
                 label="Müştəri üçün başlanğıc tarif"
-                value={
-                  offerSalesTotal?.labelSales && offerSalesTotal.labelSales !== "—"
-                    ? offerSalesTotal.labelSales
-                    : order.freight || "—"
-                }
+                value={baslangicTarifDisplay}
               />
-              <DlRow label="Fraxt" value={`${financeTotals.totalRevAzn.toFixed(2)} AZN`} />
-              <DlRow label="Fraxt ƏDV ilə" value={`${financeTotals.totalRevAzn.toFixed(2)} AZN`} />
+              <DlRow
+                label="Fraxt"
+                value={`${financeTotals.totalRevAzn.toFixed(2)} AZN`}
+              />
+              <DlRow
+                label="Fraxt ƏDV ilə"
+                value={`${financeTotals.totalRevAzn.toFixed(2)} AZN`}
+              />
               <DlRow
                 label="Xərclər (Total qiymət)"
                 value={
                   <span className={styles.accentYellow}>
-                    {offerSalesTotal?.labelTotal && offerSalesTotal.labelTotal !== "—"
-                      ? offerSalesTotal.labelTotal
-                      : `${financeTotals.totalExpAzn.toFixed(2)} AZN`}
+                    {financeExpenseLabel}
                   </span>
                 }
               />
-              <DlRow label="Mənfəət" value={<span className={styles.accentGreen}>{financeTotals.profitAzn.toFixed(2)} AZN</span>} />
+              <DlRow
+                label="Mənfəət"
+                value={
+                  <span className={styles.accentGreen}>
+                    {financeTotals.profitAzn.toFixed(2)} AZN
+                  </span>
+                }
+              />
               <DlRow label="Şirkət" value={order.company} />
               <DlRow
                 label="Menecer"
-                value={
-                  resolveUserDisplayName(order.manager, users) ||
-                  "—"
-                }
+                value={resolveUserDisplayName(order.manager, users) || "—"}
               />
               <DlRow
                 label="Əlavə menecerlər"
@@ -2020,15 +2897,20 @@ export default function SifarisDetailPage() {
                   "—"
                 }
               />
-              <DlRow label="Sifarişin tarixi" value={formatDateOnly(order.orderDate)} />
+              <DlRow
+                label="Sifarişin tarixi"
+                value={formatDateOnly(order.orderDate)}
+              />
               <DlRow label="Teqlər" value={order.tags || "—"} />
               <DlRow label="Incoterms" value={order.incoterms || "EXW"} />
-              <DlRow
-                label="Müştəri"
-                value={displayCustomerName}
-              />
+              <DlRow label="Müştəri" value={displayCustomerName} />
               <DlRow label="Ünvan" value="Azerbaijan, Baku" />
-              <DlRow label="Əlaqədar şəxs" value={order.contactPerson || "Nijat Shabanly (+994 50 2053030)"} />
+              <DlRow
+                label="Əlaqədar şəxs"
+                value={
+                  order.contactPerson || "Nijat Shabanly (+994 50 2053030)"
+                }
+              />
               <DlRow label="Daşıyıcılar" value={displayCarriers} />
               <DlRow
                 label="Yükün həcmi"
@@ -2037,9 +2919,7 @@ export default function SifarisDetailPage() {
               <DlRow
                 label="Yükün çəkisi"
                 value={
-                  cargoTotals.weightKg > 0
-                    ? `${cargoTotals.weightKg} kq`
-                    : "—"
+                  cargoTotals.weightKg > 0 ? `${cargoTotals.weightKg} kq` : "—"
                 }
               />
               <DlRow
@@ -2052,15 +2932,6 @@ export default function SifarisDetailPage() {
                   resolveUserDisplayName(order.expeditor, users) ||
                   order.expeditor ||
                   "—"
-                }
-              />
-              <DlRow
-                label="Müştəri ilə sənədlər"
-                value={
-                  <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                    <span onClick={() => setIsNewContractModalOpen(true)} className={styles.accentRedLink} style={{ cursor: "pointer" }}>Sifarişi əlavə et</span>
-                    <span className={styles.accentRedLink}>Müqavilə</span>
-                  </div>
                 }
               />
             </div>
@@ -2102,15 +2973,33 @@ export default function SifarisDetailPage() {
                   <table className={styles.table}>
                     <thead>
                       <tr>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Yükün nömrəsi</th>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Yükün adı</th>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Konteynerin nömrəsi</th>
-                        <th className={`${styles.th} ${styles.cargoParamsCol}`}>Yükün parametrləri</th>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Göndərən</th>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Yükləmə</th>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Alıcı</th>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Boşaltma</th>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Reyslər</th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Yükün nömrəsi
+                        </th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Yükün adı
+                        </th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Konteynerin nömrəsi
+                        </th>
+                        <th className={`${styles.th} ${styles.cargoParamsCol}`}>
+                          Yükün parametrləri
+                        </th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Göndərən
+                        </th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Yükləmə
+                        </th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Alıcı
+                        </th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Boşaltma
+                        </th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Reyslər
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2118,7 +3007,11 @@ export default function SifarisDetailPage() {
                         <tr key={load.id}>
                           <td
                             className={`${styles.td} ${styles.tdNowrap}`}
-                            style={{ fontWeight: 700, color: "#16a34a", cursor: "pointer" }}
+                            style={{
+                              fontWeight: 700,
+                              color: "#16a34a",
+                              cursor: "pointer",
+                            }}
                             onClick={() => {
                               setSelectedLoadForView(load);
                               setIsViewModalOpen(true);
@@ -2136,20 +3029,39 @@ export default function SifarisDetailPage() {
                           >
                             {load.name}
                           </td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>{load.containerNumber}</td>
-                          <td className={`${styles.td} ${styles.cargoParamsCol}`}>
+                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                            {load.containerNumber}
+                          </td>
+                          <td
+                            className={`${styles.td} ${styles.cargoParamsCol}`}
+                          >
                             <div className={styles.cargoDetailsBox}>
                               {`Tip: ${load.packagingType || "—"}\nLDM: ${load.ldm ?? "—"}\nHəcm: ${load.volumeM3 ?? "—"} m³\nÇəki: ${load.weightKg ?? "—"} kq`}
                             </div>
                           </td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>{load.sender}</td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>{load.loadPlace}</td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>{load.receiver}</td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>{load.unloadPlace}</td>
                           <td className={`${styles.td} ${styles.tdNowrap}`}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+                            {load.sender}
+                          </td>
+                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                            {load.loadPlace}
+                          </td>
+                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                            {load.receiver}
+                          </td>
+                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                            {load.unloadPlace}
+                          </td>
+                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.375rem",
+                              }}
+                            >
                               <span style={{ fontWeight: 600 }}>
-                                {load.voyageLabel || formatVoyageLabel(load.voyage)}
+                                {load.voyageLabel ||
+                                  formatVoyageLabel(load.voyage)}
                               </span>
                               <div style={{ display: "flex", gap: "0.25rem" }}>
                                 <button
@@ -2161,7 +3073,12 @@ export default function SifarisDetailPage() {
                                     setIsViewModalOpen(true);
                                   }}
                                 >
-                                  <FiEye style={{ color: "#3b82f6", fontSize: "0.85rem" }} />
+                                  <FiEye
+                                    style={{
+                                      color: "#3b82f6",
+                                      fontSize: "0.85rem",
+                                    }}
+                                  />
                                 </button>
                                 <button
                                   type="button"
@@ -2172,7 +3089,16 @@ export default function SifarisDetailPage() {
                                     setIsYukEditModalOpen(true);
                                   }}
                                 >
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="#6366f1"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
                                     <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                                   </svg>
                                 </button>
@@ -2182,27 +3108,51 @@ export default function SifarisDetailPage() {
                                   title="Kopyalamaq"
                                   onClick={() => {
                                     if (!order?.id) return;
-                                    const clonePayload = buildLoadApiPayload({
-                                      name: load.name,
-                                      containerNumber: load.containerNumber,
-                                      sender: load.sender,
-                                      receiver: load.receiver,
-                                      loadPlace: load.loadPlace,
-                                      unloadPlace: load.unloadPlace,
-                                      loadDate: load.loadDate,
-                                      unloadDate: load.unloadDate,
-                                      weight: load.weightKg,
-                                      volume: load.volumeM3,
-                                      ldm: load.ldm,
-                                      packagingType: load.packagingType,
-                                      rawPayload: load.rawPayload,
-                                    }, order.id);
-                                    axios.post(ENDPOINTS.LOADS.BASE, clonePayload, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
-                                      .then(res => setLoadsList([...loadsList, mapLoadRow(res.data, order)]))
+                                    const clonePayload = buildLoadApiPayload(
+                                      {
+                                        name: load.name,
+                                        containerNumber: load.containerNumber,
+                                        sender: load.sender,
+                                        receiver: load.receiver,
+                                        loadPlace: load.loadPlace,
+                                        unloadPlace: load.unloadPlace,
+                                        loadDate: load.loadDate,
+                                        unloadDate: load.unloadDate,
+                                        weight: load.weightKg,
+                                        volume: load.volumeM3,
+                                        ldm: load.ldm,
+                                        packagingType: load.packagingType,
+                                        rawPayload: load.rawPayload,
+                                      },
+                                      order.id,
+                                    );
+                                    axios
+                                      .post(
+                                        ENDPOINTS.LOADS.BASE,
+                                        clonePayload,
+                                        {
+                                          headers: {
+                                            Authorization:
+                                              "Bearer " +
+                                              localStorage.getItem("token"),
+                                          },
+                                        },
+                                      )
+                                      .then((res) =>
+                                        setLoadsList([
+                                          ...loadsList,
+                                          mapLoadRow(res.data, order),
+                                        ]),
+                                      )
                                       .catch(console.error);
                                   }}
                                 >
-                                  <FiCopy style={{ color: "#10b981", fontSize: "0.85rem" }} />
+                                  <FiCopy
+                                    style={{
+                                      color: "#10b981",
+                                      fontSize: "0.85rem",
+                                    }}
+                                  />
                                 </button>
                                 <button
                                   type="button"
@@ -2214,18 +3164,36 @@ export default function SifarisDetailPage() {
                                       `"${load.name || load.containerNumber || "Yük"}" silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarıla bilməz.`,
                                       () => {
                                         axios
-                                          .delete(ENDPOINTS.LOADS.BASE + "/" + load.id, {
-                                            headers: { Authorization: "Bearer " + localStorage.getItem("token") },
-                                          })
+                                          .delete(
+                                            ENDPOINTS.LOADS.BASE +
+                                              "/" +
+                                              load.id,
+                                            {
+                                              headers: {
+                                                Authorization:
+                                                  "Bearer " +
+                                                  localStorage.getItem("token"),
+                                              },
+                                            },
+                                          )
                                           .then(() =>
-                                            setLoadsList(loadsList.filter((l) => l.id !== load.id)),
+                                            setLoadsList(
+                                              loadsList.filter(
+                                                (l) => l.id !== load.id,
+                                              ),
+                                            ),
                                           )
                                           .catch(console.error);
                                       },
                                     );
                                   }}
                                 >
-                                  <FiTrash2 style={{ color: "#ef4444", fontSize: "0.85rem" }} />
+                                  <FiTrash2
+                                    style={{
+                                      color: "#ef4444",
+                                      fontSize: "0.85rem",
+                                    }}
+                                  />
                                 </button>
                               </div>
                             </div>
@@ -2257,18 +3225,42 @@ export default function SifarisDetailPage() {
                   <table className={styles.table}>
                     <thead>
                       <tr>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Reysin nömrəsi</th>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Teqlər</th>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Gönderen</th>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Yükləmə yeri</th>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Alıcı</th>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Boşaltma yeri</th>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Status</th>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Qiymət</th>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Daşıyıcı</th>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Ekspeditor</th>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Alınmış hesablar</th>
-                        <th className={`${styles.th} ${styles.thNowrap}`}>Yüklər</th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Reysin nömrəsi
+                        </th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Teqlər
+                        </th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Gönderen
+                        </th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Yükləmə yeri
+                        </th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Alıcı
+                        </th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Boşaltma yeri
+                        </th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Status
+                        </th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Qiymət
+                        </th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Daşıyıcı
+                        </th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Ekspeditor
+                        </th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Alınmış hesablar
+                        </th>
+                        <th className={`${styles.th} ${styles.thNowrap}`}>
+                          Yüklər
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2276,7 +3268,11 @@ export default function SifarisDetailPage() {
                         <tr key={v.id}>
                           <td
                             className={`${styles.td} ${styles.tdNowrap}`}
-                            style={{ fontWeight: 700, color: "#16a34a", cursor: "pointer" }}
+                            style={{
+                              fontWeight: 700,
+                              color: "#16a34a",
+                              cursor: "pointer",
+                            }}
                             onClick={() => {
                               setSelectedVoyageForView(v);
                               setIsVoyageViewOpen(true);
@@ -2284,19 +3280,46 @@ export default function SifarisDetailPage() {
                           >
                             {v.number}
                           </td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>{v.tags || "—"}</td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>{v.sender || "—"}</td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>{v.loadPlace || "—"}</td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>{v.receiver || "—"}</td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>{v.unloadPlace || "—"}</td>
+                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                            {v.tags || "—"}
+                          </td>
+                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                            {v.sender || "—"}
+                          </td>
+                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                            {v.loadPlace || "—"}
+                          </td>
+                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                            {v.receiver || "—"}
+                          </td>
+                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                            {v.unloadPlace || "—"}
+                          </td>
                           <td className={`${styles.td} ${styles.tdNowrap}`}>
                             <select
                               value={v.status}
                               onChange={(e) => {
                                 const val = e.target.value;
                                 const updateData = { status: val };
-                                axios.put(ENDPOINTS.VOYAGES.BASE + "/" + v.id, updateData, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
-                                  .then(res => setVoyagesList(voyagesList.map(item => item.id === v.id ? res.data : item)))
+                                axios
+                                  .put(
+                                    ENDPOINTS.VOYAGES.BASE + "/" + v.id,
+                                    updateData,
+                                    {
+                                      headers: {
+                                        Authorization:
+                                          "Bearer " +
+                                          localStorage.getItem("token"),
+                                      },
+                                    },
+                                  )
+                                  .then((res) =>
+                                    setVoyagesList(
+                                      voyagesList.map((item) =>
+                                        item.id === v.id ? res.data : item,
+                                      ),
+                                    ),
+                                  )
                                   .catch(console.error);
                               }}
                               style={{
@@ -2308,25 +3331,53 @@ export default function SifarisDetailPage() {
                                 outline: "none",
                                 cursor: "pointer",
                                 fontWeight: 600,
-                                color: "#475569"
+                                color: "#475569",
                               }}
                             >
-                              <option value="Planlaşdırılıb">Planlaşdırılıb</option>
+                              <option value="Planlaşdırılıb">
+                                Planlaşdırılıb
+                              </option>
                               <option value="Davam edir">Davam edir</option>
                               <option value="Tamamlandı">Tamamlandı</option>
                               <option value="Ləğv edilib">Ləğv edilib</option>
                             </select>
                           </td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`} style={{ fontSize: "0.75rem", color: "#475569", lineHeight: 1.3 }}>
-                            {v.price}
+                          <td
+                            className={`${styles.td} ${styles.tdNowrap}`}
+                            style={{
+                              fontSize: "0.75rem",
+                              color: "#475569",
+                              lineHeight: 1.3,
+                            }}
+                          >
+                            {v.price && v.price !== "—"
+                              ? v.price
+                              : v.tripPrice || "—"}
                           </td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>{v.carrier}</td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>{v.expeditor}</td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>{v.invoices || "—"}</td>
                           <td className={`${styles.td} ${styles.tdNowrap}`}>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem" }}>
-                              <span style={{ fontSize: "0.8rem", color: "#475569" }}>
-                                {Array.isArray(v.loads) ? (v.loads.length + " yük") : (v.loads || "—")}
+                            {v.carrier}
+                          </td>
+                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                            {v.expeditor}
+                          </td>
+                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                            {v.invoices || "—"}
+                          </td>
+                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: "1rem",
+                              }}
+                            >
+                              <span
+                                style={{ fontSize: "0.8rem", color: "#475569" }}
+                              >
+                                {Array.isArray(v.loads)
+                                  ? v.loads.length + " yük"
+                                  : v.loads || "—"}
                               </span>
                               <div style={{ display: "flex", gap: "0.35rem" }}>
                                 <button
@@ -2339,7 +3390,12 @@ export default function SifarisDetailPage() {
                                   }}
                                   style={{ padding: "0.25rem" }}
                                 >
-                                  <FiEye style={{ color: "#3b82f6", fontSize: "0.95rem" }} />
+                                  <FiEye
+                                    style={{
+                                      color: "#3b82f6",
+                                      fontSize: "0.95rem",
+                                    }}
+                                  />
                                 </button>
                                 <button
                                   type="button"
@@ -2351,7 +3407,16 @@ export default function SifarisDetailPage() {
                                   }}
                                   style={{ padding: "0.25rem" }}
                                 >
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="#6366f1"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
                                     <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                                   </svg>
                                 </button>
@@ -2365,7 +3430,12 @@ export default function SifarisDetailPage() {
                                   }}
                                   style={{ padding: "0.25rem" }}
                                 >
-                                  <FiTrash2 style={{ color: "#ef4444", fontSize: "0.85rem" }} />
+                                  <FiTrash2
+                                    style={{
+                                      color: "#ef4444",
+                                      fontSize: "0.85rem",
+                                    }}
+                                  />
                                 </button>
                               </div>
                             </div>
@@ -2380,8 +3450,17 @@ export default function SifarisDetailPage() {
 
             {activeTab === "finance" && (
               <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                  <h3 className={styles.contentCardTitle} style={{ margin: 0 }}>Maliyyə</h3>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "1rem",
+                  }}
+                >
+                  <h3 className={styles.contentCardTitle} style={{ margin: 0 }}>
+                    Maliyyə
+                  </h3>
                   <button
                     type="button"
                     onClick={() => {
@@ -2405,10 +3484,14 @@ export default function SifarisDetailPage() {
                       fontSize: "0.85rem",
                       cursor: "pointer",
                       padding: "0.5rem 1rem",
-                      transition: "all 0.2s"
+                      transition: "all 0.2s",
                     }}
-                    onMouseOver={(e) => (e.currentTarget.style.color = "#16a34a")}
-                    onMouseOut={(e) => (e.currentTarget.style.color = "#22c55e")}
+                    onMouseOver={(e) =>
+                      (e.currentTarget.style.color = "#16a34a")
+                    }
+                    onMouseOut={(e) =>
+                      (e.currentTarget.style.color = "#22c55e")
+                    }
                   >
                     <FiPlus /> Əlavə et
                   </button>
@@ -2423,27 +3506,55 @@ export default function SifarisDetailPage() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    marginBottom: "1rem"
+                    marginBottom: "1rem",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <span style={{ color: "#22c55e", fontWeight: "bold" }}>➔</span>
-                    <span style={{ fontSize: "0.85rem", color: "#334155", fontWeight: 600 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <span style={{ color: "#22c55e", fontWeight: "bold" }}>
+                      ➔
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "0.85rem",
+                        color: "#334155",
+                        fontWeight: 600,
+                      }}
+                    >
                       Müştəriyə başlanğıc qiymət (price from the request)
                     </span>
                   </div>
-                  <span style={{ fontSize: "0.9rem", fontWeight: 700, color: "#166534" }}>
-                    {offerSalesTotal?.labelSales && offerSalesTotal.labelSales !== "—"
-                      ? offerSalesTotal.labelSales
-                      : order.freight || "—"}
+                  <span
+                    style={{
+                      fontSize: "0.9rem",
+                      fontWeight: 700,
+                      color: "#166534",
+                    }}
+                  >
+                    {baslangicTarifDisplay}
                   </span>
                 </div>
 
                 <div style={{ marginBottom: "1.5rem" }}>
-                  <h4 style={{ margin: "0 0 0.75rem 0", fontSize: "0.9rem", fontWeight: 700, color: "#475569" }}>
+                  <h4
+                    style={{
+                      margin: "0 0 0.75rem 0",
+                      fontSize: "0.9rem",
+                      fontWeight: 700,
+                      color: "#475569",
+                    }}
+                  >
                     Maliyyə əməliyyatları
                   </h4>
-                  <div className={styles.tableWrapper} style={{ overflowX: "auto" }}>
+                  <div
+                    className={styles.tableWrapper}
+                    style={{ overflowX: "auto" }}
+                  >
                     <table className={styles.table}>
                       <thead>
                         <tr>
@@ -2454,26 +3565,37 @@ export default function SifarisDetailPage() {
                           <th className={styles.th}>Məsarif</th>
                           <th className={styles.th}>ƏDV ilə məsarif</th>
                           <th className={styles.th}>Mənfəət</th>
-                          <th className={styles.th}>İstifadəçi</th>
+                          <th className={styles.th}>Yaradan</th>
+                          <th className={styles.th}>Redaktə edən</th>
                           <th className={styles.th}>Yazılmış hesab</th>
                           <th className={styles.th}>Alınmış hesab</th>
                           <th className={styles.th}>Xərclərin tarixi</th>
-                          <th className={styles.th} style={{ width: "45px" }}></th>
+                          <th
+                            className={styles.th}
+                            style={{ width: "45px" }}
+                          ></th>
                         </tr>
                       </thead>
                       <tbody>
                         {financeTransactions.map((tx) => (
                           <tr key={tx.id}>
-                            <td className={styles.td} style={{ fontWeight: 600 }}>{tx.name}</td>
+                            <td
+                              className={styles.td}
+                              style={{ fontWeight: 600 }}
+                            >
+                              {tx.name}
+                            </td>
                             <td className={styles.td}>
                               {(() => {
                                 const txAny = tx as any;
                                 const fromCustomerObj =
                                   (typeof txAny.customer?.name === "string" &&
                                     txAny.customer.name.trim()) ||
-                                  (typeof txAny.customer?.companyName === "string" &&
+                                  (typeof txAny.customer?.companyName ===
+                                    "string" &&
                                     txAny.customer.companyName.trim()) ||
-                                  (typeof txAny.customer?.company === "string" &&
+                                  (typeof txAny.customer?.company ===
+                                    "string" &&
                                     txAny.customer.company.trim()) ||
                                   "";
                                 if (fromCustomerObj) return fromCustomerObj;
@@ -2484,14 +3606,16 @@ export default function SifarisDetailPage() {
                                 );
                                 if (
                                   fromPartner &&
-                                  fromPartner !== String(txAny.partner ?? "").trim()
+                                  fromPartner !==
+                                    String(txAny.partner ?? "").trim()
                                 ) {
                                   return fromPartner;
                                 }
-                                const fromCustomerId = resolveCustomerDisplayName(
-                                  txAny.customerId,
-                                  customers,
-                                );
+                                const fromCustomerId =
+                                  resolveCustomerDisplayName(
+                                    txAny.customerId,
+                                    customers,
+                                  );
                                 if (
                                   fromCustomerId &&
                                   fromCustomerId !==
@@ -2523,52 +3647,138 @@ export default function SifarisDetailPage() {
                               })()}
                             </td>
                             <td className={styles.td}>
-                              {tx.tarifPrice ? `${tx.tarifPrice} ${tx.tarifCurrency} (${tx.tarifAzn} AZN)` : ""}
+                              {tx.tarifPrice
+                                ? `${tx.tarifPrice} ${tx.tarifCurrency} (${tx.tarifAzn} AZN)`
+                                : ""}
                             </td>
                             <td className={styles.td}>
-                              {tx.edvliTarifPrice ? `${tx.edvliTarifPrice} ${tx.edvliTarifCurrency} (${tx.edvliTarifAzn} AZN)` : ""}
+                              {tx.edvliTarifPrice
+                                ? `${tx.edvliTarifPrice} ${tx.edvliTarifCurrency} (${tx.edvliTarifAzn} AZN)`
+                                : ""}
                             </td>
                             <td className={styles.td}>
                               {tx.mesarifPrice
                                 ? `${tx.mesarifPrice} ${tx.mesarifCurrency}${tx.mesarifAzn ? ` (${tx.mesarifAzn} AZN)` : ""}`
-                                : offerSalesTotal?.labelPurchase &&
-                                    offerSalesTotal.labelPurchase !== "—"
-                                  ? offerSalesTotal.labelPurchase
-                                  : ""}
+                                : ""}
                             </td>
                             <td className={styles.td}>
                               {tx.edvliMesarifPrice
                                 ? `${tx.edvliMesarifPrice} ${tx.edvliMesarifCurrency}${tx.edvliMesarifAzn ? ` (${tx.edvliMesarifAzn} AZN)` : ""}`
-                                : offerSalesTotal?.labelPurchase &&
-                                    offerSalesTotal.labelPurchase !== "—"
-                                  ? offerSalesTotal.labelPurchase
-                                  : ""}
+                                : ""}
                             </td>
-                            <td className={styles.td} style={{ color: "#166534", fontWeight: 700 }}>{tx.profit}</td>
-                            <td className={styles.td}>{tx.user}</td>
-                            <td className={styles.td} style={{ textAlign: "center" }}>
+                            <td
+                              className={styles.td}
+                              style={{ color: "#166534", fontWeight: 700 }}
+                            >
+                              {tx.profit}
+                            </td>
+                            <td className={styles.td}>
+                              <div style={{ fontWeight: 600 }}>
+                                {(tx as any).createdByName || tx.user || "—"}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "0.72rem",
+                                  color: "#64748b",
+                                }}
+                              >
+                                {(tx as any).createdAt
+                                  ? new Date(
+                                      (tx as any).createdAt,
+                                    ).toLocaleString("az-AZ", {
+                                      hour12: false,
+                                    })
+                                  : "—"}
+                              </div>
+                            </td>
+                            <td className={styles.td}>
+                              {(tx as any).updatedAt &&
+                              (tx as any).createdAt &&
+                              new Date((tx as any).updatedAt).getTime() -
+                                new Date((tx as any).createdAt).getTime() >
+                                2000 ? (
+                                <>
+                                  <div style={{ fontWeight: 600 }}>
+                                    {(tx as any).updatedByName || "—"}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.72rem",
+                                      color: "#64748b",
+                                    }}
+                                  >
+                                    {new Date(
+                                      (tx as any).updatedAt,
+                                    ).toLocaleString("az-AZ", {
+                                      hour12: false,
+                                    })}
+                                  </div>
+                                </>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                            <td
+                              className={styles.td}
+                              style={{ textAlign: "center" }}
+                            >
                               {tx.invoiceWritten ? (
-                                <span title="Yazılmış hesab" style={{ display: "inline-flex", cursor: "pointer", color: "#3b82f6", fontSize: "1.1rem" }}>
+                                <span
+                                  title="Yazılmış hesab"
+                                  style={{
+                                    display: "inline-flex",
+                                    cursor: "pointer",
+                                    color: "#3b82f6",
+                                    fontSize: "1.1rem",
+                                  }}
+                                >
                                   📄
                                 </span>
-                              ) : ""}
+                              ) : (
+                                ""
+                              )}
                             </td>
-                            <td className={styles.td} style={{ textAlign: "center" }}>
+                            <td
+                              className={styles.td}
+                              style={{ textAlign: "center" }}
+                            >
                               {tx.invoiceReceived ? (
-                                <span title="Alınmış hesab" style={{ display: "inline-flex", cursor: "pointer", color: "#10b981", fontSize: "1.1rem" }}>
+                                <span
+                                  title="Alınmış hesab"
+                                  style={{
+                                    display: "inline-flex",
+                                    cursor: "pointer",
+                                    color: "#10b981",
+                                    fontSize: "1.1rem",
+                                  }}
+                                >
                                   📄
                                 </span>
-                              ) : ""}
+                              ) : (
+                                ""
+                              )}
                             </td>
                             <td className={styles.td}>{tx.costDate || "—"}</td>
-                            <td className={styles.td} style={{ textAlign: "right" }}>
+                            <td
+                              className={styles.td}
+                              style={{ textAlign: "right" }}
+                            >
                               <button
                                 type="button"
                                 className={styles.iconBtn}
                                 onClick={() => handleEditTransaction(tx)}
                                 title="Redaktə et"
                               >
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="#6366f1"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
                                   <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                                 </svg>
                               </button>
@@ -2581,10 +3791,20 @@ export default function SifarisDetailPage() {
                 </div>
 
                 <div>
-                  <h4 style={{ margin: "0 0 0.75rem 0", fontSize: "0.9rem", fontWeight: 700, color: "#475569" }}>
+                  <h4
+                    style={{
+                      margin: "0 0 0.75rem 0",
+                      fontSize: "0.9rem",
+                      fontWeight: 700,
+                      color: "#475569",
+                    }}
+                  >
                     Reyslər üzrə xərclər
                   </h4>
-                  <div className={styles.tableWrapper} style={{ overflowX: "auto" }}>
+                  <div
+                    className={styles.tableWrapper}
+                    style={{ overflowX: "auto" }}
+                  >
                     <table className={styles.table}>
                       <thead>
                         <tr>
@@ -2595,39 +3815,77 @@ export default function SifarisDetailPage() {
                           <th className={styles.th}>Ekspeditor</th>
                           <th className={styles.th}>Alınmış hesab</th>
                           <th className={styles.th}>Marşrut</th>
-                          <th className={styles.th} style={{ width: "100px" }}></th>
+                          <th
+                            className={styles.th}
+                            style={{ width: "100px" }}
+                          ></th>
                         </tr>
                       </thead>
                       <tbody>
                         {voyagesList.map((v) => (
                           <tr key={v.id}>
-                            <td className={styles.td} style={{ fontWeight: 600, color: "#16a34a" }}>{v.number}</td>
+                            <td
+                              className={styles.td}
+                              style={{ fontWeight: 600, color: "#16a34a" }}
+                            >
+                              {v.number}
+                            </td>
                             <td className={styles.td}>{v.carrier}</td>
                             <td className={styles.td}>
-                              {offerSalesTotal?.expense && offerSalesTotal.expense > 0
-                                ? offerSalesTotal.labelExpense
-                                : v.price}
+                              {v.price && v.price !== "—"
+                                ? v.price
+                                : v.tripPrice || "—"}
                             </td>
                             <td className={styles.td}>
-                              {offerSalesTotal?.expense && offerSalesTotal.expense > 0
-                                ? offerSalesTotal.labelExpense
-                                : v.price}
+                              {v.price && v.price !== "—"
+                                ? v.price
+                                : v.tripPrice || "—"}
                             </td>
                             <td className={styles.td}>{v.expeditor}</td>
-                            <td className={styles.td} style={{ textAlign: "center" }}>
+                            <td
+                              className={styles.td}
+                              style={{ textAlign: "center" }}
+                            >
                               {v.invoices === "Yazılıb" ? (
-                                <span title="Alınmış hesab" style={{ display: "inline-flex", color: "#3b82f6", fontSize: "1.1rem" }}>
+                                <span
+                                  title="Alınmış hesab"
+                                  style={{
+                                    display: "inline-flex",
+                                    color: "#3b82f6",
+                                    fontSize: "1.1rem",
+                                  }}
+                                >
                                   📄
                                 </span>
-                              ) : ""}
+                              ) : (
+                                ""
+                              )}
                             </td>
                             <td className={styles.td}>
-                              <span style={{ background: "#f1f5f9", padding: "0.15rem 0.5rem", borderRadius: "0.25rem", fontSize: "0.75rem", fontWeight: 600, color: "#475569" }}>
+                              <span
+                                style={{
+                                  background: "#f1f5f9",
+                                  padding: "0.15rem 0.5rem",
+                                  borderRadius: "0.25rem",
+                                  fontSize: "0.75rem",
+                                  fontWeight: 600,
+                                  color: "#475569",
+                                }}
+                              >
                                 CN - AZ
                               </span>
                             </td>
-                            <td className={styles.td} style={{ textAlign: "right" }}>
-                              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.25rem" }}>
+                            <td
+                              className={styles.td}
+                              style={{ textAlign: "right" }}
+                            >
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "flex-end",
+                                  gap: "0.25rem",
+                                }}
+                              >
                                 <button
                                   type="button"
                                   className={styles.iconBtn}
@@ -2637,7 +3895,12 @@ export default function SifarisDetailPage() {
                                   }}
                                   title="Detallarına baxmaq"
                                 >
-                                  <FiEye style={{ color: "#3b82f6", fontSize: "0.85rem" }} />
+                                  <FiEye
+                                    style={{
+                                      color: "#3b82f6",
+                                      fontSize: "0.85rem",
+                                    }}
+                                  />
                                 </button>
                                 <button
                                   type="button"
@@ -2648,7 +3911,16 @@ export default function SifarisDetailPage() {
                                   }}
                                   title="Redaktə et"
                                 >
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="#6366f1"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
                                     <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                                   </svg>
                                 </button>
@@ -2661,7 +3933,12 @@ export default function SifarisDetailPage() {
                                   }}
                                   title="Silmək"
                                 >
-                                  <FiTrash2 style={{ color: "#ef4444", fontSize: "0.85rem" }} />
+                                  <FiTrash2
+                                    style={{
+                                      color: "#ef4444",
+                                      fontSize: "0.85rem",
+                                    }}
+                                  />
                                 </button>
                               </div>
                             </td>
@@ -2680,7 +3957,11 @@ export default function SifarisDetailPage() {
                   <DocumentGeneratePanel
                     scope="order"
                     orderId={order?.id ? Number(order.id) : null}
-                    queryId={(order as any)?.queryId ? Number((order as any).queryId) : null}
+                    queryId={
+                      (order as any)?.queryId
+                        ? Number((order as any).queryId)
+                        : null
+                    }
                   />
                 </div>
                 {/* 3 Green Underlined Sub-Tabs */}
@@ -2703,7 +3984,8 @@ export default function SifarisDetailPage() {
                       cursor: "pointer",
                       fontSize: "0.95rem",
                       fontWeight: 600,
-                      color: docsActiveSubTab === "aktlar" ? "#15803d" : "#0891b2",
+                      color:
+                        docsActiveSubTab === "aktlar" ? "#15803d" : "#0891b2",
                       textDecoration: "underline",
                     }}
                   >
@@ -2719,7 +4001,8 @@ export default function SifarisDetailPage() {
                       cursor: "pointer",
                       fontSize: "0.95rem",
                       fontWeight: 600,
-                      color: docsActiveSubTab === "fotos" ? "#15803d" : "#0891b2",
+                      color:
+                        docsActiveSubTab === "fotos" ? "#15803d" : "#0891b2",
                       textDecoration: "underline",
                     }}
                   >
@@ -2735,7 +4018,10 @@ export default function SifarisDetailPage() {
                       cursor: "pointer",
                       fontSize: "0.95rem",
                       fontWeight: 600,
-                      color: docsActiveSubTab === "requested" ? "#15803d" : "#0891b2",
+                      color:
+                        docsActiveSubTab === "requested"
+                          ? "#15803d"
+                          : "#0891b2",
                       textDecoration: "underline",
                     }}
                   >
@@ -2746,8 +4032,24 @@ export default function SifarisDetailPage() {
                 {/* Sub-Tab 1: Aktlar */}
                 {docsActiveSubTab === "aktlar" && (
                   <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                      <h4 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 700, color: "#475569" }}>Aktlar</h4>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: "1rem",
+                      }}
+                    >
+                      <h4
+                        style={{
+                          margin: 0,
+                          fontSize: "0.9rem",
+                          fontWeight: 700,
+                          color: "#475569",
+                        }}
+                      >
+                        Aktlar
+                      </h4>
                       <button
                         type="button"
                         onClick={() => {
@@ -2788,17 +4090,28 @@ export default function SifarisDetailPage() {
                             <th className={styles.th}>Sənədin nömrəsi</th>
                             <th className={styles.th}>Sənədin tarixi</th>
                             <th className={styles.th}>Sənədin adı</th>
-                            <th className={styles.th} style={{ width: "80px" }}></th>
+                            <th
+                              className={styles.th}
+                              style={{ width: "80px" }}
+                            ></th>
                           </tr>
                         </thead>
                         <tbody>
                           {aktlarList.map((act) => (
                             <tr key={act.id}>
-                              <td className={styles.td} style={{ fontWeight: 600 }}>{act.company}</td>
+                              <td
+                                className={styles.td}
+                                style={{ fontWeight: 600 }}
+                              >
+                                {act.company}
+                              </td>
                               <td className={styles.td}>{act.number || "—"}</td>
                               <td className={styles.td}>{act.date}</td>
                               <td className={styles.td}>{act.name || "—"}</td>
-                              <td className={styles.td} style={{ textAlign: "right" }}>
+                              <td
+                                className={styles.td}
+                                style={{ textAlign: "right" }}
+                              >
                                 <button
                                   type="button"
                                   className={styles.iconBtn}
@@ -2806,7 +4119,12 @@ export default function SifarisDetailPage() {
                                     openDeleteConfirm(
                                       "Aktı sil",
                                       `"${act.company}" aktını silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarıla bilməz.`,
-                                      () => setAktlarList(aktlarList.filter((a) => a.id !== act.id)),
+                                      () =>
+                                        setAktlarList(
+                                          aktlarList.filter(
+                                            (a) => a.id !== act.id,
+                                          ),
+                                        ),
                                     );
                                   }}
                                   title="Silmək"
@@ -2825,8 +4143,24 @@ export default function SifarisDetailPage() {
                 {/* Sub-Tab 2: Fotoşəkillər */}
                 {docsActiveSubTab === "fotos" && (
                   <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                      <h4 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 700, color: "#475569" }}>Fotoşəkillər</h4>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: "1rem",
+                      }}
+                    >
+                      <h4
+                        style={{
+                          margin: 0,
+                          fontSize: "0.9rem",
+                          fontWeight: 700,
+                          color: "#475569",
+                        }}
+                      >
+                        Fotoşəkillər
+                      </h4>
                       <label
                         style={{
                           background: "#22c55e",
@@ -2864,11 +4198,26 @@ export default function SifarisDetailPage() {
                     </div>
 
                     {fotosList.length === 0 ? (
-                      <p style={{ color: "#64748b", fontSize: "0.85rem", fontStyle: "italic", textAlign: "center", padding: "1.5rem" }}>
+                      <p
+                        style={{
+                          color: "#64748b",
+                          fontSize: "0.85rem",
+                          fontStyle: "italic",
+                          textAlign: "center",
+                          padding: "1.5rem",
+                        }}
+                      >
                         Fotoşəkil yüklənməyib.
                       </p>
                     ) : (
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "1rem" }}>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fill, minmax(120px, 1fr))",
+                          gap: "1rem",
+                        }}
+                      >
                         {fotosList.map((foto) => (
                           <div
                             key={foto.id}
@@ -2880,9 +4229,34 @@ export default function SifarisDetailPage() {
                               background: "#ffffff",
                             }}
                           >
-                            <img src={foto.url} alt={foto.name} style={{ width: "100%", height: "90px", objectFit: "cover" }} />
-                            <div style={{ padding: "0.35rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                              <span style={{ fontSize: "0.75rem", color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "80px" }} title={foto.name}>
+                            <img
+                              src={foto.url}
+                              alt={foto.name}
+                              style={{
+                                width: "100%",
+                                height: "90px",
+                                objectFit: "cover",
+                              }}
+                            />
+                            <div
+                              style={{
+                                padding: "0.35rem",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "0.75rem",
+                                  color: "#475569",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  maxWidth: "80px",
+                                }}
+                                title={foto.name}
+                              >
                                 {foto.name}
                               </span>
                               <button
@@ -2891,10 +4265,22 @@ export default function SifarisDetailPage() {
                                   openDeleteConfirm(
                                     "Fotoşəkli sil",
                                     `"${foto.name}" fotoşəklini silmək istədiyinizə əminsiniz?`,
-                                    () => setFotosList(fotosList.filter((f) => f.id !== foto.id)),
+                                    () =>
+                                      setFotosList(
+                                        fotosList.filter(
+                                          (f) => f.id !== foto.id,
+                                        ),
+                                      ),
                                   );
                                 }}
-                                style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", color: "#ef4444", fontSize: "0.85rem" }}
+                                style={{
+                                  background: "transparent",
+                                  border: 0,
+                                  padding: 0,
+                                  cursor: "pointer",
+                                  color: "#ef4444",
+                                  fontSize: "0.85rem",
+                                }}
                               >
                                 &times;
                               </button>
@@ -2909,8 +4295,22 @@ export default function SifarisDetailPage() {
                 {/* Sub-Tab 3: Documents from request */}
                 {docsActiveSubTab === "requested" && (
                   <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                      <h4 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 700, color: "#475569" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: "1rem",
+                      }}
+                    >
+                      <h4
+                        style={{
+                          margin: 0,
+                          fontSize: "0.9rem",
+                          fontWeight: 700,
+                          color: "#475569",
+                        }}
+                      >
                         Documents from request
                       </h4>
                       <button
@@ -2946,44 +4346,116 @@ export default function SifarisDetailPage() {
                             <th className={styles.th}>Sənədin adı</th>
                             <th className={styles.th}>Şərhlər</th>
                             <th className={styles.th}>Yaradılması tarixi</th>
-                            <th className={styles.th}>Müştəri üçün əlçatandır</th>
-                            <th className={styles.th} style={{ width: "180px", textAlign: "right" }}></th>
+                            <th className={styles.th}>
+                              Müştəri üçün əlçatandır
+                            </th>
+                            <th
+                              className={styles.th}
+                              style={{ width: "180px", textAlign: "right" }}
+                            ></th>
                           </tr>
                         </thead>
                         <tbody>
                           {requestedDocsList.map((doc) => (
                             <tr key={doc.id}>
-                              <td className={styles.td} style={{ fontWeight: 600 }}>{doc.name}</td>
-                              <td className={styles.td}>{doc.comments || "—"}</td>
+                              <td
+                                className={styles.td}
+                                style={{ fontWeight: 600 }}
+                              >
+                                {doc.name}
+                              </td>
+                              <td className={styles.td}>
+                                {doc.comments || "—"}
+                              </td>
                               <td className={styles.td}>{doc.createdAt}</td>
                               <td className={styles.td}>
                                 {doc.isAvailableToCustomer ? (
-                                  <span style={{ color: "#22c55e", fontWeight: "bold" }}>Bəli</span>
+                                  <span
+                                    style={{
+                                      color: "#22c55e",
+                                      fontWeight: "bold",
+                                    }}
+                                  >
+                                    Bəli
+                                  </span>
                                 ) : (
-                                  <span style={{ color: "#ef4444", fontWeight: "bold" }}>Xeyr</span>
+                                  <span
+                                    style={{
+                                      color: "#ef4444",
+                                      fontWeight: "bold",
+                                    }}
+                                  >
+                                    Xeyr
+                                  </span>
                                 )}
                               </td>
-                              <td className={styles.td} style={{ textAlign: "right" }}>
-                                <div style={{ display: "inline-flex", gap: "0.5rem", alignItems: "center" }}>
+                              <td
+                                className={styles.td}
+                                style={{ textAlign: "right" }}
+                              >
+                                <div
+                                  style={{
+                                    display: "inline-flex",
+                                    gap: "0.5rem",
+                                    alignItems: "center",
+                                  }}
+                                >
                                   {/* PDF icon */}
-                                  <FiFileText style={{ color: "#ef4444", fontSize: "0.95rem", cursor: "pointer" }} title="PDF" />
+                                  <FiFileText
+                                    style={{
+                                      color: "#ef4444",
+                                      fontSize: "0.95rem",
+                                      cursor: "pointer",
+                                    }}
+                                    title="PDF"
+                                  />
 
                                   {/* Email icon */}
-                                  <span style={{ display: "inline-flex", cursor: "pointer" }} title="Email">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      cursor: "pointer",
+                                    }}
+                                    title="Email"
+                                  >
+                                    <svg
+                                      width="14"
+                                      height="14"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="#3b82f6"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
                                       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
                                       <polyline points="22,6 12,13 2,6" />
                                     </svg>
                                   </span>
 
                                   {/* Email with green check icon */}
-                                  <span style={{ display: "inline-flex", cursor: "pointer" }} title="Notified">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      cursor: "pointer",
+                                    }}
+                                    title="Notified"
+                                  >
+                                    <svg
+                                      width="14"
+                                      height="14"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="#10b981"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
                                       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
                                       <polyline points="22,6 12,13 2,6" />
                                     </svg>
                                   </span>
-                                  
+
                                   {/* Edit pencil icon */}
                                   <button
                                     type="button"
@@ -2992,8 +4464,12 @@ export default function SifarisDetailPage() {
                                       setEditDocType(doc.type);
                                       setEditDocTemplate(doc.template);
                                       setEditDocName(doc.name);
-                                      setEditDocProvideAccessCustomer(doc.isAvailableToCustomer);
-                                      setEditDocProvideAccessCarrier(doc.isAvailableToCarrier);
+                                      setEditDocProvideAccessCustomer(
+                                        doc.isAvailableToCustomer,
+                                      );
+                                      setEditDocProvideAccessCarrier(
+                                        doc.isAvailableToCarrier,
+                                      );
                                       setEditDocSendNotif(doc.sendNotif);
                                       setEditDocComments(doc.comments);
                                       setIsEditDocModalOpen(true);
@@ -3008,13 +4484,29 @@ export default function SifarisDetailPage() {
                                     }}
                                     title="Redaktə et"
                                   >
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <svg
+                                      width="12"
+                                      height="12"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="#6366f1"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
                                       <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                                     </svg>
                                   </button>
 
                                   {/* Log icon */}
-                                  <FiBookOpen style={{ color: "#94a3b8", fontSize: "0.95rem", cursor: "pointer" }} title="Logs" />
+                                  <FiBookOpen
+                                    style={{
+                                      color: "#94a3b8",
+                                      fontSize: "0.95rem",
+                                      cursor: "pointer",
+                                    }}
+                                    title="Logs"
+                                  />
 
                                   {/* Delete circular minus icon */}
                                   <button
@@ -3033,7 +4525,12 @@ export default function SifarisDetailPage() {
                                     }}
                                     title="Sil"
                                   >
-                                    <FiTrash2 style={{ color: "#ef4444", fontSize: "0.95rem" }} />
+                                    <FiTrash2
+                                      style={{
+                                        color: "#ef4444",
+                                        fontSize: "0.95rem",
+                                      }}
+                                    />
                                   </button>
                                 </div>
                               </td>
@@ -3050,7 +4547,16 @@ export default function SifarisDetailPage() {
             {activeTab === "invoices" && (
               <div>
                 {/* Sub navigation bar */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #e2e8f0", paddingBottom: "0.5rem", marginBottom: "1rem" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    borderBottom: "1px solid #e2e8f0",
+                    paddingBottom: "0.5rem",
+                    marginBottom: "1rem",
+                  }}
+                >
                   <div style={{ display: "flex", gap: "1.5rem" }}>
                     <button
                       type="button"
@@ -3061,12 +4567,16 @@ export default function SifarisDetailPage() {
                         gap: "0.5rem",
                         background: "transparent",
                         border: 0,
-                        borderBottom: invoicesSubTab === "ireli" ? "2px solid #16a34a" : "2px solid transparent",
+                        borderBottom:
+                          invoicesSubTab === "ireli"
+                            ? "2px solid #16a34a"
+                            : "2px solid transparent",
                         paddingBottom: "0.5rem",
-                        color: invoicesSubTab === "ireli" ? "#16a34a" : "#64748b",
+                        color:
+                          invoicesSubTab === "ireli" ? "#16a34a" : "#64748b",
                         fontWeight: 600,
                         cursor: "pointer",
-                        fontSize: "0.9rem"
+                        fontSize: "0.9rem",
                       }}
                     >
                       <FiFileText style={{ fontSize: "1rem" }} />
@@ -3081,12 +4591,16 @@ export default function SifarisDetailPage() {
                         gap: "0.5rem",
                         background: "transparent",
                         border: 0,
-                        borderBottom: invoicesSubTab === "ilkin" ? "2px solid #16a34a" : "2px solid transparent",
+                        borderBottom:
+                          invoicesSubTab === "ilkin"
+                            ? "2px solid #16a34a"
+                            : "2px solid transparent",
                         paddingBottom: "0.5rem",
-                        color: invoicesSubTab === "ilkin" ? "#16a34a" : "#64748b",
+                        color:
+                          invoicesSubTab === "ilkin" ? "#16a34a" : "#64748b",
                         fontWeight: 600,
                         cursor: "pointer",
-                        fontSize: "0.9rem"
+                        fontSize: "0.9rem",
                       }}
                     >
                       <FiFile style={{ fontSize: "1rem" }} />
@@ -3101,12 +4615,16 @@ export default function SifarisDetailPage() {
                         gap: "0.5rem",
                         background: "transparent",
                         border: 0,
-                        borderBottom: invoicesSubTab === "alinmis" ? "2px solid #16a34a" : "2px solid transparent",
+                        borderBottom:
+                          invoicesSubTab === "alinmis"
+                            ? "2px solid #16a34a"
+                            : "2px solid transparent",
                         paddingBottom: "0.5rem",
-                        color: invoicesSubTab === "alinmis" ? "#16a34a" : "#64748b",
+                        color:
+                          invoicesSubTab === "alinmis" ? "#16a34a" : "#64748b",
                         fontWeight: 600,
                         cursor: "pointer",
-                        fontSize: "0.9rem"
+                        fontSize: "0.9rem",
                       }}
                     >
                       <FiArrowLeft style={{ fontSize: "1rem" }} />
@@ -3117,12 +4635,64 @@ export default function SifarisDetailPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setInvoiceNumber("");
-                      setInvoiceCarrier("");
+                      const customerName =
+                        displayCustomerName && displayCustomerName !== "—"
+                          ? displayCustomerName
+                          : "";
+                      setInvoiceNumber(order?.orderNumber || "");
+                      setInvoiceCarrier(customerName);
                       setInvoiceVoyageNumber(resolveInvoiceVoyageNumber());
-                      setInvoiceContract("");
-                      setInvoiceFreightPrice("");
-                      setInvoiceCurrency("EUR");
+                      const matchedCustomer = customers.find((c: any) => {
+                        const names = [
+                          c.name,
+                          c.company,
+                          c.companyName,
+                          c.fullName,
+                        ]
+                          .map((n) =>
+                            String(n || "")
+                              .trim()
+                              .toLowerCase(),
+                          )
+                          .filter(Boolean);
+                        return (
+                          customerName &&
+                          names.includes(customerName.trim().toLowerCase())
+                        );
+                      });
+                      const docs = parseCarrierDocuments(
+                        matchedCustomer?.documents ??
+                          matchedCustomer?.documentsJson,
+                      );
+                      const numbers = docs
+                        .map((d) => String(d.number || "").trim())
+                        .filter(Boolean);
+                      setInvoiceContract(
+                        numbers.length > 0 ? numbers.join(", ") : "",
+                      );
+                      // Müştəri hesabı: satış qiyməti
+                      const offer =
+                        orderPriceOffers.find(
+                          (o: any) =>
+                            Number.parseFloat(
+                              String(o?.salesPrice ?? "").replace(",", "."),
+                            ) > 0,
+                        ) || orderPriceOffers[0];
+                      const salesRaw = String(offer?.salesPrice ?? "")
+                        .replace(",", ".")
+                        .trim();
+                      const salesNum = Number.parseFloat(salesRaw);
+                      const salesPrice = Number.isFinite(salesNum)
+                        ? salesNum
+                        : 0;
+                      const currency =
+                        String(offer?.currency || resolveOrderCurrency())
+                          .trim()
+                          .toUpperCase() || resolveOrderCurrency();
+                      setInvoiceFreightPrice(
+                        salesPrice > 0 ? String(salesPrice) : salesRaw || "",
+                      );
+                      setInvoiceCurrency(currency);
                       setInvoiceDate("27.05.2026");
                       setInvoiceDelayDays("0");
                       setInvoicePayUntilDate("27.05.2026");
@@ -3132,24 +4702,31 @@ export default function SifarisDetailPage() {
                           text: buildInvoiceFreightText(),
                           unit: "Marşrut",
                           qty: 1,
-                          price: 0,
-                          vatRate: "0%"
-                        }
+                          price: salesPrice,
+                          vatRate: "0%",
+                        },
                       ]);
-                      fetchCarriersAction()
+                      fetchCustomersAction()
                         .then((data) => {
                           const list = Array.isArray(data)
                             ? data
-                            : Array.isArray((data as any)?.carriers)
-                              ? (data as any).carriers
+                            : Array.isArray((data as any)?.customers)
+                              ? (data as any).customers
                               : [];
                           setInvoiceCarriersList(
-                            list.map((c: any) => ({
-                              id: String(c.id ?? ""),
-                              name: String(c.name || c.company || "").trim(),
-                              documents: parseCarrierDocuments(c.documents ?? c.documentsJson),
-                            })).filter((c: { name: string }) => c.name),
+                            list
+                              .map((c: any) => ({
+                                id: String(c.id ?? ""),
+                                name: String(
+                                  c.name || c.company || c.companyName || "",
+                                ).trim(),
+                                documents: parseCarrierDocuments(
+                                  c.documents ?? c.documentsJson,
+                                ),
+                              }))
+                              .filter((c: { name: string }) => c.name),
                           );
+                          setCustomers(list);
                         })
                         .catch(() => setInvoiceCarriersList([]));
                       setIsNewInvoiceModalOpen(true);
@@ -3166,7 +4743,7 @@ export default function SifarisDetailPage() {
                       fontWeight: 600,
                       cursor: "pointer",
                       fontSize: "0.875rem",
-                      transition: "background-color 0.2s"
+                      transition: "background-color 0.2s",
                     }}
                   >
                     <FiPlus />
@@ -3175,8 +4752,19 @@ export default function SifarisDetailPage() {
                 </div>
 
                 {/* Table or Empty State */}
-                {invoicesList.filter(inv => inv.type === invoicesSubTab).length === 0 ? (
-                  <div style={{ padding: "2rem", textAlign: "left", color: "#64748b", background: "#ffffff", borderRadius: "0.5rem", border: "1px solid #e2e8f0", fontSize: "0.9rem" }}>
+                {invoicesList.filter((inv) => inv.type === invoicesSubTab)
+                  .length === 0 ? (
+                  <div
+                    style={{
+                      padding: "2rem",
+                      textAlign: "left",
+                      color: "#64748b",
+                      background: "#ffffff",
+                      borderRadius: "0.5rem",
+                      border: "1px solid #e2e8f0",
+                      fontSize: "0.9rem",
+                    }}
+                  >
                     Hesablar əlavə edilmeyib...
                   </div>
                 ) : (
@@ -3200,82 +4788,107 @@ export default function SifarisDetailPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {invoicesList.filter(inv => inv.type === invoicesSubTab).map((inv) => (
-                          <tr key={inv.id}>
-                            <td className={styles.td} style={{ fontWeight: 600 }}>{inv.number}</td>
-                            <td className={styles.td}>{inv.date}</td>
-                            <td className={styles.td}>{inv.payer || "—"}</td>
-                            <td className={styles.td}>{inv.amount}</td>
-                            <td className={styles.td}>
-                              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                <span className={styles.statusBadge} style={{ background: inv.status === "Ölənilib" ? "#dcfce7" : "#fef9c3", color: inv.status === "Ölənilib" ? "#166534" : "#854d0e" }}>
-                                  {inv.status}
-                                </span>
-                                <button
-                                  type="button"
-                                  title="Yüklənmiş sənədlərə bax"
-                                  onClick={() => setInvoiceDocsViewId(inv.id)}
+                        {invoicesList
+                          .filter((inv) => inv.type === invoicesSubTab)
+                          .map((inv) => (
+                            <tr key={inv.id}>
+                              <td
+                                className={styles.td}
+                                style={{ fontWeight: 600 }}
+                              >
+                                {inv.number}
+                              </td>
+                              <td className={styles.td}>{inv.date}</td>
+                              <td className={styles.td}>{inv.payer || "—"}</td>
+                              <td className={styles.td}>{inv.amount}</td>
+                              <td className={styles.td}>
+                                <div
                                   style={{
-                                    display: "inline-flex",
+                                    display: "flex",
                                     alignItems: "center",
-                                    justifyContent: "center",
-                                    width: "1.75rem",
-                                    height: "1.75rem",
-                                    borderRadius: "0.375rem",
-                                    border: "1px solid #cbd5e1",
-                                    background: "#ffffff",
-                                    color: "#3b82f6",
-                                    cursor: "pointer",
-                                    position: "relative",
+                                    gap: "0.5rem",
                                   }}
                                 >
-                                  <FiEye style={{ fontSize: "0.95rem" }} />
-                                  {(inv.documents?.length || 0) > 0 && (
-                                    <span
-                                      style={{
-                                        position: "absolute",
-                                        top: "-0.35rem",
-                                        right: "-0.35rem",
-                                        minWidth: "1rem",
-                                        height: "1rem",
-                                        borderRadius: "999px",
-                                        background: "#16a34a",
-                                        color: "#fff",
-                                        fontSize: "0.65rem",
-                                        fontWeight: 700,
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        padding: "0 0.2rem",
-                                      }}
-                                    >
-                                      {inv.documents!.length}
-                                    </span>
-                                  )}
-                                </button>
-                                <button
-                                  type="button"
-                                  title="Sənəd yüklə"
-                                  onClick={() => openInvoiceDocUpload(inv.id)}
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    width: "1.75rem",
-                                    height: "1.75rem",
-                                    borderRadius: "0.375rem",
-                                    border: "1px solid #cbd5e1",
-                                    background: "#ffffff",
-                                    color: "#16a34a",
-                                    cursor: "pointer",
-                                  }}
-                                >
-                                  <FiUpload style={{ fontSize: "0.95rem" }} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                                  <span
+                                    className={styles.statusBadge}
+                                    style={{
+                                      background:
+                                        inv.status === "Ölənilib"
+                                          ? "#dcfce7"
+                                          : "#fef9c3",
+                                      color:
+                                        inv.status === "Ölənilib"
+                                          ? "#166534"
+                                          : "#854d0e",
+                                    }}
+                                  >
+                                    {inv.status}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    title="Yüklənmiş sənədlərə bax"
+                                    onClick={() => setInvoiceDocsViewId(inv.id)}
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      width: "1.75rem",
+                                      height: "1.75rem",
+                                      borderRadius: "0.375rem",
+                                      border: "1px solid #cbd5e1",
+                                      background: "#ffffff",
+                                      color: "#3b82f6",
+                                      cursor: "pointer",
+                                      position: "relative",
+                                    }}
+                                  >
+                                    <FiEye style={{ fontSize: "0.95rem" }} />
+                                    {(inv.documents?.length || 0) > 0 && (
+                                      <span
+                                        style={{
+                                          position: "absolute",
+                                          top: "-0.35rem",
+                                          right: "-0.35rem",
+                                          minWidth: "1rem",
+                                          height: "1rem",
+                                          borderRadius: "999px",
+                                          background: "#16a34a",
+                                          color: "#fff",
+                                          fontSize: "0.65rem",
+                                          fontWeight: 700,
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          padding: "0 0.2rem",
+                                        }}
+                                      >
+                                        {inv.documents!.length}
+                                      </span>
+                                    )}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title="Sənəd yüklə"
+                                    onClick={() => openInvoiceDocUpload(inv.id)}
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      width: "1.75rem",
+                                      height: "1.75rem",
+                                      borderRadius: "0.375rem",
+                                      border: "1px solid #cbd5e1",
+                                      background: "#ffffff",
+                                      color: "#16a34a",
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    <FiUpload style={{ fontSize: "0.95rem" }} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
                       </tbody>
                     </table>
                   </div>
@@ -3285,12 +4898,40 @@ export default function SifarisDetailPage() {
 
             {activeTab === "comments" && (
               <div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(20rem, 1fr))", gap: "2.5rem" }}>
-                  
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(20rem, 1fr))",
+                    gap: "2.5rem",
+                  }}
+                >
                   {/* Left Column: Comments List */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "2px solid #f1f5f9", paddingBottom: "0.75rem" }}>
-                      <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#1e293b" }}>Şərhlər ({comments.length})</h3>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "1.25rem",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        borderBottom: "2px solid #f1f5f9",
+                        paddingBottom: "0.75rem",
+                      }}
+                    >
+                      <h3
+                        style={{
+                          margin: 0,
+                          fontSize: "1.1rem",
+                          fontWeight: 700,
+                          color: "#1e293b",
+                        }}
+                      >
+                        Şərhlər ({comments.length})
+                      </h3>
                       <button
                         type="button"
                         onClick={() => {
@@ -3310,7 +4951,7 @@ export default function SifarisDetailPage() {
                           cursor: "pointer",
                           display: "inline-flex",
                           alignItems: "center",
-                          gap: "0.375rem"
+                          gap: "0.375rem",
                         }}
                       >
                         <FiPlus />
@@ -3318,24 +4959,69 @@ export default function SifarisDetailPage() {
                       </button>
                     </div>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxHeight: "450px", overflowY: "auto", paddingRight: "0.25rem" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "1rem",
+                        maxHeight: "450px",
+                        overflowY: "auto",
+                        paddingRight: "0.25rem",
+                      }}
+                    >
                       {comments.map((c) => (
-                        <div key={c.id} style={{ background: "#ffffff", padding: "1.25rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem", fontSize: "0.75rem", color: "#64748b" }}>
-                            <span style={{ display: "flex", alignItems: "center", gap: "0.375rem", fontWeight: 700, color: "#475569" }}>
-                              <FiUser style={{ color: "#16a34a" }} /> {c.userName}
+                        <div
+                          key={c.id}
+                          style={{
+                            background: "#ffffff",
+                            padding: "1.25rem",
+                            borderRadius: "0.5rem",
+                            border: "1px solid #e2e8f0",
+                            boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              marginBottom: "0.5rem",
+                              fontSize: "0.75rem",
+                              color: "#64748b",
+                            }}
+                          >
+                            <span
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.375rem",
+                                fontWeight: 700,
+                                color: "#475569",
+                              }}
+                            >
+                              <FiUser style={{ color: "#16a34a" }} />{" "}
+                              {c.userName}
                             </span>
                             <span>{c.createdAt}</span>
                           </div>
-                          <p style={{ margin: 0, fontSize: "0.875rem", color: "#334155", lineHeight: 1.5 }}>{c.text}</p>
+                          <p
+                            style={{
+                              margin: 0,
+                              fontSize: "0.875rem",
+                              color: "#334155",
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            {c.text}
+                          </p>
                         </div>
                       ))}
                     </div>
                   </div>
 
                   {/* Right Column: Tasks List */}
-                  <EntityTasksPanel orderId={order?.id ? Number(order.id) : null} />
-
+                  <EntityTasksPanel
+                    orderId={order?.id ? Number(order.id) : null}
+                  />
                 </div>
               </div>
             )}
@@ -3363,7 +5049,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            />
+          />
           {/* Center Card */}
           <div
             style={{
@@ -3387,7 +5073,14 @@ export default function SifarisDetailPage() {
                 justifyContent: "space-between",
               }}
             >
-              <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#1e293b" }}>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: "1.1rem",
+                  fontWeight: 700,
+                  color: "#1e293b",
+                }}
+              >
                 Sifarişin Status Tarixçəsi
               </h3>
               <button
@@ -3405,39 +5098,127 @@ export default function SifarisDetailPage() {
                   borderRadius: "0.375rem",
                 }}
               >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M1 1L13 13M1 13L13 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M1 1L13 13M1 13L13 1"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               </button>
             </div>
             {/* Body */}
-            <div style={{ padding: "1.5rem", maxHeight: "60vh", overflowY: "auto" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                {(order.statusHistory && order.statusHistory.length > 0) ? (
+            <div
+              style={{
+                padding: "1.5rem",
+                maxHeight: "60vh",
+                overflowY: "auto",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "1rem",
+                }}
+              >
+                {order.statusHistory && order.statusHistory.length > 0 ? (
                   order.statusHistory.map((item, idx) => (
-                    <div key={idx} style={{ position: "relative", paddingLeft: "1.5rem", display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
+                    <div
+                      key={idx}
+                      style={{
+                        position: "relative",
+                        paddingLeft: "1.5rem",
+                        display: "flex",
+                        gap: "0.75rem",
+                        alignItems: "flex-start",
+                      }}
+                    >
                       {idx !== order.statusHistory!.length - 1 && (
-                        <div style={{ position: "absolute", left: "5px", top: "16px", bottom: "-12px", width: "1px", backgroundColor: "#cbd5e1" }} />
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: "5px",
+                            top: "16px",
+                            bottom: "-12px",
+                            width: "1px",
+                            backgroundColor: "#cbd5e1",
+                          }}
+                        />
                       )}
-                      <div style={{ position: "absolute", left: 0, top: "6px", width: "10px", height: "10px", borderRadius: "50%", border: "2px solid #ffffff", backgroundColor: "#16a34a", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }} />
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", flex: 1 }}>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: 0,
+                          top: "6px",
+                          width: "10px",
+                          height: "10px",
+                          borderRadius: "50%",
+                          border: "2px solid #ffffff",
+                          backgroundColor: "#16a34a",
+                          boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                        }}
+                      />
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.25rem",
+                          flex: 1,
+                        }}
+                      >
                         <span
                           style={{
                             fontSize: "0.85rem",
                             fontWeight: 700,
-                            color: item.status === "Davam edir" ? "#b45309" : item.status === "Tamamlandı" ? "#047857" : item.status === "Maliyyə cəhətdən bağlandı" ? "#4338ca" : item.status === "Sifariş ləğv edildi" ? "#b91c1c" : "#1d4ed8",
+                            color:
+                              item.status === "Davam edir"
+                                ? "#b45309"
+                                : item.status === "Tamamlandı"
+                                  ? "#047857"
+                                  : item.status === "Maliyyə cəhətdən bağlandı"
+                                    ? "#4338ca"
+                                    : item.status === "Sifariş ləğv edildi"
+                                      ? "#b91c1c"
+                                      : "#1d4ed8",
                           }}
                         >
                           {item.status}
                         </span>
-                        <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 500 }}>
-                          {item.date.includes("tərəfindən") ? item.date : `${item.date} (tərəfindən: Ulvi Adilzade)`}
+                        <span
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {item.date.includes("tərəfindən")
+                            ? item.date
+                            : `${item.date} (tərəfindən: Ulvi Adilzade)`}
                         </span>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <p style={{ margin: 0, color: "#64748b", fontStyle: "italic", textAlign: "center", padding: "1rem 0" }}>Tarixçə tapılmadı.</p>
+                  <p
+                    style={{
+                      margin: 0,
+                      color: "#64748b",
+                      fontStyle: "italic",
+                      textAlign: "center",
+                      padding: "1rem 0",
+                    }}
+                  >
+                    Tarixçə tapılmadı.
+                  </p>
                 )}
               </div>
             </div>
@@ -3542,6 +5323,16 @@ export default function SifarisDetailPage() {
         editVoyage={selectedVoyageForEdit}
         availableLoads={loadsList}
         orderNumber={order?.orderNumber || ""}
+        order={order}
+        priceOffers={orderPriceOffers}
+        defaultExpeditor={
+          resolveUserDisplayName(order?.manager, users) ||
+          resolveUserDisplayName(order?.expeditor, users) ||
+          order?.manager ||
+          order?.expeditor ||
+          ""
+        }
+        expeditorOptions={users.map((u) => u.name).filter(Boolean)}
       />
 
       {/* Delete Voyage Modal */}
@@ -3553,7 +5344,11 @@ export default function SifarisDetailPage() {
         }}
         onConfirm={() => {
           if (selectedVoyageForDelete) {
-            setVoyagesList(voyagesList.filter((item) => item.id !== selectedVoyageForDelete.id));
+            setVoyagesList(
+              voyagesList.filter(
+                (item) => item.id !== selectedVoyageForDelete.id,
+              ),
+            );
           }
           setIsVoyageDeleteOpen(false);
           setSelectedVoyageForDelete(null);
@@ -3592,7 +5387,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            />
+          />
           {/* Modal Container */}
           <div
             style={{
@@ -3616,11 +5411,20 @@ export default function SifarisDetailPage() {
                 alignItems: "center",
                 justifyContent: "space-between",
                 background: "transparent",
-                borderBottom: "1px solid #e2e8f0"
+                borderBottom: "1px solid #e2e8f0",
               }}
             >
-              <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#334155" }}>
-                {selectedTxForEdit ? "Maliyyə əməliyyatını redaktə etmə" : "Əlavə etmə"}
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: "1.1rem",
+                  fontWeight: 700,
+                  color: "#334155",
+                }}
+              >
+                {selectedTxForEdit
+                  ? "Maliyyə əməliyyatını redaktə etmə"
+                  : "Əlavə etmə"}
               </h3>
               <button
                 type="button"
@@ -3644,15 +5448,49 @@ export default function SifarisDetailPage() {
             </div>
 
             {/* Scrollable Form Body */}
-            <div style={{ padding: "1.75rem", overflowY: "auto", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-
+            <div
+              style={{
+                padding: "1.75rem",
+                overflowY: "auto",
+                display: "flex",
+                flexDirection: "column",
+                gap: "1.25rem",
+              }}
+            >
               {/* Row 1: Şablon, İstifadəçi, Qiymətin hesablanması tipi, Expense category */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "1.25rem" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr 1fr 1fr",
+                  gap: "1.25rem",
+                }}
+              >
                 {/* Şablon */}
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.25rem" }}>
-                    <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Şablon</span>
-                    <button type="button" onClick={() => setIsTemplateModalOpen(true)} style={plusBtnStyle}>+</button>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Şablon
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsTemplateModalOpen(true)}
+                      style={plusBtnStyle}
+                    >
+                      +
+                    </button>
                   </div>
                   <select
                     value={txTemplate}
@@ -3666,8 +5504,23 @@ export default function SifarisDetailPage() {
 
                 {/* İstifadəçi */}
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.25rem" }}>
-                    <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>İstifadəçi <span style={{ color: "#ef4444" }}>*</span></span>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                      }}
+                    >
+                      İstifadəçi <span style={{ color: "#ef4444" }}>*</span>
+                    </span>
                   </div>
                   <div style={{ position: "relative" }}>
                     <select
@@ -3679,15 +5532,36 @@ export default function SifarisDetailPage() {
                       <option value="Nijat Shabanly">Nijat Shabanly</option>
                     </select>
                     {txUser && (
-                      <span onClick={() => setTxUser("")} style={clearIconStyle}>&times;</span>
+                      <span
+                        onClick={() => setTxUser("")}
+                        style={clearIconStyle}
+                      >
+                        &times;
+                      </span>
                     )}
                   </div>
                 </div>
 
                 {/* Qiymətin hesablanması tipi */}
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.25rem" }}>
-                    <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Qiymətin hesablanması tipi <span style={{ color: "#ef4444" }}>*</span></span>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Qiymətin hesablanması tipi{" "}
+                      <span style={{ color: "#ef4444" }}>*</span>
+                    </span>
                   </div>
                   <div style={{ position: "relative" }}>
                     <select
@@ -3699,15 +5573,36 @@ export default function SifarisDetailPage() {
                       <option value="ƏDV ilə qiymət">ƏDV ilə qiymət</option>
                     </select>
                     {txCalcType && (
-                      <span onClick={() => setTxCalcType("")} style={clearIconStyle}>&times;</span>
+                      <span
+                        onClick={() => setTxCalcType("")}
+                        style={clearIconStyle}
+                      >
+                        &times;
+                      </span>
                     )}
                   </div>
                 </div>
 
                 {/* Expense category */}
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.25rem" }}>
-                    <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Expense category <span style={{ color: "#ef4444" }}>*</span></span>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Expense category{" "}
+                      <span style={{ color: "#ef4444" }}>*</span>
+                    </span>
                     <button
                       type="button"
                       onClick={() => {
@@ -3728,28 +5623,63 @@ export default function SifarisDetailPage() {
                       style={selectStyle}
                     >
                       <option value="Order expenses">Order expenses</option>
-                      <option value="Administrative expenses">Administrative expenses</option>
+                      <option value="Administrative expenses">
+                        Administrative expenses
+                      </option>
                     </select>
                     {txCategory && (
-                      <span onClick={() => setTxCategory("")} style={clearIconStyle}>&times;</span>
+                      <span
+                        onClick={() => setTxCategory("")}
+                        style={clearIconStyle}
+                      >
+                        &times;
+                      </span>
                     )}
                   </div>
                 </div>
               </div>
 
               {/* Row 2: Hesab alındı, Adı */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1.25rem" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 2fr",
+                  gap: "1.25rem",
+                }}
+              >
                 {/* Hesab alındı */}
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.25rem" }}>
-                    <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
-                      Hesab alındı <span style={{ color: "#94a3b8", cursor: "help" }} title="Hesab alınıb-alınmadığını bildirir">?</span>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Hesab alındı{" "}
+                      <span
+                        style={{ color: "#94a3b8", cursor: "help" }}
+                        title="Hesab alınıb-alınmadığını bildirir"
+                      >
+                        ?
+                      </span>
                     </span>
                     <button
                       type="button"
                       onClick={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect();
-                        setPartnerMenuCoords({ x: rect.left, y: rect.bottom + window.scrollY });
+                        setPartnerMenuCoords({
+                          x: rect.left,
+                          y: rect.bottom + window.scrollY,
+                        });
                         setIsPartnerMenuOpen(!isPartnerMenuOpen);
                       }}
                       style={plusBtnStyle}
@@ -3770,7 +5700,15 @@ export default function SifarisDetailPage() {
 
                 {/* Adı */}
                 <div>
-                  <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: "0.75rem",
+                      color: "#64748b",
+                      fontWeight: 600,
+                      marginBottom: "0.25rem",
+                    }}
+                  >
                     Adı <span style={{ color: "#ef4444" }}>*</span>
                   </span>
                   <input
@@ -3784,11 +5722,36 @@ export default function SifarisDetailPage() {
               </div>
 
               {/* Section 1: Gəlir */}
-              <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "1rem" }}>
-                <h4 style={{ margin: "0 0 0.75rem", fontSize: "0.9rem", fontWeight: 700, color: "#475569" }}>Gəlir</h4>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr 1.5fr 1.5fr 1.2fr 1fr", gap: "1.25rem" }}>
+              <div
+                style={{ borderTop: "1px solid #e2e8f0", paddingTop: "1rem" }}
+              >
+                <h4
+                  style={{
+                    margin: "0 0 0.75rem",
+                    fontSize: "0.9rem",
+                    fontWeight: 700,
+                    color: "#475569",
+                  }}
+                >
+                  Gəlir
+                </h4>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1.5fr 1.5fr 1.5fr 1.2fr 1fr",
+                    gap: "1.25rem",
+                  }}
+                >
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
                       Miqdarı <span style={{ color: "#ef4444" }}>*</span>
                     </span>
                     <input
@@ -3799,7 +5762,15 @@ export default function SifarisDetailPage() {
                     />
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
                       Qiymət <span style={{ color: "#ef4444" }}>*</span>
                     </span>
                     <input
@@ -3810,25 +5781,61 @@ export default function SifarisDetailPage() {
                     />
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>Tarif</span>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      Tarif
+                    </span>
                     <input
                       type="text"
                       value={txRevTarif}
                       disabled
-                      style={{ ...inputStyle, background: "#f1f5f9", cursor: "not-allowed" }}
+                      style={{
+                        ...inputStyle,
+                        background: "#f1f5f9",
+                        cursor: "not-allowed",
+                      }}
                     />
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>ƏDV ilə tarif</span>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      ƏDV ilə tarif
+                    </span>
                     <input
                       type="text"
                       value={txRevTarif}
                       disabled
-                      style={{ ...inputStyle, background: "#f1f5f9", cursor: "not-allowed" }}
+                      style={{
+                        ...inputStyle,
+                        background: "#f1f5f9",
+                        cursor: "not-allowed",
+                      }}
                     />
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
                       ƏDV tarifi <span style={{ color: "#ef4444" }}>*</span>
                     </span>
                     <select
@@ -3841,7 +5848,15 @@ export default function SifarisDetailPage() {
                     </select>
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
                       Valyuta <span style={{ color: "#ef4444" }}>*</span>
                     </span>
                     <select
@@ -3858,11 +5873,36 @@ export default function SifarisDetailPage() {
               </div>
 
               {/* Section 2: Məsarif */}
-              <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "1rem" }}>
-                <h4 style={{ margin: "0 0 0.75rem", fontSize: "0.9rem", fontWeight: 700, color: "#475569" }}>Məsarif</h4>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr 1.5fr 1.5fr 1.2fr 1fr", gap: "1.25rem" }}>
+              <div
+                style={{ borderTop: "1px solid #e2e8f0", paddingTop: "1rem" }}
+              >
+                <h4
+                  style={{
+                    margin: "0 0 0.75rem",
+                    fontSize: "0.9rem",
+                    fontWeight: 700,
+                    color: "#475569",
+                  }}
+                >
+                  Məsarif
+                </h4>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1.5fr 1.5fr 1.5fr 1.2fr 1fr",
+                    gap: "1.25rem",
+                  }}
+                >
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
                       Miqdarı <span style={{ color: "#ef4444" }}>*</span>
                     </span>
                     <input
@@ -3873,7 +5913,15 @@ export default function SifarisDetailPage() {
                     />
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
                       Qiymət <span style={{ color: "#ef4444" }}>*</span>
                     </span>
                     <input
@@ -3884,25 +5932,61 @@ export default function SifarisDetailPage() {
                     />
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>Məsarif</span>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      Məsarif
+                    </span>
                     <input
                       type="text"
                       value={txExpMesarif}
                       disabled
-                      style={{ ...inputStyle, background: "#f1f5f9", cursor: "not-allowed" }}
+                      style={{
+                        ...inputStyle,
+                        background: "#f1f5f9",
+                        cursor: "not-allowed",
+                      }}
                     />
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>ƏDV ilə məsarif</span>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      ƏDV ilə məsarif
+                    </span>
                     <input
                       type="text"
                       value={txExpMesarif}
                       disabled
-                      style={{ ...inputStyle, background: "#f1f5f9", cursor: "not-allowed" }}
+                      style={{
+                        ...inputStyle,
+                        background: "#f1f5f9",
+                        cursor: "not-allowed",
+                      }}
                     />
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
                       ƏDV tarifi <span style={{ color: "#ef4444" }}>*</span>
                     </span>
                     <select
@@ -3915,7 +5999,15 @@ export default function SifarisDetailPage() {
                     </select>
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
                       Valyuta <span style={{ color: "#ef4444" }}>*</span>
                     </span>
                     <select
@@ -3932,8 +6024,20 @@ export default function SifarisDetailPage() {
               </div>
 
               {/* Təsviri */}
-              <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "1rem" }}>
-                <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>Təsviri</span>
+              <div
+                style={{ borderTop: "1px solid #e2e8f0", paddingTop: "1rem" }}
+              >
+                <span
+                  style={{
+                    display: "block",
+                    fontSize: "0.75rem",
+                    color: "#64748b",
+                    fontWeight: 600,
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  Təsviri
+                </span>
                 <textarea
                   value={txDescription}
                   onChange={(e) => setTxDescription(e.target.value)}
@@ -3943,32 +6047,83 @@ export default function SifarisDetailPage() {
               </div>
 
               {/* Checkboxes */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.75rem",
+                }}
+              >
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    cursor: "pointer",
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={txExcludeFromFinance}
                     onChange={(e) => setTxExcludeFromFinance(e.target.checked)}
-                    style={{ width: "16px", height: "16px", accentColor: "#22c55e" }}
+                    style={{
+                      width: "16px",
+                      height: "16px",
+                      accentColor: "#22c55e",
+                    }}
                   />
-                  <span style={{ fontSize: "0.85rem", color: "#334155", fontWeight: 500 }}>
-                    Məsarif maliyyələrdə nəzərə alınmasın <span style={{ color: "#94a3b8", cursor: "help" }} title="Bu xərclər ümumi maliyyə hesabatlarında mənfəətdən çıxılmayacaq">?</span>
+                  <span
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "#334155",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Məsarif maliyyələrdə nəzərə alınmasın{" "}
+                    <span
+                      style={{ color: "#94a3b8", cursor: "help" }}
+                      title="Bu xərclər ümumi maliyyə hesabatlarında mənfəətdən çıxılmayacaq"
+                    >
+                      ?
+                    </span>
                   </span>
                 </label>
 
-                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    cursor: "pointer",
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={txSeparateInvoiceLine}
                     onChange={(e) => setTxSeparateInvoiceLine(e.target.checked)}
-                    style={{ width: "16px", height: "16px", accentColor: "#22c55e" }}
+                    style={{
+                      width: "16px",
+                      height: "16px",
+                      accentColor: "#22c55e",
+                    }}
                   />
-                  <span style={{ fontSize: "0.85rem", color: "#334155", fontWeight: 500 }}>
-                    Hesaba ayrıca sətir <span style={{ color: "#94a3b8", cursor: "help" }} title="Hesab-fakturada bu əməliyyat ayrıca sətir kimi göstəriləcək">?</span>
+                  <span
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "#334155",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Hesaba ayrıca sətir{" "}
+                    <span
+                      style={{ color: "#94a3b8", cursor: "help" }}
+                      title="Hesab-fakturada bu əməliyyat ayrıca sətir kimi göstəriləcək"
+                    >
+                      ?
+                    </span>
                   </span>
                 </label>
               </div>
-
             </div>
 
             {/* Footer */}
@@ -3978,7 +6133,7 @@ export default function SifarisDetailPage() {
                 display: "flex",
                 justifyContent: "flex-end",
                 background: "#f8fafc",
-                borderTop: "1px solid #e2e8f0"
+                borderTop: "1px solid #e2e8f0",
               }}
             >
               <button
@@ -3995,20 +6150,23 @@ export default function SifarisDetailPage() {
                   cursor: "pointer",
                   transition: "background 0.2s",
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.background = "#16a34a")}
-                onMouseOut={(e) => (e.currentTarget.style.background = "#22c55e")}
+                onMouseOver={(e) =>
+                  (e.currentTarget.style.background = "#16a34a")
+                }
+                onMouseOut={(e) =>
+                  (e.currentTarget.style.background = "#22c55e")
+                }
               >
                 Yaddaşda saxlamaq
               </button>
             </div>
-
           </div>
         </div>
       )}
 
       {/* Template creation modal: "Xərclər üçün şablon" */}
       {isTemplateModalOpen && (
-        <div 
+        <div
           style={{
             position: "fixed",
             inset: 0,
@@ -4018,16 +6176,16 @@ export default function SifarisDetailPage() {
             justifyContent: "center",
           }}
         >
-          <div 
+          <div
             style={{
               position: "absolute",
               inset: 0,
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            />
+          />
 
-          <div 
+          <div
             style={{
               position: "relative",
               background: "#f8fafc",
@@ -4042,17 +6200,24 @@ export default function SifarisDetailPage() {
             }}
           >
             {/* Header */}
-            <div 
+            <div
               style={{
                 padding: "1.25rem 1.75rem",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
                 background: "#ffffff",
-                borderBottom: "1px solid #e2e8f0"
+                borderBottom: "1px solid #e2e8f0",
               }}
             >
-              <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#334155" }}>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: "1.1rem",
+                  fontWeight: 700,
+                  color: "#334155",
+                }}
+              >
                 Xərclər üçün şablon
               </h3>
               <button
@@ -4074,31 +6239,113 @@ export default function SifarisDetailPage() {
             </div>
 
             {/* Form Content */}
-            <div style={{ padding: "1.75rem", display: "flex", flexDirection: "column", gap: "1.25rem", background: "#f8fafc" }}>
+            <div
+              style={{
+                padding: "1.75rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "1.25rem",
+                background: "#f8fafc",
+              }}
+            >
               {/* Row 1 */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "1.25rem" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr 1fr 1fr",
+                  gap: "1.25rem",
+                }}
+              >
                 <div>
-                  <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>Kontragent</span>
-                  <select value={tplPartner} onChange={(e) => setTplPartner(e.target.value)} style={selectStyle}>
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: "0.75rem",
+                      color: "#64748b",
+                      fontWeight: 600,
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    Kontragent
+                  </span>
+                  <select
+                    value={tplPartner}
+                    onChange={(e) => setTplPartner(e.target.value)}
+                    style={selectStyle}
+                  >
                     <option value="Dəyəri seçin">Dəyəri seçin</option>
                   </select>
                 </div>
                 <div>
-                  <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>Şablonun adı <span style={{ color: "#ef4444" }}>*</span></span>
-                  <input type="text" value={tplName} onChange={(e) => setTplName(e.target.value)} style={inputStyle} />
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: "0.75rem",
+                      color: "#64748b",
+                      fontWeight: 600,
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    Şablonun adı <span style={{ color: "#ef4444" }}>*</span>
+                  </span>
+                  <input
+                    type="text"
+                    value={tplName}
+                    onChange={(e) => setTplName(e.target.value)}
+                    style={inputStyle}
+                  />
                 </div>
                 <div>
-                  <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>Expense category <span style={{ color: "#ef4444" }}>*</span></span>
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: "0.75rem",
+                      color: "#64748b",
+                      fontWeight: 600,
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    Expense category <span style={{ color: "#ef4444" }}>*</span>
+                  </span>
                   <div style={{ position: "relative" }}>
-                    <select value={tplCategory} onChange={(e) => setTplCategory(e.target.value)} style={selectStyle}>
+                    <select
+                      value={tplCategory}
+                      onChange={(e) => setTplCategory(e.target.value)}
+                      style={selectStyle}
+                    >
                       <option value="Order expenses">Order expenses</option>
                     </select>
-                    <span style={{ position: "absolute", right: "2rem", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", cursor: "pointer" }}>&times;</span>
+                    <span
+                      style={{
+                        position: "absolute",
+                        right: "2rem",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        color: "#94a3b8",
+                        cursor: "pointer",
+                      }}
+                    >
+                      &times;
+                    </span>
                   </div>
                 </div>
                 <div>
-                  <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>Qiymətin hesablanması tipi</span>
-                  <select value={tplCalcType} onChange={(e) => setTplCalcType(e.target.value)} style={selectStyle}>
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: "0.75rem",
+                      color: "#64748b",
+                      fontWeight: 600,
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    Qiymətin hesablanması tipi
+                  </span>
+                  <select
+                    value={tplCalcType}
+                    onChange={(e) => setTplCalcType(e.target.value)}
+                    style={selectStyle}
+                  >
                     <option value="ƏDV-siz qiymət">ƏDV-siz qiymət</option>
                   </select>
                 </div>
@@ -4106,35 +6353,146 @@ export default function SifarisDetailPage() {
 
               {/* Section 1: Gəlir */}
               <div>
-                <h4 style={{ margin: "0.5rem 0 0.75rem", fontSize: "0.9rem", fontWeight: 700, color: "#475569" }}>Gəlir</h4>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.5fr 1.5fr 1.5fr 1.5fr", gap: "1.25rem" }}>
+                <h4
+                  style={{
+                    margin: "0.5rem 0 0.75rem",
+                    fontSize: "0.9rem",
+                    fontWeight: 700,
+                    color: "#475569",
+                  }}
+                >
+                  Gəlir
+                </h4>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr 1.5fr 1.5fr 1.5fr 1.5fr",
+                    gap: "1.25rem",
+                  }}
+                >
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>Miqdarı</span>
-                    <input type="number" value={tplRevQty} onChange={(e) => setTplRevQty(e.target.value)} style={inputStyle} />
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      Miqdarı
+                    </span>
+                    <input
+                      type="number"
+                      value={tplRevQty}
+                      onChange={(e) => setTplRevQty(e.target.value)}
+                      style={inputStyle}
+                    />
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>Qiymət</span>
-                    <input type="number" value={tplRevPrice} onChange={(e) => setTplRevPrice(e.target.value)} style={inputStyle} />
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      Qiymət
+                    </span>
+                    <input
+                      type="number"
+                      value={tplRevPrice}
+                      onChange={(e) => setTplRevPrice(e.target.value)}
+                      style={inputStyle}
+                    />
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>Tarif</span>
-                    <input type="text" value={tplRevTarif} disabled style={{ ...inputStyle, background: "#f1f5f9", cursor: "not-allowed" }} />
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      Tarif
+                    </span>
+                    <input
+                      type="text"
+                      value={tplRevTarif}
+                      disabled
+                      style={{
+                        ...inputStyle,
+                        background: "#f1f5f9",
+                        cursor: "not-allowed",
+                      }}
+                    />
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>ƏDV ilə tarif</span>
-                    <input type="text" value={tplRevTarif} disabled style={{ ...inputStyle, background: "#f1f5f9", cursor: "not-allowed" }} />
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      ƏDV ilə tarif
+                    </span>
+                    <input
+                      type="text"
+                      value={tplRevTarif}
+                      disabled
+                      style={{
+                        ...inputStyle,
+                        background: "#f1f5f9",
+                        cursor: "not-allowed",
+                      }}
+                    />
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>ƏDV tarifi <span style={{ color: "#ef4444" }}>*</span></span>
-                    <select value={tplRevVatRate} onChange={(e) => setTplRevVatRate(e.target.value)} style={selectStyle}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      ƏDV tarifi <span style={{ color: "#ef4444" }}>*</span>
+                    </span>
+                    <select
+                      value={tplRevVatRate}
+                      onChange={(e) => setTplRevVatRate(e.target.value)}
+                      style={selectStyle}
+                    >
                       <option value="20%">20%</option>
                       <option value="18%">18%</option>
                       <option value="0%">0%</option>
                     </select>
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>Valyuta <span style={{ color: "#ef4444" }}>*</span></span>
-                    <select value={tplRevCurrency} onChange={(e) => setTplRevCurrency(e.target.value)} style={selectStyle}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      Valyuta <span style={{ color: "#ef4444" }}>*</span>
+                    </span>
+                    <select
+                      value={tplRevCurrency}
+                      onChange={(e) => setTplRevCurrency(e.target.value)}
+                      style={selectStyle}
+                    >
                       <option value="AZN">AZN</option>
                       <option value="USD">USD</option>
                     </select>
@@ -4144,35 +6502,146 @@ export default function SifarisDetailPage() {
 
               {/* Section 2: Məsarif */}
               <div>
-                <h4 style={{ margin: "0.5rem 0 0.75rem", fontSize: "0.9rem", fontWeight: 700, color: "#475569" }}>Məsarif</h4>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.5fr 1.5fr 1.5fr 1.5fr", gap: "1.25rem" }}>
+                <h4
+                  style={{
+                    margin: "0.5rem 0 0.75rem",
+                    fontSize: "0.9rem",
+                    fontWeight: 700,
+                    color: "#475569",
+                  }}
+                >
+                  Məsarif
+                </h4>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr 1.5fr 1.5fr 1.5fr 1.5fr",
+                    gap: "1.25rem",
+                  }}
+                >
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>Miqdarı</span>
-                    <input type="number" value={tplExpQty} onChange={(e) => setTplExpQty(e.target.value)} style={inputStyle} />
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      Miqdarı
+                    </span>
+                    <input
+                      type="number"
+                      value={tplExpQty}
+                      onChange={(e) => setTplExpQty(e.target.value)}
+                      style={inputStyle}
+                    />
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>Qiymət</span>
-                    <input type="number" value={tplExpPrice} onChange={(e) => setTplExpPrice(e.target.value)} style={inputStyle} />
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      Qiymət
+                    </span>
+                    <input
+                      type="number"
+                      value={tplExpPrice}
+                      onChange={(e) => setTplExpPrice(e.target.value)}
+                      style={inputStyle}
+                    />
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>Tarif</span>
-                    <input type="text" value={tplExpMesarif} disabled style={{ ...inputStyle, background: "#f1f5f9", cursor: "not-allowed" }} />
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      Tarif
+                    </span>
+                    <input
+                      type="text"
+                      value={tplExpMesarif}
+                      disabled
+                      style={{
+                        ...inputStyle,
+                        background: "#f1f5f9",
+                        cursor: "not-allowed",
+                      }}
+                    />
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>ƏDV ilə tarif</span>
-                    <input type="text" value={tplExpMesarif} disabled style={{ ...inputStyle, background: "#f1f5f9", cursor: "not-allowed" }} />
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      ƏDV ilə tarif
+                    </span>
+                    <input
+                      type="text"
+                      value={tplExpMesarif}
+                      disabled
+                      style={{
+                        ...inputStyle,
+                        background: "#f1f5f9",
+                        cursor: "not-allowed",
+                      }}
+                    />
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>ƏDV tarifi <span style={{ color: "#ef4444" }}>*</span></span>
-                    <select value={tplExpVatRate} onChange={(e) => setTplExpVatRate(e.target.value)} style={selectStyle}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      ƏDV tarifi <span style={{ color: "#ef4444" }}>*</span>
+                    </span>
+                    <select
+                      value={tplExpVatRate}
+                      onChange={(e) => setTplExpVatRate(e.target.value)}
+                      style={selectStyle}
+                    >
                       <option value="20%">20%</option>
                       <option value="18%">18%</option>
                       <option value="0%">0%</option>
                     </select>
                   </div>
                   <div>
-                    <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>Valyuta <span style={{ color: "#ef4444" }}>*</span></span>
-                    <select value={tplExpCurrency} onChange={(e) => setTplExpCurrency(e.target.value)} style={selectStyle}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      Valyuta <span style={{ color: "#ef4444" }}>*</span>
+                    </span>
+                    <select
+                      value={tplExpCurrency}
+                      onChange={(e) => setTplExpCurrency(e.target.value)}
+                      style={selectStyle}
+                    >
                       <option value="AZN">AZN</option>
                       <option value="USD">USD</option>
                     </select>
@@ -4181,30 +6650,92 @@ export default function SifarisDetailPage() {
               </div>
 
               {/* Bottom Row: Checkboxes */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-                  <input type="checkbox" checked={tplExclude} onChange={(e) => setTplExclude(e.target.checked)} style={{ width: "16px", height: "16px", accentColor: "#22c55e" }} />
-                  <span style={{ fontSize: "0.85rem", color: "#334155", fontWeight: 500 }}>
-                    Məsarif maliyyələrdə nəzərə alınmasın <span style={{ color: "#94a3b8", cursor: "help" }} title="Bu xərclər ümumi maliyyə hesabatlarında mənfəətdən çıxılmayacaq">?</span>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.5rem",
+                }}
+              >
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={tplExclude}
+                    onChange={(e) => setTplExclude(e.target.checked)}
+                    style={{
+                      width: "16px",
+                      height: "16px",
+                      accentColor: "#22c55e",
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "#334155",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Məsarif maliyyələrdə nəzərə alınmasın{" "}
+                    <span
+                      style={{ color: "#94a3b8", cursor: "help" }}
+                      title="Bu xərclər ümumi maliyyə hesabatlarında mənfəətdən çıxılmayacaq"
+                    >
+                      ?
+                    </span>
                   </span>
                 </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-                  <input type="checkbox" checked={tplSeparate} onChange={(e) => setTplSeparate(e.target.checked)} style={{ width: "16px", height: "16px", accentColor: "#22c55e" }} />
-                  <span style={{ fontSize: "0.85rem", color: "#334155", fontWeight: 500 }}>
-                    Hesaba ayrıca sətir <span style={{ color: "#94a3b8", cursor: "help" }} title="Hesab-fakturada bu əməliyyat ayrıca sətir kimi göstəriləcək">?</span>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={tplSeparate}
+                    onChange={(e) => setTplSeparate(e.target.checked)}
+                    style={{
+                      width: "16px",
+                      height: "16px",
+                      accentColor: "#22c55e",
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "#334155",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Hesaba ayrıca sətir{" "}
+                    <span
+                      style={{ color: "#94a3b8", cursor: "help" }}
+                      title="Hesab-fakturada bu əməliyyat ayrıca sətir kimi göstəriləcək"
+                    >
+                      ?
+                    </span>
                   </span>
                 </label>
               </div>
             </div>
 
             {/* Footer */}
-            <div 
+            <div
               style={{
                 padding: "1.25rem 1.75rem",
                 display: "flex",
                 justifyContent: "flex-end",
                 background: "#ffffff",
-                borderTop: "1px solid #e2e8f0"
+                borderTop: "1px solid #e2e8f0",
               }}
             >
               <button
@@ -4236,7 +6767,7 @@ export default function SifarisDetailPage() {
 
       {/* Category creation modal: "Əlavə etmə" */}
       {isExpenseCategoryModalOpen && (
-        <div 
+        <div
           style={{
             position: "fixed",
             inset: 0,
@@ -4246,16 +6777,16 @@ export default function SifarisDetailPage() {
             justifyContent: "center",
           }}
         >
-          <div 
+          <div
             style={{
               position: "absolute",
               inset: 0,
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            />
+          />
 
-          <div 
+          <div
             style={{
               position: "relative",
               background: "#f8fafc",
@@ -4270,17 +6801,24 @@ export default function SifarisDetailPage() {
             }}
           >
             {/* Header */}
-            <div 
+            <div
               style={{
                 padding: "1.25rem 1.75rem",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
                 background: "#ffffff",
-                borderBottom: "1px solid #e2e8f0"
+                borderBottom: "1px solid #e2e8f0",
               }}
             >
-              <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#334155" }}>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: "1.1rem",
+                  fontWeight: 700,
+                  color: "#334155",
+                }}
+              >
                 Əlavə etmə
               </h3>
               <button
@@ -4302,36 +6840,132 @@ export default function SifarisDetailPage() {
             </div>
 
             {/* Form Content */}
-            <div style={{ padding: "1.75rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+            <div
+              style={{
+                padding: "1.75rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "1.25rem",
+              }}
+            >
               <div>
-                <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>Adı <span style={{ color: "#ef4444" }}>*</span></span>
-                <input type="text" value={catName} onChange={(e) => setCatName(e.target.value)} style={inputStyle} />
+                <span
+                  style={{
+                    display: "block",
+                    fontSize: "0.75rem",
+                    color: "#64748b",
+                    fontWeight: 600,
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  Adı <span style={{ color: "#ef4444" }}>*</span>
+                </span>
+                <input
+                  type="text"
+                  value={catName}
+                  onChange={(e) => setCatName(e.target.value)}
+                  style={inputStyle}
+                />
               </div>
               <div>
-                <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginBottom: "0.25rem" }}>Expenses: Category <span style={{ color: "#ef4444" }}>*</span></span>
-                <input type="text" value="Expense per order" disabled style={{ ...inputStyle, background: "#f1f5f9", cursor: "not-allowed" }} />
+                <span
+                  style={{
+                    display: "block",
+                    fontSize: "0.75rem",
+                    color: "#64748b",
+                    fontWeight: 600,
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  Expenses: Category <span style={{ color: "#ef4444" }}>*</span>
+                </span>
+                <input
+                  type="text"
+                  value="Expense per order"
+                  disabled
+                  style={{
+                    ...inputStyle,
+                    background: "#f1f5f9",
+                    cursor: "not-allowed",
+                  }}
+                />
               </div>
-              
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "0.5rem" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-                  <input type="checkbox" checked={catActive} onChange={(e) => setCatActive(e.target.checked)} style={{ width: "18px", height: "18px", accentColor: "#22c55e" }} />
-                  <span style={{ fontSize: "0.85rem", color: "#334155", fontWeight: 600 }}>Aktiv</span>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.75rem",
+                  marginTop: "0.5rem",
+                }}
+              >
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={catActive}
+                    onChange={(e) => setCatActive(e.target.checked)}
+                    style={{
+                      width: "18px",
+                      height: "18px",
+                      accentColor: "#22c55e",
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "#334155",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Aktiv
+                  </span>
                 </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-                  <input type="checkbox" checked={catDefault} onChange={(e) => setCatDefault(e.target.checked)} style={{ width: "18px", height: "18px", accentColor: "#22c55e" }} />
-                  <span style={{ fontSize: "0.85rem", color: "#334155", fontWeight: 600 }}>Susmaya görə</span>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={catDefault}
+                    onChange={(e) => setCatDefault(e.target.checked)}
+                    style={{
+                      width: "18px",
+                      height: "18px",
+                      accentColor: "#22c55e",
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "#334155",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Susmaya görə
+                  </span>
                 </label>
               </div>
             </div>
 
             {/* Footer */}
-            <div 
+            <div
               style={{
                 padding: "1.25rem 1.75rem",
                 display: "flex",
                 justifyContent: "flex-end",
                 background: "#ffffff",
-                borderTop: "1px solid #e2e8f0"
+                borderTop: "1px solid #e2e8f0",
               }}
             >
               <button
@@ -4363,7 +6997,7 @@ export default function SifarisDetailPage() {
 
       {/* Floating Dropdown Context Box */}
       {isPartnerMenuOpen && partnerMenuCoords && (
-        <div 
+        <div
           style={{
             position: "absolute",
             left: `${partnerMenuCoords.x}px`,
@@ -4371,7 +7005,7 @@ export default function SifarisDetailPage() {
             zIndex: 10005,
           }}
         >
-          <div 
+          <div
             style={{
               position: "fixed",
               inset: 0,
@@ -4388,7 +7022,8 @@ export default function SifarisDetailPage() {
               border: "1px solid #e2e8f0",
               borderRadius: "0.5rem",
               width: "220px",
-              boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)",
+              boxShadow:
+                "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)",
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
@@ -4472,7 +7107,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            />
+          />
 
           <div
             style={{
@@ -4501,8 +7136,16 @@ export default function SifarisDetailPage() {
                 justifyContent: "space-between",
               }}
             >
-              <span style={{ fontSize: "1.15rem", fontWeight: 700, color: "#1e293b" }}>
-                {partnerModalType === "client" ? "Yeni müştəri" : "Yeni daşıyıcı"}
+              <span
+                style={{
+                  fontSize: "1.15rem",
+                  fontWeight: 700,
+                  color: "#1e293b",
+                }}
+              >
+                {partnerModalType === "client"
+                  ? "Yeni müştəri"
+                  : "Yeni daşıyıcı"}
               </span>
               <button
                 type="button"
@@ -4546,7 +7189,9 @@ export default function SifarisDetailPage() {
                     style={{
                       background: "transparent",
                       border: 0,
-                      borderBottom: isActive ? "3px solid #3b82f6" : "3px solid transparent",
+                      borderBottom: isActive
+                        ? "3px solid #3b82f6"
+                        : "3px solid transparent",
                       color: isActive ? "#3b82f6" : "#64748b",
                       padding: "0.75rem 0.25rem",
                       fontWeight: isActive ? 700 : 500,
@@ -4575,16 +7220,50 @@ export default function SifarisDetailPage() {
             >
               {/* TAB 1: Əsas Məlumatlar */}
               {partnerActiveTab === "general" && (
-                <div style={{ display: "grid", gridTemplateColumns: "1.1fr auto 1fr", gap: "1.5rem", alignItems: "stretch" }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.1fr auto 1fr",
+                    gap: "1.5rem",
+                    alignItems: "stretch",
+                  }}
+                >
                   {/* Left Column: Şirkətin rekvizitləri */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                    <h4 style={{ margin: "0 0 0.25rem 0", fontSize: "0.9rem", fontWeight: 700, color: "#475569" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.75rem",
+                    }}
+                  >
+                    <h4
+                      style={{
+                        margin: "0 0 0.25rem 0",
+                        fontSize: "0.9rem",
+                        fontWeight: 700,
+                        color: "#475569",
+                      }}
+                    >
                       Şirkətin rekvizitləri
                     </h4>
 
                     {/* Name (full) */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Name (full)</label>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.25rem",
+                      }}
+                    >
+                      <label
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "#64748b",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Name (full)
+                      </label>
                       <input
                         type="text"
                         placeholder="Limited liability company"
@@ -4595,10 +7274,29 @@ export default function SifarisDetailPage() {
                     </div>
 
                     {/* Name (abbreviated) and Fəaliyyət növü side-by-side */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
-                          Name (abbreviated) <span style={{ color: "#ef4444" }}>*</span>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "1rem",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.25rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Name (abbreviated){" "}
+                          <span style={{ color: "#ef4444" }}>*</span>
                         </label>
                         <input
                           type="text"
@@ -4608,11 +7306,27 @@ export default function SifarisDetailPage() {
                           style={inputStyle}
                         />
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Fəaliyyət növü</label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.25rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Fəaliyyət növü
+                        </label>
                         <select
                           value={partnerActivityType}
-                          onChange={(e) => setPartnerActivityType(e.target.value)}
+                          onChange={(e) =>
+                            setPartnerActivityType(e.target.value)
+                          }
                           style={selectStyle}
                         >
                           <option value="Dəyəri seçin">Dəyəri seçin</option>
@@ -4623,9 +7337,29 @@ export default function SifarisDetailPage() {
                     </div>
 
                     {/* Müştəri tipi and VÖUN/UMTVDR/VATNº side-by-side */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Müştəri tipi</label>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "1rem",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.25rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Müştəri tipi
+                        </label>
                         <select
                           value={partnerType}
                           onChange={(e) => setPartnerType(e.target.value)}
@@ -4635,8 +7369,22 @@ export default function SifarisDetailPage() {
                           <option value="Daimi müştəri">Daimi müştəri</option>
                         </select>
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>VÖUN/UMTVDR/VATNº</label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.25rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          VÖUN/UMTVDR/VATNº
+                        </label>
                         <input
                           type="text"
                           value={partnerVoun}
@@ -4647,9 +7395,29 @@ export default function SifarisDetailPage() {
                     </div>
 
                     {/* VÖEN and MTÜT side-by-side */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>VÖEN</label>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "1rem",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.25rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          VÖEN
+                        </label>
                         <input
                           type="text"
                           value={partnerVoen}
@@ -4657,8 +7425,22 @@ export default function SifarisDetailPage() {
                           style={inputStyle}
                         />
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>MTÜT</label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.25rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          MTÜT
+                        </label>
                         <input
                           type="text"
                           value={partnerMtut}
@@ -4669,9 +7451,29 @@ export default function SifarisDetailPage() {
                     </div>
 
                     {/* ƏDQN and UAK side-by-side */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>ƏDQN</label>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "1rem",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.25rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          ƏDQN
+                        </label>
                         <input
                           type="text"
                           value={partnerEdqn}
@@ -4679,8 +7481,22 @@ export default function SifarisDetailPage() {
                           style={inputStyle}
                         />
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>UAK</label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.25rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          UAK
+                        </label>
                         <input
                           type="text"
                           value={partnerUak}
@@ -4691,9 +7507,29 @@ export default function SifarisDetailPage() {
                     </div>
 
                     {/* BİN and Ödəyicinin ƏDV kodu side-by-side */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>BİN</label>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "1rem",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.25rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          BİN
+                        </label>
                         <input
                           type="text"
                           value={partnerBin}
@@ -4701,8 +7537,22 @@ export default function SifarisDetailPage() {
                           style={inputStyle}
                         />
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Ödəyicinin ƏDV kodu</label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.25rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Ödəyicinin ƏDV kodu
+                        </label>
                         <input
                           type="text"
                           value={partnerVatCode}
@@ -4714,30 +7564,94 @@ export default function SifarisDetailPage() {
                   </div>
 
                   {/* Vertical dashed divider */}
-                  <div style={{ borderLeft: "1px dashed #cbd5e1", margin: "0 0.5rem" }} />
+                  <div
+                    style={{
+                      borderLeft: "1px dashed #cbd5e1",
+                      margin: "0 0.5rem",
+                    }}
+                  />
 
                   {/* Right Column: Client settings */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                    <h4 style={{ margin: "0 0 0.25rem 0", fontSize: "0.9rem", fontWeight: 700, color: "#475569" }}>
-                      {partnerModalType === "client" ? "Client settings" : "Carrier settings"}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.75rem",
+                    }}
+                  >
+                    <h4
+                      style={{
+                        margin: "0 0 0.25rem 0",
+                        fontSize: "0.9rem",
+                        fontWeight: 700,
+                        color: "#475569",
+                      }}
+                    >
+                      {partnerModalType === "client"
+                        ? "Client settings"
+                        : "Carrier settings"}
                     </h4>
 
                     {/* Yaradılması tarixi and Language side-by-side */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Yaradılması tarixi</label>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "1rem",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.25rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Yaradılması tarixi
+                        </label>
                         <div style={{ position: "relative" }}>
                           <input
                             type="text"
                             value={partnerCreationDate}
-                            onChange={(e) => setPartnerCreationDate(e.target.value)}
+                            onChange={(e) =>
+                              setPartnerCreationDate(e.target.value)
+                            }
                             style={inputStyle}
                           />
-                          <FiCalendar style={{ position: "absolute", right: "0.6rem", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                          <FiCalendar
+                            style={{
+                              position: "absolute",
+                              right: "0.6rem",
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              color: "#94a3b8",
+                            }}
+                          />
                         </div>
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Language of notifications</label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.25rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Language of notifications
+                        </label>
                         <select
                           value={partnerLang}
                           onChange={(e) => setPartnerLang(e.target.value)}
@@ -4751,8 +7665,22 @@ export default function SifarisDetailPage() {
                     </div>
 
                     {/* Menecerlər tag pill list */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Menecerlər</label>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.25rem",
+                      }}
+                    >
+                      <label
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "#64748b",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Menecerlər
+                      </label>
                       <div
                         style={{
                           border: "1px solid #cbd5e1",
@@ -4781,23 +7709,52 @@ export default function SifarisDetailPage() {
                                 gap: "0.25rem",
                               }}
                             >
-                              <span style={{ cursor: "pointer", fontWeight: "bold" }} onClick={() => setPartnerManagers([])}>×</span>
+                              <span
+                                style={{
+                                  cursor: "pointer",
+                                  fontWeight: "bold",
+                                }}
+                                onClick={() => setPartnerManagers([])}
+                              >
+                                ×
+                              </span>
                               {m}
                             </span>
                           ))}
                         </div>
-                        <span style={{ fontSize: "0.75rem", color: "#94a3b8", cursor: "pointer", padding: "0 0.25rem" }} onClick={() => setPartnerManagers([])}>×</span>
+                        <span
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#94a3b8",
+                            cursor: "pointer",
+                            padding: "0 0.25rem",
+                          }}
+                          onClick={() => setPartnerManagers([])}
+                        >
+                          ×
+                        </span>
                       </div>
                     </div>
 
                     {/* İşə icazə verilmişdir Checkbox */}
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.5rem", cursor: "pointer" }} onClick={() => setPartnerPermitted(!partnerPermitted)}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        marginTop: "0.5rem",
+                        cursor: "pointer",
+                      }}
+                      onClick={() => setPartnerPermitted(!partnerPermitted)}
+                    >
                       <div
                         style={{
                           width: "18px",
                           height: "18px",
                           borderRadius: "4px",
-                          border: partnerPermitted ? "1.5px solid #22c55e" : "1.5px solid #cbd5e1",
+                          border: partnerPermitted
+                            ? "1.5px solid #22c55e"
+                            : "1.5px solid #cbd5e1",
                           background: partnerPermitted ? "#22c55e" : "#ffffff",
                           display: "flex",
                           alignItems: "center",
@@ -4809,14 +7766,35 @@ export default function SifarisDetailPage() {
                       >
                         {partnerPermitted && "✓"}
                       </div>
-                      <span style={{ fontSize: "0.8rem", color: "#1e293b", fontWeight: 600 }}>
+                      <span
+                        style={{
+                          fontSize: "0.8rem",
+                          color: "#1e293b",
+                          fontWeight: 600,
+                        }}
+                      >
                         İşə icazə verilmişdir
                       </span>
                     </div>
 
                     {/* Əlavə məlumat */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", marginTop: "0.25rem" }}>
-                      <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Əlavə məlumat</label>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.25rem",
+                        marginTop: "0.25rem",
+                      }}
+                    >
+                      <label
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "#64748b",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Əlavə məlumat
+                      </label>
                       <textarea
                         value={partnerExtraInfo}
                         onChange={(e) => setPartnerExtraInfo(e.target.value)}
@@ -4841,48 +7819,237 @@ export default function SifarisDetailPage() {
 
               {/* TAB 2: Əlaqə məlumatları */}
               {partnerActiveTab === "contact" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
-                      <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#475569" }}>Hüquqi ünvan</span>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "1.5rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.375rem",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "0.85rem",
+                          fontWeight: 700,
+                          color: "#475569",
+                        }}
+                      >
+                        Hüquqi ünvan
+                      </span>
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
-                        <LabelWithPlus label="Ölkə" onPlusClick={() => setIsCountryModalOpen(true)} />
-                        <select value={legalCountry} onChange={(e) => setLegalCountry(e.target.value)} style={selectStyle}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(4, 1fr)",
+                        gap: "0.75rem",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.15rem",
+                        }}
+                      >
+                        <LabelWithPlus
+                          label="Ölkə"
+                          onPlusClick={() => setIsCountryModalOpen(true)}
+                        />
+                        <select
+                          value={legalCountry}
+                          onChange={(e) => setLegalCountry(e.target.value)}
+                          style={selectStyle}
+                        >
                           <option value="Dəyəri seçin">Dəyəri seçin</option>
-                          {countries.map(c => <option key={c} value={c}>{c}</option>)}
+                          {countries.map((c) => (
+                            <option key={c} value={c}>
+                              {c}
+                            </option>
+                          ))}
                         </select>
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Şəhər</label>
-                        <input type="text" value={legalCity} onChange={(e) => setLegalCity(e.target.value)} style={inputStyle} />
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.15rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Şəhər
+                        </label>
+                        <input
+                          type="text"
+                          value={legalCity}
+                          onChange={(e) => setLegalCity(e.target.value)}
+                          style={inputStyle}
+                        />
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Ünvan</label>
-                        <input type="text" value={legalStreet} onChange={(e) => setLegalStreet(e.target.value)} style={inputStyle} />
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.15rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Ünvan
+                        </label>
+                        <input
+                          type="text"
+                          value={legalStreet}
+                          onChange={(e) => setLegalStreet(e.target.value)}
+                          style={inputStyle}
+                        />
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Poçt kodu</label>
-                        <input type="text" value={legalZip} onChange={(e) => setLegalZip(e.target.value)} style={inputStyle} />
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.15rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Poçt kodu
+                        </label>
+                        <input
+                          type="text"
+                          value={legalZip}
+                          onChange={(e) => setLegalZip(e.target.value)}
+                          style={inputStyle}
+                        />
                       </div>
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem", marginTop: "0.5rem" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Telefon</label>
-                        <input type="text" value={legalTel} onChange={(e) => setLegalTel(e.target.value)} style={inputStyle} />
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(4, 1fr)",
+                        gap: "0.75rem",
+                        marginTop: "0.5rem",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.15rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Telefon
+                        </label>
+                        <input
+                          type="text"
+                          value={legalTel}
+                          onChange={(e) => setLegalTel(e.target.value)}
+                          style={inputStyle}
+                        />
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Faks</label>
-                        <input type="text" value={legalFax} onChange={(e) => setLegalFax(e.target.value)} style={inputStyle} />
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.15rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Faks
+                        </label>
+                        <input
+                          type="text"
+                          value={legalFax}
+                          onChange={(e) => setLegalFax(e.target.value)}
+                          style={inputStyle}
+                        />
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>E-poçt</label>
-                        <input type="email" value={legalEmail} onChange={(e) => setLegalEmail(e.target.value)} style={inputStyle} />
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.15rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          E-poçt
+                        </label>
+                        <input
+                          type="email"
+                          value={legalEmail}
+                          onChange={(e) => setLegalEmail(e.target.value)}
+                          style={inputStyle}
+                        />
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Veb-sayt</label>
-                        <input type="text" value={legalWeb} onChange={(e) => setLegalWeb(e.target.value)} style={inputStyle} />
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.15rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Veb-sayt
+                        </label>
+                        <input
+                          type="text"
+                          value={legalWeb}
+                          onChange={(e) => setLegalWeb(e.target.value)}
+                          style={inputStyle}
+                        />
                       </div>
                     </div>
                   </div>
@@ -4891,7 +8058,13 @@ export default function SifarisDetailPage() {
 
               {/* TAB 3: Maliyyələr */}
               {partnerActiveTab === "finance" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "1.25rem",
+                  }}
+                >
                   {/* Bank accounts section header */}
                   <div
                     style={{
@@ -4934,17 +8107,32 @@ export default function SifarisDetailPage() {
                     >
                       +
                     </span>
-                    <span style={{ color: "#1e293b", fontWeight: 700, fontSize: "0.9rem" }}>Bank accounts</span>
+                    <span
+                      style={{
+                        color: "#1e293b",
+                        fontWeight: 700,
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      Bank accounts
+                    </span>
                   </div>
 
                   {/* Bank accounts list */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.75rem",
+                    }}
+                  >
                     {bankAccounts.map((account, index) => (
                       <div
                         key={account.id}
                         style={{
                           display: "grid",
-                          gridTemplateColumns: "30px 100px 1.5fr 1.5fr 1.5fr 1.5fr 1.5fr",
+                          gridTemplateColumns:
+                            "30px 100px 1.5fr 1.5fr 1.5fr 1.5fr 1.5fr",
                           gap: "0.75rem",
                           alignItems: "end",
                         }}
@@ -4959,14 +8147,21 @@ export default function SifarisDetailPage() {
                                 "Bank hesabını sil",
                                 "Bu bank hesabını silmək istədiyinizə əminsiniz?",
                                 () =>
-                                  setBankAccounts(bankAccounts.filter((a) => a.id !== account.id)),
+                                  setBankAccounts(
+                                    bankAccounts.filter(
+                                      (a) => a.id !== account.id,
+                                    ),
+                                  ),
                               );
                             }}
                             style={{
                               background: "transparent",
                               border: 0,
                               padding: 0,
-                              cursor: bankAccounts.length > 1 ? "pointer" : "not-allowed",
+                              cursor:
+                                bankAccounts.length > 1
+                                  ? "pointer"
+                                  : "not-allowed",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
@@ -4993,10 +8188,23 @@ export default function SifarisDetailPage() {
                         </div>
 
                         {/* Valyuta */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "0.25rem",
+                          }}
+                        >
                           {index === 0 && (
-                            <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
-                              Valyuta <span style={{ color: "#ef4444" }}>*</span>
+                            <label
+                              style={{
+                                fontSize: "0.75rem",
+                                color: "#64748b",
+                                fontWeight: 600,
+                              }}
+                            >
+                              Valyuta{" "}
+                              <span style={{ color: "#ef4444" }}>*</span>
                             </label>
                           )}
                           <select
@@ -5004,8 +8212,10 @@ export default function SifarisDetailPage() {
                             onChange={(e) => {
                               setBankAccounts(
                                 bankAccounts.map((a) =>
-                                  a.id === account.id ? { ...a, currency: e.target.value } : a
-                                )
+                                  a.id === account.id
+                                    ? { ...a, currency: e.target.value }
+                                    : a,
+                                ),
                               );
                             }}
                             style={selectStyle}
@@ -5018,9 +8228,21 @@ export default function SifarisDetailPage() {
                         </div>
 
                         {/* Hesablaşma hesabı */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "0.25rem",
+                          }}
+                        >
                           {index === 0 && (
-                            <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+                            <label
+                              style={{
+                                fontSize: "0.75rem",
+                                color: "#64748b",
+                                fontWeight: 600,
+                              }}
+                            >
                               Hesablaşma hesabı
                             </label>
                           )}
@@ -5030,8 +8252,10 @@ export default function SifarisDetailPage() {
                             onChange={(e) => {
                               setBankAccounts(
                                 bankAccounts.map((a) =>
-                                  a.id === account.id ? { ...a, account: e.target.value } : a
-                                )
+                                  a.id === account.id
+                                    ? { ...a, account: e.target.value }
+                                    : a,
+                                ),
                               );
                             }}
                             style={inputStyle}
@@ -5039,17 +8263,28 @@ export default function SifarisDetailPage() {
                         </div>
 
                         {/* Bank */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "0.25rem",
+                          }}
+                        >
                           {index === 0 && (
-                            <LabelWithPlus label="Bank" onPlusClick={() => setIsBankModalOpen(true)} />
+                            <LabelWithPlus
+                              label="Bank"
+                              onPlusClick={() => setIsBankModalOpen(true)}
+                            />
                           )}
                           <select
                             value={account.bank}
                             onChange={(e) => {
                               setBankAccounts(
                                 bankAccounts.map((a) =>
-                                  a.id === account.id ? { ...a, bank: e.target.value } : a
-                                )
+                                  a.id === account.id
+                                    ? { ...a, bank: e.target.value }
+                                    : a,
+                                ),
                               );
                             }}
                             style={selectStyle}
@@ -5064,9 +8299,21 @@ export default function SifarisDetailPage() {
                         </div>
 
                         {/* Tranzit hesab */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "0.25rem",
+                          }}
+                        >
                           {index === 0 && (
-                            <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+                            <label
+                              style={{
+                                fontSize: "0.75rem",
+                                color: "#64748b",
+                                fontWeight: 600,
+                              }}
+                            >
                               Tranzit hesab
                             </label>
                           )}
@@ -5076,8 +8323,10 @@ export default function SifarisDetailPage() {
                             onChange={(e) => {
                               setBankAccounts(
                                 bankAccounts.map((a) =>
-                                  a.id === account.id ? { ...a, transitAccount: e.target.value } : a
-                                )
+                                  a.id === account.id
+                                    ? { ...a, transitAccount: e.target.value }
+                                    : a,
+                                ),
                               );
                             }}
                             style={inputStyle}
@@ -5085,17 +8334,28 @@ export default function SifarisDetailPage() {
                         </div>
 
                         {/* Müxbir bank */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "0.25rem",
+                          }}
+                        >
                           {index === 0 && (
-                            <LabelWithPlus label="Müxbir bank" onPlusClick={() => setIsBankModalOpen(true)} />
+                            <LabelWithPlus
+                              label="Müxbir bank"
+                              onPlusClick={() => setIsBankModalOpen(true)}
+                            />
                           )}
                           <select
                             value={account.corrBank}
                             onChange={(e) => {
                               setBankAccounts(
                                 bankAccounts.map((a) =>
-                                  a.id === account.id ? { ...a, corrBank: e.target.value } : a
-                                )
+                                  a.id === account.id
+                                    ? { ...a, corrBank: e.target.value }
+                                    : a,
+                                ),
                               );
                             }}
                             style={selectStyle}
@@ -5110,9 +8370,21 @@ export default function SifarisDetailPage() {
                         </div>
 
                         {/* Müxbir hesab */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "0.25rem",
+                          }}
+                        >
                           {index === 0 && (
-                            <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+                            <label
+                              style={{
+                                fontSize: "0.75rem",
+                                color: "#64748b",
+                                fontWeight: 600,
+                              }}
+                            >
                               Müxbir hesab
                             </label>
                           )}
@@ -5122,8 +8394,10 @@ export default function SifarisDetailPage() {
                             onChange={(e) => {
                               setBankAccounts(
                                 bankAccounts.map((a) =>
-                                  a.id === account.id ? { ...a, corrAccount: e.target.value } : a
-                                )
+                                  a.id === account.id
+                                    ? { ...a, corrAccount: e.target.value }
+                                    : a,
+                                ),
                               );
                             }}
                             style={inputStyle}
@@ -5134,11 +8408,44 @@ export default function SifarisDetailPage() {
                   </div>
 
                   {/* Financial terms & conditions */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
-                    <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#475569" }}>Financial terms</span>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.5rem",
+                      marginTop: "0.5rem",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.85rem",
+                        fontWeight: 700,
+                        color: "#475569",
+                      }}
+                    >
+                      Financial terms
+                    </span>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "1rem",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.25rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
                           Ödənişin təxirə salınması
                         </label>
                         <input
@@ -5148,8 +8455,20 @@ export default function SifarisDetailPage() {
                           style={inputStyle}
                         />
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.25rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                          }}
+                        >
                           Ödənişlərin təxirə salınması şərtləri
                         </label>
                         <select
@@ -5157,16 +8476,32 @@ export default function SifarisDetailPage() {
                           onChange={(e) => setFinanceDelayTerms(e.target.value)}
                           style={selectStyle}
                         >
-                          <option value="B/k 30 təqvim günü.">B/k 30 təqvim günü.</option>
-                          <option value="B/k 15 təqvim günü.">B/k 15 təqvim günü.</option>
+                          <option value="B/k 30 təqvim günü.">
+                            B/k 30 təqvim günü.
+                          </option>
+                          <option value="B/k 15 təqvim günü.">
+                            B/k 15 təqvim günü.
+                          </option>
                         </select>
                       </div>
                     </div>
                   </div>
 
                   {/* Document terms text */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                    <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.25rem",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        fontWeight: 600,
+                      }}
+                    >
                       Document terms text
                     </label>
                     <textarea
@@ -5177,9 +8512,30 @@ export default function SifarisDetailPage() {
                   </div>
 
                   {/* Credit limit, Email, Checkbox */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr 1.3fr", gap: "1.5rem", alignItems: "end" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Kredit limiti</label>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1.2fr 1.3fr",
+                      gap: "1.5rem",
+                      alignItems: "end",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.25rem",
+                      }}
+                    >
+                      <label
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "#64748b",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Kredit limiti
+                      </label>
                       <input
                         type="text"
                         value={financeCreditLimit}
@@ -5188,8 +8544,20 @@ export default function SifarisDetailPage() {
                       />
                     </div>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.25rem",
+                      }}
+                    >
+                      <label
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "#64748b",
+                          fontWeight: 600,
+                        }}
+                      >
                         Sənədlərin göndərilməsi üçün el.poçt ?
                       </label>
                       <input
@@ -5208,15 +8576,21 @@ export default function SifarisDetailPage() {
                         cursor: "pointer",
                         paddingBottom: "0.5rem",
                       }}
-                      onClick={() => setFinanceSendReminders(!financeSendReminders)}
+                      onClick={() =>
+                        setFinanceSendReminders(!financeSendReminders)
+                      }
                     >
                       <div
                         style={{
                           width: "18px",
                           height: "18px",
                           borderRadius: "4px",
-                          border: financeSendReminders ? "1.5px solid #22c55e" : "1.5px solid #cbd5e1",
-                          background: financeSendReminders ? "#22c55e" : "#ffffff",
+                          border: financeSendReminders
+                            ? "1.5px solid #22c55e"
+                            : "1.5px solid #cbd5e1",
+                          background: financeSendReminders
+                            ? "#22c55e"
+                            : "#ffffff",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -5227,7 +8601,13 @@ export default function SifarisDetailPage() {
                       >
                         {financeSendReminders && "✓"}
                       </div>
-                      <span style={{ fontSize: "0.8rem", color: "#1e293b", fontWeight: 600 }}>
+                      <span
+                        style={{
+                          fontSize: "0.8rem",
+                          color: "#1e293b",
+                          fontWeight: 600,
+                        }}
+                      >
                         Borclar haqqında xatırlatmaları göndər
                       </span>
                     </div>
@@ -5278,8 +8658,12 @@ export default function SifarisDetailPage() {
                   cursor: "pointer",
                   transition: "background-color 0.2s",
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#16a34a")}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "#22c55e")}
+                onMouseOver={(e) =>
+                  (e.currentTarget.style.backgroundColor = "#16a34a")
+                }
+                onMouseOut={(e) =>
+                  (e.currentTarget.style.backgroundColor = "#22c55e")
+                }
               >
                 Yaddaşda saxlamaq
               </button>
@@ -5340,7 +8724,13 @@ export default function SifarisDetailPage() {
                 justifyContent: "space-between",
               }}
             >
-              <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "#475569" }}>
+              <span
+                style={{
+                  fontSize: "1.1rem",
+                  fontWeight: 700,
+                  color: "#475569",
+                }}
+              >
                 Yarat
               </span>
               <button
@@ -5363,9 +8753,27 @@ export default function SifarisDetailPage() {
             </div>
 
             {/* Row 1: Adı * and ISO kodu * */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "1rem",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.25rem",
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "#64748b",
+                    fontWeight: 600,
+                  }}
+                >
                   Adı <span style={{ color: "#ef4444" }}>*</span>
                 </label>
                 <input
@@ -5375,8 +8783,20 @@ export default function SifarisDetailPage() {
                   style={inputStyle}
                 />
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.25rem",
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "#64748b",
+                    fontWeight: 600,
+                  }}
+                >
                   ISO kodu <span style={{ color: "#ef4444" }}>*</span>
                 </label>
                 <input
@@ -5392,7 +8812,12 @@ export default function SifarisDetailPage() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem" }}>
               {/* Avropa ölkələri */}
               <div
-                style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                }}
                 onClick={() => setIsEuropeCountry(!isEuropeCountry)}
               >
                 <div
@@ -5400,7 +8825,9 @@ export default function SifarisDetailPage() {
                     width: "18px",
                     height: "18px",
                     borderRadius: "4px",
-                    border: isEuropeCountry ? "1.5px solid #22c55e" : "1.5px solid #cbd5e1",
+                    border: isEuropeCountry
+                      ? "1.5px solid #22c55e"
+                      : "1.5px solid #cbd5e1",
                     background: isEuropeCountry ? "#22c55e" : "#ffffff",
                     display: "flex",
                     alignItems: "center",
@@ -5412,14 +8839,25 @@ export default function SifarisDetailPage() {
                 >
                   {isEuropeCountry && "✓"}
                 </div>
-                <span style={{ fontSize: "0.8rem", color: "#1e293b", fontWeight: 600 }}>
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#1e293b",
+                    fontWeight: 600,
+                  }}
+                >
                   Avropa ölkələri
                 </span>
               </div>
 
               {/* Susmaya görə ölkə */}
               <div
-                style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                }}
                 onClick={() => setIsDefaultCountry(!isDefaultCountry)}
               >
                 <div
@@ -5427,7 +8865,9 @@ export default function SifarisDetailPage() {
                     width: "18px",
                     height: "18px",
                     borderRadius: "4px",
-                    border: isDefaultCountry ? "1.5px solid #22c55e" : "1.5px solid #cbd5e1",
+                    border: isDefaultCountry
+                      ? "1.5px solid #22c55e"
+                      : "1.5px solid #cbd5e1",
                     background: isDefaultCountry ? "#22c55e" : "#ffffff",
                     display: "flex",
                     alignItems: "center",
@@ -5439,14 +8879,25 @@ export default function SifarisDetailPage() {
                 >
                   {isDefaultCountry && "✓"}
                 </div>
-                <span style={{ fontSize: "0.8rem", color: "#1e293b", fontWeight: 600 }}>
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#1e293b",
+                    fontWeight: 600,
+                  }}
+                >
                   Susmaya görə ölkə
                 </span>
               </div>
 
               {/* Aktiv */}
               <div
-                style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                }}
                 onClick={() => setIsActiveCountry(!isActiveCountry)}
               >
                 <div
@@ -5454,7 +8905,9 @@ export default function SifarisDetailPage() {
                     width: "18px",
                     height: "18px",
                     borderRadius: "4px",
-                    border: isActiveCountry ? "1.5px solid #22c55e" : "1.5px solid #cbd5e1",
+                    border: isActiveCountry
+                      ? "1.5px solid #22c55e"
+                      : "1.5px solid #cbd5e1",
                     background: isActiveCountry ? "#22c55e" : "#ffffff",
                     display: "flex",
                     alignItems: "center",
@@ -5466,15 +8919,33 @@ export default function SifarisDetailPage() {
                 >
                   {isActiveCountry && "✓"}
                 </div>
-                <span style={{ fontSize: "0.8rem", color: "#1e293b", fontWeight: 600 }}>
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#1e293b",
+                    fontWeight: 600,
+                  }}
+                >
                   Aktiv
                 </span>
               </div>
             </div>
 
             {/* Row 3: Ölkələr */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#64748b",
+                  fontWeight: 600,
+                }}
+              >
                 Ölkələr
               </label>
               <select
@@ -5513,7 +8984,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            />
+          />
 
           <div
             style={{
@@ -5534,63 +9005,180 @@ export default function SifarisDetailPage() {
             }}
           >
             {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "#475569" }}>Yeni akt</span>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "1.1rem",
+                  fontWeight: 700,
+                  color: "#475569",
+                }}
+              >
+                Yeni akt
+              </span>
               <button
                 type="button"
                 onClick={() => setIsNewActModalOpen(false)}
-                style={{ background: "transparent", border: 0, cursor: "pointer", fontSize: "1.25rem", color: "#0f172a" }}
+                style={{
+                  background: "transparent",
+                  border: 0,
+                  cursor: "pointer",
+                  fontSize: "1.25rem",
+                  color: "#0f172a",
+                }}
               >
                 <FiX />
               </button>
             </div>
 
             {/* Şirkət */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Şirkət</label>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#64748b",
+                  fontWeight: 600,
+                }}
+              >
+                Şirkət
+              </label>
               <div style={{ position: "relative" }}>
-                <select value={newActCompany} onChange={(e) => setNewActCompany(e.target.value)} style={selectStyle}>
+                <select
+                  value={newActCompany}
+                  onChange={(e) => setNewActCompany(e.target.value)}
+                  style={selectStyle}
+                >
                   <option value="Ziyafreight">Ziyafreight</option>
                 </select>
-                <span style={{ position: "absolute", right: "2.2rem", top: "50%", transform: "translateY(-50%)", color: "#64748b", cursor: "pointer", fontWeight: "bold" }} onClick={() => setNewActCompany("")}>&times;</span>
+                <span
+                  style={{
+                    position: "absolute",
+                    right: "2.2rem",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: "#64748b",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                  }}
+                  onClick={() => setNewActCompany("")}
+                >
+                  &times;
+                </span>
               </div>
             </div>
 
             {/* Tip * */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.35rem",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#64748b",
+                  fontWeight: 600,
+                }}
+              >
                 Tip <span style={{ color: "#ef4444" }}>*</span>
               </label>
               <div style={{ display: "flex", gap: "1.5rem" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    cursor: "pointer",
+                  }}
+                >
                   <input
                     type="radio"
                     name="actType"
                     checked={newActType === "Sənədin şablonu"}
                     onChange={() => setNewActType("Sənədin şablonu")}
-                    style={{ accentColor: "#22c55e", width: "18px", height: "18px" }}
+                    style={{
+                      accentColor: "#22c55e",
+                      width: "18px",
+                      height: "18px",
+                    }}
                   />
-                  <span style={{ fontSize: "0.85rem", color: "#1e293b", fontWeight: 600 }}>Sənədin şablonu</span>
+                  <span
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "#1e293b",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Sənədin şablonu
+                  </span>
                 </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    cursor: "pointer",
+                  }}
+                >
                   <input
                     type="radio"
                     name="actType"
                     checked={newActType === "Əlavə edilmiş fayl"}
                     onChange={() => setNewActType("Əlavə edilmiş fayl")}
-                    style={{ accentColor: "#22c55e", width: "18px", height: "18px" }}
+                    style={{
+                      accentColor: "#22c55e",
+                      width: "18px",
+                      height: "18px",
+                    }}
                   />
-                  <span style={{ fontSize: "0.85rem", color: "#1e293b", fontWeight: 600 }}>Əlavə edilmiş fayl</span>
+                  <span
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "#1e293b",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Əlavə edilmiş fayl
+                  </span>
                 </label>
               </div>
             </div>
 
             {/* Şablon * */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#64748b",
+                  fontWeight: 600,
+                }}
+              >
                 Şablon <span style={{ color: "#ef4444" }}>*</span>
               </label>
-              <select value={newActTemplate} onChange={(e) => setNewActTemplate(e.target.value)} style={selectStyle}>
+              <select
+                value={newActTemplate}
+                onChange={(e) => setNewActTemplate(e.target.value)}
+                style={selectStyle}
+              >
                 <option value="Dəyəri seçin">Dəyəri seçin</option>
                 <option value="Template 1">Template 1</option>
                 <option value="Template 2">Template 2</option>
@@ -5598,85 +9186,386 @@ export default function SifarisDetailPage() {
             </div>
 
             {/* Row 3: Sənədin nömrəsi, Sənədin tarixi, Sənədin adı */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.2fr", gap: "1rem" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Sənədin nömrəsi</label>
-                <input type="text" value={newActNumber} onChange={(e) => setNewActNumber(e.target.value)} style={inputStyle} />
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1.2fr",
+                gap: "1rem",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.25rem",
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "#64748b",
+                    fontWeight: 600,
+                  }}
+                >
+                  Sənədin nömrəsi
+                </label>
+                <input
+                  type="text"
+                  value={newActNumber}
+                  onChange={(e) => setNewActNumber(e.target.value)}
+                  style={inputStyle}
+                />
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Sənədin tarixi</label>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.25rem",
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "#64748b",
+                    fontWeight: 600,
+                  }}
+                >
+                  Sənədin tarixi
+                </label>
                 <div style={{ position: "relative" }}>
-                  <input type="text" value={newActDate} onChange={(e) => setNewActDate(e.target.value)} style={inputStyle} />
-                  <FiCalendar style={{ position: "absolute", right: "0.6rem", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                  <input
+                    type="text"
+                    value={newActDate}
+                    onChange={(e) => setNewActDate(e.target.value)}
+                    style={inputStyle}
+                  />
+                  <FiCalendar
+                    style={{
+                      position: "absolute",
+                      right: "0.6rem",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#94a3b8",
+                    }}
+                  />
                 </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Sənədin adı</label>
-                <input type="text" value={newActName} onChange={(e) => setNewActName(e.target.value)} style={inputStyle} />
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.25rem",
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "#64748b",
+                    fontWeight: 600,
+                  }}
+                >
+                  Sənədin adı
+                </label>
+                <input
+                  type="text"
+                  value={newActName}
+                  onChange={(e) => setNewActName(e.target.value)}
+                  style={inputStyle}
+                />
               </div>
             </div>
 
             {/* Checkboxes Group 1 */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.6rem",
+              }}
+            >
               {/* Sənədin etibarlılıq müddəti */}
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }} onClick={() => setNewActHasValidity(!newActHasValidity)}>
-                <div style={{ width: "18px", height: "18px", borderRadius: "4px", border: newActHasValidity ? "1.5px solid #22c55e" : "1.5px solid #cbd5e1", background: newActHasValidity ? "#22c55e" : "#ffffff", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", fontSize: "0.7rem", fontWeight: "bold" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                }}
+                onClick={() => setNewActHasValidity(!newActHasValidity)}
+              >
+                <div
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    borderRadius: "4px",
+                    border: newActHasValidity
+                      ? "1.5px solid #22c55e"
+                      : "1.5px solid #cbd5e1",
+                    background: newActHasValidity ? "#22c55e" : "#ffffff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#ffffff",
+                    fontSize: "0.7rem",
+                    fontWeight: "bold",
+                  }}
+                >
                   {newActHasValidity && "✓"}
                 </div>
-                <span style={{ fontSize: "0.8rem", color: "#1e293b", fontWeight: 600 }}>Sənədin etibarlılıq müddəti</span>
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#1e293b",
+                    fontWeight: 600,
+                  }}
+                >
+                  Sənədin etibarlılıq müddəti
+                </span>
               </div>
 
               {/* Reys üçün müqavilə */}
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }} onClick={() => setNewActIsContract(!newActIsContract)}>
-                <div style={{ width: "18px", height: "18px", borderRadius: "4px", border: newActIsContract ? "1.5px solid #22c55e" : "1.5px solid #cbd5e1", background: newActIsContract ? "#22c55e" : "#ffffff", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", fontSize: "0.7rem", fontWeight: "bold" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                }}
+                onClick={() => setNewActIsContract(!newActIsContract)}
+              >
+                <div
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    borderRadius: "4px",
+                    border: newActIsContract
+                      ? "1.5px solid #22c55e"
+                      : "1.5px solid #cbd5e1",
+                    background: newActIsContract ? "#22c55e" : "#ffffff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#ffffff",
+                    fontSize: "0.7rem",
+                    fontWeight: "bold",
+                  }}
+                >
                   {newActIsContract && "✓"}
                 </div>
-                <span style={{ fontSize: "0.8rem", color: "#1e293b", fontWeight: 600 }}>Reys üçün müqavilə</span>
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#1e293b",
+                    fontWeight: 600,
+                  }}
+                >
+                  Reys üçün müqavilə
+                </span>
               </div>
 
               {/* Göndərmə barədə məlumat verin */}
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }} onClick={() => setNewActIsSendNotif(!newActIsSendNotif)}>
-                <div style={{ width: "18px", height: "18px", borderRadius: "4px", border: newActIsSendNotif ? "1.5px solid #22c55e" : "1.5px solid #cbd5e1", background: newActIsSendNotif ? "#22c55e" : "#ffffff", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", fontSize: "0.7rem", fontWeight: "bold" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                }}
+                onClick={() => setNewActIsSendNotif(!newActIsSendNotif)}
+              >
+                <div
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    borderRadius: "4px",
+                    border: newActIsSendNotif
+                      ? "1.5px solid #22c55e"
+                      : "1.5px solid #cbd5e1",
+                    background: newActIsSendNotif ? "#22c55e" : "#ffffff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#ffffff",
+                    fontSize: "0.7rem",
+                    fontWeight: "bold",
+                  }}
+                >
                   {newActIsSendNotif && "✓"}
                 </div>
-                <span style={{ fontSize: "0.8rem", color: "#1e293b", fontWeight: 600 }}>Göndərmə barədə məlumat verin</span>
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#1e293b",
+                    fontWeight: 600,
+                  }}
+                >
+                  Göndərmə barədə məlumat verin
+                </span>
               </div>
             </div>
 
             {/* Reyslər label and value */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
-              <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 700 }}>Reyslər</span>
-              <span style={{ fontSize: "0.85rem", color: "#1e293b", fontWeight: 600 }}>ZF26094-1</span>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.15rem",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#64748b",
+                  fontWeight: 700,
+                }}
+              >
+                Reyslər
+              </span>
+              <span
+                style={{
+                  fontSize: "0.85rem",
+                  color: "#1e293b",
+                  fontWeight: 600,
+                }}
+              >
+                ZF26094-1
+              </span>
             </div>
 
             {/* Checkboxes Group 2 */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.6rem",
+              }}
+            >
               {/* Möhürlər və imzalar olmadan */}
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }} onClick={() => setNewActNoSeals(!newActNoSeals)}>
-                <div style={{ width: "18px", height: "18px", borderRadius: "4px", border: newActNoSeals ? "1.5px solid #22c55e" : "1.5px solid #cbd5e1", background: newActNoSeals ? "#22c55e" : "#ffffff", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", fontSize: "0.7rem", fontWeight: "bold" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                }}
+                onClick={() => setNewActNoSeals(!newActNoSeals)}
+              >
+                <div
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    borderRadius: "4px",
+                    border: newActNoSeals
+                      ? "1.5px solid #22c55e"
+                      : "1.5px solid #cbd5e1",
+                    background: newActNoSeals ? "#22c55e" : "#ffffff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#ffffff",
+                    fontSize: "0.7rem",
+                    fontWeight: "bold",
+                  }}
+                >
                   {newActNoSeals && "✓"}
                 </div>
-                <span style={{ fontSize: "0.8rem", color: "#1e293b", fontWeight: 600 }}>Möhürlər və imzalar olmadan</span>
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#1e293b",
+                    fontWeight: 600,
+                  }}
+                >
+                  Möhürlər və imzalar olmadan
+                </span>
               </div>
 
               {/* Müştəriyə çıxışı təqdim et */}
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }} onClick={() => setNewActProvideAccess(!newActProvideAccess)}>
-                <div style={{ width: "18px", height: "18px", borderRadius: "4px", border: newActProvideAccess ? "1.5px solid #22c55e" : "1.5px solid #cbd5e1", background: newActProvideAccess ? "#22c55e" : "#ffffff", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", fontSize: "0.7rem", fontWeight: "bold" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                }}
+                onClick={() => setNewActProvideAccess(!newActProvideAccess)}
+              >
+                <div
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    borderRadius: "4px",
+                    border: newActProvideAccess
+                      ? "1.5px solid #22c55e"
+                      : "1.5px solid #cbd5e1",
+                    background: newActProvideAccess ? "#22c55e" : "#ffffff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#ffffff",
+                    fontSize: "0.7rem",
+                    fontWeight: "bold",
+                  }}
+                >
                   {newActProvideAccess && "✓"}
                 </div>
-                <span style={{ fontSize: "0.8rem", color: "#1e293b", fontWeight: 600 }}>Müştəriyə çıxışı təqdim et</span>
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#1e293b",
+                    fontWeight: 600,
+                  }}
+                >
+                  Müştəriyə çıxışı təqdim et
+                </span>
               </div>
             </div>
 
             {/* Hesablar */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
-              <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 700 }}>Hesablar</span>
-              <span style={{ fontSize: "1.1rem", color: "#0f172a", fontWeight: 800 }}>Hesab mövcud deyil</span>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.15rem",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#64748b",
+                  fontWeight: 700,
+                }}
+              >
+                Hesablar
+              </span>
+              <span
+                style={{
+                  fontSize: "1.1rem",
+                  color: "#0f172a",
+                  fontWeight: 800,
+                }}
+              >
+                Hesab mövcud deyil
+              </span>
             </div>
 
             {/* Şərhlər */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Şərhlər</label>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#64748b",
+                  fontWeight: 600,
+                }}
+              >
+                Şərhlər
+              </label>
               <textarea
                 value={newActComments}
                 onChange={(e) => setNewActComments(e.target.value)}
@@ -5685,7 +9574,14 @@ export default function SifarisDetailPage() {
             </div>
 
             {/* Footer Buttons */}
-            <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end", marginTop: "0.5rem" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "1rem",
+                justifyContent: "flex-end",
+                marginTop: "0.5rem",
+              }}
+            >
               <button
                 type="button"
                 onClick={() => {
@@ -5783,7 +9679,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            />
+          />
 
           <div
             style={{
@@ -5804,60 +9700,244 @@ export default function SifarisDetailPage() {
             }}
           >
             {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "#475569" }}>Yeni sənəd</span>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "1.1rem",
+                  fontWeight: 700,
+                  color: "#475569",
+                }}
+              >
+                Yeni sənəd
+              </span>
               <button
                 type="button"
                 onClick={() => setIsNewDocModalOpen(false)}
-                style={{ background: "transparent", border: 0, cursor: "pointer", fontSize: "1.25rem", color: "#0f172a" }}
+                style={{
+                  background: "transparent",
+                  border: 0,
+                  cursor: "pointer",
+                  fontSize: "1.25rem",
+                  color: "#0f172a",
+                }}
               >
                 <FiX />
               </button>
             </div>
 
             {/* Reyslər label and value */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
-              <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 700 }}>Reyslər</span>
-              <span style={{ fontSize: "0.85rem", color: "#1e293b", fontWeight: 600 }}>ZF26094-1</span>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.15rem",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#64748b",
+                  fontWeight: 700,
+                }}
+              >
+                Reyslər
+              </span>
+              <span
+                style={{
+                  fontSize: "0.85rem",
+                  color: "#1e293b",
+                  fontWeight: 600,
+                }}
+              >
+                ZF26094-1
+              </span>
             </div>
 
             {/* Checkboxes (Müştəriyə çıxışı təqdim et, Daşıyıcıya girişi təqdim et) */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }} onClick={() => setNewDocProvideAccessCustomer(!newDocProvideAccessCustomer)}>
-                <div style={{ width: "18px", height: "18px", borderRadius: "4px", border: newDocProvideAccessCustomer ? "1.5px solid #22c55e" : "1.5px solid #cbd5e1", background: newDocProvideAccessCustomer ? "#22c55e" : "#ffffff", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", fontSize: "0.7rem", fontWeight: "bold" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.6rem",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                }}
+                onClick={() =>
+                  setNewDocProvideAccessCustomer(!newDocProvideAccessCustomer)
+                }
+              >
+                <div
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    borderRadius: "4px",
+                    border: newDocProvideAccessCustomer
+                      ? "1.5px solid #22c55e"
+                      : "1.5px solid #cbd5e1",
+                    background: newDocProvideAccessCustomer
+                      ? "#22c55e"
+                      : "#ffffff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#ffffff",
+                    fontSize: "0.7rem",
+                    fontWeight: "bold",
+                  }}
+                >
                   {newDocProvideAccessCustomer && "✓"}
                 </div>
-                <span style={{ fontSize: "0.8rem", color: "#1e293b", fontWeight: 600 }}>Müştəriyə çıxışı təqdim et</span>
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#1e293b",
+                    fontWeight: 600,
+                  }}
+                >
+                  Müştəriyə çıxışı təqdim et
+                </span>
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }} onClick={() => setNewDocProvideAccessCarrier(!newDocProvideAccessCarrier)}>
-                <div style={{ width: "18px", height: "18px", borderRadius: "4px", border: newDocProvideAccessCarrier ? "1.5px solid #22c55e" : "1.5px solid #cbd5e1", background: newDocProvideAccessCarrier ? "#22c55e" : "#ffffff", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", fontSize: "0.7rem", fontWeight: "bold" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                }}
+                onClick={() =>
+                  setNewDocProvideAccessCarrier(!newDocProvideAccessCarrier)
+                }
+              >
+                <div
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    borderRadius: "4px",
+                    border: newDocProvideAccessCarrier
+                      ? "1.5px solid #22c55e"
+                      : "1.5px solid #cbd5e1",
+                    background: newDocProvideAccessCarrier
+                      ? "#22c55e"
+                      : "#ffffff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#ffffff",
+                    fontSize: "0.7rem",
+                    fontWeight: "bold",
+                  }}
+                >
                   {newDocProvideAccessCarrier && "✓"}
                 </div>
-                <span style={{ fontSize: "0.8rem", color: "#1e293b", fontWeight: 600 }}>Daşıyıcıya girişi təqdim et</span>
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#1e293b",
+                    fontWeight: 600,
+                  }}
+                >
+                  Daşıyıcıya girişi təqdim et
+                </span>
               </div>
             </div>
 
             {/* Row: Sənədin adı * and Sənədin tarixi */}
-            <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "1rem" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1.2fr 1fr",
+                gap: "1rem",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.25rem",
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "#64748b",
+                    fontWeight: 600,
+                  }}
+                >
                   Sənədin adı <span style={{ color: "#ef4444" }}>*</span>
                 </label>
-                <input type="text" value={newDocName} onChange={(e) => setNewDocName(e.target.value)} style={inputStyle} />
+                <input
+                  type="text"
+                  value={newDocName}
+                  onChange={(e) => setNewDocName(e.target.value)}
+                  style={inputStyle}
+                />
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Sənədin tarixi</label>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.25rem",
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "#64748b",
+                    fontWeight: 600,
+                  }}
+                >
+                  Sənədin tarixi
+                </label>
                 <div style={{ position: "relative" }}>
-                  <input type="text" value={newDocDate} onChange={(e) => setNewDocDate(e.target.value)} style={inputStyle} />
-                  <FiCalendar style={{ position: "absolute", right: "0.6rem", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                  <input
+                    type="text"
+                    value={newDocDate}
+                    onChange={(e) => setNewDocDate(e.target.value)}
+                    style={inputStyle}
+                  />
+                  <FiCalendar
+                    style={{
+                      position: "absolute",
+                      right: "0.6rem",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#94a3b8",
+                    }}
+                  />
                 </div>
               </div>
             </div>
 
             {/* Şərhlər */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Şərhlər</label>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#64748b",
+                  fontWeight: 600,
+                }}
+              >
+                Şərhlər
+              </label>
               <textarea
                 value={newDocComments}
                 onChange={(e) => setNewDocComments(e.target.value)}
@@ -5866,14 +9946,47 @@ export default function SifarisDetailPage() {
             </div>
 
             {/* Link */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Link</label>
-              <input type="text" value={newDocLink} onChange={(e) => setNewDocLink(e.target.value)} style={inputStyle} />
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#64748b",
+                  fontWeight: 600,
+                }}
+              >
+                Link
+              </label>
+              <input
+                type="text"
+                value={newDocLink}
+                onChange={(e) => setNewDocLink(e.target.value)}
+                style={inputStyle}
+              />
             </div>
 
             {/* Fayl drag and drop */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Fayl</label>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#64748b",
+                  fontWeight: 600,
+                }}
+              >
+                Fayl
+              </label>
               <div
                 style={{
                   border: "2px dashed #cbd5e1",
@@ -5885,18 +9998,39 @@ export default function SifarisDetailPage() {
                 }}
               >
                 <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
-                  Faylınızı Sürüşdürün & Buraxın ya da <span style={{ color: "#22c55e", textDecoration: "underline", fontWeight: "bold" }}>Seçin</span>
+                  Faylınızı Sürüşdürün & Buraxın ya da{" "}
+                  <span
+                    style={{
+                      color: "#22c55e",
+                      textDecoration: "underline",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Seçin
+                  </span>
                 </span>
               </div>
             </div>
 
             {/* Footer Buttons */}
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.5rem" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                marginTop: "0.5rem",
+              }}
+            >
               <button
                 type="button"
                 onClick={() => {
                   if (!newDocName.trim()) {
-                    alert("Lütfən sənədin adını yazın!");
+                    dispatch(
+                      showNotification({
+                        message: "Lütfən sənədin adını yazın!",
+                        type: "error",
+                        autoCloseDuration: 3500,
+                      }),
+                    );
                     return;
                   }
                   setRequestedDocsList([
@@ -5973,98 +10107,325 @@ export default function SifarisDetailPage() {
             }}
           >
             {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "#475569" }}>Sənədi redaktə et</span>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "1.1rem",
+                  fontWeight: 700,
+                  color: "#475569",
+                }}
+              >
+                Sənədi redaktə et
+              </span>
               <button
                 type="button"
                 onClick={() => {
                   setIsEditDocModalOpen(false);
                   setSelectedDocForEdit(null);
                 }}
-                style={{ background: "transparent", border: 0, cursor: "pointer", fontSize: "1.25rem", color: "#0f172a" }}
+                style={{
+                  background: "transparent",
+                  border: 0,
+                  cursor: "pointer",
+                  fontSize: "1.25rem",
+                  color: "#0f172a",
+                }}
               >
                 <FiX />
               </button>
             </div>
 
             {/* Tip * */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.35rem",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#64748b",
+                  fontWeight: 600,
+                }}
+              >
                 Tip <span style={{ color: "#ef4444" }}>*</span>
               </label>
               <div style={{ display: "flex", gap: "1.5rem" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    cursor: "pointer",
+                  }}
+                >
                   <input
                     type="radio"
                     name="editDocType"
                     checked={editDocType === "Sənədin şablonu"}
                     onChange={() => setEditDocType("Sənədin şablonu")}
-                    style={{ accentColor: "#22c55e", width: "18px", height: "18px" }}
+                    style={{
+                      accentColor: "#22c55e",
+                      width: "18px",
+                      height: "18px",
+                    }}
                   />
-                  <span style={{ fontSize: "0.85rem", color: "#1e293b", fontWeight: 600 }}>Sənədin şablonu</span>
+                  <span
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "#1e293b",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Sənədin şablonu
+                  </span>
                 </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    cursor: "pointer",
+                  }}
+                >
                   <input
                     type="radio"
                     name="editDocType"
                     checked={editDocType === "Əlavə edilmiş fayl"}
                     onChange={() => setEditDocType("Əlavə edilmiş fayl")}
-                    style={{ accentColor: "#22c55e", width: "18px", height: "18px" }}
+                    style={{
+                      accentColor: "#22c55e",
+                      width: "18px",
+                      height: "18px",
+                    }}
                   />
-                  <span style={{ fontSize: "0.85rem", color: "#1e293b", fontWeight: 600 }}>Əlavə edilmiş fayl</span>
+                  <span
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "#1e293b",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Əlavə edilmiş fayl
+                  </span>
                 </label>
               </div>
             </div>
 
             {/* Sənədin şablonu * */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#64748b",
+                  fontWeight: 600,
+                }}
+              >
                 Sənədin şablonu <span style={{ color: "#ef4444" }}>*</span>
               </label>
-              <select value={editDocTemplate} onChange={(e) => setEditDocTemplate(e.target.value)} style={selectStyle}>
+              <select
+                value={editDocTemplate}
+                onChange={(e) => setEditDocTemplate(e.target.value)}
+                style={selectStyle}
+              >
                 <option value="Dəyəri seçin">Dəyəri seçin</option>
                 <option value="Template 1">Template 1</option>
               </select>
             </div>
 
             {/* Sənədin adı * */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#64748b",
+                  fontWeight: 600,
+                }}
+              >
                 Sənədin adı <span style={{ color: "#ef4444" }}>*</span>
               </label>
-              <input type="text" value={editDocName} onChange={(e) => setEditDocName(e.target.value)} style={inputStyle} />
+              <input
+                type="text"
+                value={editDocName}
+                onChange={(e) => setEditDocName(e.target.value)}
+                style={inputStyle}
+              />
             </div>
 
             {/* Checkboxes */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.6rem",
+              }}
+            >
               {/* Müştəriyə çıxışı təqdim et */}
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }} onClick={() => setEditDocProvideAccessCustomer(!editDocProvideAccessCustomer)}>
-                <div style={{ width: "18px", height: "18px", borderRadius: "4px", border: editDocProvideAccessCustomer ? "1.5px solid #22c55e" : "1.5px solid #cbd5e1", background: editDocProvideAccessCustomer ? "#22c55e" : "#ffffff", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", fontSize: "0.7rem", fontWeight: "bold" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                }}
+                onClick={() =>
+                  setEditDocProvideAccessCustomer(!editDocProvideAccessCustomer)
+                }
+              >
+                <div
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    borderRadius: "4px",
+                    border: editDocProvideAccessCustomer
+                      ? "1.5px solid #22c55e"
+                      : "1.5px solid #cbd5e1",
+                    background: editDocProvideAccessCustomer
+                      ? "#22c55e"
+                      : "#ffffff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#ffffff",
+                    fontSize: "0.7rem",
+                    fontWeight: "bold",
+                  }}
+                >
                   {editDocProvideAccessCustomer && "✓"}
                 </div>
-                <span style={{ fontSize: "0.8rem", color: "#1e293b", fontWeight: 600 }}>Müştəriyə çıxışı təqdim et</span>
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#1e293b",
+                    fontWeight: 600,
+                  }}
+                >
+                  Müştəriyə çıxışı təqdim et
+                </span>
               </div>
 
               {/* Daşıyıcıya girişi təqdim et */}
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }} onClick={() => setEditDocProvideAccessCarrier(!editDocProvideAccessCarrier)}>
-                <div style={{ width: "18px", height: "18px", borderRadius: "4px", border: editDocProvideAccessCarrier ? "1.5px solid #22c55e" : "1.5px solid #cbd5e1", background: editDocProvideAccessCarrier ? "#22c55e" : "#ffffff", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", fontSize: "0.7rem", fontWeight: "bold" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                }}
+                onClick={() =>
+                  setEditDocProvideAccessCarrier(!editDocProvideAccessCarrier)
+                }
+              >
+                <div
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    borderRadius: "4px",
+                    border: editDocProvideAccessCarrier
+                      ? "1.5px solid #22c55e"
+                      : "1.5px solid #cbd5e1",
+                    background: editDocProvideAccessCarrier
+                      ? "#22c55e"
+                      : "#ffffff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#ffffff",
+                    fontSize: "0.7rem",
+                    fontWeight: "bold",
+                  }}
+                >
                   {editDocProvideAccessCarrier && "✓"}
                 </div>
-                <span style={{ fontSize: "0.8rem", color: "#1e293b", fontWeight: 600 }}>Daşıyıcıya girişi təqdim et</span>
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#1e293b",
+                    fontWeight: 600,
+                  }}
+                >
+                  Daşıyıcıya girişi təqdim et
+                </span>
               </div>
 
               {/* Göndərmə barədə məlumat verin */}
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }} onClick={() => setEditDocSendNotif(!editDocSendNotif)}>
-                <div style={{ width: "18px", height: "18px", borderRadius: "4px", border: editDocSendNotif ? "1.5px solid #22c55e" : "1.5px solid #cbd5e1", background: editDocSendNotif ? "#22c55e" : "#ffffff", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", fontSize: "0.7rem", fontWeight: "bold" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                }}
+                onClick={() => setEditDocSendNotif(!editDocSendNotif)}
+              >
+                <div
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    borderRadius: "4px",
+                    border: editDocSendNotif
+                      ? "1.5px solid #22c55e"
+                      : "1.5px solid #cbd5e1",
+                    background: editDocSendNotif ? "#22c55e" : "#ffffff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#ffffff",
+                    fontSize: "0.7rem",
+                    fontWeight: "bold",
+                  }}
+                >
                   {editDocSendNotif && "✓"}
                 </div>
-                <span style={{ fontSize: "0.8rem", color: "#1e293b", fontWeight: 600 }}>Göndərmə barədə məlumat verin</span>
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#1e293b",
+                    fontWeight: 600,
+                  }}
+                >
+                  Göndərmə barədə məlumat verin
+                </span>
               </div>
             </div>
 
             {/* Şərhlər */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Şərhlər</label>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#64748b",
+                  fontWeight: 600,
+                }}
+              >
+                Şərhlər
+              </label>
               <textarea
                 value={editDocComments}
                 onChange={(e) => setEditDocComments(e.target.value)}
@@ -6073,12 +10434,24 @@ export default function SifarisDetailPage() {
             </div>
 
             {/* Footer Buttons */}
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.5rem" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                marginTop: "0.5rem",
+              }}
+            >
               <button
                 type="button"
                 onClick={() => {
                   if (!editDocName.trim()) {
-                    alert("Lütfən sənədin adını daxil edin!");
+                    dispatch(
+                      showNotification({
+                        message: "Lütfən sənədin adını daxil edin!",
+                        type: "error",
+                        autoCloseDuration: 3500,
+                      }),
+                    );
                     return;
                   }
                   setRequestedDocsList(
@@ -6094,8 +10467,8 @@ export default function SifarisDetailPage() {
                             sendNotif: editDocSendNotif,
                             comments: editDocComments,
                           }
-                        : d
-                    )
+                        : d,
+                    ),
                   );
                   setIsEditDocModalOpen(false);
                   setSelectedDocForEdit(null);
@@ -6156,27 +10529,56 @@ export default function SifarisDetailPage() {
             }}
           >
             {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "#475569" }}>Sənədi sil</span>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "1.1rem",
+                  fontWeight: 700,
+                  color: "#475569",
+                }}
+              >
+                Sənədi sil
+              </span>
               <button
                 type="button"
                 onClick={() => {
                   setIsDocDeleteConfirmOpen(false);
                   setDocToDelete(null);
                 }}
-                style={{ background: "transparent", border: 0, cursor: "pointer", fontSize: "1.25rem", color: "#0f172a" }}
+                style={{
+                  background: "transparent",
+                  border: 0,
+                  cursor: "pointer",
+                  fontSize: "1.25rem",
+                  color: "#0f172a",
+                }}
               >
                 <FiX />
               </button>
             </div>
 
             {/* Warning Message */}
-            <div style={{ fontSize: "0.9rem", color: "#334155", lineHeight: 1.5 }}>
-              <strong>"{docToDelete.name}"</strong> sənədini silmək istədiyinizdən əminsiniz? Bu əməliyyat geri qaytarıla bilməz.
+            <div
+              style={{ fontSize: "0.9rem", color: "#334155", lineHeight: 1.5 }}
+            >
+              <strong>"{docToDelete.name}"</strong> sənədini silmək
+              istədiyinizdən əminsiniz? Bu əməliyyat geri qaytarıla bilməz.
             </div>
 
             {/* Footer Buttons */}
-            <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "0.75rem",
+                justifyContent: "flex-end",
+              }}
+            >
               <button
                 type="button"
                 onClick={() => {
@@ -6200,7 +10602,9 @@ export default function SifarisDetailPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setRequestedDocsList(requestedDocsList.filter((d) => d.id !== docToDelete.id));
+                  setRequestedDocsList(
+                    requestedDocsList.filter((d) => d.id !== docToDelete.id),
+                  );
                   setIsDocDeleteConfirmOpen(false);
                   setDocToDelete(null);
                 }}
@@ -6215,8 +10619,12 @@ export default function SifarisDetailPage() {
                   cursor: "pointer",
                   transition: "background 0.2s",
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.background = "#dc2626")}
-                onMouseOut={(e) => (e.currentTarget.style.background = "#ef4444")}
+                onMouseOver={(e) =>
+                  (e.currentTarget.style.background = "#dc2626")
+                }
+                onMouseOut={(e) =>
+                  (e.currentTarget.style.background = "#ef4444")
+                }
               >
                 Bəli, sil
               </button>
@@ -6226,178 +10634,230 @@ export default function SifarisDetailPage() {
       )}
 
       {/* Yeni hesabı əlavə et Modal Overlay */}
-      {invoiceDocsViewId && (() => {
-        const inv = invoicesList.find((i) => i.id === invoiceDocsViewId);
-        const docs = inv?.documents || [];
-        return (
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(15, 23, 42, 0.45)",
-              zIndex: 10050,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "1rem",
-            }}
-            onClick={() => setInvoiceDocsViewId(null)}
-          >
+      {invoiceDocsViewId &&
+        (() => {
+          const inv = invoicesList.find((i) => i.id === invoiceDocsViewId);
+          const docs = inv?.documents || [];
+          return (
             <div
               style={{
-                background: "#ffffff",
-                borderRadius: "0.75rem",
-                width: "min(32rem, 100%)",
-                maxHeight: "80vh",
+                position: "fixed",
+                inset: 0,
+                background: "rgba(15, 23, 42, 0.45)",
+                zIndex: 10050,
                 display: "flex",
-                flexDirection: "column",
-                boxShadow: "0 20px 40px rgba(0,0,0,0.18)",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "1rem",
               }}
-              onClick={(e) => e.stopPropagation()}
+              onClick={() => setInvoiceDocsViewId(null)}
             >
               <div
                 style={{
+                  background: "#ffffff",
+                  borderRadius: "0.75rem",
+                  width: "min(32rem, 100%)",
+                  maxHeight: "80vh",
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "1rem 1.25rem",
-                  borderBottom: "1px solid #e2e8f0",
+                  flexDirection: "column",
+                  boxShadow: "0 20px 40px rgba(0,0,0,0.18)",
                 }}
+                onClick={(e) => e.stopPropagation()}
               >
-                <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "#1e293b" }}>
-                  Hesab sənədləri: {inv?.number || "—"}
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setInvoiceDocsViewId(null)}
-                  style={{ background: "transparent", border: 0, cursor: "pointer", color: "#64748b", fontSize: "1.25rem" }}
-                >
-                  <FiX />
-                </button>
-              </div>
-              <div style={{ padding: "1rem 1.25rem", overflowY: "auto", flex: 1 }}>
-                {docs.length === 0 ? (
-                  <div style={{ color: "#64748b", fontSize: "0.9rem", padding: "1rem 0" }}>
-                    Bu hesab üçün sənəd yüklənməyib.
-                  </div>
-                ) : (
-                  <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                    {docs.map((doc) => (
-                      <li
-                        key={doc.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: "0.75rem",
-                          padding: "0.65rem 0.75rem",
-                          border: "1px solid #e2e8f0",
-                          borderRadius: "0.5rem",
-                          background: "#f8fafc",
-                        }}
-                      >
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, color: "#1e293b", fontSize: "0.875rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {doc.name}
-                          </div>
-                          <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
-                            {doc.size} · {doc.createdAt}
-                          </div>
-                        </div>
-                        <div style={{ display: "flex", gap: "0.35rem", flexShrink: 0 }}>
-                          <a
-                            href={doc.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            title="Aç"
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              width: "2rem",
-                              height: "2rem",
-                              borderRadius: "0.375rem",
-                              border: "1px solid #cbd5e1",
-                              background: "#ffffff",
-                              color: "#3b82f6",
-                              textDecoration: "none",
-                            }}
-                          >
-                            <FiEye />
-                          </a>
-                          <button
-                            type="button"
-                            title="Sil"
-                            onClick={() => {
-                              setInvoicesList((prev) =>
-                                prev.map((i) =>
-                                  i.id === invoiceDocsViewId
-                                    ? {
-                                        ...i,
-                                        documents: (i.documents || []).filter(
-                                          (d) => d.id !== doc.id,
-                                        ),
-                                      }
-                                    : i,
-                                ),
-                              );
-                            }}
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              width: "2rem",
-                              height: "2rem",
-                              borderRadius: "0.375rem",
-                              border: "1px solid #fecaca",
-                              background: "#ffffff",
-                              color: "#dc2626",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <FiTrash2 />
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <div
-                style={{
-                  padding: "0.85rem 1.25rem",
-                  borderTop: "1px solid #e2e8f0",
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  gap: "0.5rem",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (inv?.id) openInvoiceDocUpload(inv.id);
-                  }}
+                <div
                   style={{
-                    display: "inline-flex",
+                    display: "flex",
                     alignItems: "center",
-                    gap: "0.35rem",
-                    background: "#16a34a",
-                    color: "#fff",
-                    border: 0,
-                    borderRadius: "0.375rem",
-                    padding: "0.5rem 0.9rem",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    fontSize: "0.85rem",
+                    justifyContent: "space-between",
+                    padding: "1rem 1.25rem",
+                    borderBottom: "1px solid #e2e8f0",
                   }}
                 >
-                  <FiUpload /> Sənəd yüklə
-                </button>
+                  <h3
+                    style={{
+                      margin: 0,
+                      fontSize: "1rem",
+                      fontWeight: 700,
+                      color: "#1e293b",
+                    }}
+                  >
+                    Hesab sənədləri: {inv?.number || "—"}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setInvoiceDocsViewId(null)}
+                    style={{
+                      background: "transparent",
+                      border: 0,
+                      cursor: "pointer",
+                      color: "#64748b",
+                      fontSize: "1.25rem",
+                    }}
+                  >
+                    <FiX />
+                  </button>
+                </div>
+                <div
+                  style={{
+                    padding: "1rem 1.25rem",
+                    overflowY: "auto",
+                    flex: 1,
+                  }}
+                >
+                  {docs.length === 0 ? (
+                    <div
+                      style={{
+                        color: "#64748b",
+                        fontSize: "0.9rem",
+                        padding: "1rem 0",
+                      }}
+                    >
+                      Bu hesab üçün sənəd yüklənməyib.
+                    </div>
+                  ) : (
+                    <ul
+                      style={{
+                        listStyle: "none",
+                        margin: 0,
+                        padding: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.5rem",
+                      }}
+                    >
+                      {docs.map((doc) => (
+                        <li
+                          key={doc.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "0.75rem",
+                            padding: "0.65rem 0.75rem",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "0.5rem",
+                            background: "#f8fafc",
+                          }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontWeight: 600,
+                                color: "#1e293b",
+                                fontSize: "0.875rem",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {doc.name}
+                            </div>
+                            <div
+                              style={{ fontSize: "0.75rem", color: "#64748b" }}
+                            >
+                              {doc.size} · {doc.createdAt}
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "0.35rem",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <a
+                              href={doc.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="Aç"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                width: "2rem",
+                                height: "2rem",
+                                borderRadius: "0.375rem",
+                                border: "1px solid #cbd5e1",
+                                background: "#ffffff",
+                                color: "#3b82f6",
+                                textDecoration: "none",
+                              }}
+                            >
+                              <FiEye />
+                            </a>
+                            <button
+                              type="button"
+                              title="Sil"
+                              onClick={() => {
+                                setInvoicesList((prev) =>
+                                  prev.map((i) =>
+                                    i.id === invoiceDocsViewId
+                                      ? {
+                                          ...i,
+                                          documents: (i.documents || []).filter(
+                                            (d) => d.id !== doc.id,
+                                          ),
+                                        }
+                                      : i,
+                                  ),
+                                );
+                              }}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                width: "2rem",
+                                height: "2rem",
+                                borderRadius: "0.375rem",
+                                border: "1px solid #fecaca",
+                                background: "#ffffff",
+                                color: "#dc2626",
+                                cursor: "pointer",
+                              }}
+                            >
+                              <FiTrash2 />
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div
+                  style={{
+                    padding: "0.85rem 1.25rem",
+                    borderTop: "1px solid #e2e8f0",
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (inv?.id) openInvoiceDocUpload(inv.id);
+                    }}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                      background: "#16a34a",
+                      color: "#fff",
+                      border: 0,
+                      borderRadius: "0.375rem",
+                      padding: "0.5rem 0.9rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      fontSize: "0.85rem",
+                    }}
+                  >
+                    <FiUpload /> Sənəd yüklə
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
 
       {isNewInvoiceModalOpen && (
         <div
@@ -6418,7 +10878,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            />
+          />
           {/* Modal Container */}
           <div
             style={{
@@ -6442,10 +10902,17 @@ export default function SifarisDetailPage() {
                 alignItems: "center",
                 justifyContent: "space-between",
                 background: "transparent",
-                borderBottom: "1px solid #e2e8f0"
+                borderBottom: "1px solid #e2e8f0",
               }}
             >
-              <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#334155" }}>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: "1.1rem",
+                  fontWeight: 700,
+                  color: "#334155",
+                }}
+              >
                 Yeni hesabı əlavə et
               </h3>
               <button
@@ -6469,37 +10936,120 @@ export default function SifarisDetailPage() {
 
             {/* Body */}
             <div style={{ padding: "2rem", overflowY: "auto", flex: 1 }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-                
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "1.5rem",
+                }}
+              >
                 {/* Inputs Grid */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(14rem, 1fr))", gap: "1.5rem" }}>
-                  
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(14rem, 1fr))",
+                    gap: "1.5rem",
+                  }}
+                >
                   {/* Sifarişin nömrəsi */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                    <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Sifarişin nömrəsi <span style={{ color: "#ef4444" }}>*</span></label>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        color: "#64748b",
+                      }}
+                    >
+                      Sifarişin nömrəsi{" "}
+                      <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
                     <input
                       type="text"
                       value={order?.orderNumber || ""}
                       readOnly
-                      style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", outline: "none", fontSize: "0.875rem", backgroundColor: "#f8fafc", color: "#334155" }}
+                      style={{
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "0.375rem",
+                        padding: "0.5rem 0.75rem",
+                        outline: "none",
+                        fontSize: "0.875rem",
+                        backgroundColor: "#f8fafc",
+                        color: "#334155",
+                      }}
                     />
                   </div>
 
                   {/* Reys nömrəsi */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                    <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Reys nömrəsi</label>
-                    <input
-                      type="text"
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        color: "#64748b",
+                      }}
+                    >
+                      Reys nömrəsi
+                    </label>
+                    <select
                       value={invoiceVoyageNumber}
-                      readOnly
-                      placeholder="Reys yoxdur"
-                      style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", outline: "none", fontSize: "0.875rem", backgroundColor: "#f8fafc", color: "#334155" }}
-                    />
+                      onChange={(e) => setInvoiceVoyageNumber(e.target.value)}
+                      style={{
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "0.375rem",
+                        padding: "0.5rem 0.75rem",
+                        outline: "none",
+                        fontSize: "0.875rem",
+                        backgroundColor: "#ffffff",
+                      }}
+                    >
+                      <option value="">Reys seçin</option>
+                      {voyagesList.map((v) => {
+                        const label =
+                          (v.id ? `R-${v.id}` : "") ||
+                          String(v.number || "").trim() ||
+                          formatVoyageLabel(v);
+                        if (!label) return null;
+                        return (
+                          <option key={v.id ?? label} value={label}>
+                            {label}
+                            {v.carrier && v.carrier !== "—"
+                              ? ` — ${v.carrier}`
+                              : ""}
+                          </option>
+                        );
+                      })}
+                    </select>
                   </div>
 
-                  {/* Daşıyıcılar */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                    <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Daşıyıcılar</label>
+                  {/* Müştəri */}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        color: "#64748b",
+                      }}
+                    >
+                      Müştəri
+                    </label>
                     <select
                       value={invoiceCarrier}
                       onChange={(e) => {
@@ -6517,43 +11067,116 @@ export default function SifarisDetailPage() {
                         const numbers = (found?.documents || [])
                           .map((d) => String(d.number || "").trim())
                           .filter(Boolean);
-                        setInvoiceContract(numbers.length > 0 ? numbers.join(", ") : "");
-                        applyCarrierOfferPricing(name);
-                        setInvoiceVoyageNumber(resolveInvoiceVoyageNumber(name));
+                        setInvoiceContract(
+                          numbers.length > 0 ? numbers.join(", ") : "",
+                        );
+                        const offer =
+                          orderPriceOffers.find(
+                            (o: any) =>
+                              Number.parseFloat(
+                                String(o?.salesPrice ?? "").replace(",", "."),
+                              ) > 0,
+                          ) || orderPriceOffers[0];
+                        const salesRaw = String(offer?.salesPrice ?? "")
+                          .replace(",", ".")
+                          .trim();
+                        const salesNum = Number.parseFloat(salesRaw);
+                        const salesPrice = Number.isFinite(salesNum)
+                          ? salesNum
+                          : 0;
+                        const currency =
+                          String(
+                            offer?.currency ||
+                              invoiceCurrency ||
+                              resolveOrderCurrency(),
+                          )
+                            .trim()
+                            .toUpperCase() || resolveOrderCurrency();
+                        setInvoiceFreightPrice(
+                          salesPrice > 0 ? String(salesPrice) : salesRaw || "",
+                        );
+                        setInvoiceCurrency(currency);
+                        setInvoiceRows((rows) =>
+                          rows.map((r, idx) =>
+                            idx === 0 ? { ...r, price: salesPrice } : r,
+                          ),
+                        );
+                        setInvoiceVoyageNumber(resolveInvoiceVoyageNumber());
                       }}
-                      style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", outline: "none", fontSize: "0.875rem", backgroundColor: "#ffffff" }}
+                      style={{
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "0.375rem",
+                        padding: "0.5rem 0.75rem",
+                        outline: "none",
+                        fontSize: "0.875rem",
+                        backgroundColor: "#ffffff",
+                      }}
                     >
-                      <option value="">Daşıyıcı seçin</option>
+                      <option value="">Müştəri seçin</option>
                       {Array.from(
                         new Set([
                           ...invoiceCarriersList.map((c) => c.name),
-                          ...orderPriceOffers
-                            .map((o: any) => String(o?.carrierName || "").trim())
-                            .filter(Boolean),
-                          ...(displayCarriers && displayCarriers !== "—"
-                            ? displayCarriers.split(",").map((s) => s.trim()).filter(Boolean)
+                          ...(displayCustomerName && displayCustomerName !== "—"
+                            ? [displayCustomerName]
                             : []),
                         ]),
                       ).map((name) => (
-                        <option key={name} value={name}>{name}</option>
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
                       ))}
                     </select>
                   </div>
 
                   {/* Müştəri ilə müqavilənin nömrəsi */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                    <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Müştəri ilə müqavilənin nömrəsi</label>
-                    <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        color: "#64748b",
+                      }}
+                    >
+                      Müştəri ilə müqavilənin nömrəsi
+                    </label>
+                    <div
+                      style={{
+                        position: "relative",
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
                       <input
                         type="text"
                         value={invoiceContract}
                         onChange={(e) => setInvoiceContract(e.target.value)}
-                        style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 2rem 0.5rem 0.75rem", outline: "none", fontSize: "0.875rem", backgroundColor: "#ffffff" }}
+                        style={{
+                          width: "100%",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "0.375rem",
+                          padding: "0.5rem 2rem 0.5rem 0.75rem",
+                          outline: "none",
+                          fontSize: "0.875rem",
+                          backgroundColor: "#ffffff",
+                        }}
                       />
                       <button
                         type="button"
                         onClick={() => setInvoiceContract("")}
-                        style={{ position: "absolute", right: "0.5rem", background: "transparent", border: 0, cursor: "pointer", color: "#64748b" }}
+                        style={{
+                          position: "absolute",
+                          right: "0.5rem",
+                          background: "transparent",
+                          border: 0,
+                          cursor: "pointer",
+                          color: "#64748b",
+                        }}
                       >
                         <FiX style={{ fontSize: "0.875rem" }} />
                       </button>
@@ -6561,12 +11184,33 @@ export default function SifarisDetailPage() {
                   </div>
 
                   {/* Tərtib etdi */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                    <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Tərtib etdi <span style={{ color: "#ef4444" }}>*</span></label>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        color: "#64748b",
+                      }}
+                    >
+                      Tərtib etdi <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
                     <select
                       value={invoiceCreator}
                       onChange={(e) => setInvoiceCreator(e.target.value)}
-                      style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", outline: "none", fontSize: "0.875rem", backgroundColor: "#ffffff" }}
+                      style={{
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "0.375rem",
+                        padding: "0.5rem 0.75rem",
+                        outline: "none",
+                        fontSize: "0.875rem",
+                        backgroundColor: "#ffffff",
+                      }}
                     >
                       <option value="Ulvi Adilzade">Ulvi Adilzade</option>
                       <option value="Nijat Shabanly">Nijat Shabanly</option>
@@ -6574,103 +11218,312 @@ export default function SifarisDetailPage() {
                   </div>
 
                   {/* Hesabın nömrəsi */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                    <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Hesabın nömrəsi</label>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        color: "#64748b",
+                      }}
+                    >
+                      Hesabın nömrəsi
+                    </label>
                     <input
                       type="text"
                       placeholder="Hesab nömrəsini daxil edin"
                       value={invoiceNumber}
                       onChange={(e) => setInvoiceNumber(e.target.value)}
-                      style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", outline: "none", fontSize: "0.875rem", backgroundColor: "#ffffff" }}
+                      style={{
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "0.375rem",
+                        padding: "0.5rem 0.75rem",
+                        outline: "none",
+                        fontSize: "0.875rem",
+                        backgroundColor: "#ffffff",
+                      }}
                     />
                   </div>
 
                   {/* Hesab yazılıb */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                    <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Hesab yazılıb</label>
-                    <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        color: "#64748b",
+                      }}
+                    >
+                      Hesab yazılıb
+                    </label>
+                    <div
+                      style={{
+                        position: "relative",
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
                       <input
                         type="text"
                         value={invoiceDate}
                         onChange={(e) => setInvoiceDate(e.target.value)}
-                        style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 2.25rem 0.5rem 0.75rem", outline: "none", fontSize: "0.875rem", backgroundColor: "#ffffff" }}
+                        style={{
+                          width: "100%",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "0.375rem",
+                          padding: "0.5rem 2.25rem 0.5rem 0.75rem",
+                          outline: "none",
+                          fontSize: "0.875rem",
+                          backgroundColor: "#ffffff",
+                        }}
                       />
-                      <FiCalendar style={{ position: "absolute", right: "0.75rem", color: "#64748b" }} />
+                      <FiCalendar
+                        style={{
+                          position: "absolute",
+                          right: "0.75rem",
+                          color: "#64748b",
+                        }}
+                      />
                     </div>
                   </div>
 
                   {/* Təxirə salma günləri */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                    <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Təxirə salma günləri</label>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        color: "#64748b",
+                      }}
+                    >
+                      Təxirə salma günləri
+                    </label>
                     <input
                       type="number"
                       value={invoiceDelayDays}
                       onChange={(e) => setInvoiceDelayDays(e.target.value)}
-                      style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", outline: "none", fontSize: "0.875rem", backgroundColor: "#ffffff" }}
+                      style={{
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "0.375rem",
+                        padding: "0.5rem 0.75rem",
+                        outline: "none",
+                        fontSize: "0.875rem",
+                        backgroundColor: "#ffffff",
+                      }}
                     />
                   </div>
 
                   {/* Tarixinə kimi ödə */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                    <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Tarixinə kimi ödə <span style={{ color: "#ef4444" }}>*</span></label>
-                    <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        color: "#64748b",
+                      }}
+                    >
+                      Tarixinə kimi ödə{" "}
+                      <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
+                    <div
+                      style={{
+                        position: "relative",
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
                       <input
                         type="text"
                         value={invoicePayUntilDate}
                         onChange={(e) => setInvoicePayUntilDate(e.target.value)}
-                        style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 2.25rem 0.5rem 0.75rem", outline: "none", fontSize: "0.875rem", backgroundColor: "#ffffff" }}
+                        style={{
+                          width: "100%",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "0.375rem",
+                          padding: "0.5rem 2.25rem 0.5rem 0.75rem",
+                          outline: "none",
+                          fontSize: "0.875rem",
+                          backgroundColor: "#ffffff",
+                        }}
                       />
-                      <FiCalendar style={{ position: "absolute", right: "0.75rem", color: "#64748b" }} />
+                      <FiCalendar
+                        style={{
+                          position: "absolute",
+                          right: "0.75rem",
+                          color: "#64748b",
+                        }}
+                      />
                     </div>
                   </div>
 
                   {/* Daşıma qiyməti */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                    <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Daşıma qiyməti <span style={{ color: "#ef4444" }}>*</span></label>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        color: "#64748b",
+                      }}
+                    >
+                      Daşıma qiyməti <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
                     <input
                       type="text"
                       value={invoiceFreightPrice}
                       readOnly
                       title="Daşıyıcı seçiləndə avtomatik gəlir; dəyişdirilə bilməz"
                       placeholder="0.00"
-                      style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", outline: "none", fontSize: "0.875rem", backgroundColor: "#f1f5f9", color: "#64748b" }}
+                      style={{
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "0.375rem",
+                        padding: "0.5rem 0.75rem",
+                        outline: "none",
+                        fontSize: "0.875rem",
+                        backgroundColor: "#f1f5f9",
+                        color: "#64748b",
+                      }}
                     />
                   </div>
 
                   {/* Valyuta */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                    <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Valyuta <span style={{ color: "#ef4444" }}>*</span></label>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        color: "#64748b",
+                      }}
+                    >
+                      Valyuta <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
                     <select
                       value={invoiceCurrency}
                       onChange={(e) => setInvoiceCurrency(e.target.value)}
-                      style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 0.75rem", outline: "none", fontSize: "0.875rem", backgroundColor: "#ffffff" }}
+                      style={{
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "0.375rem",
+                        padding: "0.5rem 0.75rem",
+                        outline: "none",
+                        fontSize: "0.875rem",
+                        backgroundColor: "#ffffff",
+                      }}
                     >
                       <option value="EUR">EUR</option>
                       <option value="USD">USD</option>
                       <option value="AZN">AZN</option>
+                      <option value="TRY">TRY</option>
                     </select>
                   </div>
 
                   {/* Məzənnənin t... */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                    <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Məzənnənin t...</label>
-                    <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        color: "#64748b",
+                      }}
+                    >
+                      Məzənnənin t...
+                    </label>
+                    <div
+                      style={{
+                        position: "relative",
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
                       <input
                         type="text"
                         value={invoiceRateDate}
                         onChange={(e) => setInvoiceRateDate(e.target.value)}
-                        style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem 2.25rem 0.5rem 0.75rem", outline: "none", fontSize: "0.875rem", backgroundColor: "#ffffff" }}
+                        style={{
+                          width: "100%",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "0.375rem",
+                          padding: "0.5rem 2.25rem 0.5rem 0.75rem",
+                          outline: "none",
+                          fontSize: "0.875rem",
+                          backgroundColor: "#ffffff",
+                        }}
                       />
-                      <FiCalendar style={{ position: "absolute", right: "0.75rem", color: "#64748b" }} />
+                      <FiCalendar
+                        style={{
+                          position: "absolute",
+                          right: "0.75rem",
+                          color: "#64748b",
+                        }}
+                      />
                     </div>
                   </div>
-
                 </div>
 
                 {/* Hesabın Sətri Dynamic Rows Section */}
-                <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "1.5rem" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
-                    <h4 style={{ margin: 0, fontSize: "0.875rem", fontWeight: 700, color: "#475569" }}>Hesabın sətri</h4>
+                <div
+                  style={{
+                    borderTop: "1px solid #cbd5e1",
+                    paddingTop: "1.5rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      marginBottom: "1rem",
+                    }}
+                  >
+                    <h4
+                      style={{
+                        margin: 0,
+                        fontSize: "0.875rem",
+                        fontWeight: 700,
+                        color: "#475569",
+                      }}
+                    >
+                      Hesabın sətri
+                    </h4>
                     <button
                       type="button"
                       onClick={handleAddInvoiceRow}
@@ -6685,14 +11538,20 @@ export default function SifarisDetailPage() {
                         height: "1.5rem",
                         color: "#475569",
                         fontWeight: "bold",
-                        cursor: "pointer"
+                        cursor: "pointer",
                       }}
                     >
                       +
                     </button>
                   </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "1rem",
+                    }}
+                  >
                     {(() => {
                       const topPrice =
                         Number.parseFloat(
@@ -6714,58 +11573,135 @@ export default function SifarisDetailPage() {
                             fontWeight: 600,
                           }}
                         >
-                          Diqqət: sətir qiyməti ({bottomPrice} {invoiceCurrency}) yuxarıdakı daşıma qiymətindən ({invoiceFreightPrice} {invoiceCurrency}) fərqlidir.
-                          Yadda saxlayanda digər qiymət sahələri yenilənəcək; avtomatik xərclər dəyişməyəcək.
+                          Diqqət: sətir qiyməti ({bottomPrice} {invoiceCurrency}
+                          ) yuxarıdakı daşıma qiymətindən ({invoiceFreightPrice}{" "}
+                          {invoiceCurrency}) fərqlidir. Yadda saxlayanda digər
+                          qiymət sahələri yenilənəcək; avtomatik xərclər
+                          dəyişməyəcək.
                         </div>
                       ) : null;
                     })()}
                     {invoiceRows.map((row) => (
-                      <div key={row.id} style={{ display: "flex", gap: "1rem", alignItems: "flex-start", background: "#ffffff", padding: "1rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0" }}>
-                        
+                      <div
+                        key={row.id}
+                        style={{
+                          display: "flex",
+                          gap: "1rem",
+                          alignItems: "flex-start",
+                          background: "#ffffff",
+                          padding: "1rem",
+                          borderRadius: "0.5rem",
+                          border: "1px solid #e2e8f0",
+                        }}
+                      >
                         {/* Textarea */}
                         <div style={{ flex: 1 }}>
                           <textarea
                             value={row.text}
                             onChange={(e) => {
                               const textVal = e.target.value;
-                              setInvoiceRows(invoiceRows.map(r => r.id === row.id ? { ...r, text: textVal } : r));
+                              setInvoiceRows(
+                                invoiceRows.map((r) =>
+                                  r.id === row.id ? { ...r, text: textVal } : r,
+                                ),
+                              );
                             }}
                             rows={4}
-                            style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem", outline: "none", fontSize: "0.825rem", resize: "vertical" }}
+                            style={{
+                              width: "100%",
+                              border: "1px solid #cbd5e1",
+                              borderRadius: "0.375rem",
+                              padding: "0.5rem",
+                              outline: "none",
+                              fontSize: "0.825rem",
+                              resize: "vertical",
+                            }}
                           />
                         </div>
 
                         {/* Vahid */}
                         <div style={{ width: "6.5rem" }}>
-                          <label style={{ fontSize: "0.7rem", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "0.25rem" }}>Vahid</label>
+                          <label
+                            style={{
+                              fontSize: "0.7rem",
+                              fontWeight: 700,
+                              color: "#64748b",
+                              display: "block",
+                              marginBottom: "0.25rem",
+                            }}
+                          >
+                            Vahid
+                          </label>
                           <input
                             type="text"
                             value={row.unit}
                             onChange={(e) => {
                               const val = e.target.value;
-                              setInvoiceRows(invoiceRows.map(r => r.id === row.id ? { ...r, unit: val } : r));
+                              setInvoiceRows(
+                                invoiceRows.map((r) =>
+                                  r.id === row.id ? { ...r, unit: val } : r,
+                                ),
+                              );
                             }}
-                            style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem", outline: "none", fontSize: "0.825rem" }}
+                            style={{
+                              width: "100%",
+                              border: "1px solid #cbd5e1",
+                              borderRadius: "0.375rem",
+                              padding: "0.5rem",
+                              outline: "none",
+                              fontSize: "0.825rem",
+                            }}
                           />
                         </div>
 
                         {/* Miqdar */}
                         <div style={{ width: "5rem" }}>
-                          <label style={{ fontSize: "0.7rem", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "0.25rem" }}>Miqdar <span style={{ color: "#ef4444" }}>*</span></label>
+                          <label
+                            style={{
+                              fontSize: "0.7rem",
+                              fontWeight: 700,
+                              color: "#64748b",
+                              display: "block",
+                              marginBottom: "0.25rem",
+                            }}
+                          >
+                            Miqdar <span style={{ color: "#ef4444" }}>*</span>
+                          </label>
                           <input
                             type="number"
                             value={row.qty}
                             onChange={(e) => {
                               const val = parseFloat(e.target.value) || 0;
-                              setInvoiceRows(invoiceRows.map(r => r.id === row.id ? { ...r, qty: val } : r));
+                              setInvoiceRows(
+                                invoiceRows.map((r) =>
+                                  r.id === row.id ? { ...r, qty: val } : r,
+                                ),
+                              );
                             }}
-                            style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem", outline: "none", fontSize: "0.825rem" }}
+                            style={{
+                              width: "100%",
+                              border: "1px solid #cbd5e1",
+                              borderRadius: "0.375rem",
+                              padding: "0.5rem",
+                              outline: "none",
+                              fontSize: "0.825rem",
+                            }}
                           />
                         </div>
 
                         {/* Qiymət */}
                         <div style={{ width: "6.5rem" }}>
-                          <label style={{ fontSize: "0.7rem", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "0.25rem" }}>Qiymət <span style={{ color: "#ef4444" }}>*</span></label>
+                          <label
+                            style={{
+                              fontSize: "0.7rem",
+                              fontWeight: 700,
+                              color: "#64748b",
+                              display: "block",
+                              marginBottom: "0.25rem",
+                            }}
+                          >
+                            Qiymət <span style={{ color: "#ef4444" }}>*</span>
+                          </label>
                           <input
                             type="number"
                             value={row.price}
@@ -6782,7 +11718,10 @@ export default function SifarisDetailPage() {
                               border: (() => {
                                 const top =
                                   Number.parseFloat(
-                                    String(invoiceFreightPrice).replace(",", "."),
+                                    String(invoiceFreightPrice).replace(
+                                      ",",
+                                      ".",
+                                    ),
                                   ) || 0;
                                 const mismatch =
                                   row.id === invoiceRows[0]?.id &&
@@ -6799,7 +11738,10 @@ export default function SifarisDetailPage() {
                               backgroundColor: (() => {
                                 const top =
                                   Number.parseFloat(
-                                    String(invoiceFreightPrice).replace(",", "."),
+                                    String(invoiceFreightPrice).replace(
+                                      ",",
+                                      ".",
+                                    ),
                                   ) || 0;
                                 const mismatch =
                                   row.id === invoiceRows[0]?.id &&
@@ -6813,36 +11755,103 @@ export default function SifarisDetailPage() {
 
                         {/* ƏDV-siz */}
                         <div style={{ width: "6.5rem" }}>
-                          <label style={{ fontSize: "0.7rem", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "0.25rem" }}>ƏDV-siz</label>
+                          <label
+                            style={{
+                              fontSize: "0.7rem",
+                              fontWeight: 700,
+                              color: "#64748b",
+                              display: "block",
+                              marginBottom: "0.25rem",
+                            }}
+                          >
+                            ƏDV-siz
+                          </label>
                           <input
                             type="text"
                             disabled
-                            value={((row.qty || 0) * (row.price || 0)).toFixed(2)}
-                            style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem", outline: "none", fontSize: "0.825rem", backgroundColor: "#f1f5f9", color: "#64748b" }}
+                            value={((row.qty || 0) * (row.price || 0)).toFixed(
+                              2,
+                            )}
+                            style={{
+                              width: "100%",
+                              border: "1px solid #cbd5e1",
+                              borderRadius: "0.375rem",
+                              padding: "0.5rem",
+                              outline: "none",
+                              fontSize: "0.825rem",
+                              backgroundColor: "#f1f5f9",
+                              color: "#64748b",
+                            }}
                           />
                         </div>
 
                         {/* ƏDV ilə */}
                         <div style={{ width: "6.5rem" }}>
-                          <label style={{ fontSize: "0.7rem", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "0.25rem" }}>ƏDV ilə</label>
+                          <label
+                            style={{
+                              fontSize: "0.7rem",
+                              fontWeight: 700,
+                              color: "#64748b",
+                              display: "block",
+                              marginBottom: "0.25rem",
+                            }}
+                          >
+                            ƏDV ilə
+                          </label>
                           <input
                             type="text"
                             disabled
-                            value={(((row.qty || 0) * (row.price || 0)) * (1 + (parseFloat(row.vatRate) || 0) / 100)).toFixed(2)}
-                            style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem", outline: "none", fontSize: "0.825rem", backgroundColor: "#f1f5f9", color: "#64748b" }}
+                            value={(
+                              (row.qty || 0) *
+                              (row.price || 0) *
+                              (1 + (parseFloat(row.vatRate) || 0) / 100)
+                            ).toFixed(2)}
+                            style={{
+                              width: "100%",
+                              border: "1px solid #cbd5e1",
+                              borderRadius: "0.375rem",
+                              padding: "0.5rem",
+                              outline: "none",
+                              fontSize: "0.825rem",
+                              backgroundColor: "#f1f5f9",
+                              color: "#64748b",
+                            }}
                           />
                         </div>
 
                         {/* ƏDV-nin tarifi */}
                         <div style={{ width: "6.5rem" }}>
-                          <label style={{ fontSize: "0.7rem", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "0.25rem" }}>ƏDV-nin tarifi <span style={{ color: "#ef4444" }}>*</span></label>
+                          <label
+                            style={{
+                              fontSize: "0.7rem",
+                              fontWeight: 700,
+                              color: "#64748b",
+                              display: "block",
+                              marginBottom: "0.25rem",
+                            }}
+                          >
+                            ƏDV-nin tarifi{" "}
+                            <span style={{ color: "#ef4444" }}>*</span>
+                          </label>
                           <select
                             value={row.vatRate}
                             onChange={(e) => {
                               const val = e.target.value;
-                              setInvoiceRows(invoiceRows.map(r => r.id === row.id ? { ...r, vatRate: val } : r));
+                              setInvoiceRows(
+                                invoiceRows.map((r) =>
+                                  r.id === row.id ? { ...r, vatRate: val } : r,
+                                ),
+                              );
                             }}
-                            style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem", outline: "none", fontSize: "0.825rem", backgroundColor: "#ffffff" }}
+                            style={{
+                              width: "100%",
+                              border: "1px solid #cbd5e1",
+                              borderRadius: "0.375rem",
+                              padding: "0.5rem",
+                              outline: "none",
+                              fontSize: "0.825rem",
+                              backgroundColor: "#ffffff",
+                            }}
                           >
                             <option value="0%">0%</option>
                             <option value="18%">18%</option>
@@ -6867,7 +11876,7 @@ export default function SifarisDetailPage() {
                                 height: "2.25rem",
                                 color: "#ef4444",
                                 cursor: "pointer",
-                                transition: "background-color 0.2s"
+                                transition: "background-color 0.2s",
                               }}
                             >
                               <FiTrash2 style={{ fontSize: "1rem" }} />
@@ -6879,7 +11888,18 @@ export default function SifarisDetailPage() {
                   </div>
 
                   {/* Second Add Button underneath rows */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "1rem", padding: "0.75rem", border: "2px dashed #10b981", borderRadius: "0.5rem", background: "#f0fdf4" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      marginTop: "1rem",
+                      padding: "0.75rem",
+                      border: "2px dashed #10b981",
+                      borderRadius: "0.5rem",
+                      background: "#f0fdf4",
+                    }}
+                  >
                     <button
                       type="button"
                       onClick={handleAddInvoiceRow}
@@ -6894,54 +11914,112 @@ export default function SifarisDetailPage() {
                         height: "1.5rem",
                         color: "#ffffff",
                         fontWeight: "bold",
-                        cursor: "pointer"
+                        cursor: "pointer",
                       }}
                     >
                       +
                     </button>
                     <select
-                      style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.375rem 0.75rem", outline: "none", fontSize: "0.875rem", backgroundColor: "#ffffff", color: "#64748b" }}
+                      style={{
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "0.375rem",
+                        padding: "0.375rem 0.75rem",
+                        outline: "none",
+                        fontSize: "0.875rem",
+                        backgroundColor: "#ffffff",
+                        color: "#64748b",
+                      }}
                       defaultValue="Şablon"
                     >
-                      <option disabled value="Şablon">Şablon</option>
+                      <option disabled value="Şablon">
+                        Şablon
+                      </option>
                       <option value="Standard">Standard</option>
                     </select>
                   </div>
                 </div>
 
                 {/* Checkboxes Row */}
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "2rem", borderTop: "1px solid #cbd5e1", paddingTop: "1.5rem" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "#475569", cursor: "pointer" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "2rem",
+                    borderTop: "1px solid #cbd5e1",
+                    paddingTop: "1.5rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      fontSize: "0.85rem",
+                      color: "#475569",
+                      cursor: "pointer",
+                    }}
+                  >
                     <input
                       type="checkbox"
                       checked={invoiceUseNonStandard}
-                      onChange={(e) => setInvoiceUseNonStandard(e.target.checked)}
-                      style={{ width: "1.1rem", height: "1.1rem", accentColor: "#16a34a" }}
+                      onChange={(e) =>
+                        setInvoiceUseNonStandard(e.target.checked)
+                      }
+                      style={{
+                        width: "1.1rem",
+                        height: "1.1rem",
+                        accentColor: "#16a34a",
+                      }}
                     />
                     Hesabın qeyri-standart şablonundan istifadə et
                   </label>
-                  
-                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "#475569", cursor: "pointer" }}>
+
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      fontSize: "0.85rem",
+                      color: "#475569",
+                      cursor: "pointer",
+                    }}
+                  >
                     <input
                       type="checkbox"
                       checked={invoiceNoStampSign}
                       onChange={(e) => setInvoiceNoStampSign(e.target.checked)}
-                      style={{ width: "1.1rem", height: "1.1rem", accentColor: "#16a34a" }}
+                      style={{
+                        width: "1.1rem",
+                        height: "1.1rem",
+                        accentColor: "#16a34a",
+                      }}
                     />
                     Möhürlər və imzalar olmadan
                   </label>
 
-                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "#475569", cursor: "pointer" }}>
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      fontSize: "0.85rem",
+                      color: "#475569",
+                      cursor: "pointer",
+                    }}
+                  >
                     <input
                       type="checkbox"
                       checked={invoiceSendNotif}
                       onChange={(e) => setInvoiceSendNotif(e.target.checked)}
-                      style={{ width: "1.1rem", height: "1.1rem", accentColor: "#16a34a" }}
+                      style={{
+                        width: "1.1rem",
+                        height: "1.1rem",
+                        accentColor: "#16a34a",
+                      }}
                     />
                     Göndərmə barədə məlumat verin
                   </label>
                 </div>
-
               </div>
             </div>
 
@@ -6952,7 +12030,7 @@ export default function SifarisDetailPage() {
                 display: "flex",
                 justifyContent: "flex-end",
                 background: "transparent",
-                borderTop: "1px solid #e2e8f0"
+                borderTop: "1px solid #e2e8f0",
               }}
             >
               <button
@@ -6967,10 +12045,14 @@ export default function SifarisDetailPage() {
                   fontWeight: 600,
                   fontSize: "0.9rem",
                   cursor: "pointer",
-                  transition: "background-color 0.2s"
+                  transition: "background-color 0.2s",
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#16a34a")}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "#22c55e")}
+                onMouseOver={(e) =>
+                  (e.currentTarget.style.backgroundColor = "#16a34a")
+                }
+                onMouseOut={(e) =>
+                  (e.currentTarget.style.backgroundColor = "#22c55e")
+                }
               >
                 Yaddaşda saxlamaq
               </button>
@@ -6999,7 +12081,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            />
+          />
           {/* Modal Container */}
           <div
             style={{
@@ -7022,30 +12104,79 @@ export default function SifarisDetailPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                borderBottom: "1px solid #cbd5e1"
+                borderBottom: "1px solid #cbd5e1",
               }}
             >
-              <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "#475569" }}>Şərh etmək</span>
+              <span
+                style={{
+                  fontSize: "1.1rem",
+                  fontWeight: 700,
+                  color: "#475569",
+                }}
+              >
+                Şərh etmək
+              </span>
               <button
                 type="button"
                 onClick={() => setIsNewCommentModalOpen(false)}
-                style={{ background: "transparent", border: 0, cursor: "pointer", fontSize: "1.5rem", color: "#0f172a" }}
+                style={{
+                  background: "transparent",
+                  border: 0,
+                  cursor: "pointer",
+                  fontSize: "1.5rem",
+                  color: "#0f172a",
+                }}
               >
                 <FiX />
               </button>
             </div>
 
             {/* Body */}
-            <div style={{ padding: "2rem", display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "2rem", flexWrap: "wrap" }}>
-                
+            <div
+              style={{
+                padding: "2rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "1.5rem",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "2rem",
+                  flexWrap: "wrap",
+                }}
+              >
                 {/* Şərh et */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", minWidth: "18rem" }}>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Şərh et</label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                    minWidth: "18rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      color: "#64748b",
+                    }}
+                  >
+                    Şərh et
+                  </label>
                   <select
                     value={commentCategory}
                     onChange={(e) => setCommentCategory(e.target.value)}
-                    style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.5rem", outline: "none", fontSize: "0.85rem", backgroundColor: "#ffffff" }}
+                    style={{
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "0.375rem",
+                      padding: "0.5rem",
+                      outline: "none",
+                      fontSize: "0.85rem",
+                      backgroundColor: "#ffffff",
+                    }}
                   >
                     <option value="Sifariş">Sifariş</option>
                     <option value="Reys">Reys</option>
@@ -7053,43 +12184,111 @@ export default function SifarisDetailPage() {
                 </div>
 
                 {/* Checkbox 1 */}
-                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "#475569", cursor: "pointer", marginTop: "1rem" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    fontSize: "0.85rem",
+                    color: "#475569",
+                    cursor: "pointer",
+                    marginTop: "1rem",
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={commentProvideAccessCustomer}
-                    onChange={(e) => setCommentProvideAccessCustomer(e.target.checked)}
-                    style={{ width: "1.1rem", height: "1.1rem", accentColor: "#16a34a" }}
+                    onChange={(e) =>
+                      setCommentProvideAccessCustomer(e.target.checked)
+                    }
+                    style={{
+                      width: "1.1rem",
+                      height: "1.1rem",
+                      accentColor: "#16a34a",
+                    }}
                   />
                   Müştəriyə çıxışı təqdim et
                 </label>
 
                 {/* Checkbox 2 */}
-                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "#475569", cursor: "pointer", marginTop: "1rem" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    fontSize: "0.85rem",
+                    color: "#475569",
+                    cursor: "pointer",
+                    marginTop: "1rem",
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={commentProvideAccessCarrier}
-                    onChange={(e) => setCommentProvideAccessCarrier(e.target.checked)}
-                    style={{ width: "1.1rem", height: "1.1rem", accentColor: "#16a34a" }}
+                    onChange={(e) =>
+                      setCommentProvideAccessCarrier(e.target.checked)
+                    }
+                    style={{
+                      width: "1.1rem",
+                      height: "1.1rem",
+                      accentColor: "#16a34a",
+                    }}
                   />
                   Daşıyıcıya girişi təqdim et
                 </label>
               </div>
 
               {/* Şərhlər */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Şərhlər <span style={{ color: "#ef4444" }}>*</span></label>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.375rem",
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    color: "#64748b",
+                  }}
+                >
+                  Şərhlər <span style={{ color: "#ef4444" }}>*</span>
+                </label>
                 <textarea
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
                   rows={5}
-                  style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.75rem", outline: "none", fontSize: "0.875rem", boxSizing: "border-box" }}
+                  style={{
+                    width: "100%",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "0.375rem",
+                    padding: "0.75rem",
+                    outline: "none",
+                    fontSize: "0.875rem",
+                    boxSizing: "border-box",
+                  }}
                   placeholder="Bura şərhinizi yazın..."
                 />
               </div>
 
               {/* File Upload Box */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b" }}>Fayl</span>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.375rem",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    color: "#64748b",
+                  }}
+                >
+                  Fayl
+                </span>
                 <div
                   style={{
                     border: "2px dashed #cbd5e1",
@@ -7099,16 +12298,32 @@ export default function SifarisDetailPage() {
                     background: "#ffffff",
                     cursor: "pointer",
                     fontSize: "0.85rem",
-                    color: "#64748b"
+                    color: "#64748b",
                   }}
                 >
-                  Faylınızı Sürüşdürün & Buraxın ya da <span style={{ textDecoration: "underline", color: "#16a34a", fontWeight: 600 }}>Seçin</span>
+                  Faylınızı Sürüşdürün & Buraxın ya da{" "}
+                  <span
+                    style={{
+                      textDecoration: "underline",
+                      color: "#16a34a",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Seçin
+                  </span>
                 </div>
               </div>
             </div>
 
             {/* Footer */}
-            <div style={{ padding: "1.25rem 2rem", display: "flex", justifyContent: "flex-end", borderTop: "1px solid #cbd5e1" }}>
+            <div
+              style={{
+                padding: "1.25rem 2rem",
+                display: "flex",
+                justifyContent: "flex-end",
+                borderTop: "1px solid #cbd5e1",
+              }}
+            >
               <button
                 type="button"
                 onClick={handleSaveNewComment}
@@ -7121,10 +12336,14 @@ export default function SifarisDetailPage() {
                   fontWeight: 600,
                   fontSize: "0.9rem",
                   cursor: "pointer",
-                  transition: "background-color 0.2s"
+                  transition: "background-color 0.2s",
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#16a34a")}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "#22c55e")}
+                onMouseOver={(e) =>
+                  (e.currentTarget.style.backgroundColor = "#16a34a")
+                }
+                onMouseOut={(e) =>
+                  (e.currentTarget.style.backgroundColor = "#22c55e")
+                }
               >
                 Yaddaşda saxlamaq
               </button>
@@ -7153,7 +12372,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            />
+          />
           {/* Modal Container */}
           <div
             style={{
@@ -7177,16 +12396,30 @@ export default function SifarisDetailPage() {
                 alignItems: "center",
                 justifyContent: "space-between",
                 borderBottom: "1px solid #cbd5e1",
-                background: "#ffffff"
+                background: "#ffffff",
               }}
             >
               <div style={{ flex: 1, textAlign: "center" }}>
-                <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b" }}>Tapşırığa baxış</span>
+                <span
+                  style={{
+                    fontSize: "1.1rem",
+                    fontWeight: 700,
+                    color: "#1e293b",
+                  }}
+                >
+                  Tapşırığa baxış
+                </span>
               </div>
               <button
                 type="button"
                 onClick={() => setIsTaskModalOpen(false)}
-                style={{ background: "transparent", border: 0, cursor: "pointer", fontSize: "1.5rem", color: "#ef4444" }}
+                style={{
+                  background: "transparent",
+                  border: 0,
+                  cursor: "pointer",
+                  fontSize: "1.5rem",
+                  color: "#ef4444",
+                }}
               >
                 <FiX />
               </button>
@@ -7194,18 +12427,37 @@ export default function SifarisDetailPage() {
 
             {/* Body */}
             <div style={{ padding: "2rem", overflowY: "auto", flex: 1 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: "2rem", alignItems: "start" }}>
-                
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1.6fr 1fr",
+                  gap: "2rem",
+                  alignItems: "start",
+                }}
+              >
                 {/* Left Column */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-                  
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "1.5rem",
+                  }}
+                >
                   {/* Adı */}
                   <input
                     type="text"
                     placeholder="Adı"
                     value={taskTitle}
                     onChange={(e) => setTaskTitle(e.target.value)}
-                    style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.75rem", outline: "none", fontSize: "1rem", backgroundColor: "#ffffff" }}
+                    style={{
+                      width: "100%",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "0.375rem",
+                      padding: "0.75rem",
+                      outline: "none",
+                      fontSize: "1rem",
+                      backgroundColor: "#ffffff",
+                    }}
                   />
 
                   {/* Təsviri */}
@@ -7214,28 +12466,85 @@ export default function SifarisDetailPage() {
                     value={taskDescription}
                     onChange={(e) => setTaskDescription(e.target.value)}
                     rows={8}
-                    style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.75rem", outline: "none", fontSize: "0.875rem", resize: "vertical", backgroundColor: "#ffffff" }}
+                    style={{
+                      width: "100%",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "0.375rem",
+                      padding: "0.75rem",
+                      outline: "none",
+                      fontSize: "0.875rem",
+                      resize: "vertical",
+                      backgroundColor: "#ffffff",
+                    }}
                   />
 
                   {/* Çeklist */}
-                  <div style={{ background: "#ffffff", padding: "1.25rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0" }}>
-                    <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: "0.75rem" }}>Çeklist</span>
-                    
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "0.75rem" }}>
+                  <div
+                    style={{
+                      background: "#ffffff",
+                      padding: "1.25rem",
+                      borderRadius: "0.5rem",
+                      border: "1px solid #e2e8f0",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.85rem",
+                        fontWeight: 700,
+                        color: "#475569",
+                        display: "block",
+                        marginBottom: "0.75rem",
+                      }}
+                    >
+                      Çeklist
+                    </span>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.5rem",
+                        marginBottom: "0.75rem",
+                      }}
+                    >
                       {taskChecklist.map((item, idx) => (
-                        <div key={idx} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                          <input type="checkbox" style={{ cursor: "pointer" }} />
-                          <span style={{ fontSize: "0.85rem", color: "#334155" }}>{item}</span>
+                        <div
+                          key={idx}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.5rem",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            style={{ cursor: "pointer" }}
+                          />
+                          <span
+                            style={{ fontSize: "0.85rem", color: "#334155" }}
+                          >
+                            {item}
+                          </span>
                           <button
                             type="button"
                             onClick={() => {
                               openDeleteConfirm(
                                 "Elementi sil",
                                 "Bu çeklist elementini silmək istədiyinizə əminsiniz?",
-                                () => setTaskChecklist(taskChecklist.filter((_, i) => i !== idx)),
+                                () =>
+                                  setTaskChecklist(
+                                    taskChecklist.filter((_, i) => i !== idx),
+                                  ),
                               );
                             }}
-                            style={{ background: "transparent", border: 0, cursor: "pointer", color: "#ef4444", fontSize: "0.8rem", marginLeft: "auto" }}
+                            style={{
+                              background: "transparent",
+                              border: 0,
+                              cursor: "pointer",
+                              color: "#ef4444",
+                              fontSize: "0.8rem",
+                              marginLeft: "auto",
+                            }}
                           >
                             Sil
                           </button>
@@ -7249,13 +12558,22 @@ export default function SifarisDetailPage() {
                         placeholder="Yeni element əlavə et"
                         value={taskChecklistInput}
                         onChange={(e) => setTaskChecklistInput(e.target.value)}
-                        style={{ flex: 1, border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.375rem 0.5rem", fontSize: "0.8rem" }}
+                        style={{
+                          flex: 1,
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "0.375rem",
+                          padding: "0.375rem 0.5rem",
+                          fontSize: "0.8rem",
+                        }}
                       />
                       <button
                         type="button"
                         onClick={() => {
                           if (taskChecklistInput.trim()) {
-                            setTaskChecklist([...taskChecklist, taskChecklistInput.trim()]);
+                            setTaskChecklist([
+                              ...taskChecklist,
+                              taskChecklistInput.trim(),
+                            ]);
                             setTaskChecklistInput("");
                           }
                         }}
@@ -7269,7 +12587,7 @@ export default function SifarisDetailPage() {
                           cursor: "pointer",
                           display: "inline-flex",
                           alignItems: "center",
-                          gap: "0.25rem"
+                          gap: "0.25rem",
                         }}
                       >
                         <FiPlus />
@@ -7279,8 +12597,25 @@ export default function SifarisDetailPage() {
                   </div>
 
                   {/* Əlavə edilmiş fayllar */}
-                  <div style={{ background: "#ffffff", padding: "1.25rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0" }}>
-                    <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: "0.75rem" }}>Əlavə edilmiş fayllar</span>
+                  <div
+                    style={{
+                      background: "#ffffff",
+                      padding: "1.25rem",
+                      borderRadius: "0.5rem",
+                      border: "1px solid #e2e8f0",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.85rem",
+                        fontWeight: 700,
+                        color: "#475569",
+                        display: "block",
+                        marginBottom: "0.75rem",
+                      }}
+                    >
+                      Əlavə edilmiş fayllar
+                    </span>
                     <div
                       style={{
                         border: "2px dashed #cbd5e1",
@@ -7289,7 +12624,7 @@ export default function SifarisDetailPage() {
                         textAlign: "center",
                         fontSize: "0.85rem",
                         color: "#64748b",
-                        cursor: "pointer"
+                        cursor: "pointer",
                       }}
                     >
                       Faylınızı Sürüşdürün & Buraxın ya da Seçin
@@ -7298,139 +12633,431 @@ export default function SifarisDetailPage() {
                 </div>
 
                 {/* Right Column / Control Panel */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "1rem",
+                  }}
+                >
                   {/* Müəllif */}
-                  <div style={{ background: "#ffffff", padding: "0.75rem 1rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div
+                    style={{
+                      background: "#ffffff",
+                      padding: "0.75rem 1rem",
+                      borderRadius: "0.5rem",
+                      border: "1px solid #e2e8f0",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
                     <div style={{ flex: 1 }}>
-                      <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "0.25rem" }}>Müəllif</label>
+                      <label
+                        style={{
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          color: "#64748b",
+                          display: "block",
+                          marginBottom: "0.25rem",
+                        }}
+                      >
+                        Müəllif
+                      </label>
                       <input
                         type="text"
                         value={taskAuthor}
                         onChange={(e) => setTaskAuthor(e.target.value)}
-                        style={{ width: "100%", border: 0, padding: 0, outline: "none", fontSize: "0.85rem", backgroundColor: "transparent" }}
+                        style={{
+                          width: "100%",
+                          border: 0,
+                          padding: 0,
+                          outline: "none",
+                          fontSize: "0.85rem",
+                          backgroundColor: "transparent",
+                        }}
                       />
                     </div>
-                    <button type="button" onClick={() => setTaskAuthor("")} style={{ background: "transparent", border: 0, cursor: "pointer", color: "#cbd5e1" }}>×</button>
+                    <button
+                      type="button"
+                      onClick={() => setTaskAuthor("")}
+                      style={{
+                        background: "transparent",
+                        border: 0,
+                        cursor: "pointer",
+                        color: "#cbd5e1",
+                      }}
+                    >
+                      ×
+                    </button>
                   </div>
 
                   {/* İcraçı */}
-                  <div style={{ background: "#ffffff", padding: "0.75rem 1rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div
+                    style={{
+                      background: "#ffffff",
+                      padding: "0.75rem 1rem",
+                      borderRadius: "0.5rem",
+                      border: "1px solid #e2e8f0",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
                     <div style={{ flex: 1 }}>
-                      <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "0.25rem" }}>İcraçı</label>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem", alignItems: "center" }}>
-                        <span style={{ background: "#f1f5f9", padding: "0.15rem 0.5rem", borderRadius: "0.25rem", fontSize: "0.775rem", display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                      <label
+                        style={{
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          color: "#64748b",
+                          display: "block",
+                          marginBottom: "0.25rem",
+                        }}
+                      >
+                        İcraçı
+                      </label>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: "0.25rem",
+                          alignItems: "center",
+                        }}
+                      >
+                        <span
+                          style={{
+                            background: "#f1f5f9",
+                            padding: "0.15rem 0.5rem",
+                            borderRadius: "0.25rem",
+                            fontSize: "0.775rem",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.25rem",
+                          }}
+                        >
                           {taskExecutor}
-                          <button type="button" onClick={() => setTaskExecutor("")} style={{ border: 0, background: "transparent", cursor: "pointer", fontSize: "0.75rem" }}>×</button>
+                          <button
+                            type="button"
+                            onClick={() => setTaskExecutor("")}
+                            style={{
+                              border: 0,
+                              background: "transparent",
+                              cursor: "pointer",
+                              fontSize: "0.75rem",
+                            }}
+                          >
+                            ×
+                          </button>
                         </span>
                       </div>
                     </div>
                   </div>
 
                   {/* Təkrarlanan tapşırıq */}
-                  <div style={{ background: "#ffffff", padding: "0.75rem 1rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "#475569", cursor: "pointer" }}>
+                  <div
+                    style={{
+                      background: "#ffffff",
+                      padding: "0.75rem 1rem",
+                      borderRadius: "0.5rem",
+                      border: "1px solid #e2e8f0",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        fontSize: "0.85rem",
+                        color: "#475569",
+                        cursor: "pointer",
+                      }}
+                    >
                       <input
                         type="checkbox"
                         checked={taskIsRecurring}
                         onChange={(e) => setTaskIsRecurring(e.target.checked)}
-                        style={{ width: "1.1rem", height: "1.1rem", accentColor: "#16a34a" }}
+                        style={{
+                          width: "1.1rem",
+                          height: "1.1rem",
+                          accentColor: "#16a34a",
+                        }}
                       />
                       Təkrarlanan tapşırıq
                     </label>
-                    <span style={{ color: "#3b82f6", cursor: "pointer", fontWeight: "bold" }}>!</span>
+                    <span
+                      style={{
+                        color: "#3b82f6",
+                        cursor: "pointer",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      !
+                    </span>
                   </div>
 
                   {/* Yaradılması tarix */}
-                  <div style={{ background: "#ffffff", padding: "0.75rem 1rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                  <div
+                    style={{
+                      background: "#ffffff",
+                      padding: "0.75rem 1rem",
+                      borderRadius: "0.5rem",
+                      border: "1px solid #e2e8f0",
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "1rem",
+                    }}
+                  >
                     <div>
-                      <label style={{ fontSize: "0.725rem", color: "#64748b", display: "block", marginBottom: "0.25rem" }}>Yradılması tarix</label>
+                      <label
+                        style={{
+                          fontSize: "0.725rem",
+                          color: "#64748b",
+                          display: "block",
+                          marginBottom: "0.25rem",
+                        }}
+                      >
+                        Yradılması tarix
+                      </label>
                       <input
                         type="text"
                         value={taskCreatedDate}
                         onChange={(e) => setTaskCreatedDate(e.target.value)}
-                        style={{ width: "100%", border: 0, padding: 0, outline: "none", fontSize: "0.85rem", fontWeight: 600 }}
+                        style={{
+                          width: "100%",
+                          border: 0,
+                          padding: 0,
+                          outline: "none",
+                          fontSize: "0.85rem",
+                          fontWeight: 600,
+                        }}
                       />
                     </div>
                     <div>
-                      <label style={{ fontSize: "0.725rem", color: "#64748b", display: "block", marginBottom: "0.25rem" }}>Vaxt</label>
+                      <label
+                        style={{
+                          fontSize: "0.725rem",
+                          color: "#64748b",
+                          display: "block",
+                          marginBottom: "0.25rem",
+                        }}
+                      >
+                        Vaxt
+                      </label>
                       <input
                         type="text"
                         value={taskCreatedTime}
                         onChange={(e) => setTaskCreatedTime(e.target.value)}
-                        style={{ width: "100%", border: 0, padding: 0, outline: "none", fontSize: "0.85rem", fontWeight: 600 }}
+                        style={{
+                          width: "100%",
+                          border: 0,
+                          padding: 0,
+                          outline: "none",
+                          fontSize: "0.85rem",
+                          fontWeight: 600,
+                        }}
                       />
                     </div>
                   </div>
 
                   {/* Son müddət */}
-                  <div style={{ background: "#ffffff", padding: "0.75rem 1rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: "0.75rem" }}>
+                  <div
+                    style={{
+                      background: "#ffffff",
+                      padding: "0.75rem 1rem",
+                      borderRadius: "0.5rem",
+                      border: "1px solid #e2e8f0",
+                      display: "grid",
+                      gridTemplateColumns: "1.2fr 1fr 1fr",
+                      gap: "0.75rem",
+                    }}
+                  >
                     <div>
-                      <label style={{ fontSize: "0.725rem", color: "#64748b", display: "block", marginBottom: "0.25rem" }}>Son müddət</label>
+                      <label
+                        style={{
+                          fontSize: "0.725rem",
+                          color: "#64748b",
+                          display: "block",
+                          marginBottom: "0.25rem",
+                        }}
+                      >
+                        Son müddət
+                      </label>
                       <input
                         type="text"
                         placeholder="28.05.2026"
                         value={taskDueDate}
                         onChange={(e) => setTaskDueDate(e.target.value)}
-                        style={{ width: "100%", border: 0, padding: 0, outline: "none", fontSize: "0.85rem" }}
+                        style={{
+                          width: "100%",
+                          border: 0,
+                          padding: 0,
+                          outline: "none",
+                          fontSize: "0.85rem",
+                        }}
                       />
                     </div>
                     <div>
-                      <label style={{ fontSize: "0.725rem", color: "#64748b", display: "block", marginBottom: "0.25rem" }}>Vaxt</label>
+                      <label
+                        style={{
+                          fontSize: "0.725rem",
+                          color: "#64748b",
+                          display: "block",
+                          marginBottom: "0.25rem",
+                        }}
+                      >
+                        Vaxt
+                      </label>
                       <input
                         type="text"
                         placeholder="18:00"
                         value={taskDueTime}
                         onChange={(e) => setTaskDueTime(e.target.value)}
-                        style={{ width: "100%", border: 0, padding: 0, outline: "none", fontSize: "0.85rem" }}
+                        style={{
+                          width: "100%",
+                          border: 0,
+                          padding: 0,
+                          outline: "none",
+                          fontSize: "0.85rem",
+                        }}
                       />
                     </div>
                     <div>
-                      <label style={{ fontSize: "0.725rem", color: "#64748b", display: "block", marginBottom: "0.25rem" }}>Qədər</label>
+                      <label
+                        style={{
+                          fontSize: "0.725rem",
+                          color: "#64748b",
+                          display: "block",
+                          marginBottom: "0.25rem",
+                        }}
+                      >
+                        Qədər
+                      </label>
                       <input
                         type="text"
                         value={taskDueAmount}
                         onChange={(e) => setTaskDueAmount(e.target.value)}
-                        style={{ width: "100%", border: 0, padding: 0, outline: "none", fontSize: "0.85rem" }}
+                        style={{
+                          width: "100%",
+                          border: 0,
+                          padding: 0,
+                          outline: "none",
+                          fontSize: "0.85rem",
+                        }}
                       />
                     </div>
                   </div>
 
                   {/* Xatırlat Checkbox */}
-                  <div style={{ background: "#ffffff", padding: "0.75rem 1rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "#475569", cursor: "pointer" }}>
+                  <div
+                    style={{
+                      background: "#ffffff",
+                      padding: "0.75rem 1rem",
+                      borderRadius: "0.5rem",
+                      border: "1px solid #e2e8f0",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        fontSize: "0.85rem",
+                        color: "#475569",
+                        cursor: "pointer",
+                      }}
+                    >
                       <input
                         type="checkbox"
                         checked={taskRemind}
                         onChange={(e) => setTaskRemind(e.target.checked)}
-                        style={{ width: "1.1rem", height: "1.1rem", accentColor: "#16a34a" }}
+                        style={{
+                          width: "1.1rem",
+                          height: "1.1rem",
+                          accentColor: "#16a34a",
+                        }}
                       />
                       Xatırlat
                     </label>
-                    <span style={{ color: "#3b82f6", cursor: "pointer", fontWeight: "bold" }}>!</span>
+                    <span
+                      style={{
+                        color: "#3b82f6",
+                        cursor: "pointer",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      !
+                    </span>
                   </div>
 
                   {/* Xatırlat Options */}
                   {taskRemind && (
-                    <div style={{ background: "#ffffff", padding: "0.75rem 1rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: "1rem" }}>
+                    <div
+                      style={{
+                        background: "#ffffff",
+                        padding: "0.75rem 1rem",
+                        borderRadius: "0.5rem",
+                        border: "1px solid #e2e8f0",
+                        display: "grid",
+                        gridTemplateColumns: "1.5fr 1fr",
+                        gap: "1rem",
+                      }}
+                    >
                       <div>
-                        <label style={{ fontSize: "0.725rem", color: "#64748b", display: "block", marginBottom: "0.25rem" }}>Xatırlat</label>
+                        <label
+                          style={{
+                            fontSize: "0.725rem",
+                            color: "#64748b",
+                            display: "block",
+                            marginBottom: "0.25rem",
+                          }}
+                        >
+                          Xatırlat
+                        </label>
                         <select
                           value={taskRemindDay}
                           onChange={(e) => setTaskRemindDay(e.target.value)}
-                          style={{ width: "100%", border: 0, padding: 0, outline: "none", fontSize: "0.85rem", backgroundColor: "transparent" }}
+                          style={{
+                            width: "100%",
+                            border: 0,
+                            padding: 0,
+                            outline: "none",
+                            fontSize: "0.85rem",
+                            backgroundColor: "transparent",
+                          }}
                         >
                           <option value="İcra günündə">İcra günündə</option>
                           <option value="1 gün əvvəl">1 gün əvvəl</option>
                         </select>
                       </div>
                       <div>
-                        <label style={{ fontSize: "0.725rem", color: "#64748b", display: "block", marginBottom: "0.25rem" }}>Vaxt</label>
+                        <label
+                          style={{
+                            fontSize: "0.725rem",
+                            color: "#64748b",
+                            display: "block",
+                            marginBottom: "0.25rem",
+                          }}
+                        >
+                          Vaxt
+                        </label>
                         <input
                           type="text"
                           value={taskRemindTime}
                           onChange={(e) => setTaskRemindTime(e.target.value)}
-                          style={{ width: "100%", border: 0, padding: 0, outline: "none", fontSize: "0.85rem", fontWeight: 600 }}
+                          style={{
+                            width: "100%",
+                            border: 0,
+                            padding: 0,
+                            outline: "none",
+                            fontSize: "0.85rem",
+                            fontWeight: 600,
+                          }}
                         />
                       </div>
                     </div>
@@ -7440,7 +13067,15 @@ export default function SifarisDetailPage() {
             </div>
 
             {/* Footer */}
-            <div style={{ padding: "1.25rem 2rem", display: "flex", justifyContent: "space-between", borderTop: "1px solid #cbd5e1", background: "#ffffff" }}>
+            <div
+              style={{
+                padding: "1.25rem 2rem",
+                display: "flex",
+                justifyContent: "space-between",
+                borderTop: "1px solid #cbd5e1",
+                background: "#ffffff",
+              }}
+            >
               {selectedTaskForEdit ? (
                 <button
                   type="button"
@@ -7456,7 +13091,7 @@ export default function SifarisDetailPage() {
                     cursor: "pointer",
                     display: "inline-flex",
                     alignItems: "center",
-                    gap: "0.375rem"
+                    gap: "0.375rem",
                   }}
                 >
                   <FiTrash2 />
@@ -7479,7 +13114,7 @@ export default function SifarisDetailPage() {
                   cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: "0.5rem"
+                  gap: "0.5rem",
                 }}
               >
                 <span>Yaddaşda saxla və çıx</span>
@@ -7509,7 +13144,7 @@ export default function SifarisDetailPage() {
               background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
             }}
-            />
+          />
           {/* Modal Container */}
           <div
             style={{
@@ -7523,7 +13158,7 @@ export default function SifarisDetailPage() {
               display: "flex",
               flexDirection: "column",
               maxHeight: "95vh",
-              fontFamily: "Inter, sans-serif"
+              fontFamily: "Inter, sans-serif",
             }}
           >
             {/* Header */}
@@ -7533,26 +13168,60 @@ export default function SifarisDetailPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                background: "transparent"
+                background: "transparent",
               }}
             >
-              <span style={{ fontSize: "1.25rem", fontWeight: 500, color: "#5a738e" }}>Yeni müqavilə</span>
+              <span
+                style={{
+                  fontSize: "1.25rem",
+                  fontWeight: 500,
+                  color: "#5a738e",
+                }}
+              >
+                Yeni müqavilə
+              </span>
               <button
                 type="button"
                 onClick={() => setIsNewContractModalOpen(false)}
-                style={{ background: "transparent", border: 0, cursor: "pointer", fontSize: "1.5rem", color: "#000000", fontWeight: "bold" }}
+                style={{
+                  background: "transparent",
+                  border: 0,
+                  cursor: "pointer",
+                  fontSize: "1.5rem",
+                  color: "#000000",
+                  fontWeight: "bold",
+                }}
               >
                 <FiX />
               </button>
             </div>
 
             {/* Body */}
-            <div style={{ padding: "1.5rem 2rem 2rem 2rem", overflowY: "auto", flex: 1 }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                
+            <div
+              style={{
+                padding: "1.5rem 2rem 2rem 2rem",
+                overflowY: "auto",
+                flex: 1,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "1rem",
+                }}
+              >
                 {/* Şirkət */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>Şirkət</label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>
+                    Şirkət
+                  </label>
                   <div style={{ position: "relative", width: "100%" }}>
                     <select
                       value={contractCompany}
@@ -7567,24 +13236,62 @@ export default function SifarisDetailPage() {
                         backgroundColor: "#ffffff",
                         color: "#334155",
                         appearance: "none",
-                        cursor: "pointer"
+                        cursor: "pointer",
                       }}
                     >
                       <option value="Ziyafreight">Ziyafreight</option>
-                      <option value="Logistra LLC">Logistra LLC</option>
+                      <option value="Ziyalog LLC">Ziyalog LLC</option>
                     </select>
-                    <div style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", display: "flex", alignItems: "center", gap: "0.5rem", pointerEvents: "none" }}>
-                      <span style={{ color: "#000000", fontSize: "0.9rem", fontWeight: "bold" }}>×</span>
-                      <span style={{ color: "#94a3b8", fontSize: "0.55rem" }}>▼</span>
+                    <div
+                      style={{
+                        position: "absolute",
+                        right: "0.75rem",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: "#000000",
+                          fontSize: "0.9rem",
+                          fontWeight: "bold",
+                        }}
+                      >
+                        ×
+                      </span>
+                      <span style={{ color: "#94a3b8", fontSize: "0.55rem" }}>
+                        ▼
+                      </span>
                     </div>
                   </div>
                 </div>
 
                 {/* Tip */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                  <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>Tip <span style={{ color: "#ef4444" }}>*</span></label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>
+                    Tip <span style={{ color: "#ef4444" }}>*</span>
+                  </label>
                   <div style={{ display: "flex", gap: "2rem" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem", color: "#000000", cursor: "pointer" }}>
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        fontSize: "0.9rem",
+                        color: "#000000",
+                        cursor: "pointer",
+                      }}
+                    >
                       <input
                         type="radio"
                         name="contractType"
@@ -7592,24 +13299,46 @@ export default function SifarisDetailPage() {
                         onChange={() => setContractType("template")}
                         style={{ display: "none" }}
                       />
-                      <span style={{
-                        width: "1.25rem",
-                        height: "1.25rem",
-                        borderRadius: "50%",
-                        border: contractType === "template" ? "2px solid #5cb85c" : "2px solid #cbd5e1",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        background: contractType === "template" ? "#5cb85c" : "#ffffff",
-                        transition: "all 0.2s"
-                      }}>
+                      <span
+                        style={{
+                          width: "1.25rem",
+                          height: "1.25rem",
+                          borderRadius: "50%",
+                          border:
+                            contractType === "template"
+                              ? "2px solid #5cb85c"
+                              : "2px solid #cbd5e1",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background:
+                            contractType === "template" ? "#5cb85c" : "#ffffff",
+                          transition: "all 0.2s",
+                        }}
+                      >
                         {contractType === "template" && (
-                          <span style={{ width: "0.5rem", height: "0.5rem", borderRadius: "50%", background: "#ffffff" }} />
+                          <span
+                            style={{
+                              width: "0.5rem",
+                              height: "0.5rem",
+                              borderRadius: "50%",
+                              background: "#ffffff",
+                            }}
+                          />
                         )}
                       </span>
                       Sənədin şablonu
                     </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem", color: "#000000", cursor: "pointer" }}>
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        fontSize: "0.9rem",
+                        color: "#000000",
+                        cursor: "pointer",
+                      }}
+                    >
                       <input
                         type="radio"
                         name="contractType"
@@ -7617,19 +13346,32 @@ export default function SifarisDetailPage() {
                         onChange={() => setContractType("file")}
                         style={{ display: "none" }}
                       />
-                      <span style={{
-                        width: "1.25rem",
-                        height: "1.25rem",
-                        borderRadius: "50%",
-                        border: contractType === "file" ? "2px solid #5cb85c" : "2px solid #cbd5e1",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        background: contractType === "file" ? "#5cb85c" : "#ffffff",
-                        transition: "all 0.2s"
-                      }}>
+                      <span
+                        style={{
+                          width: "1.25rem",
+                          height: "1.25rem",
+                          borderRadius: "50%",
+                          border:
+                            contractType === "file"
+                              ? "2px solid #5cb85c"
+                              : "2px solid #cbd5e1",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background:
+                            contractType === "file" ? "#5cb85c" : "#ffffff",
+                          transition: "all 0.2s",
+                        }}
+                      >
                         {contractType === "file" && (
-                          <span style={{ width: "0.5rem", height: "0.5rem", borderRadius: "50%", background: "#ffffff" }} />
+                          <span
+                            style={{
+                              width: "0.5rem",
+                              height: "0.5rem",
+                              borderRadius: "50%",
+                              background: "#ffffff",
+                            }}
+                          />
                         )}
                       </span>
                       Əlavə edilmiş fayl
@@ -7638,35 +13380,63 @@ export default function SifarisDetailPage() {
                 </div>
 
                 {/* Reys və Yük üçün müqavilə (Flex grid) */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                    <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>Reys üçün müqavilə</label>
-                    <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                      <div style={{
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "1.5rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
+                    <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>
+                      Reys üçün müqavilə
+                    </label>
+                    <div
+                      style={{
+                        position: "relative",
                         display: "flex",
                         alignItems: "center",
-                        gap: "0.5rem",
-                        width: "100%",
-                        border: "1px solid #cbd5e1",
-                        borderRadius: "0.375rem",
-                        padding: "0.375rem 0.5rem",
-                        background: "#ffffff",
-                        minHeight: "2.35rem",
-                        boxSizing: "border-box"
-                      }}>
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.5rem",
+                          width: "100%",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "0.375rem",
+                          padding: "0.375rem 0.5rem",
+                          background: "#ffffff",
+                          minHeight: "2.35rem",
+                          boxSizing: "border-box",
+                        }}
+                      >
                         {contractVoyage ? (
-                          <span style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "0.25rem",
-                            background: "#e2e8f0",
-                            color: "#000000",
-                            padding: "0.15rem 0.5rem",
-                            borderRadius: "0.25rem",
-                            fontSize: "0.85rem",
-                          }}>
-                            <span 
-                              style={{ cursor: "pointer", fontWeight: "bold", color: "#94a3b8" }}
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "0.25rem",
+                              background: "#e2e8f0",
+                              color: "#000000",
+                              padding: "0.15rem 0.5rem",
+                              borderRadius: "0.25rem",
+                              fontSize: "0.85rem",
+                            }}
+                          >
+                            <span
+                              style={{
+                                cursor: "pointer",
+                                fontWeight: "bold",
+                                color: "#94a3b8",
+                              }}
                               onClick={() => setContractVoyage("")}
                             >
                               ×
@@ -7674,10 +13444,20 @@ export default function SifarisDetailPage() {
                             {contractVoyage}
                           </span>
                         ) : (
-                          <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}>Dəyəri seçin</span>
+                          <span
+                            style={{ color: "#94a3b8", fontSize: "0.85rem" }}
+                          >
+                            Dəyəri seçin
+                          </span>
                         )}
-                        <span 
-                          style={{ marginLeft: "auto", cursor: "pointer", fontWeight: "bold", color: "#000000", fontSize: "1rem" }}
+                        <span
+                          style={{
+                            marginLeft: "auto",
+                            cursor: "pointer",
+                            fontWeight: "bold",
+                            color: "#000000",
+                            fontSize: "1rem",
+                          }}
                           onClick={() => setContractVoyage("")}
                         >
                           ×
@@ -7686,8 +13466,16 @@ export default function SifarisDetailPage() {
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                    <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>Yük üçün müqavilə</label>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
+                    <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>
+                      Yük üçün müqavilə
+                    </label>
                     <div style={{ position: "relative", width: "100%" }}>
                       <select
                         value={contractLoad}
@@ -7700,24 +13488,48 @@ export default function SifarisDetailPage() {
                           fontSize: "0.9rem",
                           outline: "none",
                           backgroundColor: "#ffffff",
-                          color: contractLoad === "Dəyəri seçin" ? "#94a3b8" : "#334155",
+                          color:
+                            contractLoad === "Dəyəri seçin"
+                              ? "#94a3b8"
+                              : "#334155",
                           appearance: "none",
-                          cursor: "pointer"
+                          cursor: "pointer",
                         }}
                       >
                         <option value="Dəyəri seçin">Dəyəri seçin</option>
                         <option value="General cargo">General cargo</option>
                       </select>
-                      <div style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", display: "flex", alignItems: "center", gap: "0.5rem", pointerEvents: "none" }}>
-                        <span style={{ color: "#cbd5e1", fontSize: "0.55rem" }}>▼</span>
+                      <div
+                        style={{
+                          position: "absolute",
+                          right: "0.75rem",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.5rem",
+                          pointerEvents: "none",
+                        }}
+                      >
+                        <span style={{ color: "#cbd5e1", fontSize: "0.55rem" }}>
+                          ▼
+                        </span>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Şablon */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>Şablon <span style={{ color: "#ef4444" }}>*</span></label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>
+                    Şablon <span style={{ color: "#ef4444" }}>*</span>
+                  </label>
                   <div style={{ position: "relative", width: "100%" }}>
                     <select
                       value={contractTemplate}
@@ -7730,115 +13542,284 @@ export default function SifarisDetailPage() {
                         fontSize: "0.9rem",
                         outline: "none",
                         backgroundColor: "#ffffff",
-                        color: contractTemplate === "Dəyəri seçin" ? "#94a3b8" : "#334155",
+                        color:
+                          contractTemplate === "Dəyəri seçin"
+                            ? "#94a3b8"
+                            : "#334155",
                         appearance: "none",
-                        cursor: "pointer"
+                        cursor: "pointer",
                       }}
                     >
                       <option value="Dəyəri seçin">Dəyəri seçin</option>
-                      <option value="Standard Agreement">Standard Agreement</option>
+                      <option value="Standard Agreement">
+                        Standard Agreement
+                      </option>
                     </select>
-                    <div style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", display: "flex", alignItems: "center", gap: "0.5rem", pointerEvents: "none" }}>
-                      <span style={{ color: "#94a3b8", fontSize: "0.55rem" }}>▼</span>
+                    <div
+                      style={{
+                        position: "absolute",
+                        right: "0.75rem",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      <span style={{ color: "#94a3b8", fontSize: "0.55rem" }}>
+                        ▼
+                      </span>
                     </div>
                   </div>
                 </div>
 
                 {/* Sənədin nömrəsi, tarixi, adı (Grid) */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.2fr", gap: "1.5rem" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                    <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>Sənədin nömrəsi</label>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr 1.2fr",
+                    gap: "1.5rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
+                    <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>
+                      Sənədin nömrəsi
+                    </label>
                     <input
                       type="text"
                       value={contractDocNumber}
                       onChange={(e) => setContractDocNumber(e.target.value)}
-                      style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.55rem 0.75rem", fontSize: "0.9rem", outline: "none", backgroundColor: "#ffffff" }}
+                      style={{
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "0.375rem",
+                        padding: "0.55rem 0.75rem",
+                        fontSize: "0.9rem",
+                        outline: "none",
+                        backgroundColor: "#ffffff",
+                      }}
                     />
                   </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                    <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>Sənədin tarixi</label>
-                    <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
+                    <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>
+                      Sənədin tarixi
+                    </label>
+                    <div
+                      style={{
+                        position: "relative",
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
                       <input
                         type="text"
                         value={contractDocDate}
                         onChange={(e) => setContractDocDate(e.target.value)}
-                        style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.55rem 2.25rem 0.55rem 0.75rem", fontSize: "0.9rem", outline: "none", backgroundColor: "#ffffff" }}
+                        style={{
+                          width: "100%",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "0.375rem",
+                          padding: "0.55rem 2.25rem 0.55rem 0.75rem",
+                          fontSize: "0.9rem",
+                          outline: "none",
+                          backgroundColor: "#ffffff",
+                        }}
                       />
-                      <FiCalendar style={{ position: "absolute", right: "0.75rem", color: "#cbd5e1" }} />
+                      <FiCalendar
+                        style={{
+                          position: "absolute",
+                          right: "0.75rem",
+                          color: "#cbd5e1",
+                        }}
+                      />
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                    <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>Sənədin adı</label>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.375rem",
+                    }}
+                  >
+                    <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>
+                      Sənədin adı
+                    </label>
                     <input
                       type="text"
                       value={contractDocName}
                       onChange={(e) => setContractDocName(e.target.value)}
-                      style={{ border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.55rem 0.75rem", fontSize: "0.9rem", outline: "none", backgroundColor: "#ffffff" }}
+                      style={{
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "0.375rem",
+                        padding: "0.55rem 0.75rem",
+                        fontSize: "0.9rem",
+                        outline: "none",
+                        backgroundColor: "#ffffff",
+                      }}
                     />
                   </div>
                 </div>
 
                 {/* Checkboxes vertically aligned */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "0.5rem" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem", color: "#000000", cursor: "pointer" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.75rem",
+                    marginTop: "0.5rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      fontSize: "0.9rem",
+                      color: "#000000",
+                      cursor: "pointer",
+                    }}
+                  >
                     <input
                       type="checkbox"
                       checked={contractHasValidity}
                       onChange={(e) => setContractHasValidity(e.target.checked)}
-                      style={{ width: "1.1rem", height: "1.1rem", accentColor: "#5cb85c" }}
+                      style={{
+                        width: "1.1rem",
+                        height: "1.1rem",
+                        accentColor: "#5cb85c",
+                      }}
                     />
                     Sənədin etibarlılıq müddəti
                   </label>
 
-                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem", color: "#000000", cursor: "pointer" }}>
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      fontSize: "0.9rem",
+                      color: "#000000",
+                      cursor: "pointer",
+                    }}
+                  >
                     <input
                       type="checkbox"
                       checked={contractProvideAccessCustomer}
-                      onChange={(e) => setContractProvideAccessCustomer(e.target.checked)}
-                      style={{ width: "1.1rem", height: "1.1rem", accentColor: "#5cb85c" }}
+                      onChange={(e) =>
+                        setContractProvideAccessCustomer(e.target.checked)
+                      }
+                      style={{
+                        width: "1.1rem",
+                        height: "1.1rem",
+                        accentColor: "#5cb85c",
+                      }}
                     />
                     Müştəriyə çıxışı təqdim et
                   </label>
 
-                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem", color: "#000000", cursor: "pointer" }}>
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      fontSize: "0.9rem",
+                      color: "#000000",
+                      cursor: "pointer",
+                    }}
+                  >
                     <input
                       type="checkbox"
                       checked={contractProvideAccessCarrier}
-                      onChange={(e) => setContractProvideAccessCarrier(e.target.checked)}
-                      style={{ width: "1.1rem", height: "1.1rem", accentColor: "#5cb85c" }}
+                      onChange={(e) =>
+                        setContractProvideAccessCarrier(e.target.checked)
+                      }
+                      style={{
+                        width: "1.1rem",
+                        height: "1.1rem",
+                        accentColor: "#5cb85c",
+                      }}
                     />
                     Daşıyıcıya girişi təqdim et
                   </label>
 
-                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem", color: "#000000", cursor: "pointer" }}>
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      fontSize: "0.9rem",
+                      color: "#000000",
+                      cursor: "pointer",
+                    }}
+                  >
                     <input
                       type="checkbox"
                       checked={contractSendNotif}
                       onChange={(e) => setContractSendNotif(e.target.checked)}
-                      style={{ width: "1.1rem", height: "1.1rem", accentColor: "#5cb85c" }}
+                      style={{
+                        width: "1.1rem",
+                        height: "1.1rem",
+                        accentColor: "#5cb85c",
+                      }}
                     />
                     Göndərmə barədə məlumat verin
                   </label>
                 </div>
 
                 {/* Şərhlər */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>Şərhlər</label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>
+                    Şərhlər
+                  </label>
                   <textarea
                     value={contractComments}
                     onChange={(e) => setContractComments(e.target.value)}
                     rows={4}
-                    style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.75rem", outline: "none", fontSize: "0.9rem", boxSizing: "border-box", resize: "both" }}
+                    style={{
+                      width: "100%",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "0.375rem",
+                      padding: "0.75rem",
+                      outline: "none",
+                      fontSize: "0.9rem",
+                      boxSizing: "border-box",
+                      resize: "both",
+                    }}
                   />
                 </div>
-
               </div>
             </div>
 
             {/* Footer */}
-            <div style={{ padding: "1.25rem 2rem", display: "flex", justifyContent: "center", gap: "1rem", background: "transparent" }}>
+            <div
+              style={{
+                padding: "1.25rem 2rem",
+                display: "flex",
+                justifyContent: "center",
+                gap: "1rem",
+                background: "transparent",
+              }}
+            >
               <button
                 type="button"
                 onClick={() => setIsNewContractModalOpen(false)}
@@ -7850,7 +13831,7 @@ export default function SifarisDetailPage() {
                   padding: "0.625rem 2rem",
                   fontWeight: 600,
                   fontSize: "0.9rem",
-                  cursor: "pointer"
+                  cursor: "pointer",
                 }}
               >
                 Yaddaşda saxlamaq
@@ -7867,7 +13848,7 @@ export default function SifarisDetailPage() {
                   padding: "0.625rem 2rem",
                   fontWeight: 600,
                   fontSize: "0.9rem",
-                  cursor: "pointer"
+                  cursor: "pointer",
                 }}
               >
                 Müqaviləni yaddaşda saxla və tamamla
@@ -7878,9 +13859,7 @@ export default function SifarisDetailPage() {
       )}
 
       {/* Footer */}
-      <footer className={styles.footer}>
-        Logistra Copyright © 2013-2026
-      </footer>
+      <footer className={styles.footer}>Ziyalog Copyright © 2013-2026</footer>
     </div>
   );
 }

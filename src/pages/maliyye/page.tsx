@@ -1,37 +1,63 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import styles from "./maliyye.module.css";
-import sorguTableStyles from "../sorgular/components/SorgularTable.module.css";
-import sorguLayoutStyles from "../sorgular/sorgular.module.css";
-import sorguActionBarStyles from "../sorgular/components/SorgularActionBar.module.css";
-import { FaEdit, FaTrash } from "react-icons/fa";
-import { FiPlus, FiFilter } from "react-icons/fi";
-import { fetchFinanceTransactionsAction, fetchInvoicesAction, createFinanceTransactionAction, updateFinanceTransactionAction, deleteFinanceTransactionAction } from "../../common/actions/finance.actions";
+import { FiPlus, FiEdit2, FiTrash2 } from "react-icons/fi";
+import {
+  fetchFinanceTransactionsAction,
+  createFinanceTransactionAction,
+  updateFinanceTransactionAction,
+  deleteFinanceTransactionAction,
+} from "../../common/actions/finance.actions";
 import Loading from "../../common/components/loading/Loading";
 import FinanceModal from "./FinanceModal";
-import { ConfirmModal } from "../../common/components/ConfirmModal";
+import SorgularPagination from "../sorgular/components/SorgularPagination";
+import {
+  type CashWallet,
+  SYSTEM_PARTNER_LABEL,
+  isIncomeTx,
+  isSystemBalanceAdjustment,
+  resolveTxCashAzn,
+  txMatchesWallet,
+} from "./lib/financeWallet.utils";
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString("az-AZ", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function formatDateOnly(value?: string | null) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("az-AZ");
+}
+
+const PAGE_SIZE = 10;
 
 export default function MaliyyePage() {
-  const [activeTab, setActiveTab] = useState<"transactions" | "invoices">("transactions");
+  const [walletTab, setWalletTab] = useState<CashWallet>("Kasa");
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<any>(null);
-  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [txData, invData] = await Promise.all([
-        fetchFinanceTransactionsAction(),
-        fetchInvoicesAction()
-      ]);
-      setTransactions(txData);
-      setInvoices(invData);
+      const txData = await fetchFinanceTransactionsAction();
+      setTransactions(Array.isArray(txData) ? txData : []);
     } catch (err) {
       console.error("Maliyyə datası yüklənərkən xəta", err);
     } finally {
@@ -43,244 +69,363 @@ export default function MaliyyePage() {
     loadData();
   }, []);
 
-  const stats = useMemo(() => {
-    let totalIncome = 0;
-    let totalExpense = 0;
+  const walletTxs = useMemo(
+    () => transactions.filter((tx) => txMatchesWallet(tx, walletTab)),
+    [transactions, walletTab],
+  );
 
-    transactions.forEach(tx => {
-      // Use generic amount if present, fallback to profit/prices
-      let profitVal = parseFloat(tx.profit || "0");
-      if (tx.amount) {
-         if (tx.type === "INCOME") totalIncome += parseFloat(tx.amount);
-         else totalExpense += parseFloat(tx.amount);
-      } else {
-         if (profitVal > 0) totalIncome += profitVal;
-         else totalExpense += Math.abs(profitVal);
-      }
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [walletTab]);
+
+  const totalPages = Math.max(1, Math.ceil(walletTxs.length / PAGE_SIZE));
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
+  const pagedTxs = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return walletTxs.slice(start, start + PAGE_SIZE);
+  }, [walletTxs, currentPage]);
+
+  const getVisiblePages = () => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    if (currentPage <= 4) {
+      return [1, 2, 3, 4, 5, -1, totalPages];
+    }
+    if (currentPage >= totalPages - 3) {
+      return [
+        1,
+        -1,
+        totalPages - 4,
+        totalPages - 3,
+        totalPages - 2,
+        totalPages - 1,
+        totalPages,
+      ];
+    }
+    return [1, -1, currentPage - 1, currentPage, currentPage + 1, -1, totalPages];
+  };
+
+  const stats = useMemo(() => {
+    let totalIn = 0;
+    let totalOut = 0;
+
+    walletTxs.forEach((tx) => {
+      const azn = resolveTxCashAzn(tx);
+      if (!(azn > 0)) return;
+      if (isIncomeTx(tx)) totalIn += azn;
+      else totalOut += azn;
     });
 
     return {
-      totalIncome,
-      totalExpense,
-      balance: totalIncome - totalExpense
+      totalIn,
+      totalOut,
+      balance: totalIn - totalOut,
     };
-  }, [transactions]);
+  }, [walletTxs]);
 
   const handleSave = async (data: any) => {
     try {
+      if (editingTx && isSystemBalanceAdjustment(editingTx)) {
+        setIsModalOpen(false);
+        setEditingTx(null);
+        return;
+      }
+      const payload = {
+        ...data,
+        paymentMethod: data.paymentMethod || walletTab,
+        amount: Number(data.amount) || 0,
+        category: data.category || undefined,
+      };
       if (editingTx) {
-        await updateFinanceTransactionAction(editingTx.id, data);
+        await updateFinanceTransactionAction(editingTx.id, payload);
       } else {
-        await createFinanceTransactionAction(data);
+        await createFinanceTransactionAction(payload);
       }
       setIsModalOpen(false);
       setEditingTx(null);
       loadData();
-    } catch (err) {
+    } catch {
       alert("Xəta baş verdi");
     }
   };
 
-  const handleDelete = (id: number) => {
-    setDeleteTargetId(id);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (deleteTargetId === null) return;
-    setIsDeleting(true);
+  const handleDelete = async (tx: any) => {
+    if (isSystemBalanceAdjustment(tx)) return;
+    if (!window.confirm(`#${tx.id} əməliyyatı silinsin?`)) return;
     try {
-      await deleteFinanceTransactionAction(deleteTargetId);
+      await deleteFinanceTransactionAction(tx.id);
       loadData();
-      setDeleteTargetId(null);
-    } catch (err) {
-      alert("Xəta baş verdi");
-    } finally {
-      setIsDeleting(false);
+    } catch {
+      alert("Silinərkən xəta baş verdi");
     }
   };
 
   if (loading && transactions.length === 0) return <Loading />;
 
+  const isKasa = walletTab === "Kasa";
+  const fmt = (n: number) =>
+    n.toLocaleString("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   return (
-    <div className={sorguLayoutStyles.container}>
-      <div className={sorguLayoutStyles.header}>
-        <section className={sorguActionBarStyles.wrapper}>
-          <div className={sorguActionBarStyles.group}>
-            <button
-              type="button"
-              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonPrimary}`}
-              onClick={() => { setEditingTx(null); setIsModalOpen(true); }}
-            >
-              <FiPlus />
-              Yeni Tranzaksiya
-            </button>
-            <button
-              type="button"
-              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonSecondary}`}
-              onClick={() => setActiveTab(activeTab === "transactions" ? "invoices" : "transactions")}
-            >
-              <FiFilter />
-              {activeTab === "transactions" ? "Hesab-fakturalara keç" : "Tranzaksiyalara keç"}
-            </button>
-          </div>
-
-          <div className={sorguActionBarStyles.statsGroup}>
-            <span className={sorguActionBarStyles.statPill} style={{ color: "#059669", fontWeight: "bold" }}>Gəlir: {stats.totalIncome.toLocaleString("az-AZ")} AZN</span>
-            <span className={sorguActionBarStyles.statPill} style={{ color: "#dc2626", fontWeight: "bold" }}>Xərc: {stats.totalExpense.toLocaleString("az-AZ")} AZN</span>
-            <span className={sorguActionBarStyles.statPill} style={{ color: stats.balance >= 0 ? "#059669" : "#dc2626", fontWeight: "bold" }}>
-              Balans: {stats.balance.toLocaleString("az-AZ")} AZN
-            </span>
-          </div>
-
-          <div className={sorguActionBarStyles.group}>
-            <button
-              type="button"
-              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonSecondary}`}
-            >
-              Excel-dən idxal et
-            </button>
-            <button
-              type="button"
-              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonSecondary}`}
-            >
-              Excel-ə ixrac et
-            </button>
-          </div>
-        </section>
+    <div className={styles.page}>
+      <div className={styles.pageHeader}>
+        <div className={styles.walletTabs}>
+          <button
+            type="button"
+            className={`${styles.walletTab} ${isKasa ? styles.walletTabActive : ""}`}
+            onClick={() => setWalletTab("Kasa")}
+          >
+            Kassam
+          </button>
+          <button
+            type="button"
+            className={`${styles.walletTab} ${!isKasa ? styles.walletTabActive : ""}`}
+            onClick={() => setWalletTab("Bank")}
+          >
+            Bank hesabı
+          </button>
+        </div>
       </div>
 
-      <div className={sorguLayoutStyles.body}>
-          {activeTab === "transactions" && (
-            <div style={{ overflowX: "auto" }}>
-              <table className={sorguTableStyles.table}>
-                <thead className={sorguTableStyles.head}>
-                  <tr>
-                    <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min80}`}>ID</th>
-                    <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>Tip / Metod</th>
-                    <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>Məbləğ</th>
-                    <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min150}`}>Ad / Kateqoriya</th>
-                    <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min170}`}>Tərəfdaş (Müştəri / Daşıyıcı)</th>
-                    <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min100}`}>Sifariş ID</th>
-                    <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>Tarix</th>
-                    <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min100}`}>Əməliyyatlar</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {transactions.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`} style={{ textAlign: "center", padding: "2rem" }}>Heç bir tranzaksiya tapılmadı</td>
-                    </tr>
-                  ) : (
-                    transactions.map((tx: any, index: number) => {
-                      const isIncome = tx.type === "INCOME" || parseFloat(tx.profit || "0") >= 0;
-                      const amountStr = tx.amount ? `${tx.amount} ${tx.currency}` : `${tx.tarifPrice || tx.profit || "0"} ${tx.tarifCurrency || "AZN"}`;
-                      const partnerName = tx.customer ? tx.customer.name : (tx.carrier ? tx.carrier.name : (tx.partner || "-"));
-                      return (
-                        <tr key={tx.id} className={index % 2 === 0 ? sorguTableStyles.rowEven : sorguTableStyles.rowOdd}>
-                          <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>#{tx.id}</td>
-                          <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                            <span className={isIncome ? styles.success : styles.danger} style={{ fontWeight: 600 }}>
-                              {tx.type === "INCOME" ? "Gəlir" : "Xərc"}
-                            </span>
-                            {tx.paymentMethod && <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{tx.paymentMethod}</div>}
-                          </td>
-                          <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                            <span className={isIncome ? styles.success : styles.danger} style={{ fontWeight: 700 }}>
-                              {amountStr}
-                            </span>
-                          </td>
-                          <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                            <div style={{ fontWeight: 600 }}>{tx.name}</div>
-                            {tx.category && <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{tx.category}</div>}
-                          </td>
-                          <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{partnerName}</td>
-                          <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{tx.orderId || "-"}</td>
-                          <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{new Date(tx.date || tx.createdAt).toLocaleDateString("az-AZ")}</td>
-                          <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                            <div className={sorguTableStyles.actionRow}>
-                              <button
-                                type="button"
-                                className={`${sorguTableStyles.iconButton} ${sorguTableStyles.detailsButton}`}
-                                onClick={() => { setEditingTx(tx); setIsModalOpen(true); }}
-                                aria-label="Redaktə et"
-                                title="Redaktə et"
-                              >
-                                <FaEdit />
-                              </button>
-                              <button
-                                type="button"
-                                className={`${sorguTableStyles.iconButton} ${sorguTableStyles.deleteButton}`}
-                                onClick={() => handleDelete(tx.id)}
-                                aria-label="Sil"
-                                title="Sil"
-                              >
-                                <FaTrash />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+      <div className={styles.pageBody}>
+        <div className={styles.kasaHeaderRow}>
+          <div>
+            <h2 className={styles.kasaTitle}>
+              {isKasa ? "Kassam" : "Bank hesabı"}
+            </h2>
+            <p className={styles.kasaHint}>
+              {isKasa
+                ? "Yalnız kasaya girən, çıxan və hazırkı kassa məbləği"
+                : "Yalnız banka girən, çıxan və hazırkı bank qalığı"}
+            </p>
+          </div>
+          <button
+            type="button"
+            className={styles.kasaAddBtn}
+            onClick={() => {
+              setEditingTx(null);
+              setIsModalOpen(true);
+            }}
+          >
+            <FiPlus />
+            Yeni əməliyyat
+          </button>
+        </div>
 
-          {activeTab === "invoices" && (
-            <div style={{ overflowX: "auto" }}>
-              <table className={sorguTableStyles.table}>
-                <thead className={sorguTableStyles.head}>
-                  <tr>
-                    <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min100}`}>Nömrə</th>
-                    <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min100}`}>Sifariş ID</th>
-                    <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min150}`}>Ödəyici</th>
-                    <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>Məbləğ</th>
-                    <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min120}`}>Status</th>
-                    <th className={`${sorguTableStyles.headerCell} ${sorguTableStyles.min150}`}>Son Ödəmə Tarixi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoices.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`} style={{ textAlign: "center", padding: "2rem" }}>Heç bir hesab-faktura tapılmadı</td>
-                    </tr>
-                  ) : (
-                    invoices.map((inv: any, index: number) => (
-                      <tr key={inv.id} className={index % 2 === 0 ? sorguTableStyles.rowEven : sorguTableStyles.rowOdd}>
-                        <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`} style={{ fontWeight: 600 }}>{inv.number}</td>
-                        <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{inv.orderId}</td>
-                        <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{inv.payer}</td>
-                        <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`} style={{ fontWeight: 700 }}>{inv.amount} {inv.currency}</td>
-                        <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                          <span className={`${styles.statusPill} ${inv.status === "Ödənilib" ? styles.statusSuccess : styles.statusPending}`}>
-                            {inv.status || "Gözləmədə"}
+        <div className={styles.kasaStatsGrid}>
+          <div className={`${styles.kasaStatCard} ${styles.kasaStatIn}`}>
+            <div className={styles.kasaStatLabel}>
+              {isKasa ? "Kasaya girən" : "Banka girən"}
+            </div>
+            <div className={styles.kasaStatValue}>{fmt(stats.totalIn)} AZN</div>
+            <div className={styles.kasaStatSub}>Ümumi mədaxil</div>
+          </div>
+
+          <div className={`${styles.kasaStatCard} ${styles.kasaStatOut}`}>
+            <div className={styles.kasaStatLabel}>
+              {isKasa ? "Kasadan çıxan" : "Bankdan çıxan"}
+            </div>
+            <div className={styles.kasaStatValue}>{fmt(stats.totalOut)} AZN</div>
+            <div className={styles.kasaStatSub}>Ümumi məxaric</div>
+          </div>
+
+          <div className={`${styles.kasaStatCard} ${styles.kasaStatBalance}`}>
+            <div className={styles.kasaStatLabel}>
+              {isKasa ? "Kasada olan" : "Bankda olan"}
+            </div>
+            <div
+              className={styles.kasaStatValue}
+              style={{ color: stats.balance >= 0 ? "#047857" : "#b91c1c" }}
+            >
+              {fmt(stats.balance)} AZN
+            </div>
+            <div className={styles.kasaStatSub}>Cari qalıq</div>
+          </div>
+        </div>
+
+        <div className={styles.tableContainer}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th className={styles.th}>ID</th>
+                <th className={styles.th}>Tip / Metod</th>
+                <th className={styles.th}>Məbləğ</th>
+                <th className={styles.th}>Ad / Kateqoriya</th>
+                <th className={styles.th}>Tərəfdaş</th>
+                <th className={styles.th}>Sifariş</th>
+                <th className={styles.th}>Əməliyyat tarixi</th>
+                <th className={styles.th}>Yaradan</th>
+                <th className={styles.th}>Redaktə edən</th>
+                <th className={styles.th}>Əməliyyatlar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pagedTxs.length === 0 ? (
+                <tr>
+                  <td className={styles.td} colSpan={10}>
+                    Bu bölmədə əməliyyat yoxdur
+                  </td>
+                </tr>
+              ) : (
+                pagedTxs.map((tx) => {
+                  const income = isIncomeTx(tx);
+                  const azn = resolveTxCashAzn(tx);
+                  const isSystem = isSystemBalanceAdjustment(tx);
+                  const partner = isSystem
+                    ? SYSTEM_PARTNER_LABEL
+                    : tx.customer?.name ||
+                      tx.customer?.company ||
+                      tx.carrier?.name ||
+                      tx.carrier?.companyName ||
+                      tx.partner ||
+                      "—";
+                  return (
+                    <tr key={tx.id} className={styles.tr}>
+                      <td className={styles.td}>#{tx.id}</td>
+                      <td className={styles.td}>
+                        <div className={styles.typeLabel}>
+                          {income ? "Gəlir" : "Xərc"}
+                        </div>
+                        <div className={styles.typeMeta}>
+                          {tx.paymentMethod || walletTab}
+                        </div>
+                      </td>
+                      <td className={styles.td}>
+                        <span
+                          className={`${styles.amountPill} ${
+                            income ? styles.amountIncome : styles.amountExpense
+                          }`}
+                        >
+                          {income ? "+" : "-"}
+                          {fmt(azn)} AZN
+                        </span>
+                      </td>
+                      <td className={styles.td}>
+                        <div className={styles.nameMain}>{tx.name || "—"}</div>
+                        {tx.category ? (
+                          <div className={styles.nameMeta}>{tx.category}</div>
+                        ) : null}
+                      </td>
+                      <td className={styles.td}>
+                        {isSystem ? (
+                          <span
+                            className={styles.systemPartnerBadge}
+                            title="Sistem balans düzəlişi"
+                          >
+                            {SYSTEM_PARTNER_LABEL}
                           </span>
-                        </td>
-                        <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{inv.payUntil ? new Date(inv.payUntil).toLocaleDateString("az-AZ") : "-"}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+                        ) : (
+                          partner
+                        )}
+                      </td>
+                      <td className={styles.td}>
+                        {tx.orderId ? `#${tx.orderId}` : "—"}
+                      </td>
+                      <td className={styles.td}>
+                        {formatDateOnly(tx.date || tx.costDate)}
+                      </td>
+                      <td className={styles.td}>
+                        <div className={styles.nameMain}>
+                          {tx.createdByName || tx.user || "—"}
+                        </div>
+                        <div className={styles.nameMeta}>
+                          {formatDateTime(tx.createdAt)}
+                        </div>
+                      </td>
+                      <td className={styles.td}>
+                        {tx.updatedAt &&
+                        tx.createdAt &&
+                        new Date(tx.updatedAt).getTime() -
+                          new Date(tx.createdAt).getTime() >
+                          2000 ? (
+                          <>
+                            <div className={styles.nameMain}>
+                              {tx.updatedByName || "—"}
+                            </div>
+                            <div className={styles.nameMeta}>
+                              {formatDateTime(tx.updatedAt)}
+                            </div>
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className={styles.td}>
+                        {isSystem ? (
+                          <span
+                            className={styles.lockedActions}
+                            title="Sistem əməliyyatı redaktə/silinə bilməz"
+                          >
+                            —
+                          </span>
+                        ) : (
+                          <div style={{ display: "flex", gap: "0.4rem" }}>
+                            <button
+                              type="button"
+                              title="Redaktə"
+                              onClick={() => {
+                                setEditingTx(tx);
+                                setIsModalOpen(true);
+                              }}
+                              style={{
+                                border: "none",
+                                background: "#eff6ff",
+                                color: "#2563eb",
+                                borderRadius: "0.4rem",
+                                padding: "0.35rem",
+                                cursor: "pointer",
+                              }}
+                            >
+                              <FiEdit2 size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              title="Sil"
+                              onClick={() => handleDelete(tx)}
+                              style={{
+                                border: "none",
+                                background: "#fef2f2",
+                                color: "#dc2626",
+                                borderRadius: "0.4rem",
+                                padding: "0.35rem",
+                                cursor: "pointer",
+                              }}
+                            >
+                              <FiTrash2 size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
-      
-      <FinanceModal 
+
+      <div className={styles.pageFooter}>
+        <SorgularPagination
+          totalRows={walletTxs.length}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          getVisiblePages={getVisiblePages}
+          onPageChange={setCurrentPage}
+        />
+      </div>
+
+      <FinanceModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
         initialData={editingTx}
-      />
-
-      <ConfirmModal
-        isOpen={deleteTargetId !== null}
-        title="Tranzaksiyanı sil"
-        message="Bu tranzaksiyanı silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarıla bilməz."
-        onConfirm={handleConfirmDelete}
-        onCancel={() => setDeleteTargetId(null)}
-        isLoading={isDeleting}
+        defaultWallet={walletTab}
       />
     </div>
   );

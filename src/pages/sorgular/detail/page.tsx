@@ -16,7 +16,7 @@ import {
   uploadDocumentAction,
   deleteDocumentAction,
   deleteCommentAction,
-  updateQueryAction
+  updateQueryAction,
 } from "../../../common/actions/query.actions";
 import { fetchCustomersAction } from "../../../common/actions/customer.actions";
 import { fetchUsersAction } from "../../../common/actions/user.actions";
@@ -29,7 +29,11 @@ import { useAppDispatch } from "../../../common/store/hooks";
 import { ConfirmModal } from "../../../common/components/ConfirmModal";
 import EntityTasksPanel from "../../../common/components/tasks/EntityTasksPanel";
 import DocumentGeneratePanel from "../../../common/components/documents/DocumentGeneratePanel";
-import { SorgularEditModal, type NewSorguFormPayload, SorgularOfferModal } from "../components";
+import {
+  SorgularEditModal,
+  type NewSorguFormPayload,
+  SorgularOfferModal,
+} from "../components";
 
 function SectionCard({
   title,
@@ -56,7 +60,12 @@ function DlRow({
 }) {
   return (
     <div
-      style={{ display: "flex", alignItems: "start", gap: 12, padding: "4px 0" }}
+      style={{
+        display: "flex",
+        alignItems: "start",
+        gap: 12,
+        padding: "4px 0",
+      }}
     >
       <dt
         style={{
@@ -69,7 +78,10 @@ function DlRow({
         {label}:
       </dt>
       <dd style={{ color: "#1e293b", fontSize: 13, fontWeight: 500, flex: 1 }}>
-        {value === undefined || value === null || value === "" || value === "—" ? (
+        {value === undefined ||
+        value === null ||
+        value === "" ||
+        value === "—" ? (
           <span style={{ color: "#cbd5e1" }}>—</span>
         ) : (
           value
@@ -88,16 +100,23 @@ export default function SorguDetailPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  
+
   const [comments, setComments] = useState<any[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<number | null>(null);
-  const [commentDeleteConfirmOpen, setCommentDeleteConfirmOpen] = useState(false);
+  const [commentDeleteConfirmOpen, setCommentDeleteConfirmOpen] =
+    useState(false);
   const [commentToDelete, setCommentToDelete] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isOfferModalOpen, setIsOfferModalOpen] = useState(false);
+  const [offerModalMode, setOfferModalMode] = useState<"add" | "edit">("add");
+  const [offerDeleteConfirmOpen, setOfferDeleteConfirmOpen] = useState(false);
+  const [offerToDeleteIndex, setOfferToDeleteIndex] = useState<number | null>(
+    null,
+  );
+  const [isDeletingOffer, setIsDeletingOffer] = useState(false);
 
   // Detay verisini backend'den çek
   const loadDetail = async () => {
@@ -148,7 +167,9 @@ export default function SorguDetailPage() {
     try {
       const comment = await addCommentAction(row.id, text);
       setComments([comment, ...comments]);
-      dispatch(showNotification({ message: "Şərh əlavə edildi", type: "success" }));
+      dispatch(
+        showNotification({ message: "Şərh əlavə edildi", type: "success" }),
+      );
     } catch (error) {
       dispatch(showNotification({ message: "Xəta baş verdi", type: "error" }));
     }
@@ -159,9 +180,13 @@ export default function SorguDetailPage() {
     try {
       const doc = await uploadDocumentAction(row.id, file);
       setDocuments([doc, ...documents]);
-      dispatch(showNotification({ message: "Sənəd yükləndi", type: "success" }));
+      dispatch(
+        showNotification({ message: "Sənəd yükləndi", type: "success" }),
+      );
     } catch (error) {
-      dispatch(showNotification({ message: "Yüklənərkən xəta", type: "error" }));
+      dispatch(
+        showNotification({ message: "Yüklənərkən xəta", type: "error" }),
+      );
     }
   };
 
@@ -210,19 +235,25 @@ export default function SorguDetailPage() {
   const handleOfferSubmit = async (offers: any[]) => {
     if (!row) return;
     try {
-      const priceOffersStr = JSON.stringify(offers);
+      const existing = detail?.priceOfferItems || [];
+      const finalOffers =
+        offerModalMode === "add" ? [...existing, ...offers] : offers;
+      const priceOffersStr = JSON.stringify(finalOffers);
       await updateQueryAction(row.id, {
         priceOffersJson: priceOffersStr,
         priceOffers:
-          offers.length > 0
-            ? `${offers[0].carrierName}: ${offers[0].price} ${offers[0].currency}`
+          finalOffers.length > 0
+            ? `${finalOffers[0].carrierName}: ${finalOffers[0].price} ${finalOffers[0].currency}`
             : "",
       });
       setIsOfferModalOpen(false);
       await loadDetail();
       dispatch(
         showNotification({
-          message: "Qiymət təklifləri yadda saxlanıldı",
+          message:
+            offerModalMode === "add"
+              ? "Yeni qiymət təklifi əlavə edildi"
+              : "Qiymət təklifləri yadda saxlanıldı",
           type: "success",
         }),
       );
@@ -233,6 +264,59 @@ export default function SorguDetailPage() {
           type: "error",
         }),
       );
+    }
+  };
+
+  const handleOpenAddOffer = () => {
+    setOfferModalMode("add");
+    setIsOfferModalOpen(true);
+  };
+
+  const handleEditOffer = () => {
+    setOfferModalMode("edit");
+    setIsOfferModalOpen(true);
+  };
+
+  const handleDeleteOffer = (_offer: any, index: number) => {
+    setOfferToDeleteIndex(index);
+    setOfferDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDeleteOffer = async () => {
+    if (!row || offerToDeleteIndex == null) return;
+    setIsDeletingOffer(true);
+    try {
+      const currentOffers = [...(detail?.priceOfferItems || [])];
+      const updatedOffers = currentOffers.filter(
+        (_, i) => i !== offerToDeleteIndex,
+      );
+      await updateQueryAction(row.id, {
+        priceOffersJson: JSON.stringify(updatedOffers),
+        priceOffers:
+          updatedOffers.length > 0
+            ? `${updatedOffers[0].carrierName}: ${updatedOffers[0].price} ${updatedOffers[0].currency}`
+            : "",
+      });
+      setOfferDeleteConfirmOpen(false);
+      setOfferToDeleteIndex(null);
+      await loadDetail();
+      dispatch(
+        showNotification({
+          message: "Qiymət təklifi silindi",
+          type: "success",
+          autoCloseDuration: 2500,
+        }),
+      );
+    } catch {
+      dispatch(
+        showNotification({
+          message: "Qiymət təklifi silinərkən xəta baş verdi",
+          type: "error",
+          autoCloseDuration: 3000,
+        }),
+      );
+    } finally {
+      setIsDeletingOffer(false);
     }
   };
 
@@ -313,7 +397,11 @@ export default function SorguDetailPage() {
       <div className={styles.layout}>
         <aside className={styles.sidebar}>
           <div className={styles.card}>
-            <button type="button" className={styles.editBtn} onClick={() => setIsEditOpen(true)}>
+            <button
+              type="button"
+              className={styles.editBtn}
+              onClick={() => setIsEditOpen(true)}
+            >
               <FaEdit /> Redaktə et
             </button>
             <div style={{ marginBottom: 20 }}>
@@ -401,29 +489,129 @@ export default function SorguDetailPage() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(120px, 1fr))",
                       gap: 16,
                       marginBottom: 20,
                     }}
                   >
-                    <div style={{ background: "#f8fafc", padding: "1rem", borderRadius: "0.5rem" }}>
-                      <p style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Miqdarı</p>
-                      <p style={{ color: "#0f172a", fontWeight: 700, fontSize: 18 }}>{detail.quantityTotal}</p>
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        padding: "1rem",
+                        borderRadius: "0.5rem",
+                      }}
+                    >
+                      <p
+                        style={{
+                          fontSize: 11,
+                          color: "#64748b",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          marginBottom: 4,
+                        }}
+                      >
+                        Miqdarı
+                      </p>
+                      <p
+                        style={{
+                          color: "#0f172a",
+                          fontWeight: 700,
+                          fontSize: 18,
+                        }}
+                      >
+                        {detail.quantityTotal}
+                      </p>
                     </div>
-                    <div style={{ background: "#f8fafc", padding: "1rem", borderRadius: "0.5rem" }}>
-                      <p style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>LDM</p>
-                      <p style={{ color: "#0f172a", fontWeight: 700, fontSize: 18 }}>{detail.ldmTotal}</p>
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        padding: "1rem",
+                        borderRadius: "0.5rem",
+                      }}
+                    >
+                      <p
+                        style={{
+                          fontSize: 11,
+                          color: "#64748b",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          marginBottom: 4,
+                        }}
+                      >
+                        LDM
+                      </p>
+                      <p
+                        style={{
+                          color: "#0f172a",
+                          fontWeight: 700,
+                          fontSize: 18,
+                        }}
+                      >
+                        {detail.ldmTotal}
+                      </p>
                     </div>
-                    <div style={{ background: "#f8fafc", padding: "1rem", borderRadius: "0.5rem" }}>
-                      <p style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Çəkisi (kq)</p>
-                      <p style={{ color: "#0f172a", fontWeight: 700, fontSize: 18 }}>{detail.weightTotal}</p>
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        padding: "1rem",
+                        borderRadius: "0.5rem",
+                      }}
+                    >
+                      <p
+                        style={{
+                          fontSize: 11,
+                          color: "#64748b",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          marginBottom: 4,
+                        }}
+                      >
+                        Çəkisi (kq)
+                      </p>
+                      <p
+                        style={{
+                          color: "#0f172a",
+                          fontWeight: 700,
+                          fontSize: 18,
+                        }}
+                      >
+                        {detail.weightTotal}
+                      </p>
                     </div>
-                    <div style={{ background: "#f8fafc", padding: "1rem", borderRadius: "0.5rem" }}>
-                      <p style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Həcmi (m³)</p>
-                      <p style={{ color: "#0f172a", fontWeight: 700, fontSize: 18 }}>{detail.volumeLabel}</p>
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        padding: "1rem",
+                        borderRadius: "0.5rem",
+                      }}
+                    >
+                      <p
+                        style={{
+                          fontSize: 11,
+                          color: "#64748b",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          marginBottom: 4,
+                        }}
+                      >
+                        Həcmi (m³)
+                      </p>
+                      <p
+                        style={{
+                          color: "#0f172a",
+                          fontWeight: 700,
+                          fontSize: 18,
+                        }}
+                      >
+                        {detail.volumeLabel}
+                      </p>
                     </div>
                   </div>
-                  <DlRow label="Nəqliyyatın tipi" value={detail.transportTypeLabel} />
+                  <DlRow
+                    label="Nəqliyyatın tipi"
+                    value={detail.transportTypeLabel}
+                  />
                   {detail.cargoItems.length > 0 ? (
                     <div
                       style={{
@@ -485,18 +673,31 @@ export default function SorguDetailPage() {
                       }}
                     >
                       {detail.cargoBoxLines.map((line, i) => (
-                        <li key={i} style={{ 
-                          padding: "8px 12px", 
-                          background: "#f8fafc", 
-                          borderRadius: "4px",
-                          fontSize: 13,
-                          color: "#334155",
-                          borderLeft: "3px solid #cbd5e1"
-                        }}>{line}</li>
+                        <li
+                          key={i}
+                          style={{
+                            padding: "8px 12px",
+                            background: "#f8fafc",
+                            borderRadius: "4px",
+                            fontSize: 13,
+                            color: "#334155",
+                            borderLeft: "3px solid #cbd5e1",
+                          }}
+                        >
+                          {line}
+                        </li>
                       ))}
                     </ul>
                   ) : (
-                    <p style={{ color: "#cbd5e1", fontSize: 13, fontStyle: "italic" }}>Məlumat yoxdur.</p>
+                    <p
+                      style={{
+                        color: "#cbd5e1",
+                        fontSize: 13,
+                        fontStyle: "italic",
+                      }}
+                    >
+                      Məlumat yoxdur.
+                    </p>
                   )}
                 </SectionCard>
 
@@ -518,13 +719,13 @@ export default function SorguDetailPage() {
             )}
 
             {tab === "comments" && (
-              <QueryCommentsList 
-                comments={comments.map(c => ({
+              <QueryCommentsList
+                comments={comments.map((c) => ({
                   id: c.id,
                   text: c.text,
                   userName: c.user?.name || "Bilinməyən",
-                  createdAt: c.createdAt
-                }))} 
+                  createdAt: c.createdAt,
+                }))}
                 onAddComment={handleAddComment}
                 onDeleteComment={handleDeleteComment}
               />
@@ -532,7 +733,9 @@ export default function SorguDetailPage() {
             {tab === "offers" && (
               <QueryOffersList
                 offers={detail.priceOfferItems}
-                onOpenAddModal={() => setIsOfferModalOpen(true)}
+                onOpenAddModal={handleOpenAddOffer}
+                onEditOffer={handleEditOffer}
+                onDeleteOffer={handleDeleteOffer}
               />
             )}
             {tab === "documents" && (
@@ -542,7 +745,9 @@ export default function SorguDetailPage() {
                 existingDocs={documents.map((d) => ({
                   id: d.id,
                   name: d.name,
-                  url: d.url.startsWith("http") ? d.url : `http://localhost:5000${d.url}`,
+                  url: d.url.startsWith("http")
+                    ? d.url
+                    : `http://localhost:5000${d.url}`,
                   size: d.size,
                   createdAt: d.createdAt,
                 }))}
@@ -553,14 +758,12 @@ export default function SorguDetailPage() {
                 }}
               />
             )}
-            {tab === "tasks" && (
-              <EntityTasksPanel queryId={row.id} />
-            )}
+            {tab === "tasks" && <EntityTasksPanel queryId={row.id} />}
           </div>
         </div>
       </div>
 
-      <footer className={styles.footer}>Logistra Copyright © 2013-2026</footer>
+      <footer className={styles.footer}>Ziyalog Copyright © 2013-2026</footer>
 
       <ConfirmModal
         isOpen={deleteConfirmOpen}
@@ -587,6 +790,19 @@ export default function SorguDetailPage() {
         isLoading={isDeleting}
       />
 
+      <ConfirmModal
+        isOpen={offerDeleteConfirmOpen}
+        title="Qiymət təklifini sil"
+        message="Bu qiymət təklifini silmək istədiyinizə əminsiniz?"
+        confirmLabel="Bəli, sil"
+        onConfirm={handleConfirmDeleteOffer}
+        onCancel={() => {
+          setOfferDeleteConfirmOpen(false);
+          setOfferToDeleteIndex(null);
+        }}
+        isLoading={isDeletingOffer}
+      />
+
       <SorgularEditModal
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
@@ -601,18 +817,24 @@ export default function SorguDetailPage() {
         isOpen={isOfferModalOpen}
         onClose={() => setIsOfferModalOpen(false)}
         onSubmit={handleOfferSubmit}
-        initialOffers={(detail?.priceOfferItems || []).map((offer: any, index: number) => ({
-          id: offer.id || `offer-${index}`,
-          carrierName: offer.carrierName || "",
-          price: offer.price || "",
-          expense: offer.expense || "",
-          currency: offer.currency || "EUR",
-          totalPrice: offer.totalPrice || "",
-          totalCurrency: offer.totalCurrency || offer.currency || "EUR",
-          salesPrice: offer.salesPrice || "",
-          notes: offer.notes || "",
-          createdAt: offer.createdAt || new Date().toISOString(),
-        }))}
+        initialOffers={
+          offerModalMode === "edit"
+            ? (detail?.priceOfferItems || []).map(
+                (offer: any, index: number) => ({
+                  id: offer.id || `offer-${index}`,
+                  carrierName: offer.carrierName || "",
+                  price: offer.price || "",
+                  expense: offer.expense || "",
+                  currency: offer.currency || "EUR",
+                  totalPrice: offer.totalPrice || "",
+                  totalCurrency: offer.totalCurrency || offer.currency || "EUR",
+                  salesPrice: offer.salesPrice || "",
+                  notes: offer.notes || "",
+                  createdAt: offer.createdAt || new Date().toISOString(),
+                }),
+              )
+            : []
+        }
         queryNumber={r.number}
       />
     </div>

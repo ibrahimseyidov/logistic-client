@@ -1,10 +1,12 @@
 import React from "react";
 import styles from "../../components/SorgularTable.module.css";
-import { FaPlus } from "react-icons/fa";
+import { FaPlus, FaEdit, FaTrash } from "react-icons/fa";
 
 interface Props {
   offers: any[];
   onOpenAddModal?: () => void;
+  onEditOffer?: (offer: any, index: number) => void;
+  onDeleteOffer?: (offer: any, index: number) => void;
 }
 
 function parseMoney(value: unknown): number | null {
@@ -30,7 +32,12 @@ function calcProfit(offer: {
   return sale - purchase;
 }
 
-export const QueryOffersList: React.FC<Props> = ({ offers, onOpenAddModal }) => {
+export const QueryOffersList: React.FC<Props> = ({
+  offers,
+  onOpenAddModal,
+  onEditOffer,
+  onDeleteOffer,
+}) => {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
       {onOpenAddModal ? (
@@ -70,6 +77,7 @@ export const QueryOffersList: React.FC<Props> = ({ offers, onOpenAddModal }) => 
                 <th className={styles.headerCell}>Qazanc</th>
                 <th className={styles.headerCell}>Qeyd</th>
                 <th className={styles.headerCell}>Tarix</th>
+                <th className={styles.headerCell}>Əməliyyatlar</th>
               </tr>
             </thead>
             <tbody>
@@ -151,6 +159,32 @@ export const QueryOffersList: React.FC<Props> = ({ offers, onOpenAddModal }) => 
                       {new Date(offer.createdAt || Date.now()).toLocaleDateString(
                         "az-AZ",
                       )}
+                    </td>
+                    <td className={styles.cell}>
+                      <div className={styles.actionRow}>
+                        {onEditOffer ? (
+                          <button
+                            type="button"
+                            className={`${styles.iconButton} ${styles.detailsButton}`}
+                            title="Redaktə"
+                            aria-label="Redaktə"
+                            onClick={() => onEditOffer(offer, index)}
+                          >
+                            <FaEdit />
+                          </button>
+                        ) : null}
+                        {onDeleteOffer ? (
+                          <button
+                            type="button"
+                            className={`${styles.iconButton} ${styles.deleteButton}`}
+                            title="Sil"
+                            aria-label="Sil"
+                            onClick={() => onDeleteOffer(offer, index)}
+                          >
+                            <FaTrash />
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 );

@@ -7,7 +7,6 @@ import { NotificationModal } from "../../NotificationModal";
 import { useAppDispatch } from "../../../store/hooks";
 import { hideNotification } from "../../../store/modalSlice";
 import {
-  AYARLAR_TITLE,
   getAyarlarTabLabel,
   parseAyarlarTab,
 } from "../../../../pages/ayarlar/constants/ayarlar.constants";
@@ -20,55 +19,51 @@ const headerTitles: Record<string, string> = {
   "/musteriler": "Müştərilər",
   "/dasiyicilar": "Daşıyıcılar",
   "/maliyye": "Maliyyə",
-  "/ayarlar": "Parametrlər",
+  "/maliyye/hesabat": "Maliyyə hesabatı",
 };
 
-function resolveHeaderTitle(pathname: string): string {
-  const sorguRest = pathname.slice("/sorgular/".length);
-  if (pathname.startsWith("/sorgular/") && sorguRest.length > 0) {
-    return "Sorğu detalı";
-  }
-  const sifarisRest = pathname.slice("/sifarisler/".length);
-  if (pathname.startsWith("/sifarisler/") && sifarisRest.length > 0) {
-    return "Sifariş detalı";
-  }
-  const musteriRest = pathname.slice("/musteriler/".length);
-  if (pathname.startsWith("/musteriler/") && musteriRest.length > 0) {
-    return "Müştəri detalı";
-  }
-  const dasiyiciRest = pathname.slice("/dasiyicilar/".length);
-  if (pathname.startsWith("/dasiyicilar/") && dasiyiciRest.length > 0) {
-    return "Daşıyıcı detalı";
-  }
-  return headerTitles[pathname] ?? "Sorğular";
-}
+function resolveHeaderTitle(pathname: string, search: string): string {
+  const path = pathname.replace(/\/+$/, "") || "/";
 
-function resolveHeaderSubtitle(pathname: string, search: string): string | undefined {
-  if (pathname.startsWith("/ayarlar")) {
+  if (path.startsWith("/sorgular/")) return "Sorğu detalı";
+  if (path.startsWith("/sifarisler/")) return "Sifariş detalı";
+  if (path.startsWith("/musteriler/")) return "Müştəri detalı";
+  if (path.startsWith("/dasiyicilar/")) return "Daşıyıcı detalı";
+  if (path === "/maliyye/hesabat") return "Maliyyə hesabatı";
+
+  if (path.startsWith("/ayarlar")) {
     const tab = parseAyarlarTab(new URLSearchParams(search).get("tab"));
-    const label = getAyarlarTabLabel(tab);
-    return label === AYARLAR_TITLE ? undefined : label;
+    return getAyarlarTabLabel(tab);
   }
-  return undefined;
+
+  if (headerTitles[path]) return headerTitles[path];
+
+  // Prefiks uyğunluğu (məs. /maliyye/... → Maliyyə)
+  const sorted = Object.keys(headerTitles).sort((a, b) => b.length - a.length);
+  for (const key of sorted) {
+    if (path === key || path.startsWith(`${key}/`)) {
+      return headerTitles[key];
+    }
+  }
+
+  return "Ziyalog";
 }
 
 function AppShellInner({
   children,
   title,
-  subtitle,
 }: {
   children: React.ReactNode;
   title: string;
-  subtitle?: string;
 }) {
   return (
     <div className={styles.shell}>
-      <NotificationModal />
       <Sidebar />
       <div className={styles.contentArea}>
-        <Header title={title} subtitle={subtitle} />
+        <Header title={title} />
         <main className={styles.pageContent}>{children}</main>
       </div>
+      <NotificationModal />
     </div>
   );
 }
@@ -88,10 +83,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarLayoutProvider>
-      <AppShellInner
-        title={resolveHeaderTitle(pathname)}
-        subtitle={resolveHeaderSubtitle(pathname, location.search)}
-      >
+      <AppShellInner title={resolveHeaderTitle(pathname, location.search)}>
         {children}
       </AppShellInner>
     </SidebarLayoutProvider>

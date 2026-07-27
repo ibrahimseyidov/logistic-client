@@ -26,7 +26,7 @@ export function formatVoyageLabel(voyage: unknown): string {
   if (typeof voyage === "string") return voyage || "—";
   if (typeof voyage === "object") {
     const v = voyage as { tripRef?: string; id?: number | string };
-    return v.tripRef || (v.id ? `R-${v.id}` : "—");
+    return v.id ? `R-${v.id}` : "—";
   }
   return "—";
 }
