@@ -72,10 +72,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const dispatch = useAppDispatch();
   const pathname = location.pathname;
+  const pageTitle =
+    pathname === "/login"
+      ? "Giriş"
+      : resolveHeaderTitle(pathname, location.search);
 
   useEffect(() => {
     dispatch(hideNotification());
   }, [location.pathname, dispatch]);
+
+  useEffect(() => {
+    document.title =
+      pageTitle && pageTitle !== "Ziyalog"
+        ? `${pageTitle} | Ziyalog`
+        : "Ziyalog";
+  }, [pageTitle]);
 
   if (pathname === "/login") {
     return <>{children}</>;
@@ -83,9 +94,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarLayoutProvider>
-      <AppShellInner title={resolveHeaderTitle(pathname, location.search)}>
-        {children}
-      </AppShellInner>
+      <AppShellInner title={pageTitle}>{children}</AppShellInner>
     </SidebarLayoutProvider>
   );
 }

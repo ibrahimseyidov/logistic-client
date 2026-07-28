@@ -7,6 +7,7 @@ import {
   useState,
   type DragEvent,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import styles from "./tapshiriqlar.module.css";
 import { FaEdit, FaPlus, FaTrash } from "react-icons/fa";
 import { FiFilter } from "react-icons/fi";
@@ -68,6 +69,7 @@ function ownerNames(task: TaskDto) {
 
 export default function TapshiriqlarPage() {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
@@ -604,6 +606,20 @@ export default function TapshiriqlarPage() {
                             >
                               {clipText(task.description, 80)}
                             </p>
+                          ) : null}
+
+                          {task.orderId ? (
+                            <button
+                              type="button"
+                              className={styles.orderRefBadge}
+                              title={`Sifarişə keç: ${task.orderNumber || `#${task.orderId}`}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/sifarisler/${task.orderId}`);
+                              }}
+                            >
+                              Sifariş: {task.orderNumber || `#${task.orderId}`}
+                            </button>
                           ) : null}
 
                           <div className={styles.ownerRow}>

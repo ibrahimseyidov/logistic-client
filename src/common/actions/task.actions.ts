@@ -43,7 +43,9 @@ export type TaskDto = {
   author: { id: number; name: string; email: string } | null;
   authorId: number | null;
   orderId: number | null;
+  orderNumber?: string | null;
   queryId: number | null;
+  queryNumber?: string | null;
   createdAt: string;
   updatedAt: string;
 };
