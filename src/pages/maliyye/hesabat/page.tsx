@@ -1,47 +1,94 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  FiArrowLeft,
+  FiClipboard,
+  FiDollarSign,
+  FiFileText,
+  FiPackage,
+  FiTruck,
+  FiUsers,
+  FiX,
+} from "react-icons/fi";
 import sorguActionBarStyles from "../../sorgular/components/SorgularActionBar.module.css";
+import drawerStyles from "../../sorgular/sorgular.module.css";
 import styles from "../maliyye.module.css";
-import { fetchFinanceTransactionsAction } from "../../../common/actions/finance.actions";
+import {
+  createFinanceTransactionAction,
+  fetchFinanceTransactionsAction,
+} from "../../../common/actions/finance.actions";
 import { fetchCustomersAction } from "../../../common/actions/customer.actions";
 import { fetchCarriersAction } from "../../../common/actions/carrier.actions";
 import { fetchOrdersAction } from "../../../common/actions/order.actions";
+import { fetchQueriesAction } from "../../../common/actions/query.actions";
 import Loading from "../../../common/components/loading/Loading";
+import StatusBadge, {
+  statusLabelAz,
+} from "../../../common/components/StatusBadge";
 import SorgularPagination from "../../sorgular/components/SorgularPagination";
+import FinanceModal from "../FinanceModal";
 import {
-  isCashMovementTx,
-  isIncomeTx,
-  isOrderBookkeepingTx,
-  resolveTxCashAzn,
-} from "../lib/financeWallet.utils";
-import {
-  isCarrierBookkeepingTx,
-  orderMatchesCarrier,
-  orderMatchesCustomer,
-  entityLabel,
-  findCarrierForName,
-  findCustomerForName,
-  resolveCarrierGroup,
-  resolveCustomerGroup,
-} from "../lib/financePartner.utils";
-import {
-  resolveFinanceExpenseAzn,
-  resolveFinanceRevenueAzn,
-} from "../../../common/utils/currency.utils";
-
-type ReportTab = "customers" | "carriers";
-
-type PartnerRow = {
-  key: string;
-  name: string;
-  owedAzn: number;
-  paidAzn: number;
-  balanceAzn: number;
-  orderCount: number;
-};
+  buildExpenseRows,
+  buildOrderRows,
+  buildPartnerRows,
+  buildQueryRows,
+  buildVoyageRows,
+  emptyReportFilter,
+  filterPartnerRows,
+  flattenVoyages,
+  uniqueCategories,
+  uniqueStatuses,
+  type PartnerRow,
+  type ReportFilter,
+  type ReportId,
+} from "../lib/hesabatReports";
 
 const PAGE_SIZE = 10;
+
+const REPORT_CARDS: {
+  id: ReportId;
+  title: string;
+  description: string;
+  icon: ReactNode;
+}[] = [
+  {
+    id: "customers",
+    title: "Müştəri hesabatı",
+    description: "Müştəri kartları üzrə borc, ödəniş və qalıq",
+    icon: <FiUsers size={28} />,
+  },
+  {
+    id: "carriers",
+    title: "Daşıyıcı hesabatı",
+    description: "Daşıyıcı kartları üzrə borc, ödəniş və qalıq",
+    icon: <FiTruck size={28} />,
+  },
+  {
+    id: "queries",
+    title: "Sorgu hesabatları",
+    description: "Sorğular üzrə siyahı, status və tarix filtri",
+    icon: <FiClipboard size={28} />,
+  },
+  {
+    id: "orders",
+    title: "Sifariş hesabatları",
+    description: "Qiymət, xərc, ödəniş, qalıq və qazanc",
+    icon: <FiPackage size={28} />,
+  },
+  {
+    id: "voyages",
+    title: "Reys hesabatları",
+    description: "Qiymət, xərc, ödəniş, qalıq və qazanc",
+    icon: <FiTruck size={28} />,
+  },
+  {
+    id: "expenses",
+    title: "Xərc hesabatları",
+    description: "Kasa/bank xərcləri — kateqoriya və metod filtri",
+    icon: <FiFileText size={28} />,
+  },
+];
 
 function asList(data: unknown): any[] {
   if (Array.isArray(data)) return data;
@@ -60,200 +107,160 @@ function fmtAzn(n: number) {
   });
 }
 
+function parsePartnerId(key: string): string | null {
+  const m = String(key || "").match(/^[cr]:(.+)$/);
+  return m ? m[1] : null;
+}
+
 export default function MaliyyeHesabatPage() {
-  const [tab, setTab] = useState<ReportTab>("customers");
+  const [activeReport, setActiveReport] = useState<ReportId | null>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [carriers, setCarriers] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  const [queries, setQueries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentSeed, setPaymentSeed] = useState<any>(null);
+  const [filter, setFilter] = useState<ReportFilter>(emptyReportFilter);
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     setLoading(true);
-    Promise.all([
+    return Promise.all([
       fetchFinanceTransactionsAction(),
       fetchCustomersAction(),
       fetchCarriersAction(),
       fetchOrdersAction(),
+      fetchQueriesAction(),
     ])
-      .then(([txs, cust, carr, ords]) => {
+      .then(([txs, cust, carr, ords, qrs]) => {
         setTransactions(asList(txs));
         setCustomers(asList(cust));
         setCarriers(asList(carr));
         setOrders(asList(ords));
+        setQueries(asList(qrs));
       })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useEffect(() => {
     setCurrentPage(1);
-  }, [tab]);
+    setFilter(emptyReportFilter());
+  }, [activeReport]);
 
-  const rows = useMemo(() => {
-    const map = new Map<string, PartnerRow>();
-
-    const ensure = (key: string, name: string) => {
-      if (!map.has(key)) {
-        map.set(key, {
-          key,
-          name,
-          owedAzn: 0,
-          paidAzn: 0,
-          balanceAzn: 0,
-          orderCount: 0,
-        });
-      }
-      return map.get(key)!;
+  useEffect(() => {
+    if (!activeReport) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !paymentOpen) setActiveReport(null);
     };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [activeReport, paymentOpen]);
 
-    /** Yalnız real kartlara yaz — n: / naməlum id təkrar sətir yaratmasın */
-    const toCustomerRow = (
-      group: { key: string; name: string } | null,
-    ): { key: string; name: string } | null => {
-      if (!group) return null;
-      if (group.key.startsWith("c:")) {
-        const id = group.key.slice(2);
-        const c = customers.find((x) => String(x.id) === String(id));
-        if (c) return { key: `c:${c.id}`, name: entityLabel(c) || group.name };
-      }
-      const byName = findCustomerForName(customers, group.name);
-      if (byName) {
-        return { key: `c:${byName.id}`, name: entityLabel(byName) };
-      }
-      return null;
-    };
+  const isPartnerReport =
+    activeReport === "customers" || activeReport === "carriers";
 
-    const toCarrierRow = (
-      group: { key: string; name: string } | null,
-    ): { key: string; name: string } | null => {
-      if (!group) return null;
-      if (group.key.startsWith("r:")) {
-        const id = group.key.slice(2);
-        const c = carriers.find((x) => String(x.id) === String(id));
-        if (c) return { key: `r:${c.id}`, name: entityLabel(c) || group.name };
-      }
-      const byName = findCarrierForName(carriers, group.name);
-      if (byName) {
-        return { key: `r:${byName.id}`, name: entityLabel(byName) };
-      }
-      return null;
-    };
+  const partnerRows = useMemo(() => {
+    if (!isPartnerReport || !activeReport) return [] as PartnerRow[];
+    return filterPartnerRows(
+      buildPartnerRows(activeReport, {
+        transactions,
+        customers,
+        carriers,
+        orders,
+      }),
+      filter,
+    );
+  }, [
+    isPartnerReport,
+    activeReport,
+    transactions,
+    customers,
+    carriers,
+    orders,
+    filter,
+  ]);
 
-    if (tab === "customers") {
-      customers.forEach((c) => {
-        const name = entityLabel(c);
-        if (!name) return;
-        ensure(`c:${c.id}`, name);
-      });
+  const voyages = useMemo(() => flattenVoyages(orders), [orders]);
 
-      transactions.filter(isOrderBookkeepingTx).forEach((tx) => {
-        const rev = resolveFinanceRevenueAzn(tx);
-        if (!(rev > 0)) return;
-        const group = toCustomerRow(
-          resolveCustomerGroup(tx, customers, orders),
-        );
-        if (!group) return;
-        const row = ensure(group.key, group.name);
-        row.owedAzn += rev;
-      });
-
-      transactions.filter(isCashMovementTx).forEach((tx) => {
-        if (!isIncomeTx(tx)) return;
-        const azn = resolveTxCashAzn(tx);
-        if (!(azn > 0)) return;
-        const group = toCustomerRow(
-          resolveCustomerGroup(tx, customers, orders),
-        );
-        if (!group) return;
-        ensure(group.key, group.name).paidAzn += azn;
-      });
-
-      customers.forEach((c) => {
-        const row = map.get(`c:${c.id}`);
-        if (!row) return;
-        row.orderCount = orders.filter((o) =>
-          orderMatchesCustomer(o, c, transactions),
-        ).length;
-      });
-    } else {
-      carriers.forEach((c) => {
-        const name = entityLabel(c);
-        if (!name) return;
-        ensure(`r:${c.id}`, name);
-      });
-
-      transactions.filter(isOrderBookkeepingTx).forEach((tx) => {
-        if (!isCarrierBookkeepingTx(tx)) return;
-        const exp = resolveFinanceExpenseAzn(tx);
-        if (!(exp > 0)) return;
-        const group = toCarrierRow(
-          resolveCarrierGroup(tx, carriers, { allowNameFallback: true }),
-        );
-        if (!group) return;
-        const row = ensure(group.key, group.name);
-        row.owedAzn += exp;
-      });
-
-      transactions.filter(isCashMovementTx).forEach((tx) => {
-        if (isIncomeTx(tx)) return;
-        const azn = resolveTxCashAzn(tx);
-        if (!(azn > 0)) return;
-        const group = toCarrierRow(
-          resolveCarrierGroup(tx, carriers, { allowNameFallback: true }),
-        );
-        if (!group) return;
-        ensure(group.key, group.name).paidAzn += azn;
-      });
-
-      carriers.forEach((c) => {
-        const row = map.get(`r:${c.id}`);
-        if (!row) return;
-        row.orderCount = orders.filter((o) =>
-          orderMatchesCarrier(o, c, transactions),
-        ).length;
+  const genericRows = useMemo(() => {
+    if (!activeReport || isPartnerReport) return [];
+    if (activeReport === "queries") {
+      return buildQueryRows(queries, filter, { customers });
+    }
+    if (activeReport === "orders") {
+      return buildOrderRows(orders, filter, { transactions, customers });
+    }
+    if (activeReport === "voyages") {
+      return buildVoyageRows(voyages, filter, {
+        transactions,
+        customers,
+        carriers,
       });
     }
+    if (activeReport === "expenses") return buildExpenseRows(transactions, filter);
+    return [];
+  }, [
+    activeReport,
+    isPartnerReport,
+    queries,
+    orders,
+    voyages,
+    transactions,
+    customers,
+    carriers,
+    filter,
+  ]);
 
-    const list = Array.from(map.values()).map((r) => ({
-      ...r,
-      balanceAzn: r.owedAzn - r.paidAzn,
-    }));
-    list.sort((a, b) => {
-      const aActive = a.owedAzn > 0 || a.paidAzn > 0 ? 1 : 0;
-      const bActive = b.owedAzn > 0 || b.paidAzn > 0 ? 1 : 0;
-      if (bActive !== aActive) return bActive - aActive;
-      if (b.balanceAzn !== a.balanceAzn) return b.balanceAzn - a.balanceAzn;
-      return a.name.localeCompare(b.name, "az");
-    });
-    return list;
-  }, [transactions, tab, customers, carriers, orders]);
+  const displayCount = isPartnerReport ? partnerRows.length : genericRows.length;
 
-  const totals = useMemo(
+  const partnerTotals = useMemo(
     () =>
-      rows.reduce(
+      partnerRows.reduce(
         (acc, r) => ({
           owed: acc.owed + r.owedAzn,
           paid: acc.paid + r.paidAzn,
           balance: acc.balance + r.balanceAzn,
-          orders: acc.orders + r.orderCount,
         }),
-        { owed: 0, paid: 0, balance: 0, orders: 0 },
+        { owed: 0, paid: 0, balance: 0 },
       ),
-    [rows],
+    [partnerRows],
   );
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const expenseTotal = useMemo(() => {
+    if (activeReport !== "expenses") return 0;
+    return buildExpenseRows(transactions, filter).reduce((sum, r) => {
+      const azn = Number(r.raw?._azn);
+      if (Number.isFinite(azn)) return sum + azn;
+      return sum + resolveTxCashFromCell(r.cells[4]);
+    }, 0);
+  }, [activeReport, transactions, filter]);
+
+  const totalPages = Math.max(1, Math.ceil(displayCount / PAGE_SIZE));
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
-  const pagedRows = useMemo(() => {
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter]);
+
+  const pagedPartner = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
-    return rows.slice(start, start + PAGE_SIZE);
-  }, [rows, currentPage]);
+    return partnerRows.slice(start, start + PAGE_SIZE);
+  }, [partnerRows, currentPage]);
+
+  const pagedGeneric = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return genericRows.slice(start, start + PAGE_SIZE);
+  }, [genericRows, currentPage]);
 
   const getVisiblePages = () => {
     if (totalPages <= 7) {
@@ -276,127 +283,506 @@ export default function MaliyyeHesabatPage() {
     return [1, -1, currentPage - 1, currentPage, currentPage + 1, -1, totalPages];
   };
 
-  if (loading) return <Loading />;
+  const statusOptions = useMemo(() => {
+    if (activeReport === "queries") {
+      return uniqueStatuses(queries, ["status"]);
+    }
+    if (activeReport === "orders") {
+      return uniqueStatuses(orders, ["statusLabel", "statusKind"]);
+    }
+    if (activeReport === "voyages") {
+      return uniqueStatuses(voyages, ["tripStatus", "tripStatusKind"]);
+    }
+    return [];
+  }, [activeReport, queries, orders, voyages]);
+
+  const categoryOptions = useMemo(
+    () => (activeReport === "expenses" ? uniqueCategories(transactions) : []),
+    [activeReport, transactions],
+  );
+
+  const openPayment = (row: PartnerRow) => {
+    const id = parsePartnerId(row.key);
+    if (!id) {
+      alert("Bu sətir üçün tərəfdaş kartı tapılmadı");
+      return;
+    }
+    const forCustomer = activeReport === "customers";
+    setPaymentSeed({
+      partnerKind: forCustomer ? "customer" : "carrier",
+      type: forCustomer ? "INCOME" : "EXPENSE",
+      category: forCustomer ? "Müştəri ödənişi" : "Daşıyıcı ödənişi",
+      customerId: forCustomer ? id : "",
+      carrierId: forCustomer ? "" : id,
+      amount: "",
+      currency: "AZN",
+      paymentMethod: "Kasa",
+      name: "",
+      orderId: "",
+    });
+    setPaymentOpen(true);
+  };
+
+  const handlePaymentSave = async (data: any) => {
+    try {
+      await createFinanceTransactionAction({
+        ...data,
+        amount: Number(data.amount) || 0,
+        paymentMethod: data.paymentMethod || "Kasa",
+      });
+      setPaymentOpen(false);
+      setPaymentSeed(null);
+      await loadData();
+    } catch {
+      alert("Ödəniş saxlanılarkən xəta baş verdi");
+    }
+  };
+
+  const setFilterField = (field: keyof ReportFilter, value: string) => {
+    setFilter((prev) => ({ ...prev, [field]: value }));
+  };
+
+  if (loading && transactions.length === 0 && orders.length === 0) {
+    return <Loading />;
+  }
+
+  const activeMeta = REPORT_CARDS.find((c) => c.id === activeReport) || null;
+  const isCustomers = activeReport === "customers";
+
+  const tableHeaders = (() => {
+    if (isPartnerReport) {
+      return [
+        isCustomers ? "Müştəri" : "Daşıyıcı",
+        "Görülən iş",
+        "Borc (AZN)",
+        "Ödənilib (AZN)",
+        "Qalıq (AZN)",
+        "Əməliyyat",
+      ];
+    }
+    if (activeReport === "queries") {
+      return ["№", "Müştəri", "Marşrut", "Nəqliyyat", "Status", "Tarix"];
+    }
+    if (activeReport === "orders") {
+      return [
+        "Sifariş",
+        "Müştəri",
+        "Qiymət",
+        "Xərclər",
+        "Ödəniş",
+        "Qalıq",
+        "Qazanc",
+        "Status",
+        "Tarix",
+      ];
+    }
+    if (activeReport === "voyages") {
+      return [
+        "Reys",
+        "Sifariş",
+        "Müştəri",
+        "Qiymət",
+        "Xərclər",
+        "Ödəniş",
+        "Qalıq",
+        "Qazanc",
+        "Status",
+        "Tarix",
+      ];
+    }
+    return ["ID", "Ad", "Kateqoriya", "Metod", "Məbləğ", "Tarix"];
+  })();
+
+  const hint = (() => {
+    switch (activeReport) {
+      case "customers":
+        return "Müştəri kartları üzrə borc və ödənişlər — filtrlə axtarın";
+      case "carriers":
+        return "Daşıyıcı kartları üzrə borc və ödənişlər — filtrlə axtarın";
+      case "queries":
+        return "Sorğular üzrə hesabat — tarix, status və axtarış";
+      case "orders":
+        return "Sifarişlər üzrə qiymət, xərc, ödəniş, qalıq və qazanc";
+      case "voyages":
+        return "Reyslər üzrə qiymət, xərc, ödəniş, qalıq və qazanc";
+      case "expenses":
+        return "Xərc əməliyyatları — kateqoriya, metod və tarix filtri";
+      default:
+        return "";
+    }
+  })();
 
   return (
     <div className={styles.page}>
       <div className={styles.pageHeader}>
-        <section className={sorguActionBarStyles.wrapper}>
-          <div className={sorguActionBarStyles.group} style={{ gap: "0.35rem" }}>
-            <button
-              type="button"
-              className={`${sorguActionBarStyles.buttonBase} ${
-                tab === "customers"
-                  ? sorguActionBarStyles.buttonPrimary
-                  : sorguActionBarStyles.buttonSecondary
-              }`}
-              onClick={() => setTab("customers")}
-            >
-              Müştəri hesabatı
-            </button>
-            <button
-              type="button"
-              className={`${sorguActionBarStyles.buttonBase} ${
-                tab === "carriers"
-                  ? sorguActionBarStyles.buttonPrimary
-                  : sorguActionBarStyles.buttonSecondary
-              }`}
-              onClick={() => setTab("carriers")}
-            >
-              Daşıyıcı hesabatı
-            </button>
+        <div className={styles.kasaHeaderRow} style={{ marginBottom: 0 }}>
+          <div>
+            <h2 className={styles.kasaTitle}>Hesabatlar</h2>
+            <p className={styles.kasaHint}>
+              Hesabat növünü seçin — cədvəl ayrıca pəncərədə açılır
+            </p>
           </div>
-
-          <div className={sorguActionBarStyles.statsGroup}>
-            <span className={sorguActionBarStyles.statPill} style={{ fontWeight: 700 }}>
-              Borc: {fmtAzn(totals.owed)} AZN
-            </span>
-            <span
-              className={sorguActionBarStyles.statPill}
-              style={{ color: "#059669", fontWeight: 700 }}
-            >
-              Ödənilib: {fmtAzn(totals.paid)} AZN
-            </span>
-            <span
-              className={sorguActionBarStyles.statPill}
-              style={{
-                color: totals.balance > 0 ? "#dc2626" : "#059669",
-                fontWeight: 700,
-              }}
-            >
-              Qalıq: {fmtAzn(totals.balance)} AZN
-            </span>
-          </div>
-        </section>
-        <p style={{ margin: "0.5rem 0 0", fontSize: "0.8rem", color: "#64748b" }}>
-          {tab === "customers"
-            ? "Müştəri kartları üzrə borc (sifariş tarifi) və kasa/bank ödənişləri — hər müştəri bir sətir."
-            : "Daşıyıcı kartları üzrə borc (reys xərci) və ödənişlər — hər daşıyıcı bir sətir."}
-        </p>
-      </div>
-
-      <div className={styles.pageBody}>
-        <div className={styles.tableContainer}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th className={styles.th}>
-                  {tab === "customers" ? "Müştəri" : "Daşıyıcı"}
-                </th>
-                <th className={styles.th}>Görülən iş</th>
-                <th className={styles.th}>Borc (AZN)</th>
-                <th className={styles.th}>Ödənilib (AZN)</th>
-                <th className={styles.th}>Qalıq (AZN)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pagedRows.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className={styles.td}
-                    style={{ textAlign: "center", padding: "2rem" }}
-                  >
-                    Hesabat üçün məlumat yoxdur
-                  </td>
-                </tr>
-              ) : (
-                pagedRows.map((r) => (
-                  <tr key={r.key} className={styles.tr}>
-                    <td className={styles.td} style={{ fontWeight: 600 }}>
-                      {r.name}
-                    </td>
-                    <td className={styles.td}>{r.orderCount}</td>
-                    <td className={styles.td}>{fmtAzn(r.owedAzn)}</td>
-                    <td className={styles.td} style={{ color: "#059669", fontWeight: 600 }}>
-                      {fmtAzn(r.paidAzn)}
-                    </td>
-                    <td
-                      className={styles.td}
-                      style={{
-                        color: r.balanceAzn > 0 ? "#dc2626" : "#059669",
-                        fontWeight: 700,
-                      }}
-                    >
-                      {fmtAzn(r.balanceAzn)}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
         </div>
       </div>
 
-      <div className={styles.pageFooter}>
-        <SorgularPagination
-          totalRows={rows.length}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          getVisiblePages={getVisiblePages}
-          onPageChange={setCurrentPage}
-        />
+      <div className={styles.pageBody}>
+        <div className={styles.reportCardsGrid}>
+          {REPORT_CARDS.map((card) => (
+            <button
+              key={card.id}
+              type="button"
+              className={styles.reportCard}
+              onClick={() => setActiveReport(card.id)}
+            >
+              <span className={styles.reportCardIcon}>{card.icon}</span>
+              <span className={styles.reportCardTitle}>{card.title}</span>
+              <span className={styles.reportCardDesc}>{card.description}</span>
+            </button>
+          ))}
+        </div>
       </div>
+
+      <div
+        className={`${drawerStyles.overlay} ${activeReport ? drawerStyles.overlayOpen : ""}`}
+        aria-hidden={!activeReport}
+        onClick={() => {
+          if (!paymentOpen) setActiveReport(null);
+        }}
+      />
+      <aside
+        className={`${drawerStyles.drawer} ${activeReport ? drawerStyles.drawerOpen : ""} ${styles.reportDrawer}`}
+        aria-hidden={!activeReport}
+      >
+        <div className={styles.reportDrawerHeader}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
+            <button
+              type="button"
+              className={styles.reportBackBtn}
+              onClick={() => setActiveReport(null)}
+              title="Geri"
+            >
+              <FiArrowLeft />
+            </button>
+            <div>
+              <h3 className={styles.reportDrawerTitle}>
+                {activeMeta?.title || "Hesabat"}
+              </h3>
+              <p className={styles.reportDrawerHint}>{hint}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className={styles.reportCloseBtn}
+            onClick={() => setActiveReport(null)}
+            aria-label="Bağla"
+          >
+            <FiX />
+          </button>
+        </div>
+
+        <div className={styles.reportFilters}>
+          <label className={styles.reportFilterField}>
+            <span>Axtarış</span>
+            <input
+              value={filter.search}
+              onChange={(e) => setFilterField("search", e.target.value)}
+              placeholder="Ad, №, status..."
+            />
+          </label>
+          {!isPartnerReport ? (
+            <>
+              <label className={styles.reportFilterField}>
+                <span>Başlanğıc</span>
+                <input
+                  type="date"
+                  value={filter.dateFrom}
+                  onChange={(e) => setFilterField("dateFrom", e.target.value)}
+                />
+              </label>
+              <label className={styles.reportFilterField}>
+                <span>Bitiş</span>
+                <input
+                  type="date"
+                  value={filter.dateTo}
+                  onChange={(e) => setFilterField("dateTo", e.target.value)}
+                />
+              </label>
+            </>
+          ) : null}
+          {!isPartnerReport && activeReport !== "expenses" ? (
+            <label className={styles.reportFilterField}>
+              <span>Status</span>
+              <select
+                value={filter.status}
+                onChange={(e) => setFilterField("status", e.target.value)}
+              >
+                <option value="">Hamısı</option>
+                {statusOptions.map((s) => (
+                  <option key={s} value={s}>
+                    {activeReport === "queries" ||
+                    activeReport === "orders" ||
+                    activeReport === "voyages"
+                      ? statusLabelAz(s)
+                      : s}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {activeReport === "expenses" ? (
+            <>
+              <label className={styles.reportFilterField}>
+                <span>Kateqoriya</span>
+                <select
+                  value={filter.category}
+                  onChange={(e) => setFilterField("category", e.target.value)}
+                >
+                  <option value="">Hamısı</option>
+                  {categoryOptions.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.reportFilterField}>
+                <span>Metod</span>
+                <select
+                  value={filter.method}
+                  onChange={(e) => setFilterField("method", e.target.value)}
+                >
+                  <option value="">Hamısı</option>
+                  <option value="Kasa">Kasa</option>
+                  <option value="Bank">Bank</option>
+                </select>
+              </label>
+            </>
+          ) : null}
+          <button
+            type="button"
+            className={styles.reportFilterClear}
+            onClick={() => setFilter(emptyReportFilter())}
+          >
+            Təmizlə
+          </button>
+        </div>
+
+        <div className={styles.reportDrawerToolbar}>
+          <div className={sorguActionBarStyles.statsGroup}>
+            {isPartnerReport ? (
+              <>
+                <span className={sorguActionBarStyles.statPill} style={{ fontWeight: 700 }}>
+                  Borc: {fmtAzn(partnerTotals.owed)} AZN
+                </span>
+                <span
+                  className={sorguActionBarStyles.statPill}
+                  style={{ color: "#059669", fontWeight: 700 }}
+                >
+                  Ödənilib: {fmtAzn(partnerTotals.paid)} AZN
+                </span>
+                <span
+                  className={sorguActionBarStyles.statPill}
+                  style={{
+                    color: partnerTotals.balance > 0 ? "#dc2626" : "#059669",
+                    fontWeight: 700,
+                  }}
+                >
+                  Qalıq: {fmtAzn(partnerTotals.balance)} AZN
+                </span>
+              </>
+            ) : activeReport === "expenses" ? (
+              <span
+                className={sorguActionBarStyles.statPill}
+                style={{ color: "#b91c1c", fontWeight: 700 }}
+              >
+                Ümumi xərc: {fmtAzn(expenseTotal)} AZN
+              </span>
+            ) : (
+              <span className={sorguActionBarStyles.statPill} style={{ fontWeight: 700 }}>
+                Sətir: {displayCount}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className={styles.reportDrawerBody}>
+          <div className={styles.tableContainer}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  {tableHeaders.map((h) => (
+                    <th key={h} className={styles.th}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {displayCount === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={tableHeaders.length}
+                      className={styles.td}
+                      style={{ textAlign: "center", padding: "2rem" }}
+                    >
+                      Filterə uyğun məlumat yoxdur
+                    </td>
+                  </tr>
+                ) : isPartnerReport ? (
+                  pagedPartner.map((r) => (
+                    <tr key={r.key} className={styles.tr}>
+                      <td className={styles.td} style={{ fontWeight: 600 }}>
+                        {r.name}
+                      </td>
+                      <td className={styles.td}>{r.orderCount}</td>
+                      <td className={styles.td}>{fmtAzn(r.owedAzn)}</td>
+                      <td
+                        className={styles.td}
+                        style={{ color: "#059669", fontWeight: 600 }}
+                      >
+                        {fmtAzn(r.paidAzn)}
+                      </td>
+                      <td
+                        className={styles.td}
+                        style={{
+                          color: r.balanceAzn > 0 ? "#dc2626" : "#059669",
+                          fontWeight: 700,
+                        }}
+                      >
+                        {fmtAzn(r.balanceAzn)}
+                      </td>
+                      <td className={styles.td}>
+                        <button
+                          type="button"
+                          className={styles.reportPayBtn}
+                          onClick={() => openPayment(r)}
+                          title="Ödəniş"
+                        >
+                          <FiDollarSign size={14} />
+                          Ödəniş
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  pagedGeneric.map((r) => (
+                    <tr key={r.key} className={styles.tr}>
+                      {r.cells.map((cell, idx) => {
+                        const fin = r.raw?._finance as
+                          | {
+                              balanceAzn?: number;
+                              profitAzn?: number;
+                            }
+                          | undefined;
+                        let cellStyle: CSSProperties | undefined =
+                          idx === 0 ? { fontWeight: 600 } : undefined;
+
+                        if (activeReport === "expenses" && idx === 4) {
+                          cellStyle = { color: "#b91c1c", fontWeight: 600 };
+                        }
+
+                        if (activeReport === "orders") {
+                          if (idx === 3) {
+                            cellStyle = { color: "#b91c1c", fontWeight: 600 };
+                          } else if (idx === 4) {
+                            cellStyle = { color: "#059669", fontWeight: 600 };
+                          } else if (idx === 5) {
+                            const bal = Number(fin?.balanceAzn) || 0;
+                            cellStyle = {
+                              color: bal > 0 ? "#dc2626" : "#059669",
+                              fontWeight: 700,
+                            };
+                          } else if (idx === 6) {
+                            const profit = Number(fin?.profitAzn) || 0;
+                            cellStyle = {
+                              color: profit >= 0 ? "#059669" : "#dc2626",
+                              fontWeight: 700,
+                            };
+                          }
+                        }
+
+                        if (activeReport === "voyages") {
+                          if (idx === 4) {
+                            cellStyle = { color: "#b91c1c", fontWeight: 600 };
+                          } else if (idx === 5) {
+                            cellStyle = { color: "#059669", fontWeight: 600 };
+                          } else if (idx === 6) {
+                            const bal = Number(fin?.balanceAzn) || 0;
+                            cellStyle = {
+                              color: bal > 0 ? "#dc2626" : "#059669",
+                              fontWeight: 700,
+                            };
+                          } else if (idx === 7) {
+                            const profit = Number(fin?.profitAzn) || 0;
+                            cellStyle = {
+                              color: profit >= 0 ? "#059669" : "#dc2626",
+                              fontWeight: 700,
+                            };
+                          }
+                        }
+
+                        const isStatusBadge =
+                          (activeReport === "queries" && idx === 4) ||
+                          (activeReport === "orders" && idx === 7) ||
+                          (activeReport === "voyages" && idx === 8);
+
+                        return (
+                          <td
+                            key={`${r.key}-${idx}`}
+                            className={styles.td}
+                            style={cellStyle}
+                          >
+                            {isStatusBadge ? (
+                              <StatusBadge
+                                label={String(cell || "—")}
+                                kind={
+                                  activeReport === "voyages"
+                                    ? String(r.raw?.tripStatusKind || "")
+                                    : activeReport === "orders"
+                                      ? String(r.raw?.statusKind || "")
+                                      : undefined
+                                }
+                              />
+                            ) : (
+                              cell
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className={styles.reportDrawerFooter}>
+          <SorgularPagination
+            totalRows={displayCount}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            getVisiblePages={getVisiblePages}
+            onPageChange={setCurrentPage}
+          />
+        </div>
+      </aside>
+
+      <FinanceModal
+        isOpen={paymentOpen}
+        onClose={() => {
+          setPaymentOpen(false);
+          setPaymentSeed(null);
+        }}
+        onSave={handlePaymentSave}
+        initialData={paymentSeed}
+        defaultWallet="Kasa"
+      />
     </div>
   );
+}
+
+function resolveTxCashFromCell(cell: string | number): number {
+  const n = Number.parseFloat(String(cell).replace(/[^\d.,-]/g, "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
 }

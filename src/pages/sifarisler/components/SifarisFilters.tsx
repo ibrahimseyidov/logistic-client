@@ -5,6 +5,7 @@ import FilterPanelShell from "./FilterPanelShell";
 import formStyles from "./FilterForms.module.css";
 import {
   FILTER_SECTIONS,
+  STATUS_OPTIONS,
 } from "../constants/sifaris.constants";
 import type {
   SifarisFilterFormState,
@@ -15,8 +16,13 @@ interface Props {
   activeSections: Set<SifarisFilterSectionId>;
   toggleSection: (id: SifarisFilterSectionId) => void;
   filter: SifarisFilterFormState;
-  onFilterChange: (field: keyof SifarisFilterFormState, value: string) => void;
+  onFilterChange: (
+    field: keyof SifarisFilterFormState,
+    value: string | boolean,
+  ) => void;
   companyOptions: SelectOption[];
+  managerOptions?: SelectOption[];
+  expeditorOptions?: SelectOption[];
   onClose: () => void;
   onClear: () => void;
   onApplyFilter: () => void;
@@ -31,6 +37,8 @@ export default function SifarisFilters({
   filter,
   onFilterChange,
   companyOptions,
+  managerOptions = [{ value: "", label: "Hamısı" }],
+  expeditorOptions = [{ value: "", label: "Hamısı" }],
   onClose,
   onClear,
   onApplyFilter,
@@ -72,6 +80,15 @@ export default function SifarisFilters({
                 value={filter.orderNumber}
                 onChange={(e) => onFilterChange("orderNumber", e.target.value)}
                 placeholder="Sifariş nömrəsi"
+              />
+            </label>
+            <label className={formStyles.label}>
+              <span className={formStyles.labelText}>Status</span>
+              <Select
+                value={filter.status}
+                options={STATUS_OPTIONS}
+                onChange={(v) => onFilterChange("status", v)}
+                placeholder="Hamısı"
               />
             </label>
             <label className={formStyles.label}>
@@ -183,57 +200,45 @@ export default function SifarisFilters({
               <span className={formStyles.labelText}>Menecer</span>
               <Select
                 value={filter.manager}
-                options={[
-                  { value: "", label: "Menecer" },
-                  { value: "m1", label: "Manager 1" },
-                  { value: "m2", label: "Manager 2" },
-                ]}
+                options={managerOptions}
                 onChange={(v) => onFilterChange("manager", v)}
+                placeholder="Hamısı"
               />
             </label>
             <label className={formStyles.label}>
               <span className={formStyles.labelText}>Şöbə</span>
-              <Select
+              <input
+                className={formStyles.input}
                 value={filter.department}
-                options={[
-                  { value: "", label: "Şöbə" },
-                  { value: "dep1", label: "Logistika" },
-                  { value: "dep2", label: "Maliyyə" },
-                ]}
-                onChange={(v) => onFilterChange("department", v)}
+                onChange={(e) => onFilterChange("department", e.target.value)}
+                placeholder="Şöbə adı"
               />
             </label>
             <label className={formStyles.label}>
               <span className={formStyles.labelText}>Reysin ekspeditoru</span>
               <Select
                 value={filter.voyageExpeditor}
-                options={[
-                  { value: "", label: "Reysin ekspeditoru" },
-                  { value: "e1", label: "Expeditor 1" },
-                ]}
+                options={expeditorOptions}
                 onChange={(v) => onFilterChange("voyageExpeditor", v)}
+                placeholder="Hamısı"
               />
             </label>
             <label className={formStyles.label}>
               <span className={formStyles.labelText}>Order Forwarder</span>
-              <Select
+              <input
+                className={formStyles.input}
                 value={filter.orderForwarder}
-                options={[
-                  { value: "", label: "Order Forwarder" },
-                  { value: "of1", label: "Forwarder 1" },
-                ]}
-                onChange={(v) => onFilterChange("orderForwarder", v)}
+                onChange={(e) => onFilterChange("orderForwarder", e.target.value)}
+                placeholder="Forwarder"
               />
             </label>
             <label className={formStyles.label}>
               <span className={formStyles.labelText}>Əlavə menecerlər</span>
-              <Select
+              <input
+                className={formStyles.input}
                 value={filter.extraManagers}
-                options={[
-                  { value: "", label: "Əlavə menecerlər" },
-                  { value: "em1", label: "Extra Manager 1" },
-                ]}
-                onChange={(v) => onFilterChange("extraManagers", v)}
+                onChange={(e) => onFilterChange("extraManagers", e.target.value)}
+                placeholder="Əlavə menecer"
               />
             </label>
           </div>
@@ -276,10 +281,7 @@ export default function SifarisFilters({
                   type="checkbox"
                   checked={!!filter.noDoubleInvoices}
                   onChange={(e) =>
-                    onFilterChange(
-                      "noDoubleInvoices",
-                      e.target.checked ? "true" : "",
-                    )
+                    onFilterChange("noDoubleInvoices", e.target.checked)
                   }
                 />
                 İkili sürülmüş hesablar yoxdur
@@ -298,13 +300,10 @@ export default function SifarisFilters({
                   type="checkbox"
                   checked={!!filter.noPreliminaryInvoices}
                   onChange={(e) =>
-                    onFilterChange(
-                      "noPreliminaryInvoices",
-                      e.target.checked ? "true" : "",
-                    )
+                    onFilterChange("noPreliminaryInvoices", e.target.checked)
                   }
                 />
-                Ne preliminary invoices
+                İlkin hesablar yoxdur
               </label>
             </div>
             <label className={formStyles.label}>

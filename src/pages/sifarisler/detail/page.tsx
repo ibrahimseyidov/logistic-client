@@ -24,6 +24,7 @@ import {
   FiCalendar,
   FiX,
   FiUpload,
+  FiEdit2,
 } from "react-icons/fi";
 import axios from "axios";
 import { ENDPOINTS } from "../../../services/EndpointResources.g";
@@ -34,6 +35,7 @@ import {
   mapLoadRow,
 } from "../lib/mapLoadRow";
 import { formatDateOnly } from "../lib/formatDate";
+import { formatStatusHistoryMeta } from "../lib/statusHistory.utils";
 import SifarisEditModal from "../components/SifarisEditModal";
 import YukNewModal from "../components/YukNewModal";
 import YukViewModal from "../components/YukViewModal";
@@ -43,8 +45,10 @@ import ReysDeleteModal from "../components/ReysDeleteModal";
 import { ConfirmModal } from "../../../common/components/ConfirmModal";
 import EntityTasksPanel from "../../../common/components/tasks/EntityTasksPanel";
 import DocumentGeneratePanel from "../../../common/components/documents/DocumentGeneratePanel";
+import { resolveUploadUrl, fetchOrderDocumentsAction } from "../../../common/actions/document.actions";
 import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
+import { useAuth } from "../../../common/contexts/AuthContext";
 import styles from "./page.module.css";
 import {
   convertCurrencyToAzn,
@@ -76,7 +80,46 @@ type InvoiceDocumentItem = {
   size: string;
   url: string;
   createdAt: string;
+  /** Yalnız yüklənməmiş (blob) sənədlər üçün — refresh-dən sonra itməsin deyə serverə yazılır */
+  file?: File;
 };
+
+function formatInvoiceDocSize(bytes: number): string {
+  if (!bytes || bytes < 0) return "0 B";
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+function mapInvoiceFromApi(inv: any) {
+  if (!inv) return inv;
+  let documents: InvoiceDocumentItem[] = [];
+  if (Array.isArray(inv.documents)) {
+    documents = inv.documents;
+  } else if (typeof inv.documentsJson === "string" && inv.documentsJson.trim()) {
+    try {
+      const parsed = JSON.parse(inv.documentsJson);
+      documents = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      documents = [];
+    }
+  }
+  let rows = inv.rows;
+  if (!Array.isArray(rows) && typeof inv.rowsJson === "string" && inv.rowsJson.trim()) {
+    try {
+      const parsed = JSON.parse(inv.rowsJson);
+      rows = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      rows = [];
+    }
+  }
+  return {
+    ...inv,
+    documents,
+    rows: Array.isArray(rows) ? rows : [],
+    carrier: inv.carrier || inv.payer || "",
+    payer: inv.payer || inv.carrier || "",
+  };
+}
 
 function resolveUserDisplayName(
   value: unknown,
@@ -188,6 +231,7 @@ const LabelWithPlus = ({
 export default function SifarisDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const dispatch = useAppDispatch();
+  const { user } = useAuth();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [customerNameOverride, setCustomerNameOverride] = useState("");
@@ -195,6 +239,7 @@ export default function SifarisDetailPage() {
 
   const [orders, setOrders] = useState<SifarisOrderRow[]>([]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isOrderSaving, setIsOrderSaving] = useState(false);
   const [isYukModalOpen, setIsYukModalOpen] = useState(false);
 
   const [loadsList, setLoadsList] = useState<
@@ -285,127 +330,6 @@ export default function SifarisDetailPage() {
     "general" | "contact" | "finance"
   >("general");
 
-  // High-fidelity Documents Sub-tabs and lists
-  const [docsActiveSubTab, setDocsActiveSubTab] = useState<
-    "aktlar" | "fotos" | "requested"
-  >("aktlar");
-  const [isNewActModalOpen, setIsNewActModalOpen] = useState(false);
-  const [isNewDocModalOpen, setIsNewDocModalOpen] = useState(false);
-  const [isEditDocModalOpen, setIsEditDocModalOpen] = useState(false);
-  const [selectedDocForEdit, setSelectedDocForEdit] = useState<any | null>(
-    null,
-  );
-  const [docToDelete, setDocToDelete] = useState<any | null>(null);
-  const [isDocDeleteConfirmOpen, setIsDocDeleteConfirmOpen] = useState(false);
-
-  // Acts (Aktlar) List
-  const [aktlarList, setAktlarList] = useState<
-    Array<{
-      id: string;
-      company: string;
-      type: string;
-      template: string;
-      number: string;
-      date: string;
-      name: string;
-      hasValidity: boolean;
-      isContract: boolean;
-      isSendNotif: boolean;
-      noSeals: boolean;
-      provideAccess: boolean;
-      comments: string;
-    }>
-  >([
-    {
-      id: "1",
-      company: "Ziyafreight",
-      type: "Sənədin şablonu",
-      template: "Dəyəri seçin",
-      number: "ACT-001",
-      date: "27.05.2026",
-      name: "Təhvil-təslim aktı",
-      hasValidity: false,
-      isContract: true,
-      isSendNotif: false,
-      noSeals: false,
-      provideAccess: false,
-      comments: "",
-    },
-  ]);
-
-  // Photos (Fotoşəkillər) List
-  const [fotosList, setFotosList] = useState<
-    Array<{
-      id: string;
-      name: string;
-      url: string;
-      size: string;
-      createdAt: string;
-    }>
-  >([]);
-
-  // Requested Documents List
-  const [requestedDocsList, setRequestedDocsList] = useState<
-    Array<{
-      id: string;
-      name: string;
-      comments: string;
-      createdAt: string;
-      isAvailableToCustomer: boolean;
-      isAvailableToCarrier: boolean;
-      sendNotif: boolean;
-      type: string;
-      template: string;
-    }>
-  >([
-    {
-      id: "1",
-      name: "Daşıma məlumatları",
-      comments: "",
-      createdAt: "21.05.2026",
-      isAvailableToCustomer: false,
-      isAvailableToCarrier: false,
-      sendNotif: false,
-      type: "Sənədin şablonu",
-      template: "Dəyəri seçin",
-    },
-  ]);
-
-  // Form states for New Act Modal
-  const [newActCompany, setNewActCompany] = useState("Ziyafreight");
-  const [newActType, setNewActType] = useState("Sənədin şablonu");
-  const [newActTemplate, setNewActTemplate] = useState("Dəyəri seçin");
-  const [newActNumber, setNewActNumber] = useState("");
-  const [newActDate, setNewActDate] = useState("27.05.2026");
-  const [newActName, setNewActName] = useState("");
-  const [newActHasValidity, setNewActHasValidity] = useState(false);
-  const [newActIsContract, setNewActIsContract] = useState(true);
-  const [newActIsSendNotif, setNewActIsSendNotif] = useState(false);
-  const [newActNoSeals, setNewActNoSeals] = useState(false);
-  const [newActProvideAccess, setNewActProvideAccess] = useState(false);
-  const [newActComments, setNewActComments] = useState("");
-
-  // Form states for New Document Modal
-  const [newDocName, setNewDocName] = useState("");
-  const [newDocDate, setNewDocDate] = useState("27.05.2026");
-  const [newDocProvideAccessCustomer, setNewDocProvideAccessCustomer] =
-    useState(false);
-  const [newDocProvideAccessCarrier, setNewDocProvideAccessCarrier] =
-    useState(false);
-  const [newDocComments, setNewDocComments] = useState("");
-  const [newDocLink, setNewDocLink] = useState("");
-
-  // Form states for Edit Document Modal
-  const [editDocType, setEditDocType] = useState("Sənədin şablonu");
-  const [editDocTemplate, setEditDocTemplate] = useState("Dəyəri seçin");
-  const [editDocName, setEditDocName] = useState("");
-  const [editDocProvideAccessCustomer, setEditDocProvideAccessCustomer] =
-    useState(false);
-  const [editDocProvideAccessCarrier, setEditDocProvideAccessCarrier] =
-    useState(false);
-  const [editDocSendNotif, setEditDocSendNotif] = useState(false);
-  const [editDocComments, setEditDocComments] = useState("");
-
   // Full-fidelity partner modal states
   const [partnerFullName, setPartnerFullName] = useState("");
   const [partnerAbbrevName, setPartnerAbbrevName] = useState("");
@@ -419,11 +343,9 @@ export default function SifarisDetailPage() {
   const [partnerUak, setPartnerUak] = useState("");
   const [partnerBin, setPartnerBin] = useState("");
   const [partnerVatCode, setPartnerVatCode] = useState("");
-  const [partnerCreationDate, setPartnerCreationDate] = useState("27.05.2026");
+  const [partnerCreationDate, setPartnerCreationDate] = useState("");
   const [partnerLang, setPartnerLang] = useState("Dəyəri seçin");
-  const [partnerManagers, setPartnerManagers] = useState<string[]>([
-    "Ulvi Adilzade",
-  ]);
+  const [partnerManagers, setPartnerManagers] = useState<string[]>([]);
   const [partnerPermitted, setPartnerPermitted] = useState(true);
   const [partnerExtraInfo, setPartnerExtraInfo] = useState("");
 
@@ -501,7 +423,7 @@ export default function SifarisDetailPage() {
   const [catDefault, setCatDefault] = useState(false);
 
   const [txTemplate, setTxTemplate] = useState("Dəyəri seçin");
-  const [txUser, setTxUser] = useState("Ulvi Adilzade");
+  const [txUser, setTxUser] = useState("");
   const [txCalcType, setTxCalcType] = useState("ƏDV-siz qiymət");
   const [txCategory, setTxCategory] = useState("Order expenses");
   const [txInvoiceReceived, setTxInvoiceReceived] = useState("Dəyəri seçin");
@@ -585,7 +507,7 @@ export default function SifarisDetailPage() {
   };
 
   const handleSaveInvoice = async () => {
-    if (!invoiceNumber.trim()) {
+    if (invoicesSubTab !== "alinmis" && !invoiceNumber.trim()) {
       dispatch(
         showNotification({
           message: "Lütfən hesab nömrəsini daxil edin!",
@@ -595,157 +517,419 @@ export default function SifarisDetailPage() {
       );
       return;
     }
+    if (invoicesSubTab === "alinmis" && invoicePendingDocs.length === 0) {
+      dispatch(
+        showNotification({
+          message: "Alınmış hesab üçün ən azı bir sənəd əlavə edin!",
+          type: "error",
+          autoCloseDuration: 3500,
+        }),
+      );
+      return;
+    }
+    if (!order?.id) {
+      dispatch(
+        showNotification({
+          message: "Sifariş tapılmadı. Hesab saxlanılmadı.",
+          type: "error",
+          autoCloseDuration: 3500,
+        }),
+      );
+      return;
+    }
 
-    const topPrice =
-      Number.parseFloat(String(invoiceFreightPrice).replace(",", ".")) || 0;
-    const bottomPrice = Number(invoiceRows[0]?.price) || 0;
-    const priceDiffers =
-      topPrice > 0 && Math.abs(bottomPrice - topPrice) > 0.0001;
+    const rowsTotal = invoiceRows.reduce((sum, row) => {
+      const qty = Number(row.qty) || 0;
+      const price = Number(row.price) || 0;
+      return sum + qty * price;
+    }, 0);
+    const invoiceTotal =
+      Number.parseFloat(String(invoiceFreightPrice).replace(",", ".")) ||
+      rowsTotal;
 
-    if (priceDiffers) {
-      try {
-        const authHeaders = {
-          Authorization: "Bearer " + localStorage.getItem("token"),
-        };
-        const newPriceStr = String(bottomPrice);
-        const currency = invoiceCurrency || "EUR";
+    const resolvedNumber =
+      invoiceNumber.trim() ||
+      (invoicesSubTab === "alinmis"
+        ? `AL-${order?.orderNumber || order?.id}-${Date.now()}`
+        : "");
 
-        // Maliyyə: yalnız gəlir/tarif yenilənir — məsarif/xərc toxunulmur
-        const updatedFinance = await Promise.all(
-          financeTransactions.map(async (tx) => {
-            const txPrice =
-              Number.parseFloat(
-                String(tx.tarifPrice || "").replace(",", "."),
-              ) || 0;
-            const sameCurrency =
-              !tx.tarifCurrency ||
-              String(tx.tarifCurrency).toUpperCase() === currency.toUpperCase();
-            const matchesOld =
-              sameCurrency && Math.abs(txPrice - topPrice) < 0.0001;
-            if (!matchesOld) return tx;
+    const existingInvoice = editingInvoiceId
+      ? invoicesList.find((i) => String(i.id) === String(editingInvoiceId))
+      : null;
 
-            const revConv = await convertCurrencyToAzn(
-              bottomPrice,
-              currency,
-              tx.costDate || undefined,
-            );
-            const expAzn = resolveFinanceExpenseAzn(tx);
-            const profitVal = revConv.azn - expAzn;
-            const updateData = {
-              tarifPrice: newPriceStr,
-              tarifCurrency: currency,
-              tarifAzn: revConv.azn.toFixed(2),
-              edvliTarifPrice: newPriceStr,
-              edvliTarifCurrency: currency,
-              edvliTarifAzn: revConv.azn.toFixed(2),
-              mesarifPrice: tx.mesarifPrice,
-              mesarifCurrency: tx.mesarifCurrency,
-              mesarifAzn: tx.mesarifAzn,
-              edvliMesarifPrice: tx.edvliMesarifPrice,
-              edvliMesarifCurrency: tx.edvliMesarifCurrency,
-              edvliMesarifAzn: tx.edvliMesarifAzn,
-              profit: `${profitVal.toFixed(2)} AZN`,
-            };
-            const res = await axios.put(
-              ENDPOINTS.FINANCE.BASE + "/" + tx.id,
-              updateData,
-              { headers: authHeaders },
-            );
-            return res.data;
-          }),
-        );
-        setFinanceTransactions(updatedFinance);
+    try {
+      const headers = {
+        Authorization: "Bearer " + localStorage.getItem("token"),
+      };
 
-        // Sorğu təklifi: yalnız xərcsiz qiymət (price) — expense toxunulmur
-        const queryId =
-          (order as any)?.queryId || (order as any)?.query?.id || null;
-        if (queryId && invoiceCarrier) {
-          const updatedOffers = orderPriceOffers.map((o: any) => {
-            const name = String(o?.carrierName || "")
-              .trim()
-              .toLowerCase();
-            if (name !== invoiceCarrier.trim().toLowerCase()) return o;
-            const expenseNum =
-              Number.parseFloat(String(o?.expense ?? "").replace(",", ".")) ||
-              0;
-            const next: any = {
-              ...o,
-              price: newPriceStr,
-              currency,
-            };
-            if (o.totalPrice != null || expenseNum > 0) {
-              next.totalPrice = String(bottomPrice + expenseNum);
-            }
-            return next;
-          });
-          await updateQueryAction(queryId, {
-            priceOffersJson: JSON.stringify(updatedOffers),
-            priceOffers:
-              updatedOffers.length > 0
-                ? `${updatedOffers[0].carrierName}: ${updatedOffers[0].price} ${updatedOffers[0].currency}`
-                : "",
-          } as any);
-          setOrders((prev) =>
-            prev.map((o) => {
-              if (String(o.id) !== String(order?.id)) return o;
-              const q = { ...(o as any).query };
-              return {
-                ...o,
-                query: {
-                  ...q,
-                  priceOfferItems: updatedOffers,
-                  priceOffersJson: JSON.stringify(updatedOffers),
-                },
-              } as any;
-            }),
-          );
+      const uploadInvoiceFileToServer = async (file: File) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        const up = await axios.post(ENDPOINTS.INVOICES.UPLOAD, formData, {
+          headers: { Authorization: headers.Authorization },
+        });
+        return {
+          id: String(Date.now() + Math.random()),
+          name: up.data?.fileName || file.name,
+          size: formatInvoiceDocSize(up.data?.fileSize || file.size),
+          url: up.data?.fileUrl || "",
+          createdAt: new Date().toLocaleDateString("az-AZ"),
+        } as InvoiceDocumentItem;
+      };
+
+      const resolvePersistedDocs = async (docs: InvoiceDocumentItem[]) => {
+        const out: InvoiceDocumentItem[] = [];
+        for (const doc of docs) {
+          if (doc.file instanceof File) {
+            out.push(await uploadInvoiceFileToServer(doc.file));
+          } else if (doc.url && !String(doc.url).startsWith("blob:")) {
+            out.push({
+              id: doc.id,
+              name: doc.name,
+              size: doc.size,
+              url: doc.url,
+              createdAt: doc.createdAt,
+            });
+          }
         }
-      } catch (e) {
-        console.error(e);
+        return out;
+      };
+
+      const invoiceDocs =
+        invoicesSubTab === "alinmis"
+          ? await resolvePersistedDocs(invoicePendingDocs)
+          : Array.isArray(existingInvoice?.documents)
+            ? existingInvoice!.documents.filter(
+                (d) => d.url && !String(d.url).startsWith("blob:"),
+              )
+            : [];
+
+      if (invoicesSubTab === "alinmis" && invoiceDocs.length === 0) {
         dispatch(
           showNotification({
-            message:
-              "Qiymət yenilənərkən xəta baş verdi. Hesab yenə də saxlanıldı.",
+            message: "Sənəd serverə yüklənmədi. Yenidən cəhd edin.",
             type: "error",
             autoCloseDuration: 3500,
           }),
         );
+        return;
       }
+
+      const payload = {
+        orderId: order?.id ? Number(order.id) : undefined,
+        number: resolvedNumber,
+        date: invoiceDate,
+        amount: `${invoiceTotal} ${invoiceCurrency}`,
+        status: existingInvoice?.status || "Gözlənilir",
+        type: invoicesSubTab,
+        payer: invoiceCarrier,
+        contract: invoiceContract,
+        creator: invoiceCreator,
+        lang: invoiceLang,
+        delayDays: invoiceDelayDays,
+        payUntil: invoicePayUntilDate,
+        currency: invoiceCurrency,
+        rateDate: invoiceRateDate,
+        useNonStandard: false,
+        noStampSign: false,
+        sendNotif: false,
+        rows: invoiceRows,
+        documents: invoiceDocs,
+      };
+
+      const isEdit = Boolean(editingInvoiceId);
+      const res = isEdit
+        ? await axios.put(
+            ENDPOINTS.INVOICES.BY_ID(Number(editingInvoiceId)),
+            payload,
+            { headers },
+          )
+        : await axios.post(ENDPOINTS.INVOICES.BASE, payload, { headers });
+      const saved = mapInvoiceFromApi(res.data || {});
+
+      const mappedInvoice = {
+        id: saved.id ?? editingInvoiceId ?? String(Date.now()),
+        number: saved.number ?? resolvedNumber,
+        date: saved.date ?? invoiceDate,
+        amount:
+          saved.amount ??
+          `${invoiceTotal} ${invoiceCurrency}`,
+        status: saved.status ?? existingInvoice?.status ?? "Gözlənilir",
+        type: saved.type ?? invoicesSubTab,
+        orderNumber: order?.orderNumber || "",
+        carrier: invoiceCarrier,
+        payer: saved.payer ?? invoiceCarrier,
+        voyageNumber: invoiceVoyageNumber,
+        contract: saved.contract ?? invoiceContract,
+        creator: saved.creator ?? invoiceCreator,
+        lang: saved.lang ?? invoiceLang,
+        delayDays: saved.delayDays ?? invoiceDelayDays,
+        payUntil: saved.payUntil ?? invoicePayUntilDate,
+        freightPrice: invoiceFreightPrice,
+        invoicePrice: String(invoiceTotal),
+        currency: saved.currency ?? invoiceCurrency,
+        rateDate: saved.rateDate ?? invoiceRateDate,
+        useNonStandard: false,
+        noStampSign: false,
+        sendNotif: false,
+        rows: invoiceRows,
+        documents: Array.isArray(saved.documents)
+          ? saved.documents
+          : invoiceDocs,
+      };
+
+      if (isEdit) {
+        setInvoicesList((prev) =>
+          prev.map((inv) =>
+            String(inv.id) === String(editingInvoiceId)
+              ? { ...inv, ...mappedInvoice }
+              : inv,
+          ),
+        );
+      } else {
+        setInvoicesList([...invoicesList, mappedInvoice]);
+      }
+
+      // İrəli hesab — avtomatik invoice PDF hazırlandı; sənəd sayını yenilə
+      if (
+        !isEdit &&
+        invoicesSubTab === "ireli" &&
+        order?.id
+      ) {
+        try {
+          const docs = await fetchOrderDocumentsAction(Number(order.id));
+          setOrders((prev) =>
+            prev.map((o) =>
+              String(o.id) === String(order.id)
+                ? ({ ...o, orderDocuments: docs } as any)
+                : o,
+            ),
+          );
+        } catch {
+          /* ignore */
+        }
+      }
+
+      // Hesab borcu maliyyəyə yazıldı — siyahını yenilə
+      try {
+        if (order?.id) {
+          const finRefresh = await axios.get(
+            ENDPOINTS.FINANCE.BASE + "?orderId=" + order.id,
+            { headers },
+          );
+          setFinanceTransactions(
+            Array.isArray(finRefresh.data) ? finRefresh.data : [],
+          );
+        }
+      } catch {
+        /* ignore */
+      }
+
+      setIsNewInvoiceModalOpen(false);
+      setEditingInvoiceId(null);
+      setInvoiceNumber("");
+      setInvoiceFreightPrice("");
+      setInvoiceExpectedPrice(null);
+      setInvoicePendingDocs([]);
+      setInvoiceCarrier("");
+      setInvoiceVoyageNumber("");
+      setInvoiceContract("");
+      dispatch(
+        showNotification({
+          message: isEdit
+            ? "Hesab-faktura yeniləndi."
+            : invoicesSubTab === "ireli"
+              ? "İrəli hesab saxlanıldı və invoice sənədi hazırlandı."
+              : "Hesab-faktura yadda saxlanıldı.",
+          type: "success",
+          autoCloseDuration: 2500,
+        }),
+      );
+    } catch (err: any) {
+      console.error(err);
+      const apiMsg =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        "";
+      const isUnique =
+        /unique|Invoice_number|P2002/i.test(String(apiMsg)) ||
+        /unique|Invoice_number|P2002/i.test(String(err?.message || ""));
+      dispatch(
+        showNotification({
+          message: isUnique
+            ? "Bu hesab nömrəsi artıq mövcuddur. Nömrəni dəyişib yenidən saxlayın."
+            : apiMsg ||
+              err?.message ||
+              "Hesab-faktura saxlanılarkən xəta baş verdi.",
+          type: "error",
+          autoCloseDuration: 4500,
+        }),
+      );
+    }
+  };
+
+  const openEditInvoice = (inv: any) => {
+    if (!inv) return;
+    setEditingInvoiceId(String(inv.id));
+    if (inv.type === "ireli" || inv.type === "ilkin" || inv.type === "alinmis") {
+      setInvoicesSubTab(inv.type);
+    }
+    setInvoiceNumber(String(inv.number || ""));
+    setInvoiceDate(String(inv.date || ""));
+    setInvoiceDelayDays(String(inv.delayDays ?? "0"));
+    setInvoicePayUntilDate(String(inv.payUntil || inv.date || ""));
+    setInvoiceRateDate(String(inv.rateDate || inv.date || ""));
+    setInvoiceCreator(String(inv.creator || user?.name || ""));
+    setInvoiceCarrier(String(inv.payer || inv.carrier || ""));
+    setInvoiceVoyageNumber(String(inv.voyageNumber || ""));
+    setInvoiceContract(String(inv.contract || ""));
+    setInvoiceCurrency(String(inv.currency || "EUR").toUpperCase() || "EUR");
+
+    const freightRaw = String(
+      inv.freightPrice ?? inv.invoicePrice ?? "",
+    ).replace(",", ".");
+    const freightNum = Number.parseFloat(freightRaw);
+    const fromAmount = String(inv.amount || "").match(
+      /([\d.,]+)/,
+    );
+    const amountNum = fromAmount
+      ? Number.parseFloat(fromAmount[1].replace(",", "."))
+      : NaN;
+    const expected =
+      Number.isFinite(freightNum) && freightNum > 0
+        ? freightNum
+        : Number.isFinite(amountNum)
+          ? amountNum
+          : null;
+    setInvoiceFreightPrice(
+      expected != null ? String(expected) : freightRaw || "",
+    );
+    setInvoiceExpectedPrice(expected);
+
+    if (Array.isArray(inv.rows) && inv.rows.length > 0) {
+      setInvoiceRows(
+        inv.rows.map((r: any, idx: number) => ({
+          id: String(r.id ?? idx + 1),
+          text: String(r.text ?? ""),
+          unit: String(r.unit || "Marşrut"),
+          qty: Number(r.qty) || 1,
+          price: Number(r.price) || 0,
+          vatRate: String(r.vatRate || "0%"),
+        })),
+      );
+    } else {
+      setInvoiceRows([
+        {
+          id: "1",
+          text: "",
+          unit: "Marşrut",
+          qty: 1,
+          price: expected || 0,
+          vatRate: "0%",
+        },
+      ]);
     }
 
-    const newInvoice = {
-      id: String(Date.now()),
-      number: invoiceNumber,
-      date: invoiceDate,
-      amount: `${bottomPrice || invoiceFreightPrice} ${invoiceCurrency}`,
-      status: "Gözlənilir",
-      type: invoicesSubTab,
-      orderNumber: order?.orderNumber || "",
-      carrier: invoiceCarrier,
-      payer: invoiceCarrier,
-      voyageNumber: invoiceVoyageNumber,
-      contract: invoiceContract,
-      creator: invoiceCreator,
-      lang: invoiceLang,
-      delayDays: invoiceDelayDays,
-      payUntil: invoicePayUntilDate,
-      freightPrice: invoiceFreightPrice,
-      invoicePrice: String(bottomPrice),
-      currency: invoiceCurrency,
-      rateDate: invoiceRateDate,
-      useNonStandard: invoiceUseNonStandard,
-      noStampSign: invoiceNoStampSign,
-      sendNotif: invoiceSendNotif,
-      rows: invoiceRows,
-      documents: [] as InvoiceDocumentItem[],
-    };
-    setInvoicesList([...invoicesList, newInvoice]);
-    setIsNewInvoiceModalOpen(false);
-    setInvoiceNumber("");
-    setInvoiceFreightPrice("");
-    setInvoiceCarrier("");
-    setInvoiceVoyageNumber("");
-    setInvoiceContract("");
+    setInvoicePendingDocs(
+      Array.isArray(inv.documents) ? [...inv.documents] : [],
+    );
+
+    if (inv.type !== "alinmis") {
+      fetchCustomersAction()
+        .then((data) => {
+          const list = Array.isArray(data)
+            ? data
+            : Array.isArray((data as any)?.customers)
+              ? (data as any).customers
+              : [];
+          setInvoiceCarriersList(
+            list
+              .map((c: any) => ({
+                id: String(c.id ?? ""),
+                name: String(
+                  c.name || c.company || c.companyName || "",
+                ).trim(),
+                documents: parseCarrierDocuments(
+                  c.documents ?? c.documentsJson,
+                ),
+              }))
+              .filter((c: { name: string }) => c.name),
+          );
+        })
+        .catch(() => setInvoiceCarriersList([]));
+    } else {
+      setInvoiceCarriersList([]);
+    }
+
+    setIsNewInvoiceModalOpen(true);
+  };
+
+  const handleDeleteInvoice = (inv: any) => {
+    if (!inv?.id) return;
+    openDeleteConfirm(
+      "Hesabı sil",
+      `"${inv.number || "Hesab"}" silinsin? Bu əməliyyat geri qaytarıla bilməz.`,
+      async () => {
+        const idNum = Number(inv.id);
+        const headers = {
+          Authorization: "Bearer " + localStorage.getItem("token"),
+        };
+        try {
+          if (Number.isFinite(idNum) && idNum > 0) {
+            await axios.delete(ENDPOINTS.INVOICES.BY_ID(idNum), { headers });
+          }
+          setInvoicesList((prev) =>
+            prev.filter((i) => String(i.id) !== String(inv.id)),
+          );
+          if (order?.id) {
+            try {
+              const finRefresh = await axios.get(
+                ENDPOINTS.FINANCE.BASE + "?orderId=" + order.id,
+                { headers },
+              );
+              setFinanceTransactions(
+                Array.isArray(finRefresh.data) ? finRefresh.data : [],
+              );
+            } catch {
+              /* ignore */
+            }
+          }
+          dispatch(
+            showNotification({
+              message: "Hesab silindi.",
+              type: "success",
+              autoCloseDuration: 2500,
+            }),
+          );
+        } catch (err: any) {
+          console.error(err);
+          const status = err?.response?.status;
+          if (status === 404) {
+            setInvoicesList((prev) =>
+              prev.filter((i) => String(i.id) !== String(inv.id)),
+            );
+            dispatch(
+              showNotification({
+                message: "Hesab silindi.",
+                type: "success",
+                autoCloseDuration: 2500,
+              }),
+            );
+            return;
+          }
+          dispatch(
+            showNotification({
+              message:
+                err?.response?.data?.error ||
+                err?.message ||
+                "Hesab silinərkən xəta baş verdi.",
+              type: "error",
+              autoCloseDuration: 3500,
+            }),
+          );
+        }
+      },
+    );
   };
 
   const handleEditTransaction = (tx: any) => {
@@ -1168,11 +1352,29 @@ export default function SifarisDetailPage() {
                 valueAzn:
                   typeof v.valueAzn === "number" ? v.valueAzn : undefined,
                 rawPayload,
+                loads: v.cargoInfo || v.loads || "—",
+                cargoInfo: v.cargoInfo || "",
               };
             });
-          setVoyagesList(mappedVoyages);
+          // Yüklər sütununu DB-dəki voyageId bağlantısından düzəlt
+          const voyagesWithLoads = mappedVoyages.map((v: any) => {
+            const linked = mappedLoads.filter(
+              (l: any) =>
+                l.voyageId != null && String(l.voyageId) === String(v.id),
+            );
+            if (linked.length === 0) return v;
+            const label = linked
+              .map((l: any) => l.number || l.name || `Y-${l.id}`)
+              .join(", ");
+            return { ...v, loads: label, cargoInfo: label };
+          });
+          setVoyagesList(voyagesWithLoads);
 
-          setInvoicesList(invRes.data || []);
+          setInvoicesList(
+            (invRes.data || []).map((inv: any) => mapInvoiceFromApi(inv)),
+          );
+
+          // Borclanma yalnız hesab (irəli/alınmış) yaradılanda edilir — sifarişdə avtomatik xərc/borc yoxdur.
         } catch (e) {
           console.error(e);
         }
@@ -1201,11 +1403,15 @@ export default function SifarisDetailPage() {
     [order, voyagesList, financeTransactions],
   );
 
-  /** Seçilib yaradılan Başlanğıc tarif sətri — sidebar/banner üçün mənbə */
+  /** Seçilib yaradılan Başlanğıc tarif / irəli hesab sətri — sidebar/banner üçün mənbə */
   const baslangicTarifDisplay = useMemo(() => {
-    const tx = financeTransactions.find(
-      (t) => String(t.name || "").trim() === "Başlanğıc tarif",
-    );
+    const tx =
+      financeTransactions.find(
+        (t) => String(t.name || "").trim() === "Başlanğıc tarif",
+      ) ||
+      financeTransactions.find((t) =>
+        /^İrəli hesab #/i.test(String(t.name || "").trim()),
+      );
     if (tx) {
       const price =
         Number.parseFloat(
@@ -1443,28 +1649,7 @@ export default function SifarisDetailPage() {
       documents?: InvoiceDocumentItem[];
       [key: string]: any;
     }>
-  >([
-    {
-      id: "inv-mock-1",
-      number: "INV-2026-004",
-      date: "27.05.2026",
-      payer: "Limon Dental MMC",
-      amount: "1450 USD",
-      status: "Ölənilib",
-      type: "ireli",
-      documents: [],
-      rows: [
-        {
-          id: "r1",
-          text: "Freight Charges EXW Changzhou, up to FOA Baku\n\nSender: Changzhou Sifary Medical Technology\nConsinger: Limon Dental MMC\nTrace number:",
-          unit: "Marşrut",
-          qty: 1,
-          price: 1450,
-          vatRate: "0%",
-        },
-      ],
-    },
-  ]);
+  >([]);
 
   const [invoiceDocsViewId, setInvoiceDocsViewId] = useState<string | null>(
     null,
@@ -1474,32 +1659,76 @@ export default function SifarisDetailPage() {
   >(null);
   const invoiceFileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleInvoiceDocUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInvoiceDocUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const files = e.target.files;
     const targetId = invoiceUploadTargetId;
     if (!files || files.length === 0 || !targetId) {
       e.target.value = "";
       return;
     }
-    const uploaded: InvoiceDocumentItem[] = Array.from(files).map((file) => ({
-      id: String(Date.now() + Math.random()),
-      name: file.name,
-      size:
-        file.size >= 1024 * 1024
-          ? `${(file.size / (1024 * 1024)).toFixed(2)} MB`
-          : `${Math.max(1, Math.round(file.size / 1024))} KB`,
-      url: URL.createObjectURL(file),
-      createdAt: new Date().toLocaleDateString("az-AZ"),
-    }));
-    setInvoicesList((prev) =>
-      prev.map((inv) =>
-        inv.id === targetId
-          ? { ...inv, documents: [...(inv.documents || []), ...uploaded] }
-          : inv,
-      ),
-    );
-    setInvoiceUploadTargetId(null);
-    e.target.value = "";
+    const headers = {
+      Authorization: "Bearer " + localStorage.getItem("token"),
+    };
+    try {
+      const uploaded: InvoiceDocumentItem[] = [];
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append("file", file);
+        const up = await axios.post(ENDPOINTS.INVOICES.UPLOAD, formData, {
+          headers: { Authorization: headers.Authorization },
+        });
+        uploaded.push({
+          id: String(Date.now() + Math.random()),
+          name: up.data?.fileName || file.name,
+          size: formatInvoiceDocSize(up.data?.fileSize || file.size),
+          url: up.data?.fileUrl || "",
+          createdAt: new Date().toLocaleDateString("az-AZ"),
+        });
+      }
+
+      const current = invoicesList.find((i) => String(i.id) === String(targetId));
+      const nextDocs = [...(current?.documents || []), ...uploaded];
+      const idNum = Number(targetId);
+      if (Number.isFinite(idNum) && idNum > 0) {
+        await axios.put(
+          ENDPOINTS.INVOICES.BY_ID(idNum),
+          { documents: nextDocs },
+          { headers },
+        );
+      }
+
+      setInvoicesList((prev) =>
+        prev.map((inv) =>
+          String(inv.id) === String(targetId)
+            ? { ...inv, documents: nextDocs }
+            : inv,
+        ),
+      );
+      dispatch(
+        showNotification({
+          message: "Sənəd yükləndi.",
+          type: "success",
+          autoCloseDuration: 2200,
+        }),
+      );
+    } catch (err: any) {
+      console.error(err);
+      dispatch(
+        showNotification({
+          message:
+            err?.response?.data?.error ||
+            err?.message ||
+            "Sənəd yüklənərkən xəta baş verdi.",
+          type: "error",
+          autoCloseDuration: 3500,
+        }),
+      );
+    } finally {
+      setInvoiceUploadTargetId(null);
+      e.target.value = "";
+    }
   };
 
   const openInvoiceDocUpload = (invoiceId: string) => {
@@ -1511,15 +1740,25 @@ export default function SifarisDetailPage() {
   const [invoiceCarrier, setInvoiceCarrier] = useState("");
   const [invoiceVoyageNumber, setInvoiceVoyageNumber] = useState("");
   const [invoiceContract, setInvoiceContract] = useState("");
-  const [invoiceCreator, setInvoiceCreator] = useState("Ulvi Adilzade");
+  const [invoiceCreator, setInvoiceCreator] = useState("");
   const [invoiceLang] = useState("Azərbaycan");
   const [invoiceNumber, setInvoiceNumber] = useState("");
-  const [invoiceDate, setInvoiceDate] = useState("27.05.2026");
+  const [invoiceDate, setInvoiceDate] = useState("");
   const [invoiceDelayDays, setInvoiceDelayDays] = useState("0");
-  const [invoicePayUntilDate, setInvoicePayUntilDate] = useState("27.05.2026");
+  const [invoicePayUntilDate, setInvoicePayUntilDate] = useState("");
   const [invoiceFreightPrice, setInvoiceFreightPrice] = useState("");
+  /** Modal açılarkən / təklifdən gələn ilkin qiymət — yalnız uyarı üçün */
+  const [invoiceExpectedPrice, setInvoiceExpectedPrice] = useState<number | null>(
+    null,
+  );
   const [invoiceCurrency, setInvoiceCurrency] = useState("EUR");
-  const [invoiceRateDate, setInvoiceRateDate] = useState("27.05.2026");
+  const [invoiceRateDate, setInvoiceRateDate] = useState("");
+  /** Alınmış hesab modalı — saxlamazdan əvvəl əlavə olunan sənədlər */
+  const [invoicePendingDocs, setInvoicePendingDocs] = useState<
+    InvoiceDocumentItem[]
+  >([]);
+  const invoicePendingFileRef = useRef<HTMLInputElement>(null);
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
   const [invoiceCarriersList, setInvoiceCarriersList] = useState<
     Array<{
       id: string;
@@ -1527,10 +1766,6 @@ export default function SifarisDetailPage() {
       documents: ReturnType<typeof parseCarrierDocuments>;
     }>
   >([]);
-
-  const [invoiceUseNonStandard, setInvoiceUseNonStandard] = useState(false);
-  const [invoiceNoStampSign, setInvoiceNoStampSign] = useState(false);
-  const [invoiceSendNotif, setInvoiceSendNotif] = useState(false);
 
   const [invoiceRows, setInvoiceRows] = useState<
     Array<{
@@ -1544,13 +1779,34 @@ export default function SifarisDetailPage() {
   >([
     {
       id: "1",
-      text: "Freight Charges EXW Changzhou, up to FOA Baku\n\nSender: Changzhou Sifary Medical Technology\nConsinger: Limon Dental MMC\nTrace number:",
+      text: "",
       unit: "Marşrut",
       qty: 1,
       price: 0,
       vatRate: "0%",
     },
   ]);
+
+  // Daşıma qiyməti = sətirlərin (miqdar × qiymət) cəmi
+  useEffect(() => {
+    const total = invoiceRows.reduce((sum, row) => {
+      const qty = Number(row.qty) || 0;
+      const price = Number(row.price) || 0;
+      return sum + qty * price;
+    }, 0);
+    const next =
+      Math.abs(total) < 0.0000001
+        ? "0"
+        : String(Number(total.toFixed(4)));
+    setInvoiceFreightPrice((prev) => {
+      const prevNum =
+        Number.parseFloat(String(prev || "").replace(",", ".")) || 0;
+      if (Math.abs(prevNum - total) < 0.0001 && String(prev ?? "") !== "") {
+        return prev;
+      }
+      return next;
+    });
+  }, [invoiceRows]);
 
   const orderPriceOffers = useMemo(() => {
     const query = (order as any)?.query;
@@ -1575,6 +1831,35 @@ export default function SifarisDetailPage() {
     return [];
   }, [order]);
 
+  const orderCarrierNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const v of voyagesList) {
+      const c = String(v?.carrier || "").trim();
+      if (c && c !== "—" && c.toLowerCase() !== "daşıyıcı") names.add(c);
+    }
+    const tagMatch = String(order?.tags || "").match(/Daşıyıcı:\s*(.+)/i);
+    if (tagMatch?.[1]?.trim()) names.add(tagMatch[1].trim());
+    const carriersField = String(order?.carriers || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s && s !== "—");
+    for (const c of carriersField) names.add(c);
+    return Array.from(names);
+  }, [voyagesList, order]);
+
+  const invoiceVoyagesForCarrier = useMemo(() => {
+    const carrier = String(invoiceCarrier || "")
+      .trim()
+      .toLowerCase();
+    if (!carrier) return voyagesList;
+    return voyagesList.filter(
+      (v) =>
+        String(v?.carrier || "")
+          .trim()
+          .toLowerCase() === carrier,
+    );
+  }, [voyagesList, invoiceCarrier]);
+
   const resolveInvoiceVoyageNumber = (carrierName?: string) => {
     const clean = (v: unknown) => {
       const t = String(v ?? "").trim();
@@ -1598,6 +1883,7 @@ export default function SifarisDetailPage() {
   const applyCarrierOfferPricing = (carrierName: string) => {
     if (!carrierName) {
       setInvoiceFreightPrice("");
+      setInvoiceExpectedPrice(null);
       return;
     }
     const offer = orderPriceOffers.find(
@@ -1615,6 +1901,7 @@ export default function SifarisDetailPage() {
     const currency =
       String(offer?.currency || resolveOrderCurrency()).trim() || "EUR";
     setInvoiceFreightPrice(price > 0 ? String(price) : raw || "");
+    setInvoiceExpectedPrice(price > 0 ? price : null);
     setInvoiceCurrency(currency);
     setInvoiceRows((rows) =>
       rows.map((r, idx) => (idx === 0 ? { ...r, price } : r)),
@@ -1729,47 +2016,62 @@ export default function SifarisDetailPage() {
     return `Freight Charges ${incoterm} ${loadCity}, up to FOA ${unloadCity}\n\nSender: ${sender}\nConsinger: ${consignee}\nTrace number: ${truckNumber}`;
   };
 
-  // Sync dates
+  // Sync «Tarixinə kimi ödə» = Hesab yazılıb + təxirə salma günləri
   useEffect(() => {
-    if (invoiceDate) {
-      const days = parseInt(invoiceDelayDays) || 0;
-      try {
-        const parts = invoiceDate.split(".");
-        if (parts.length === 3) {
-          const d = new Date(
-            parseInt(parts[2]),
-            parseInt(parts[1]) - 1,
-            parseInt(parts[0]),
-          );
-          d.setDate(d.getDate() + days);
-          const pad = (n: number) => n.toString().padStart(2, "0");
-          setInvoicePayUntilDate(
-            `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`,
-          );
-        }
-      } catch (e) {
-        // Fallback
+    if (!invoiceDate) return;
+    const days = Number.parseInt(String(invoiceDelayDays), 10);
+    const addDays = Number.isFinite(days) ? days : 0;
+
+    const parseInvoiceDate = (raw: string): Date | null => {
+      const text = String(raw || "").trim();
+      if (!text) return null;
+
+      // dd.mm.yyyy or dd/mm/yyyy
+      const dmy = text.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
+      if (dmy) {
+        const d = new Date(
+          Number(dmy[3]),
+          Number(dmy[2]) - 1,
+          Number(dmy[1]),
+        );
+        return Number.isNaN(d.getTime()) ? null : d;
       }
-    }
+
+      // yyyy-mm-dd (HTML date / ISO date part)
+      const ymd = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (ymd) {
+        const d = new Date(
+          Number(ymd[1]),
+          Number(ymd[2]) - 1,
+          Number(ymd[3]),
+        );
+        return Number.isNaN(d.getTime()) ? null : d;
+      }
+
+      const d = new Date(text);
+      return Number.isNaN(d.getTime()) ? null : d;
+    };
+
+    const base = parseInvoiceDate(invoiceDate);
+    if (!base) return;
+
+    const result = new Date(base);
+    result.setDate(result.getDate() + addDays);
+
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    // Keep same style as source when ISO, otherwise AZ dd.mm.yyyy
+    const useIso = /^\d{4}-\d{2}-\d{2}/.test(String(invoiceDate).trim());
+    const next = useIso
+      ? `${result.getFullYear()}-${pad(result.getMonth() + 1)}-${pad(result.getDate())}`
+      : `${pad(result.getDate())}.${pad(result.getMonth() + 1)}.${result.getFullYear()}`;
+
+    setInvoicePayUntilDate((prev) => (prev === next ? prev : next));
   }, [invoiceDate, invoiceDelayDays]);
 
   // Dynamic comments
   const [comments, setComments] = useState<
     Array<{ id: string; text: string; userName: string; createdAt: string }>
-  >([
-    {
-      id: "1",
-      text: "Yükləmə nöqtəsindən gömrük sənədləri qəbul edildi.",
-      userName: "Ulvi Adilzade",
-      createdAt: "26.05.2026 10:15",
-    },
-    {
-      id: "2",
-      text: "Reys uğurla təyin olunmuşdur.",
-      userName: "Nijat Shabanly",
-      createdAt: "26.05.2026 11:42",
-    },
-  ]);
+  >([]);
   const [commentInput, setCommentInput] = useState("");
 
   // Combined Comments & Tasks States
@@ -1788,13 +2090,11 @@ export default function SifarisDetailPage() {
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
   const [taskChecklist, setTaskChecklist] = useState<string[]>([]);
-  const [taskAuthor, setTaskAuthor] = useState("Ulvi Adilzade (Satış şöbəsi)");
-  const [taskExecutor, setTaskExecutor] = useState(
-    "Ulvi Adilzade (Satış şöbəsi)",
-  );
+  const [taskAuthor, setTaskAuthor] = useState("");
+  const [taskExecutor, setTaskExecutor] = useState("");
   const [taskIsRecurring, setTaskIsRecurring] = useState(false);
-  const [taskCreatedDate, setTaskCreatedDate] = useState("27.05.2026");
-  const [taskCreatedTime, setTaskCreatedTime] = useState("17:54");
+  const [taskCreatedDate, setTaskCreatedDate] = useState("");
+  const [taskCreatedTime, setTaskCreatedTime] = useState("");
   const [taskDueDate, setTaskDueDate] = useState("");
   const [taskDueTime, setTaskDueTime] = useState("");
   const [taskDueAmount, setTaskDueAmount] = useState("");
@@ -1809,11 +2109,11 @@ export default function SifarisDetailPage() {
   const [contractType, setContractType] = useState<"template" | "file">(
     "template",
   );
-  const [contractVoyage, setContractVoyage] = useState("ZF26094-1, Makeasy");
+  const [contractVoyage, setContractVoyage] = useState("");
   const [contractLoad, setContractLoad] = useState("Dəyəri seçin");
   const [contractTemplate, setContractTemplate] = useState("Dəyəri seçin");
   const [contractDocNumber, setContractDocNumber] = useState("");
-  const [contractDocDate, setContractDocDate] = useState("27.05.2026");
+  const [contractDocDate, setContractDocDate] = useState("");
   const [contractDocName, setContractDocName] = useState("");
   const [contractHasValidity, setContractHasValidity] = useState(false);
   const [contractProvideAccessCustomer, setContractProvideAccessCustomer] =
@@ -1842,45 +2142,7 @@ export default function SifarisDetailPage() {
       remindDay: string;
       remindTime: string;
     }>
-  >([
-    {
-      id: "t1",
-      title: "Müştəri müqaviləsini yoxlamaq",
-      description:
-        "Limon Dental MMC müqaviləsi imzalanıb-imzalanmadığını yoxlayın",
-      checklist: ["Müqavilə nömrəsini təsdiqlə", "Skanner nüsxəsini yüklə"],
-      completed: true,
-      author: "Ulvi Adilzade (Satış şöbəsi)",
-      executor: "Ulvi Adilzade (Satış şöbəsi)",
-      isRecurring: false,
-      createdDate: "27.05.2026",
-      createdTime: "17:54",
-      dueDate: "28.05.2026",
-      dueTime: "18:00",
-      dueAmount: "",
-      remind: true,
-      remindDay: "İcra günündə",
-      remindTime: "10:00",
-    },
-    {
-      id: "t2",
-      title: "Daşıyıcıdan CMR sürətini tələb etmək",
-      description: "CMR sənədinin yüklənməsi tələb olunur",
-      checklist: [],
-      completed: false,
-      author: "Ulvi Adilzade (Satış şöbəsi)",
-      executor: "Ulvi Adilzade (Satış şöbəsi)",
-      isRecurring: false,
-      createdDate: "27.05.2026",
-      createdTime: "17:54",
-      dueDate: "",
-      dueTime: "",
-      dueAmount: "",
-      remind: false,
-      remindDay: "İcra günündə",
-      remindTime: "10:00",
-    },
-  ]);
+  >([]);
 
   const handleSaveNewComment = () => {
     if (!commentText.trim()) {
@@ -1896,7 +2158,7 @@ export default function SifarisDetailPage() {
     const newComment = {
       id: String(Date.now()),
       text: commentText.trim(),
-      userName: "Ulvi Adilzade",
+      userName: String(user?.name || "").trim() || "İstifadəçi",
       createdAt: new Date()
         .toLocaleString("az-AZ", { hour12: false })
         .replace(/\//g, "."),
@@ -1982,7 +2244,7 @@ export default function SifarisDetailPage() {
     const newComment = {
       id: String(Date.now()),
       text: commentInput.trim(),
-      userName: "Sistem Meneceri",
+      userName: String(user?.name || "").trim() || "İstifadəçi",
       createdAt: new Date()
         .toLocaleString("az-AZ", { hour12: false })
         .replace(/\//g, "."),
@@ -1991,44 +2253,11 @@ export default function SifarisDetailPage() {
     setCommentInput("");
   };
 
-  // Dynamic Documents
-  const [documents, setDocuments] = useState<
-    Array<{ id: string; name: string; size: string; createdAt: string }>
-  >([
-    {
-      id: "1",
-      name: "CMR_Senedi.pdf",
-      size: "1.4 MB",
-      createdAt: "26.05.2026",
-    },
-    {
-      id: "2",
-      name: "Hesab-faktura.xlsx",
-      size: "320 KB",
-      createdAt: "26.05.2026",
-    },
-  ]);
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    const file = files[0];
-    const newDoc = {
-      id: String(Date.now()),
-      name: file.name,
-      size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
-      createdAt: new Date().toLocaleDateString("az-AZ").split("T")[0],
-    };
-    setDocuments([...documents, newDoc]);
-  };
-
-  const handleDocDelete = (id: string) => {
-    openDeleteConfirm(
-      "Sənədi sil",
-      "Bu sənədi silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarıla bilməz.",
-      () => setDocuments(documents.filter((doc) => doc.id !== id)),
-    );
-  };
+  const orderDocumentsCount = useMemo(() => {
+    const fromOrder = (order as any)?.orderDocuments;
+    if (Array.isArray(fromOrder)) return fromOrder.length;
+    return 0;
+  }, [order]);
 
   // Dynamic status change
   const [currentStatus, setCurrentStatus] = useState<string>("planned");
@@ -2042,7 +2271,9 @@ export default function SifarisDetailPage() {
     }
   }, [order]);
 
-  const handleStatusChange = (nextStatus: OrderStatusKind) => {
+  const handleStatusChange = async (nextStatus: OrderStatusKind) => {
+    if (!order?.id) return;
+
     let label = "Planlaşdırılıb";
     if (nextStatus === "progress") label = "Davam edir";
     else if (nextStatus === "completed") label = "Tamamlandı";
@@ -2050,48 +2281,169 @@ export default function SifarisDetailPage() {
       label = "Maliyyə cəhətdən bağlandı";
     else if (nextStatus === "cancelled") label = "Sifariş ləğv edildi";
 
-    setCurrentStatus(nextStatus);
-    setCurrentStatusLabel(label);
-
-    const nextHistory = [
-      ...(order?.statusHistory || []),
-      {
-        status: label,
-        date: `${new Date().toLocaleString("az-AZ", { hour12: false }).replace(/\//g, ".")} (tərəfindən: Ulvi Adilzade)`,
-      },
-    ];
-
-    const updatedList = orders.map((o) => {
-      if (o.id === order?.id) {
-        return {
-          ...o,
-          statusKind: nextStatus,
-          statusLabel: label,
-          statusHistory: nextHistory,
-        };
-      }
-      return o;
-    });
-
-    setOrders(updatedList);
     try {
-      localStorage.setItem("logistic_sifarisler", JSON.stringify(updatedList));
+      const res = await axios.put(
+        ENDPOINTS.ORDERS.BY_ID(order.id),
+        { statusKind: nextStatus, statusLabel: label },
+        {
+          headers: {
+            Authorization: "Bearer " + localStorage.getItem("token"),
+          },
+        },
+      );
+      const saved = res.data || {};
+      setCurrentStatus(saved.statusKind || nextStatus);
+      setCurrentStatusLabel(saved.statusLabel || label);
+      setOrders((prev) =>
+        prev.map((o) => {
+          if (String(o.id) !== String(order.id)) return o;
+          return {
+            ...o,
+            statusKind: saved.statusKind || nextStatus,
+            statusLabel: saved.statusLabel || label,
+            statusHistory: saved.statusHistory || o.statusHistory || [],
+          };
+        }),
+      );
+      dispatch(
+        showNotification({
+          message: "Sifarişin statusu yeniləndi.",
+          type: "success",
+          autoCloseDuration: 2500,
+        }),
+      );
     } catch (err) {
       console.error(err);
+      // Offline / API fail fallback — still record local history with real user
+      const by = String(user?.name || "").trim() || "Naməlum";
+      const nextHistory = [
+        ...(order?.statusHistory || []),
+        {
+          status: label,
+          date: new Date().toISOString(),
+          changedBy: by,
+        },
+      ];
+      setCurrentStatus(nextStatus);
+      setCurrentStatusLabel(label);
+      setOrders((prev) =>
+        prev.map((o) =>
+          String(o.id) === String(order.id)
+            ? {
+                ...o,
+                statusKind: nextStatus,
+                statusLabel: label,
+                statusHistory: nextHistory,
+              }
+            : o,
+        ),
+      );
+      dispatch(
+        showNotification({
+          message: "Status yenilənərkən xəta baş verdi.",
+          type: "error",
+          autoCloseDuration: 3500,
+        }),
+      );
     }
   };
 
-  const handleSaveEdit = (updatedOrder: SifarisOrderRow) => {
-    const updatedList = orders.map((o) =>
-      o.id === updatedOrder.id ? updatedOrder : o,
-    );
-    setOrders(updatedList);
+  const handleSaveEdit = async (updatedOrder: SifarisOrderRow) => {
+    if (!updatedOrder?.id) return;
+
+    const parseMaybeDate = (value: unknown) => {
+      if (value == null || value === "") return null;
+      if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? null : value.toISOString();
+      }
+      const text = String(value).trim();
+      if (!text) return null;
+      // dd.mm.yyyy or dd/mm/yyyy
+      const m = text.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
+      if (m) {
+        const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+        return Number.isNaN(d.getTime()) ? null : d.toISOString();
+      }
+      const d = new Date(text);
+      return Number.isNaN(d.getTime()) ? null : d.toISOString();
+    };
+
+    const payload: Record<string, unknown> = {
+      orderNumber: updatedOrder.orderNumber,
+      orderDate: parseMaybeDate(updatedOrder.orderDate),
+      customerOrderRef: updatedOrder.customerOrderRef || null,
+      tags: updatedOrder.tags || null,
+      customerName:
+        (updatedOrder as any).customerName ||
+        updatedOrder.customer ||
+        null,
+      contractNumber: updatedOrder.contractNumber || null,
+      contactPerson: updatedOrder.contactPerson || null,
+      manager: updatedOrder.manager || null,
+      expeditor: updatedOrder.expeditor || null,
+      extraManagers: updatedOrder.extraManagers || null,
+      company: updatedOrder.company || null,
+      extraInfo: updatedOrder.extraInfo || null,
+      serviceName: updatedOrder.serviceName || null,
+      freight: updatedOrder.freight || null,
+      freightWithVat: updatedOrder.freightWithVat || null,
+      vatRate: updatedOrder.vatRate || null,
+      currency: updatedOrder.currency || null,
+      exchangeRateDate: parseMaybeDate(updatedOrder.exchangeRateDate),
+      paymentTerms: updatedOrder.paymentTerms || null,
+      paymentDelayDays: updatedOrder.paymentDelayDays || null,
+      incoterms: updatedOrder.incoterms || null,
+    };
+
+    setIsOrderSaving(true);
     try {
-      localStorage.setItem("logistic_sifarisler", JSON.stringify(updatedList));
-    } catch (e) {
-      console.error(e);
+      const res = await axios.put(
+        ENDPOINTS.ORDERS.BY_ID(updatedOrder.id),
+        payload,
+        {
+          headers: {
+            Authorization: "Bearer " + localStorage.getItem("token"),
+          },
+        },
+      );
+      const saved = res.data || {};
+      const merged: SifarisOrderRow = {
+        ...updatedOrder,
+        ...saved,
+        customer:
+          saved.customerName ||
+          updatedOrder.customer ||
+          (updatedOrder as any).customerName ||
+          "",
+        queryNumber:
+          updatedOrder.queryNumber ||
+          (saved as any).query?.number ||
+          "—",
+        queryDate: updatedOrder.queryDate || "—",
+      };
+      setOrders((prev) =>
+        prev.map((o) => (String(o.id) === String(merged.id) ? merged : o)),
+      );
+      setIsEditModalOpen(false);
+      dispatch(
+        showNotification({
+          message: "Sifariş yeniləndi",
+          type: "success",
+          autoCloseDuration: 3000,
+        }),
+      );
+    } catch (err) {
+      console.error(err);
+      dispatch(
+        showNotification({
+          message: "Sifariş yenilənərkən xəta baş verdi",
+          type: "error",
+          autoCloseDuration: 4000,
+        }),
+      );
+    } finally {
+      setIsOrderSaving(false);
     }
-    setIsEditModalOpen(false);
   };
 
   const handleYukAdd = (payload: any) => {
@@ -2142,11 +2494,15 @@ export default function SifarisDetailPage() {
 
     const syncLoadVoyageLinks = async (voyageId: string | number) => {
       const voyageIdNum = Number(voyageId);
+      if (!Number.isFinite(voyageIdNum) || voyageIdNum <= 0) return;
+
       const updates = loadsList.map(async (load) => {
         const loadId = String(load.id);
         const shouldLink = selectedIds.includes(loadId);
         const currentVoyageId =
-          load.voyageId != null ? String(load.voyageId) : "";
+          load.voyageId != null && String(load.voyageId).trim() !== ""
+            ? String(load.voyageId)
+            : "";
         const linkedToThis = currentVoyageId === String(voyageId);
 
         if (shouldLink && !linkedToThis) {
@@ -2167,143 +2523,49 @@ export default function SifarisDetailPage() {
         }
         return load;
       });
-      const nextLoads = await Promise.all(updates);
-      setLoadsList(nextLoads);
+
+      try {
+        const nextLoads = await Promise.all(updates);
+        setLoadsList(nextLoads);
+        // Reys cədvəlindəki Yüklər sütununu bağlı yüklərdən yenilə
+        setVoyagesList((prev) =>
+          prev.map((v) => {
+            if (String(v.id) !== String(voyageId)) return v;
+            const linked = nextLoads.filter(
+              (l) =>
+                l.voyageId != null && String(l.voyageId) === String(voyageId),
+            );
+            const label =
+              linked.length > 0
+                ? linked
+                    .map((l) => l.number || l.name || `Y-${l.id}`)
+                    .join(", ")
+                : "—";
+            return { ...v, loads: label, cargoInfo: label };
+          }),
+        );
+      } catch (err) {
+        console.error(err);
+        dispatch(
+          showNotification({
+            message: "Yüklər reysə bağlanarkən xəta baş verdi",
+            type: "error",
+            autoCloseDuration: 3500,
+          }),
+        );
+        throw err;
+      }
     };
 
-    /** Reys qiyməti → Maliyyəyə `Reys R-{id}` məxaric sətri; Başlanğıc təkrarını sil */
-    const syncVoyageFinanceExpense = async (opts: {
+    /** Reys qiyməti artıq daşıyıcı borcu yaratmır — borc yalnız alınmış hesabda yaranır */
+    const syncVoyageFinanceExpense = async (_opts: {
       voyageId: string | number;
       carrier: string;
       priceNum: number;
       currency: string;
       priceAzn: number;
     }) => {
-      if (!order?.id || !(opts.priceNum > 0)) return;
-
-      const carrier =
-        String(opts.carrier || "").trim() && String(opts.carrier).trim() !== "—"
-          ? String(opts.carrier).trim()
-          : "Daşıyıcı";
-      const voyageName = `Reys R-${opts.voyageId}`;
-
-      let carrierId: number | null = null;
-      try {
-        const { fetchCarriersAction } =
-          await import("../../../common/actions/carrier.actions");
-        const list = await fetchCarriersAction();
-        const arr = Array.isArray(list) ? list : [];
-        const fold = (s: unknown) =>
-          String(s || "")
-            .trim()
-            .toLowerCase()
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "");
-        const target = fold(carrier);
-        const found = arr.find((c: any) => {
-          const aliases = [c.name, c.company, c.companyName]
-            .map(fold)
-            .filter(Boolean);
-          return aliases.some((n) => n === target);
-        });
-        if (found?.id != null) carrierId = Number(found.id);
-      } catch {
-        /* ignore */
-      }
-
-      const mesarifPayload = {
-        partner: carrier,
-        carrierId,
-        customerId: null,
-        paymentMethod: "Sifariş",
-        category: "ORDER_BOOK",
-        mesarifPrice: String(opts.priceNum),
-        mesarifCurrency: opts.currency,
-        mesarifAzn: opts.priceAzn.toFixed(2),
-        edvliMesarifPrice: String(opts.priceNum),
-        edvliMesarifCurrency: opts.currency,
-        edvliMesarifAzn: opts.priceAzn.toFixed(2),
-      };
-
-      try {
-        const finRes = await axios.get(
-          ENDPOINTS.FINANCE.BASE + "?orderId=" + order.id,
-          { headers: authHeaders },
-        );
-        const txs: any[] = Array.isArray(finRes.data) ? finRes.data : [];
-
-        const existing =
-          txs.find((t) => String(t.name || "").trim() === voyageName) || null;
-
-        if (existing?.id) {
-          const revAzn = resolveFinanceRevenueAzn(existing);
-          await axios.put(
-            ENDPOINTS.FINANCE.BASE + "/" + existing.id,
-            {
-              ...mesarifPayload,
-              profit: `${(revAzn - opts.priceAzn).toFixed(2)} AZN`,
-            },
-            { headers: authHeaders },
-          );
-        } else {
-          await axios.post(
-            ENDPOINTS.FINANCE.BASE,
-            {
-              orderId: Number(order.id),
-              name: voyageName,
-              ...mesarifPayload,
-              paymentMethod: "Sifariş",
-              category: "ORDER_BOOK",
-              tarifPrice: "",
-              tarifCurrency: "",
-              tarifAzn: "",
-              edvliTarifPrice: "",
-              edvliTarifCurrency: "",
-              edvliTarifAzn: "",
-              profit: `${(-opts.priceAzn).toFixed(2)} AZN`,
-              user:
-                resolveUserDisplayName(order.manager, users) ||
-                order.manager ||
-                "",
-              invoiceWritten: false,
-              invoiceReceived: false,
-              costDate: new Date().toLocaleDateString("az-AZ"),
-            },
-            { headers: authHeaders },
-          );
-        }
-
-        // Köhnə təklif alışını (Başlanğıc mesarif) təmizlə — təkrar sayılmasın
-        const baslangic = txs.find(
-          (t) => String(t.name || "").trim() === "Başlanğıc tarif",
-        );
-        if (baslangic?.id && resolveFinanceExpenseAzn(baslangic) > 0) {
-          const revAzn = resolveFinanceRevenueAzn(baslangic);
-          await axios.put(
-            ENDPOINTS.FINANCE.BASE + "/" + baslangic.id,
-            {
-              mesarifPrice: "",
-              mesarifCurrency: "",
-              mesarifAzn: "",
-              edvliMesarifPrice: "",
-              edvliMesarifCurrency: "",
-              edvliMesarifAzn: "",
-              profit: `${revAzn.toFixed(2)} AZN`,
-            },
-            { headers: authHeaders },
-          );
-        }
-
-        const refreshed = await axios.get(
-          ENDPOINTS.FINANCE.BASE + "?orderId=" + order.id,
-          { headers: authHeaders },
-        );
-        setFinanceTransactions(
-          Array.isArray(refreshed.data) ? refreshed.data : [],
-        );
-      } catch (e) {
-        console.error("Voyage finance sync failed", e);
-      }
+      return;
     };
 
     const priceNum =
@@ -2336,6 +2598,12 @@ export default function SifarisDetailPage() {
         (typeof raw?.valueAzn === "number" ? raw.valueAzn : undefined),
       expeditor: extras.expeditor ?? raw?.expeditor,
       rawPayload: extras.rawPayload ?? raw?.rawPayload,
+      loads:
+        extras.loads ||
+        raw?.cargoInfo ||
+        raw?.loads ||
+        "—",
+      cargoInfo: extras.loads || raw?.cargoInfo || raw?.loads || "",
     });
 
     if (selectedVoyageForEdit) {
@@ -2364,6 +2632,7 @@ export default function SifarisDetailPage() {
           valueAzn: priceAzn > 0 ? priceAzn : undefined,
           rawPayload: payload.rawPayload || selectedVoyageForEdit.rawPayload,
           expeditor: payload.expeditor,
+          loads: payload.loads || "",
         });
         setVoyagesList((prev) =>
           prev.map((v) =>
@@ -2430,6 +2699,7 @@ export default function SifarisDetailPage() {
           valueAzn: priceAzn > 0 ? priceAzn : undefined,
           rawPayload: payload.rawPayload,
           expeditor: payload.expeditor,
+          loads: payload.loads || "",
         });
         setVoyagesList((prev) => [...prev, saved]);
         if (newId) {
@@ -2553,7 +2823,7 @@ export default function SifarisDetailPage() {
     },
     {
       id: "documents" as SifarisTabId,
-      label: `Sənədlər (${documents.length})`,
+      label: `Sənədlər (${orderDocumentsCount})`,
       icon: <FiFileText />,
     },
     { id: "invoices" as SifarisTabId, label: "Hesablar", icon: <FiFile /> },
@@ -2591,8 +2861,11 @@ export default function SifarisDetailPage() {
               type="button"
               className={styles.editBtn}
               onClick={() => setIsEditModalOpen(true)}
+              disabled={isOrderSaving}
+              title="Sifarişi redaktə et"
             >
-              + Redaktə et
+              <FiEdit2 size={15} />
+              {isOrderSaving ? "Saxlanılır..." : "Redaktə et"}
             </button>
 
             {/* Status Section */}
@@ -2902,14 +3175,19 @@ export default function SifarisDetailPage() {
                 value={formatDateOnly(order.orderDate)}
               />
               <DlRow label="Teqlər" value={order.tags || "—"} />
-              <DlRow label="Incoterms" value={order.incoterms || "EXW"} />
+              <DlRow label="Incoterms" value={order.incoterms || "—"} />
               <DlRow label="Müştəri" value={displayCustomerName} />
-              <DlRow label="Ünvan" value="Azerbaijan, Baku" />
+              <DlRow
+                label="Ünvan"
+                value={
+                  String((order as any)?.query?.loadAddress || "").trim() ||
+                  String((order as any)?.query?.loadCity || "").trim() ||
+                  "—"
+                }
+              />
               <DlRow
                 label="Əlaqədar şəxs"
-                value={
-                  order.contactPerson || "Nijat Shabanly (+994 50 2053030)"
-                }
+                value={order.contactPerson || "—"}
               />
               <DlRow label="Daşıyıcılar" value={displayCarriers} />
               <DlRow
@@ -3061,7 +3339,7 @@ export default function SifarisDetailPage() {
                             >
                               <span style={{ fontWeight: 600 }}>
                                 {load.voyageLabel ||
-                                  formatVoyageLabel(load.voyage)}
+                                  formatVoyageLabel(load.voyage, load.voyageId)}
                               </span>
                               <div style={{ display: "flex", gap: "0.25rem" }}>
                                 <button
@@ -3375,9 +3653,25 @@ export default function SifarisDetailPage() {
                               <span
                                 style={{ fontSize: "0.8rem", color: "#475569" }}
                               >
-                                {Array.isArray(v.loads)
-                                  ? v.loads.length + " yük"
-                                  : v.loads || "—"}
+                                {(() => {
+                                  const linked = loadsList.filter(
+                                    (l) =>
+                                      l.voyageId != null &&
+                                      String(l.voyageId) === String(v.id),
+                                  );
+                                  if (linked.length > 0) {
+                                    return linked
+                                      .map(
+                                        (l) =>
+                                          l.number || l.name || `Y-${l.id}`,
+                                      )
+                                      .join(", ");
+                                  }
+                                  if (Array.isArray(v.loads)) {
+                                    return v.loads.length + " yük";
+                                  }
+                                  return v.loads || v.cargoInfo || "—";
+                                })()}
                               </span>
                               <div style={{ display: "flex", gap: "0.35rem" }}>
                                 <button
@@ -3466,6 +3760,7 @@ export default function SifarisDetailPage() {
                     onClick={() => {
                       setSelectedTxForEdit(null);
                       setTxName("");
+                      setTxUser(String(user?.name || "").trim());
                       setTxRevQty("1");
                       setTxRevPrice("0");
                       setTxExpQty("1");
@@ -3953,594 +4248,15 @@ export default function SifarisDetailPage() {
 
             {activeTab === "documents" && (
               <div>
-                <div style={{ marginBottom: "1.5rem" }}>
-                  <DocumentGeneratePanel
-                    scope="order"
-                    orderId={order?.id ? Number(order.id) : null}
-                    queryId={
-                      (order as any)?.queryId
-                        ? Number((order as any).queryId)
-                        : null
-                    }
-                  />
-                </div>
-                {/* 3 Green Underlined Sub-Tabs */}
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "1.5rem",
-                    borderBottom: "1px solid #cbd5e1",
-                    paddingBottom: "0.75rem",
-                    marginBottom: "1.25rem",
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setDocsActiveSubTab("aktlar")}
-                    style={{
-                      background: "transparent",
-                      border: 0,
-                      padding: 0,
-                      cursor: "pointer",
-                      fontSize: "0.95rem",
-                      fontWeight: 600,
-                      color:
-                        docsActiveSubTab === "aktlar" ? "#15803d" : "#0891b2",
-                      textDecoration: "underline",
-                    }}
-                  >
-                    Aktlar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDocsActiveSubTab("fotos")}
-                    style={{
-                      background: "transparent",
-                      border: 0,
-                      padding: 0,
-                      cursor: "pointer",
-                      fontSize: "0.95rem",
-                      fontWeight: 600,
-                      color:
-                        docsActiveSubTab === "fotos" ? "#15803d" : "#0891b2",
-                      textDecoration: "underline",
-                    }}
-                  >
-                    Fotoşəkillər
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDocsActiveSubTab("requested")}
-                    style={{
-                      background: "transparent",
-                      border: 0,
-                      padding: 0,
-                      cursor: "pointer",
-                      fontSize: "0.95rem",
-                      fontWeight: 600,
-                      color:
-                        docsActiveSubTab === "requested"
-                          ? "#15803d"
-                          : "#0891b2",
-                      textDecoration: "underline",
-                    }}
-                  >
-                    Documents from request ({requestedDocsList.length})
-                  </button>
-                </div>
-
-                {/* Sub-Tab 1: Aktlar */}
-                {docsActiveSubTab === "aktlar" && (
-                  <div>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: "1rem",
-                      }}
-                    >
-                      <h4
-                        style={{
-                          margin: 0,
-                          fontSize: "0.9rem",
-                          fontWeight: 700,
-                          color: "#475569",
-                        }}
-                      >
-                        Aktlar
-                      </h4>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setNewActCompany("Ziyafreight");
-                          setNewActType("Sənədin şablonu");
-                          setNewActTemplate("Dəyəri seçin");
-                          setNewActNumber("");
-                          setNewActDate("27.05.2026");
-                          setNewActName("");
-                          setNewActHasValidity(false);
-                          setNewActIsContract(true);
-                          setNewActIsSendNotif(false);
-                          setNewActNoSeals(false);
-                          setNewActProvideAccess(false);
-                          setNewActComments("");
-                          setIsNewActModalOpen(true);
-                        }}
-                        style={{
-                          background: "#22c55e",
-                          color: "#ffffff",
-                          border: 0,
-                          borderRadius: "0.375rem",
-                          padding: "0.45rem 1rem",
-                          fontSize: "0.8rem",
-                          fontWeight: "bold",
-                          cursor: "pointer",
-                        }}
-                      >
-                        + Əlavə et
-                      </button>
-                    </div>
-
-                    <div className={styles.tableWrapper}>
-                      <table className={styles.table}>
-                        <thead>
-                          <tr>
-                            <th className={styles.th}>Şirkət</th>
-                            <th className={styles.th}>Sənədin nömrəsi</th>
-                            <th className={styles.th}>Sənədin tarixi</th>
-                            <th className={styles.th}>Sənədin adı</th>
-                            <th
-                              className={styles.th}
-                              style={{ width: "80px" }}
-                            ></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {aktlarList.map((act) => (
-                            <tr key={act.id}>
-                              <td
-                                className={styles.td}
-                                style={{ fontWeight: 600 }}
-                              >
-                                {act.company}
-                              </td>
-                              <td className={styles.td}>{act.number || "—"}</td>
-                              <td className={styles.td}>{act.date}</td>
-                              <td className={styles.td}>{act.name || "—"}</td>
-                              <td
-                                className={styles.td}
-                                style={{ textAlign: "right" }}
-                              >
-                                <button
-                                  type="button"
-                                  className={styles.iconBtn}
-                                  onClick={() => {
-                                    openDeleteConfirm(
-                                      "Aktı sil",
-                                      `"${act.company}" aktını silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarıla bilməz.`,
-                                      () =>
-                                        setAktlarList(
-                                          aktlarList.filter(
-                                            (a) => a.id !== act.id,
-                                          ),
-                                        ),
-                                    );
-                                  }}
-                                  title="Silmək"
-                                >
-                                  <FiTrash2 style={{ color: "#ef4444" }} />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {/* Sub-Tab 2: Fotoşəkillər */}
-                {docsActiveSubTab === "fotos" && (
-                  <div>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: "1rem",
-                      }}
-                    >
-                      <h4
-                        style={{
-                          margin: 0,
-                          fontSize: "0.9rem",
-                          fontWeight: 700,
-                          color: "#475569",
-                        }}
-                      >
-                        Fotoşəkillər
-                      </h4>
-                      <label
-                        style={{
-                          background: "#22c55e",
-                          color: "#ffffff",
-                          borderRadius: "0.375rem",
-                          padding: "0.45rem 1rem",
-                          fontSize: "0.8rem",
-                          fontWeight: "bold",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <input
-                          type="file"
-                          accept="image/*"
-                          style={{ display: "none" }}
-                          onChange={(e) => {
-                            const files = e.target.files;
-                            if (files && files.length > 0) {
-                              const f = files[0];
-                              setFotosList([
-                                ...fotosList,
-                                {
-                                  id: String(Date.now()),
-                                  name: f.name,
-                                  url: URL.createObjectURL(f),
-                                  size: `${(f.size / 1024).toFixed(0)} KB`,
-                                  createdAt: "27.05.2026",
-                                },
-                              ]);
-                            }
-                          }}
-                        />
-                        + Şəkil yüklə
-                      </label>
-                    </div>
-
-                    {fotosList.length === 0 ? (
-                      <p
-                        style={{
-                          color: "#64748b",
-                          fontSize: "0.85rem",
-                          fontStyle: "italic",
-                          textAlign: "center",
-                          padding: "1.5rem",
-                        }}
-                      >
-                        Fotoşəkil yüklənməyib.
-                      </p>
-                    ) : (
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns:
-                            "repeat(auto-fill, minmax(120px, 1fr))",
-                          gap: "1rem",
-                        }}
-                      >
-                        {fotosList.map((foto) => (
-                          <div
-                            key={foto.id}
-                            style={{
-                              border: "1px solid #cbd5e1",
-                              borderRadius: "0.5rem",
-                              overflow: "hidden",
-                              position: "relative",
-                              background: "#ffffff",
-                            }}
-                          >
-                            <img
-                              src={foto.url}
-                              alt={foto.name}
-                              style={{
-                                width: "100%",
-                                height: "90px",
-                                objectFit: "cover",
-                              }}
-                            />
-                            <div
-                              style={{
-                                padding: "0.35rem",
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontSize: "0.75rem",
-                                  color: "#475569",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                  maxWidth: "80px",
-                                }}
-                                title={foto.name}
-                              >
-                                {foto.name}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  openDeleteConfirm(
-                                    "Fotoşəkli sil",
-                                    `"${foto.name}" fotoşəklini silmək istədiyinizə əminsiniz?`,
-                                    () =>
-                                      setFotosList(
-                                        fotosList.filter(
-                                          (f) => f.id !== foto.id,
-                                        ),
-                                      ),
-                                  );
-                                }}
-                                style={{
-                                  background: "transparent",
-                                  border: 0,
-                                  padding: 0,
-                                  cursor: "pointer",
-                                  color: "#ef4444",
-                                  fontSize: "0.85rem",
-                                }}
-                              >
-                                &times;
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Sub-Tab 3: Documents from request */}
-                {docsActiveSubTab === "requested" && (
-                  <div>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: "1rem",
-                      }}
-                    >
-                      <h4
-                        style={{
-                          margin: 0,
-                          fontSize: "0.9rem",
-                          fontWeight: 700,
-                          color: "#475569",
-                        }}
-                      >
-                        Documents from request
-                      </h4>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setNewDocName("");
-                          setNewDocDate("27.05.2026");
-                          setNewDocProvideAccessCustomer(false);
-                          setNewDocProvideAccessCarrier(false);
-                          setNewDocComments("");
-                          setNewDocLink("");
-                          setIsNewDocModalOpen(true);
-                        }}
-                        style={{
-                          background: "#22c55e",
-                          color: "#ffffff",
-                          border: 0,
-                          borderRadius: "0.375rem",
-                          padding: "0.45rem 1rem",
-                          fontSize: "0.8rem",
-                          fontWeight: "bold",
-                          cursor: "pointer",
-                        }}
-                      >
-                        + Əlavə et
-                      </button>
-                    </div>
-
-                    <div className={styles.tableWrapper}>
-                      <table className={styles.table}>
-                        <thead>
-                          <tr>
-                            <th className={styles.th}>Sənədin adı</th>
-                            <th className={styles.th}>Şərhlər</th>
-                            <th className={styles.th}>Yaradılması tarixi</th>
-                            <th className={styles.th}>
-                              Müştəri üçün əlçatandır
-                            </th>
-                            <th
-                              className={styles.th}
-                              style={{ width: "180px", textAlign: "right" }}
-                            ></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {requestedDocsList.map((doc) => (
-                            <tr key={doc.id}>
-                              <td
-                                className={styles.td}
-                                style={{ fontWeight: 600 }}
-                              >
-                                {doc.name}
-                              </td>
-                              <td className={styles.td}>
-                                {doc.comments || "—"}
-                              </td>
-                              <td className={styles.td}>{doc.createdAt}</td>
-                              <td className={styles.td}>
-                                {doc.isAvailableToCustomer ? (
-                                  <span
-                                    style={{
-                                      color: "#22c55e",
-                                      fontWeight: "bold",
-                                    }}
-                                  >
-                                    Bəli
-                                  </span>
-                                ) : (
-                                  <span
-                                    style={{
-                                      color: "#ef4444",
-                                      fontWeight: "bold",
-                                    }}
-                                  >
-                                    Xeyr
-                                  </span>
-                                )}
-                              </td>
-                              <td
-                                className={styles.td}
-                                style={{ textAlign: "right" }}
-                              >
-                                <div
-                                  style={{
-                                    display: "inline-flex",
-                                    gap: "0.5rem",
-                                    alignItems: "center",
-                                  }}
-                                >
-                                  {/* PDF icon */}
-                                  <FiFileText
-                                    style={{
-                                      color: "#ef4444",
-                                      fontSize: "0.95rem",
-                                      cursor: "pointer",
-                                    }}
-                                    title="PDF"
-                                  />
-
-                                  {/* Email icon */}
-                                  <span
-                                    style={{
-                                      display: "inline-flex",
-                                      cursor: "pointer",
-                                    }}
-                                    title="Email"
-                                  >
-                                    <svg
-                                      width="14"
-                                      height="14"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="#3b82f6"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                                      <polyline points="22,6 12,13 2,6" />
-                                    </svg>
-                                  </span>
-
-                                  {/* Email with green check icon */}
-                                  <span
-                                    style={{
-                                      display: "inline-flex",
-                                      cursor: "pointer",
-                                    }}
-                                    title="Notified"
-                                  >
-                                    <svg
-                                      width="14"
-                                      height="14"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="#10b981"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                                      <polyline points="22,6 12,13 2,6" />
-                                    </svg>
-                                  </span>
-
-                                  {/* Edit pencil icon */}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedDocForEdit(doc);
-                                      setEditDocType(doc.type);
-                                      setEditDocTemplate(doc.template);
-                                      setEditDocName(doc.name);
-                                      setEditDocProvideAccessCustomer(
-                                        doc.isAvailableToCustomer,
-                                      );
-                                      setEditDocProvideAccessCarrier(
-                                        doc.isAvailableToCarrier,
-                                      );
-                                      setEditDocSendNotif(doc.sendNotif);
-                                      setEditDocComments(doc.comments);
-                                      setIsEditDocModalOpen(true);
-                                    }}
-                                    style={{
-                                      background: "transparent",
-                                      border: 0,
-                                      cursor: "pointer",
-                                      padding: "0.15rem",
-                                      display: "flex",
-                                      alignItems: "center",
-                                    }}
-                                    title="Redaktə et"
-                                  >
-                                    <svg
-                                      width="12"
-                                      height="12"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="#6366f1"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                                    </svg>
-                                  </button>
-
-                                  {/* Log icon */}
-                                  <FiBookOpen
-                                    style={{
-                                      color: "#94a3b8",
-                                      fontSize: "0.95rem",
-                                      cursor: "pointer",
-                                    }}
-                                    title="Logs"
-                                  />
-
-                                  {/* Delete circular minus icon */}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setDocToDelete(doc);
-                                      setIsDocDeleteConfirmOpen(true);
-                                    }}
-                                    style={{
-                                      background: "transparent",
-                                      border: 0,
-                                      cursor: "pointer",
-                                      padding: "0.15rem",
-                                      display: "flex",
-                                      alignItems: "center",
-                                    }}
-                                    title="Sil"
-                                  >
-                                    <FiTrash2
-                                      style={{
-                                        color: "#ef4444",
-                                        fontSize: "0.95rem",
-                                      }}
-                                    />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
+                <DocumentGeneratePanel
+                  scope="order"
+                  orderId={order?.id ? Number(order.id) : null}
+                  queryId={
+                    (order as any)?.queryId
+                      ? Number((order as any).queryId)
+                      : null
+                  }
+                />
               </div>
             )}
 
@@ -4635,13 +4351,96 @@ export default function SifarisDetailPage() {
                   <button
                     type="button"
                     onClick={() => {
+                      setEditingInvoiceId(null);
+                      const today = (() => {
+                        const d = new Date();
+                        const pad = (n: number) =>
+                          n.toString().padStart(2, "0");
+                        return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+                      })();
+                      const isReceived = invoicesSubTab === "alinmis";
+                      const baseNum = String(order?.orderNumber || "").trim();
+                      const usedNumbers = new Set(
+                        invoicesList
+                          .map((inv) => String(inv.number || "").trim())
+                          .filter(Boolean),
+                      );
+                      let nextNumber = baseNum;
+                      if (!isReceived && baseNum) {
+                        if (usedNumbers.has(nextNumber)) {
+                          let n = 2;
+                          while (usedNumbers.has(`${baseNum}-${n}`)) n += 1;
+                          nextNumber = `${baseNum}-${n}`;
+                        }
+                      } else {
+                        nextNumber = "";
+                      }
+                      setInvoiceNumber(nextNumber);
+                      setInvoicePendingDocs([]);
+                      setInvoiceCreator(
+                        String(user?.name || "").trim() || "",
+                      );
+                      setInvoiceDate(today);
+                      setInvoiceDelayDays("0");
+                      setInvoicePayUntilDate(today);
+                      setInvoiceRateDate(today);
+
+                      if (isReceived) {
+                        const firstCarrier = orderCarrierNames[0] || "";
+                        setInvoiceCarrier(firstCarrier);
+                        setInvoiceContract("");
+                        setInvoiceVoyageNumber(
+                          resolveInvoiceVoyageNumber(firstCarrier),
+                        );
+                        if (firstCarrier) {
+                          applyCarrierOfferPricing(firstCarrier);
+                          const offer = orderPriceOffers.find(
+                            (o: any) =>
+                              String(o?.carrierName || "")
+                                .trim()
+                                .toLowerCase() ===
+                              firstCarrier.trim().toLowerCase(),
+                          );
+                          const raw = String(offer?.price ?? "")
+                            .replace(",", ".")
+                            .trim();
+                          const num = Number.parseFloat(raw);
+                          const price = Number.isFinite(num) ? num : 0;
+                          setInvoiceRows([
+                            {
+                              id: "1",
+                              text: "",
+                              unit: "Marşrut",
+                              qty: 1,
+                              price,
+                              vatRate: "0%",
+                            },
+                          ]);
+                        } else {
+                          setInvoiceFreightPrice("");
+                          setInvoiceExpectedPrice(null);
+                          setInvoiceRows([
+                            {
+                              id: "1",
+                              text: "",
+                              unit: "Marşrut",
+                              qty: 1,
+                              price: 0,
+                              vatRate: "0%",
+                            },
+                          ]);
+                        }
+                        setInvoiceCarriersList([]);
+                        setIsNewInvoiceModalOpen(true);
+                        return;
+                      }
+
                       const customerName =
                         displayCustomerName && displayCustomerName !== "—"
                           ? displayCustomerName
                           : "";
-                      setInvoiceNumber(order?.orderNumber || "");
                       setInvoiceCarrier(customerName);
-                      setInvoiceVoyageNumber(resolveInvoiceVoyageNumber());
+                      setInvoiceVoyageNumber("");
                       const matchedCustomer = customers.find((c: any) => {
                         const names = [
                           c.name,
@@ -4692,10 +4491,8 @@ export default function SifarisDetailPage() {
                       setInvoiceFreightPrice(
                         salesPrice > 0 ? String(salesPrice) : salesRaw || "",
                       );
+                      setInvoiceExpectedPrice(salesPrice > 0 ? salesPrice : null);
                       setInvoiceCurrency(currency);
-                      setInvoiceDate("27.05.2026");
-                      setInvoiceDelayDays("0");
-                      setInvoicePayUntilDate("27.05.2026");
                       setInvoiceRows([
                         {
                           id: "1",
@@ -4747,7 +4544,11 @@ export default function SifarisDetailPage() {
                     }}
                   >
                     <FiPlus />
-                    Əlavə et
+                    {invoicesSubTab === "alinmis"
+                      ? "Alınmış hesab əlavə et"
+                      : invoicesSubTab === "ilkin"
+                        ? "İlkin hesab əlavə et"
+                        : "İrəli hesab əlavə et"}
                   </button>
                 </div>
 
@@ -4885,6 +4686,44 @@ export default function SifarisDetailPage() {
                                   >
                                     <FiUpload style={{ fontSize: "0.95rem" }} />
                                   </button>
+                                  <button
+                                    type="button"
+                                    title="Redaktə et"
+                                    onClick={() => openEditInvoice(inv)}
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      width: "1.75rem",
+                                      height: "1.75rem",
+                                      borderRadius: "0.375rem",
+                                      border: "1px solid #cbd5e1",
+                                      background: "#ffffff",
+                                      color: "#0f172a",
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    <FiEdit2 style={{ fontSize: "0.9rem" }} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title="Sil"
+                                    onClick={() => handleDeleteInvoice(inv)}
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      width: "1.75rem",
+                                      height: "1.75rem",
+                                      borderRadius: "0.375rem",
+                                      border: "1px solid #fecaca",
+                                      background: "#ffffff",
+                                      color: "#dc2626",
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    <FiTrash2 style={{ fontSize: "0.9rem" }} />
+                                  </button>
                                 </div>
                               </td>
                             </tr>
@@ -4969,7 +4808,21 @@ export default function SifarisDetailPage() {
                         paddingRight: "0.25rem",
                       }}
                     >
-                      {comments.map((c) => (
+                      {comments.length === 0 ? (
+                        <p
+                          style={{
+                            margin: 0,
+                            color: "#64748b",
+                            fontSize: "0.875rem",
+                            fontStyle: "italic",
+                            textAlign: "center",
+                            padding: "1.5rem 0",
+                          }}
+                        >
+                          Hələ şərh yoxdur
+                        </p>
+                      ) : (
+                        comments.map((c) => (
                         <div
                           key={c.id}
                           style={{
@@ -5014,7 +4867,8 @@ export default function SifarisDetailPage() {
                             {c.text}
                           </p>
                         </div>
-                      ))}
+                      ))
+                      )}
                     </div>
                   </div>
 
@@ -5193,16 +5047,14 @@ export default function SifarisDetailPage() {
                         >
                           {item.status}
                         </span>
-                        <span
+                          <span
                           style={{
                             fontSize: "0.75rem",
                             color: "#64748b",
                             fontWeight: 500,
                           }}
                         >
-                          {item.date.includes("tərəfindən")
-                            ? item.date
-                            : `${item.date} (tərəfindən: Ulvi Adilzade)`}
+                          {formatStatusHistoryMeta(item)}
                         </span>
                       </div>
                     </div>
@@ -5260,6 +5112,7 @@ export default function SifarisDetailPage() {
         onClose={() => setIsEditModalOpen(false)}
         onConfirm={handleSaveEdit}
         order={order}
+        financeTransactions={financeTransactions}
       />
 
       {/* New Load Modal */}
@@ -5528,8 +5381,16 @@ export default function SifarisDetailPage() {
                       onChange={(e) => setTxUser(e.target.value)}
                       style={selectStyle}
                     >
-                      <option value="Ulvi Adilzade">Ulvi Adilzade</option>
-                      <option value="Nijat Shabanly">Nijat Shabanly</option>
+                      <option value="">İstifadəçi seçin</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.name}>
+                          {u.name}
+                        </option>
+                      ))}
+                      {txUser &&
+                        !users.some((u) => u.name === txUser) && (
+                          <option value={txUser}>{txUser}</option>
+                        )}
                     </select>
                     {txUser && (
                       <span
@@ -8965,1675 +8826,8 @@ export default function SifarisDetailPage() {
         </div>
       )}
 
-      {/* Modal 1: Yeni akt (Image 2) */}
-      {isNewActModalOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 10015,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "rgba(15, 23, 42, 0.4)",
-              backdropFilter: "blur(4px)",
-            }}
-          />
 
-          <div
-            style={{
-              position: "relative",
-              background: "#f8fafc",
-              border: "1px solid #cbd5e1",
-              borderRadius: "0.5rem",
-              width: "90%",
-              maxWidth: "600px",
-              maxHeight: "92vh",
-              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-              display: "flex",
-              flexDirection: "column",
-              overflowY: "auto",
-              zIndex: 10016,
-              padding: "1.5rem",
-              gap: "1rem",
-            }}
-          >
-            {/* Header */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "1.1rem",
-                  fontWeight: 700,
-                  color: "#475569",
-                }}
-              >
-                Yeni akt
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsNewActModalOpen(false)}
-                style={{
-                  background: "transparent",
-                  border: 0,
-                  cursor: "pointer",
-                  fontSize: "1.25rem",
-                  color: "#0f172a",
-                }}
-              >
-                <FiX />
-              </button>
-            </div>
-
-            {/* Şirkət */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.25rem",
-              }}
-            >
-              <label
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#64748b",
-                  fontWeight: 600,
-                }}
-              >
-                Şirkət
-              </label>
-              <div style={{ position: "relative" }}>
-                <select
-                  value={newActCompany}
-                  onChange={(e) => setNewActCompany(e.target.value)}
-                  style={selectStyle}
-                >
-                  <option value="Ziyafreight">Ziyafreight</option>
-                </select>
-                <span
-                  style={{
-                    position: "absolute",
-                    right: "2.2rem",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    color: "#64748b",
-                    cursor: "pointer",
-                    fontWeight: "bold",
-                  }}
-                  onClick={() => setNewActCompany("")}
-                >
-                  &times;
-                </span>
-              </div>
-            </div>
-
-            {/* Tip * */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.35rem",
-              }}
-            >
-              <label
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#64748b",
-                  fontWeight: 600,
-                }}
-              >
-                Tip <span style={{ color: "#ef4444" }}>*</span>
-              </label>
-              <div style={{ display: "flex", gap: "1.5rem" }}>
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    cursor: "pointer",
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="actType"
-                    checked={newActType === "Sənədin şablonu"}
-                    onChange={() => setNewActType("Sənədin şablonu")}
-                    style={{
-                      accentColor: "#22c55e",
-                      width: "18px",
-                      height: "18px",
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontSize: "0.85rem",
-                      color: "#1e293b",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Sənədin şablonu
-                  </span>
-                </label>
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    cursor: "pointer",
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="actType"
-                    checked={newActType === "Əlavə edilmiş fayl"}
-                    onChange={() => setNewActType("Əlavə edilmiş fayl")}
-                    style={{
-                      accentColor: "#22c55e",
-                      width: "18px",
-                      height: "18px",
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontSize: "0.85rem",
-                      color: "#1e293b",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Əlavə edilmiş fayl
-                  </span>
-                </label>
-              </div>
-            </div>
-
-            {/* Şablon * */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.25rem",
-              }}
-            >
-              <label
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#64748b",
-                  fontWeight: 600,
-                }}
-              >
-                Şablon <span style={{ color: "#ef4444" }}>*</span>
-              </label>
-              <select
-                value={newActTemplate}
-                onChange={(e) => setNewActTemplate(e.target.value)}
-                style={selectStyle}
-              >
-                <option value="Dəyəri seçin">Dəyəri seçin</option>
-                <option value="Template 1">Template 1</option>
-                <option value="Template 2">Template 2</option>
-              </select>
-            </div>
-
-            {/* Row 3: Sənədin nömrəsi, Sənədin tarixi, Sənədin adı */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1.2fr",
-                gap: "1rem",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.25rem",
-                }}
-              >
-                <label
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "#64748b",
-                    fontWeight: 600,
-                  }}
-                >
-                  Sənədin nömrəsi
-                </label>
-                <input
-                  type="text"
-                  value={newActNumber}
-                  onChange={(e) => setNewActNumber(e.target.value)}
-                  style={inputStyle}
-                />
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.25rem",
-                }}
-              >
-                <label
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "#64748b",
-                    fontWeight: 600,
-                  }}
-                >
-                  Sənədin tarixi
-                </label>
-                <div style={{ position: "relative" }}>
-                  <input
-                    type="text"
-                    value={newActDate}
-                    onChange={(e) => setNewActDate(e.target.value)}
-                    style={inputStyle}
-                  />
-                  <FiCalendar
-                    style={{
-                      position: "absolute",
-                      right: "0.6rem",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      color: "#94a3b8",
-                    }}
-                  />
-                </div>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.25rem",
-                }}
-              >
-                <label
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "#64748b",
-                    fontWeight: 600,
-                  }}
-                >
-                  Sənədin adı
-                </label>
-                <input
-                  type="text"
-                  value={newActName}
-                  onChange={(e) => setNewActName(e.target.value)}
-                  style={inputStyle}
-                />
-              </div>
-            </div>
-
-            {/* Checkboxes Group 1 */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.6rem",
-              }}
-            >
-              {/* Sənədin etibarlılıq müddəti */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  cursor: "pointer",
-                }}
-                onClick={() => setNewActHasValidity(!newActHasValidity)}
-              >
-                <div
-                  style={{
-                    width: "18px",
-                    height: "18px",
-                    borderRadius: "4px",
-                    border: newActHasValidity
-                      ? "1.5px solid #22c55e"
-                      : "1.5px solid #cbd5e1",
-                    background: newActHasValidity ? "#22c55e" : "#ffffff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#ffffff",
-                    fontSize: "0.7rem",
-                    fontWeight: "bold",
-                  }}
-                >
-                  {newActHasValidity && "✓"}
-                </div>
-                <span
-                  style={{
-                    fontSize: "0.8rem",
-                    color: "#1e293b",
-                    fontWeight: 600,
-                  }}
-                >
-                  Sənədin etibarlılıq müddəti
-                </span>
-              </div>
-
-              {/* Reys üçün müqavilə */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  cursor: "pointer",
-                }}
-                onClick={() => setNewActIsContract(!newActIsContract)}
-              >
-                <div
-                  style={{
-                    width: "18px",
-                    height: "18px",
-                    borderRadius: "4px",
-                    border: newActIsContract
-                      ? "1.5px solid #22c55e"
-                      : "1.5px solid #cbd5e1",
-                    background: newActIsContract ? "#22c55e" : "#ffffff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#ffffff",
-                    fontSize: "0.7rem",
-                    fontWeight: "bold",
-                  }}
-                >
-                  {newActIsContract && "✓"}
-                </div>
-                <span
-                  style={{
-                    fontSize: "0.8rem",
-                    color: "#1e293b",
-                    fontWeight: 600,
-                  }}
-                >
-                  Reys üçün müqavilə
-                </span>
-              </div>
-
-              {/* Göndərmə barədə məlumat verin */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  cursor: "pointer",
-                }}
-                onClick={() => setNewActIsSendNotif(!newActIsSendNotif)}
-              >
-                <div
-                  style={{
-                    width: "18px",
-                    height: "18px",
-                    borderRadius: "4px",
-                    border: newActIsSendNotif
-                      ? "1.5px solid #22c55e"
-                      : "1.5px solid #cbd5e1",
-                    background: newActIsSendNotif ? "#22c55e" : "#ffffff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#ffffff",
-                    fontSize: "0.7rem",
-                    fontWeight: "bold",
-                  }}
-                >
-                  {newActIsSendNotif && "✓"}
-                </div>
-                <span
-                  style={{
-                    fontSize: "0.8rem",
-                    color: "#1e293b",
-                    fontWeight: 600,
-                  }}
-                >
-                  Göndərmə barədə məlumat verin
-                </span>
-              </div>
-            </div>
-
-            {/* Reyslər label and value */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.15rem",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#64748b",
-                  fontWeight: 700,
-                }}
-              >
-                Reyslər
-              </span>
-              <span
-                style={{
-                  fontSize: "0.85rem",
-                  color: "#1e293b",
-                  fontWeight: 600,
-                }}
-              >
-                ZF26094-1
-              </span>
-            </div>
-
-            {/* Checkboxes Group 2 */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.6rem",
-              }}
-            >
-              {/* Möhürlər və imzalar olmadan */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  cursor: "pointer",
-                }}
-                onClick={() => setNewActNoSeals(!newActNoSeals)}
-              >
-                <div
-                  style={{
-                    width: "18px",
-                    height: "18px",
-                    borderRadius: "4px",
-                    border: newActNoSeals
-                      ? "1.5px solid #22c55e"
-                      : "1.5px solid #cbd5e1",
-                    background: newActNoSeals ? "#22c55e" : "#ffffff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#ffffff",
-                    fontSize: "0.7rem",
-                    fontWeight: "bold",
-                  }}
-                >
-                  {newActNoSeals && "✓"}
-                </div>
-                <span
-                  style={{
-                    fontSize: "0.8rem",
-                    color: "#1e293b",
-                    fontWeight: 600,
-                  }}
-                >
-                  Möhürlər və imzalar olmadan
-                </span>
-              </div>
-
-              {/* Müştəriyə çıxışı təqdim et */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  cursor: "pointer",
-                }}
-                onClick={() => setNewActProvideAccess(!newActProvideAccess)}
-              >
-                <div
-                  style={{
-                    width: "18px",
-                    height: "18px",
-                    borderRadius: "4px",
-                    border: newActProvideAccess
-                      ? "1.5px solid #22c55e"
-                      : "1.5px solid #cbd5e1",
-                    background: newActProvideAccess ? "#22c55e" : "#ffffff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#ffffff",
-                    fontSize: "0.7rem",
-                    fontWeight: "bold",
-                  }}
-                >
-                  {newActProvideAccess && "✓"}
-                </div>
-                <span
-                  style={{
-                    fontSize: "0.8rem",
-                    color: "#1e293b",
-                    fontWeight: 600,
-                  }}
-                >
-                  Müştəriyə çıxışı təqdim et
-                </span>
-              </div>
-            </div>
-
-            {/* Hesablar */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.15rem",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#64748b",
-                  fontWeight: 700,
-                }}
-              >
-                Hesablar
-              </span>
-              <span
-                style={{
-                  fontSize: "1.1rem",
-                  color: "#0f172a",
-                  fontWeight: 800,
-                }}
-              >
-                Hesab mövcud deyil
-              </span>
-            </div>
-
-            {/* Şərhlər */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.25rem",
-              }}
-            >
-              <label
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#64748b",
-                  fontWeight: 600,
-                }}
-              >
-                Şərhlər
-              </label>
-              <textarea
-                value={newActComments}
-                onChange={(e) => setNewActComments(e.target.value)}
-                style={{ ...inputStyle, height: "64px", resize: "none" }}
-              />
-            </div>
-
-            {/* Footer Buttons */}
-            <div
-              style={{
-                display: "flex",
-                gap: "1rem",
-                justifyContent: "flex-end",
-                marginTop: "0.5rem",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  setAktlarList([
-                    ...aktlarList,
-                    {
-                      id: String(Date.now()),
-                      company: newActCompany,
-                      type: newActType,
-                      template: newActTemplate,
-                      number: newActNumber,
-                      date: newActDate,
-                      name: newActName || "Akt",
-                      hasValidity: newActHasValidity,
-                      isContract: newActIsContract,
-                      isSendNotif: newActIsSendNotif,
-                      noSeals: newActNoSeals,
-                      provideAccess: newActProvideAccess,
-                      comments: newActComments,
-                    },
-                  ]);
-                  setIsNewActModalOpen(false);
-                }}
-                style={{
-                  background: "#4ade80",
-                  color: "#ffffff",
-                  border: 0,
-                  borderRadius: "0.375rem",
-                  padding: "0.55rem 1.5rem",
-                  fontSize: "0.85rem",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                }}
-              >
-                Yaddaşda saxlamaq
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setAktlarList([
-                    ...aktlarList,
-                    {
-                      id: String(Date.now()),
-                      company: newActCompany,
-                      type: newActType,
-                      template: newActTemplate,
-                      number: newActNumber,
-                      date: newActDate,
-                      name: newActName || "Akt (Tamamlanmış)",
-                      hasValidity: newActHasValidity,
-                      isContract: newActIsContract,
-                      isSendNotif: newActIsSendNotif,
-                      noSeals: newActNoSeals,
-                      provideAccess: newActProvideAccess,
-                      comments: newActComments,
-                    },
-                  ]);
-                  setIsNewActModalOpen(false);
-                }}
-                style={{
-                  background: "#22c55e",
-                  color: "#ffffff",
-                  border: 0,
-                  borderRadius: "0.375rem",
-                  padding: "0.55rem 1.5rem",
-                  fontSize: "0.85rem",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                }}
-              >
-                Müqaviləni yaddaşda saxla və tamamla
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal 2: Yeni sənəd (Image 3) */}
-      {isNewDocModalOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 10015,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "rgba(15, 23, 42, 0.4)",
-              backdropFilter: "blur(4px)",
-            }}
-          />
-
-          <div
-            style={{
-              position: "relative",
-              background: "#f8fafc",
-              border: "1px solid #cbd5e1",
-              borderRadius: "0.5rem",
-              width: "90%",
-              maxWidth: "500px",
-              maxHeight: "92vh",
-              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-              display: "flex",
-              flexDirection: "column",
-              overflowY: "auto",
-              zIndex: 10016,
-              padding: "1.5rem",
-              gap: "1rem",
-            }}
-          >
-            {/* Header */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "1.1rem",
-                  fontWeight: 700,
-                  color: "#475569",
-                }}
-              >
-                Yeni sənəd
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsNewDocModalOpen(false)}
-                style={{
-                  background: "transparent",
-                  border: 0,
-                  cursor: "pointer",
-                  fontSize: "1.25rem",
-                  color: "#0f172a",
-                }}
-              >
-                <FiX />
-              </button>
-            </div>
-
-            {/* Reyslər label and value */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.15rem",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#64748b",
-                  fontWeight: 700,
-                }}
-              >
-                Reyslər
-              </span>
-              <span
-                style={{
-                  fontSize: "0.85rem",
-                  color: "#1e293b",
-                  fontWeight: 600,
-                }}
-              >
-                ZF26094-1
-              </span>
-            </div>
-
-            {/* Checkboxes (Müştəriyə çıxışı təqdim et, Daşıyıcıya girişi təqdim et) */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.6rem",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  cursor: "pointer",
-                }}
-                onClick={() =>
-                  setNewDocProvideAccessCustomer(!newDocProvideAccessCustomer)
-                }
-              >
-                <div
-                  style={{
-                    width: "18px",
-                    height: "18px",
-                    borderRadius: "4px",
-                    border: newDocProvideAccessCustomer
-                      ? "1.5px solid #22c55e"
-                      : "1.5px solid #cbd5e1",
-                    background: newDocProvideAccessCustomer
-                      ? "#22c55e"
-                      : "#ffffff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#ffffff",
-                    fontSize: "0.7rem",
-                    fontWeight: "bold",
-                  }}
-                >
-                  {newDocProvideAccessCustomer && "✓"}
-                </div>
-                <span
-                  style={{
-                    fontSize: "0.8rem",
-                    color: "#1e293b",
-                    fontWeight: 600,
-                  }}
-                >
-                  Müştəriyə çıxışı təqdim et
-                </span>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  cursor: "pointer",
-                }}
-                onClick={() =>
-                  setNewDocProvideAccessCarrier(!newDocProvideAccessCarrier)
-                }
-              >
-                <div
-                  style={{
-                    width: "18px",
-                    height: "18px",
-                    borderRadius: "4px",
-                    border: newDocProvideAccessCarrier
-                      ? "1.5px solid #22c55e"
-                      : "1.5px solid #cbd5e1",
-                    background: newDocProvideAccessCarrier
-                      ? "#22c55e"
-                      : "#ffffff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#ffffff",
-                    fontSize: "0.7rem",
-                    fontWeight: "bold",
-                  }}
-                >
-                  {newDocProvideAccessCarrier && "✓"}
-                </div>
-                <span
-                  style={{
-                    fontSize: "0.8rem",
-                    color: "#1e293b",
-                    fontWeight: 600,
-                  }}
-                >
-                  Daşıyıcıya girişi təqdim et
-                </span>
-              </div>
-            </div>
-
-            {/* Row: Sənədin adı * and Sənədin tarixi */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1.2fr 1fr",
-                gap: "1rem",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.25rem",
-                }}
-              >
-                <label
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "#64748b",
-                    fontWeight: 600,
-                  }}
-                >
-                  Sənədin adı <span style={{ color: "#ef4444" }}>*</span>
-                </label>
-                <input
-                  type="text"
-                  value={newDocName}
-                  onChange={(e) => setNewDocName(e.target.value)}
-                  style={inputStyle}
-                />
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.25rem",
-                }}
-              >
-                <label
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "#64748b",
-                    fontWeight: 600,
-                  }}
-                >
-                  Sənədin tarixi
-                </label>
-                <div style={{ position: "relative" }}>
-                  <input
-                    type="text"
-                    value={newDocDate}
-                    onChange={(e) => setNewDocDate(e.target.value)}
-                    style={inputStyle}
-                  />
-                  <FiCalendar
-                    style={{
-                      position: "absolute",
-                      right: "0.6rem",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      color: "#94a3b8",
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Şərhlər */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.25rem",
-              }}
-            >
-              <label
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#64748b",
-                  fontWeight: 600,
-                }}
-              >
-                Şərhlər
-              </label>
-              <textarea
-                value={newDocComments}
-                onChange={(e) => setNewDocComments(e.target.value)}
-                style={{ ...inputStyle, height: "64px", resize: "none" }}
-              />
-            </div>
-
-            {/* Link */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.25rem",
-              }}
-            >
-              <label
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#64748b",
-                  fontWeight: 600,
-                }}
-              >
-                Link
-              </label>
-              <input
-                type="text"
-                value={newDocLink}
-                onChange={(e) => setNewDocLink(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-
-            {/* Fayl drag and drop */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.25rem",
-              }}
-            >
-              <label
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#64748b",
-                  fontWeight: 600,
-                }}
-              >
-                Fayl
-              </label>
-              <div
-                style={{
-                  border: "2px dashed #cbd5e1",
-                  borderRadius: "0.5rem",
-                  padding: "1.5rem",
-                  textAlign: "center",
-                  background: "#ffffff",
-                  cursor: "pointer",
-                }}
-              >
-                <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
-                  Faylınızı Sürüşdürün & Buraxın ya da{" "}
-                  <span
-                    style={{
-                      color: "#22c55e",
-                      textDecoration: "underline",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    Seçin
-                  </span>
-                </span>
-              </div>
-            </div>
-
-            {/* Footer Buttons */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                marginTop: "0.5rem",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  if (!newDocName.trim()) {
-                    dispatch(
-                      showNotification({
-                        message: "Lütfən sənədin adını yazın!",
-                        type: "error",
-                        autoCloseDuration: 3500,
-                      }),
-                    );
-                    return;
-                  }
-                  setRequestedDocsList([
-                    ...requestedDocsList,
-                    {
-                      id: String(Date.now()),
-                      name: newDocName,
-                      comments: newDocComments,
-                      createdAt: newDocDate,
-                      isAvailableToCustomer: newDocProvideAccessCustomer,
-                      isAvailableToCarrier: newDocProvideAccessCarrier,
-                      sendNotif: false,
-                      type: "Sənədin şablonu",
-                      template: "Dəyəri seçin",
-                    },
-                  ]);
-                  setIsNewDocModalOpen(false);
-                }}
-                style={{
-                  background: "#22c55e",
-                  color: "#ffffff",
-                  border: 0,
-                  borderRadius: "0.375rem",
-                  padding: "0.55rem 1.5rem",
-                  fontSize: "0.85rem",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                }}
-              >
-                Yaddaşda saxlamaq
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal 3: Sənədi redaktə et (Image 5) */}
-      {isEditDocModalOpen && selectedDocForEdit && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 10015,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "rgba(15, 23, 42, 0.4)",
-              backdropFilter: "blur(4px)",
-            }}
-          />
-
-          <div
-            style={{
-              position: "relative",
-              background: "#f8fafc",
-              border: "1px solid #cbd5e1",
-              borderRadius: "0.5rem",
-              width: "90%",
-              maxWidth: "500px",
-              maxHeight: "92vh",
-              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-              display: "flex",
-              flexDirection: "column",
-              overflowY: "auto",
-              zIndex: 10016,
-              padding: "1.5rem",
-              gap: "1rem",
-            }}
-          >
-            {/* Header */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "1.1rem",
-                  fontWeight: 700,
-                  color: "#475569",
-                }}
-              >
-                Sənədi redaktə et
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsEditDocModalOpen(false);
-                  setSelectedDocForEdit(null);
-                }}
-                style={{
-                  background: "transparent",
-                  border: 0,
-                  cursor: "pointer",
-                  fontSize: "1.25rem",
-                  color: "#0f172a",
-                }}
-              >
-                <FiX />
-              </button>
-            </div>
-
-            {/* Tip * */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.35rem",
-              }}
-            >
-              <label
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#64748b",
-                  fontWeight: 600,
-                }}
-              >
-                Tip <span style={{ color: "#ef4444" }}>*</span>
-              </label>
-              <div style={{ display: "flex", gap: "1.5rem" }}>
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    cursor: "pointer",
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="editDocType"
-                    checked={editDocType === "Sənədin şablonu"}
-                    onChange={() => setEditDocType("Sənədin şablonu")}
-                    style={{
-                      accentColor: "#22c55e",
-                      width: "18px",
-                      height: "18px",
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontSize: "0.85rem",
-                      color: "#1e293b",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Sənədin şablonu
-                  </span>
-                </label>
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    cursor: "pointer",
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="editDocType"
-                    checked={editDocType === "Əlavə edilmiş fayl"}
-                    onChange={() => setEditDocType("Əlavə edilmiş fayl")}
-                    style={{
-                      accentColor: "#22c55e",
-                      width: "18px",
-                      height: "18px",
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontSize: "0.85rem",
-                      color: "#1e293b",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Əlavə edilmiş fayl
-                  </span>
-                </label>
-              </div>
-            </div>
-
-            {/* Sənədin şablonu * */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.25rem",
-              }}
-            >
-              <label
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#64748b",
-                  fontWeight: 600,
-                }}
-              >
-                Sənədin şablonu <span style={{ color: "#ef4444" }}>*</span>
-              </label>
-              <select
-                value={editDocTemplate}
-                onChange={(e) => setEditDocTemplate(e.target.value)}
-                style={selectStyle}
-              >
-                <option value="Dəyəri seçin">Dəyəri seçin</option>
-                <option value="Template 1">Template 1</option>
-              </select>
-            </div>
-
-            {/* Sənədin adı * */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.25rem",
-              }}
-            >
-              <label
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#64748b",
-                  fontWeight: 600,
-                }}
-              >
-                Sənədin adı <span style={{ color: "#ef4444" }}>*</span>
-              </label>
-              <input
-                type="text"
-                value={editDocName}
-                onChange={(e) => setEditDocName(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-
-            {/* Checkboxes */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.6rem",
-              }}
-            >
-              {/* Müştəriyə çıxışı təqdim et */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  cursor: "pointer",
-                }}
-                onClick={() =>
-                  setEditDocProvideAccessCustomer(!editDocProvideAccessCustomer)
-                }
-              >
-                <div
-                  style={{
-                    width: "18px",
-                    height: "18px",
-                    borderRadius: "4px",
-                    border: editDocProvideAccessCustomer
-                      ? "1.5px solid #22c55e"
-                      : "1.5px solid #cbd5e1",
-                    background: editDocProvideAccessCustomer
-                      ? "#22c55e"
-                      : "#ffffff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#ffffff",
-                    fontSize: "0.7rem",
-                    fontWeight: "bold",
-                  }}
-                >
-                  {editDocProvideAccessCustomer && "✓"}
-                </div>
-                <span
-                  style={{
-                    fontSize: "0.8rem",
-                    color: "#1e293b",
-                    fontWeight: 600,
-                  }}
-                >
-                  Müştəriyə çıxışı təqdim et
-                </span>
-              </div>
-
-              {/* Daşıyıcıya girişi təqdim et */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  cursor: "pointer",
-                }}
-                onClick={() =>
-                  setEditDocProvideAccessCarrier(!editDocProvideAccessCarrier)
-                }
-              >
-                <div
-                  style={{
-                    width: "18px",
-                    height: "18px",
-                    borderRadius: "4px",
-                    border: editDocProvideAccessCarrier
-                      ? "1.5px solid #22c55e"
-                      : "1.5px solid #cbd5e1",
-                    background: editDocProvideAccessCarrier
-                      ? "#22c55e"
-                      : "#ffffff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#ffffff",
-                    fontSize: "0.7rem",
-                    fontWeight: "bold",
-                  }}
-                >
-                  {editDocProvideAccessCarrier && "✓"}
-                </div>
-                <span
-                  style={{
-                    fontSize: "0.8rem",
-                    color: "#1e293b",
-                    fontWeight: 600,
-                  }}
-                >
-                  Daşıyıcıya girişi təqdim et
-                </span>
-              </div>
-
-              {/* Göndərmə barədə məlumat verin */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  cursor: "pointer",
-                }}
-                onClick={() => setEditDocSendNotif(!editDocSendNotif)}
-              >
-                <div
-                  style={{
-                    width: "18px",
-                    height: "18px",
-                    borderRadius: "4px",
-                    border: editDocSendNotif
-                      ? "1.5px solid #22c55e"
-                      : "1.5px solid #cbd5e1",
-                    background: editDocSendNotif ? "#22c55e" : "#ffffff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#ffffff",
-                    fontSize: "0.7rem",
-                    fontWeight: "bold",
-                  }}
-                >
-                  {editDocSendNotif && "✓"}
-                </div>
-                <span
-                  style={{
-                    fontSize: "0.8rem",
-                    color: "#1e293b",
-                    fontWeight: 600,
-                  }}
-                >
-                  Göndərmə barədə məlumat verin
-                </span>
-              </div>
-            </div>
-
-            {/* Şərhlər */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.25rem",
-              }}
-            >
-              <label
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#64748b",
-                  fontWeight: 600,
-                }}
-              >
-                Şərhlər
-              </label>
-              <textarea
-                value={editDocComments}
-                onChange={(e) => setEditDocComments(e.target.value)}
-                style={{ ...inputStyle, height: "64px", resize: "none" }}
-              />
-            </div>
-
-            {/* Footer Buttons */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                marginTop: "0.5rem",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  if (!editDocName.trim()) {
-                    dispatch(
-                      showNotification({
-                        message: "Lütfən sənədin adını daxil edin!",
-                        type: "error",
-                        autoCloseDuration: 3500,
-                      }),
-                    );
-                    return;
-                  }
-                  setRequestedDocsList(
-                    requestedDocsList.map((d) =>
-                      d.id === selectedDocForEdit.id
-                        ? {
-                            ...d,
-                            name: editDocName,
-                            type: editDocType,
-                            template: editDocTemplate,
-                            isAvailableToCustomer: editDocProvideAccessCustomer,
-                            isAvailableToCarrier: editDocProvideAccessCarrier,
-                            sendNotif: editDocSendNotif,
-                            comments: editDocComments,
-                          }
-                        : d,
-                    ),
-                  );
-                  setIsEditDocModalOpen(false);
-                  setSelectedDocForEdit(null);
-                }}
-                style={{
-                  background: "#22c55e",
-                  color: "#ffffff",
-                  border: 0,
-                  borderRadius: "0.375rem",
-                  padding: "0.55rem 1.5rem",
-                  fontSize: "0.85rem",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                }}
-              >
-                Yaddaşda saxlamaq
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal 4: Sənədin silinməsini təsdiqlə (Delete Confirmation Modal) */}
-      {isDocDeleteConfirmOpen && docToDelete && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 10020,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "rgba(15, 23, 42, 0.4)",
-              backdropFilter: "blur(4px)",
-            }}
-          />
-
-          <div
-            style={{
-              position: "relative",
-              background: "#ffffff",
-              border: "1px solid #cbd5e1",
-              borderRadius: "0.5rem",
-              width: "90%",
-              maxWidth: "400px",
-              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-              display: "flex",
-              flexDirection: "column",
-              zIndex: 10021,
-              padding: "1.5rem",
-              gap: "1.25rem",
-            }}
-          >
-            {/* Header */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "1.1rem",
-                  fontWeight: 700,
-                  color: "#475569",
-                }}
-              >
-                Sənədi sil
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsDocDeleteConfirmOpen(false);
-                  setDocToDelete(null);
-                }}
-                style={{
-                  background: "transparent",
-                  border: 0,
-                  cursor: "pointer",
-                  fontSize: "1.25rem",
-                  color: "#0f172a",
-                }}
-              >
-                <FiX />
-              </button>
-            </div>
-
-            {/* Warning Message */}
-            <div
-              style={{ fontSize: "0.9rem", color: "#334155", lineHeight: 1.5 }}
-            >
-              <strong>"{docToDelete.name}"</strong> sənədini silmək
-              istədiyinizdən əminsiniz? Bu əməliyyat geri qaytarıla bilməz.
-            </div>
-
-            {/* Footer Buttons */}
-            <div
-              style={{
-                display: "flex",
-                gap: "0.75rem",
-                justifyContent: "flex-end",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  setIsDocDeleteConfirmOpen(false);
-                  setDocToDelete(null);
-                }}
-                style={{
-                  background: "transparent",
-                  border: "1px solid #cbd5e1",
-                  borderRadius: "0.375rem",
-                  padding: "0.5rem 1rem",
-                  fontSize: "0.85rem",
-                  fontWeight: 600,
-                  color: "#475569",
-                  cursor: "pointer",
-                }}
-              >
-                Ləğv et
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setRequestedDocsList(
-                    requestedDocsList.filter((d) => d.id !== docToDelete.id),
-                  );
-                  setIsDocDeleteConfirmOpen(false);
-                  setDocToDelete(null);
-                }}
-                style={{
-                  background: "#ef4444",
-                  color: "#ffffff",
-                  border: 0,
-                  borderRadius: "0.375rem",
-                  padding: "0.5rem 1.25rem",
-                  fontSize: "0.85rem",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                  transition: "background 0.2s",
-                }}
-                onMouseOver={(e) =>
-                  (e.currentTarget.style.background = "#dc2626")
-                }
-                onMouseOut={(e) =>
-                  (e.currentTarget.style.background = "#ef4444")
-                }
-              >
-                Bəli, sil
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Yeni hesabı əlavə et Modal Overlay */}
+            {/* Yeni hesabı əlavə et Modal Overlay */}
       {invoiceDocsViewId &&
         (() => {
           const inv = invoicesList.find((i) => i.id === invoiceDocsViewId);
@@ -10766,7 +8960,7 @@ export default function SifarisDetailPage() {
                             }}
                           >
                             <a
-                              href={doc.url}
+                              href={resolveUploadUrl(doc.url)}
                               target="_blank"
                               rel="noreferrer"
                               title="Aç"
@@ -10788,19 +8982,46 @@ export default function SifarisDetailPage() {
                             <button
                               type="button"
                               title="Sil"
-                              onClick={() => {
-                                setInvoicesList((prev) =>
-                                  prev.map((i) =>
-                                    i.id === invoiceDocsViewId
-                                      ? {
-                                          ...i,
-                                          documents: (i.documents || []).filter(
-                                            (d) => d.id !== doc.id,
-                                          ),
-                                        }
-                                      : i,
-                                  ),
+                              onClick={async () => {
+                                const inv = invoicesList.find(
+                                  (i) =>
+                                    String(i.id) === String(invoiceDocsViewId),
                                 );
+                                const nextDocs = (inv?.documents || []).filter(
+                                  (d) => d.id !== doc.id,
+                                );
+                                const idNum = Number(invoiceDocsViewId);
+                                try {
+                                  if (Number.isFinite(idNum) && idNum > 0) {
+                                    await axios.put(
+                                      ENDPOINTS.INVOICES.BY_ID(idNum),
+                                      { documents: nextDocs },
+                                      {
+                                        headers: {
+                                          Authorization:
+                                            "Bearer " +
+                                            localStorage.getItem("token"),
+                                        },
+                                      },
+                                    );
+                                  }
+                                  setInvoicesList((prev) =>
+                                    prev.map((i) =>
+                                      String(i.id) === String(invoiceDocsViewId)
+                                        ? { ...i, documents: nextDocs }
+                                        : i,
+                                    ),
+                                  );
+                                } catch (err) {
+                                  console.error(err);
+                                  dispatch(
+                                    showNotification({
+                                      message: "Sənəd silinərkən xəta baş verdi.",
+                                      type: "error",
+                                      autoCloseDuration: 3000,
+                                    }),
+                                  );
+                                }
                               }}
                               style={{
                                 display: "inline-flex",
@@ -10913,11 +9134,25 @@ export default function SifarisDetailPage() {
                   color: "#334155",
                 }}
               >
-                Yeni hesabı əlavə et
+                {editingInvoiceId
+                  ? invoicesSubTab === "alinmis"
+                    ? "Alınmış hesabı redaktə et"
+                    : invoicesSubTab === "ilkin"
+                      ? "İlkin hesabı redaktə et"
+                      : "İrəli sürülmüş hesabı redaktə et"
+                  : invoicesSubTab === "alinmis"
+                    ? "Yeni alınmış hesab əlavə et"
+                    : invoicesSubTab === "ilkin"
+                      ? "Yeni ilkin hesab əlavə et"
+                      : "Yeni irəli sürülmüş hesab əlavə et"}
               </h3>
               <button
                 type="button"
-                onClick={() => setIsNewInvoiceModalOpen(false)}
+                onClick={() => {
+                  setIsNewInvoiceModalOpen(false);
+                  setEditingInvoiceId(null);
+                  setInvoicePendingDocs([]);
+                }}
                 style={{
                   background: "transparent",
                   border: 0,
@@ -10985,203 +9220,281 @@ export default function SifarisDetailPage() {
                     />
                   </div>
 
-                  {/* Reys nömrəsi */}
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.375rem",
-                    }}
-                  >
-                    <label
-                      style={{
-                        fontSize: "0.75rem",
-                        fontWeight: 700,
-                        color: "#64748b",
-                      }}
-                    >
-                      Reys nömrəsi
-                    </label>
-                    <select
-                      value={invoiceVoyageNumber}
-                      onChange={(e) => setInvoiceVoyageNumber(e.target.value)}
-                      style={{
-                        border: "1px solid #cbd5e1",
-                        borderRadius: "0.375rem",
-                        padding: "0.5rem 0.75rem",
-                        outline: "none",
-                        fontSize: "0.875rem",
-                        backgroundColor: "#ffffff",
-                      }}
-                    >
-                      <option value="">Reys seçin</option>
-                      {voyagesList.map((v) => {
-                        const label =
-                          (v.id ? `R-${v.id}` : "") ||
-                          String(v.number || "").trim() ||
-                          formatVoyageLabel(v);
-                        if (!label) return null;
-                        return (
-                          <option key={v.id ?? label} value={label}>
-                            {label}
-                            {v.carrier && v.carrier !== "—"
-                              ? ` — ${v.carrier}`
-                              : ""}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-
-                  {/* Müştəri */}
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.375rem",
-                    }}
-                  >
-                    <label
-                      style={{
-                        fontSize: "0.75rem",
-                        fontWeight: 700,
-                        color: "#64748b",
-                      }}
-                    >
-                      Müştəri
-                    </label>
-                    <select
-                      value={invoiceCarrier}
-                      onChange={(e) => {
-                        const name = e.target.value;
-                        setInvoiceCarrier(name);
-                        if (!name) {
-                          setInvoiceContract("");
-                          setInvoiceFreightPrice("");
-                          setInvoiceVoyageNumber(resolveInvoiceVoyageNumber());
-                          return;
-                        }
-                        const found = invoiceCarriersList.find(
-                          (c) => c.name.toLowerCase() === name.toLowerCase(),
-                        );
-                        const numbers = (found?.documents || [])
-                          .map((d) => String(d.number || "").trim())
-                          .filter(Boolean);
-                        setInvoiceContract(
-                          numbers.length > 0 ? numbers.join(", ") : "",
-                        );
-                        const offer =
-                          orderPriceOffers.find(
-                            (o: any) =>
-                              Number.parseFloat(
-                                String(o?.salesPrice ?? "").replace(",", "."),
-                              ) > 0,
-                          ) || orderPriceOffers[0];
-                        const salesRaw = String(offer?.salesPrice ?? "")
-                          .replace(",", ".")
-                          .trim();
-                        const salesNum = Number.parseFloat(salesRaw);
-                        const salesPrice = Number.isFinite(salesNum)
-                          ? salesNum
-                          : 0;
-                        const currency =
-                          String(
-                            offer?.currency ||
-                              invoiceCurrency ||
-                              resolveOrderCurrency(),
-                          )
-                            .trim()
-                            .toUpperCase() || resolveOrderCurrency();
-                        setInvoiceFreightPrice(
-                          salesPrice > 0 ? String(salesPrice) : salesRaw || "",
-                        );
-                        setInvoiceCurrency(currency);
-                        setInvoiceRows((rows) =>
-                          rows.map((r, idx) =>
-                            idx === 0 ? { ...r, price: salesPrice } : r,
-                          ),
-                        );
-                        setInvoiceVoyageNumber(resolveInvoiceVoyageNumber());
-                      }}
-                      style={{
-                        border: "1px solid #cbd5e1",
-                        borderRadius: "0.375rem",
-                        padding: "0.5rem 0.75rem",
-                        outline: "none",
-                        fontSize: "0.875rem",
-                        backgroundColor: "#ffffff",
-                      }}
-                    >
-                      <option value="">Müştəri seçin</option>
-                      {Array.from(
-                        new Set([
-                          ...invoiceCarriersList.map((c) => c.name),
-                          ...(displayCustomerName && displayCustomerName !== "—"
-                            ? [displayCustomerName]
-                            : []),
-                        ]),
-                      ).map((name) => (
-                        <option key={name} value={name}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Müştəri ilə müqavilənin nömrəsi */}
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.375rem",
-                    }}
-                  >
-                    <label
-                      style={{
-                        fontSize: "0.75rem",
-                        fontWeight: 700,
-                        color: "#64748b",
-                      }}
-                    >
-                      Müştəri ilə müqavilənin nömrəsi
-                    </label>
-                    <div
-                      style={{
-                        position: "relative",
-                        display: "flex",
-                        alignItems: "center",
-                      }}
-                    >
-                      <input
-                        type="text"
-                        value={invoiceContract}
-                        onChange={(e) => setInvoiceContract(e.target.value)}
+                  {/* Alınmış: Daşıyıcı → Reys | İrəli/İlkin: Müştəri (+ müqavilə), reys yoxdur */}
+                  {invoicesSubTab === "alinmis" ? (
+                    <>
+                      <div
                         style={{
-                          width: "100%",
-                          border: "1px solid #cbd5e1",
-                          borderRadius: "0.375rem",
-                          padding: "0.5rem 2rem 0.5rem 0.75rem",
-                          outline: "none",
-                          fontSize: "0.875rem",
-                          backgroundColor: "#ffffff",
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setInvoiceContract("")}
-                        style={{
-                          position: "absolute",
-                          right: "0.5rem",
-                          background: "transparent",
-                          border: 0,
-                          cursor: "pointer",
-                          color: "#64748b",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
                         }}
                       >
-                        <FiX style={{ fontSize: "0.875rem" }} />
-                      </button>
-                    </div>
-                  </div>
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          Daşıyıcı
+                        </label>
+                        <select
+                          value={invoiceCarrier}
+                          onChange={(e) => {
+                            const name = e.target.value;
+                            setInvoiceCarrier(name);
+                            setInvoiceVoyageNumber(
+                              resolveInvoiceVoyageNumber(name),
+                            );
+                            applyCarrierOfferPricing(name);
+                            const offer = orderPriceOffers.find(
+                              (o: any) =>
+                                String(o?.carrierName || "")
+                                  .trim()
+                                  .toLowerCase() ===
+                                name.trim().toLowerCase(),
+                            );
+                            const raw = String(offer?.price ?? "")
+                              .replace(",", ".")
+                              .trim();
+                            const num = Number.parseFloat(raw);
+                            const price = Number.isFinite(num) ? num : 0;
+                            setInvoiceRows((rows) =>
+                              rows.map((r, idx) =>
+                                idx === 0 ? { ...r, price } : r,
+                              ),
+                            );
+                          }}
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.75rem",
+                            outline: "none",
+                            fontSize: "0.875rem",
+                            backgroundColor: "#ffffff",
+                          }}
+                        >
+                          <option value="">Daşıyıcı seçin</option>
+                          {orderCarrierNames.map((name) => (
+                            <option key={name} value={name}>
+                              {name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          Reys nömrəsi
+                        </label>
+                        <select
+                          value={invoiceVoyageNumber}
+                          onChange={(e) =>
+                            setInvoiceVoyageNumber(e.target.value)
+                          }
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.75rem",
+                            outline: "none",
+                            fontSize: "0.875rem",
+                            backgroundColor: "#ffffff",
+                          }}
+                        >
+                          <option value="">Reys seçin</option>
+                          {invoiceVoyagesForCarrier.map((v) => {
+                            const label =
+                              (v.id ? `R-${v.id}` : "") ||
+                              String(v.number || "").trim() ||
+                              formatVoyageLabel(v);
+                            if (!label) return null;
+                            return (
+                              <option key={v.id ?? label} value={label}>
+                                {label}
+                                {v.carrier && v.carrier !== "—"
+                                  ? ` — ${v.carrier}`
+                                  : ""}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          Müştəri
+                        </label>
+                        <select
+                          value={invoiceCarrier}
+                          onChange={(e) => {
+                            const name = e.target.value;
+                            setInvoiceCarrier(name);
+                            if (!name) {
+                              setInvoiceContract("");
+                              setInvoiceFreightPrice("");
+                              setInvoiceExpectedPrice(null);
+                              return;
+                            }
+                            const found = invoiceCarriersList.find(
+                              (c) =>
+                                c.name.toLowerCase() === name.toLowerCase(),
+                            );
+                            const numbers = (found?.documents || [])
+                              .map((d) => String(d.number || "").trim())
+                              .filter(Boolean);
+                            setInvoiceContract(
+                              numbers.length > 0 ? numbers.join(", ") : "",
+                            );
+                            const offer =
+                              orderPriceOffers.find(
+                                (o: any) =>
+                                  Number.parseFloat(
+                                    String(o?.salesPrice ?? "").replace(
+                                      ",",
+                                      ".",
+                                    ),
+                                  ) > 0,
+                              ) || orderPriceOffers[0];
+                            const salesRaw = String(offer?.salesPrice ?? "")
+                              .replace(",", ".")
+                              .trim();
+                            const salesNum = Number.parseFloat(salesRaw);
+                            const salesPrice = Number.isFinite(salesNum)
+                              ? salesNum
+                              : 0;
+                            const currency =
+                              String(
+                                offer?.currency ||
+                                  invoiceCurrency ||
+                                  resolveOrderCurrency(),
+                              )
+                                .trim()
+                                .toUpperCase() || resolveOrderCurrency();
+                            setInvoiceFreightPrice(
+                              salesPrice > 0
+                                ? String(salesPrice)
+                                : salesRaw || "",
+                            );
+                            setInvoiceExpectedPrice(
+                              salesPrice > 0 ? salesPrice : null,
+                            );
+                            setInvoiceCurrency(currency);
+                            setInvoiceRows((rows) =>
+                              rows.map((r, idx) =>
+                                idx === 0 ? { ...r, price: salesPrice } : r,
+                              ),
+                            );
+                          }}
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.75rem",
+                            outline: "none",
+                            fontSize: "0.875rem",
+                            backgroundColor: "#ffffff",
+                          }}
+                        >
+                          <option value="">Müştəri seçin</option>
+                          {Array.from(
+                            new Set([
+                              ...invoiceCarriersList.map((c) => c.name),
+                              ...(displayCustomerName &&
+                              displayCustomerName !== "—"
+                                ? [displayCustomerName]
+                                : []),
+                            ]),
+                          ).map((name) => (
+                            <option key={name} value={name}>
+                              {name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          Müştəri ilə müqavilənin nömrəsi
+                        </label>
+                        <div
+                          style={{
+                            position: "relative",
+                            display: "flex",
+                            alignItems: "center",
+                          }}
+                        >
+                          <input
+                            type="text"
+                            value={invoiceContract}
+                            onChange={(e) =>
+                              setInvoiceContract(e.target.value)
+                            }
+                            style={{
+                              width: "100%",
+                              border: "1px solid #cbd5e1",
+                              borderRadius: "0.375rem",
+                              padding: "0.5rem 2rem 0.5rem 0.75rem",
+                              outline: "none",
+                              fontSize: "0.875rem",
+                              backgroundColor: "#ffffff",
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setInvoiceContract("")}
+                            style={{
+                              position: "absolute",
+                              right: "0.5rem",
+                              background: "transparent",
+                              border: 0,
+                              cursor: "pointer",
+                              color: "#64748b",
+                            }}
+                          >
+                            <FiX style={{ fontSize: "0.875rem" }} />
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
 
                   {/* Tərtib etdi */}
                   <div
@@ -11212,12 +9525,23 @@ export default function SifarisDetailPage() {
                         backgroundColor: "#ffffff",
                       }}
                     >
-                      <option value="Ulvi Adilzade">Ulvi Adilzade</option>
-                      <option value="Nijat Shabanly">Nijat Shabanly</option>
+                      <option value="">Seçin</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.name}>
+                          {u.name}
+                        </option>
+                      ))}
+                      {invoiceCreator &&
+                        !users.some((u) => u.name === invoiceCreator) && (
+                          <option value={invoiceCreator}>
+                            {invoiceCreator}
+                          </option>
+                        )}
                     </select>
                   </div>
 
-                  {/* Hesabın nömrəsi */}
+                  {/* Hesabın nömrəsi — yalnız irəli/ilkin */}
+                  {invoicesSubTab !== "alinmis" && (
                   <div
                     style={{
                       display: "flex",
@@ -11249,6 +9573,7 @@ export default function SifarisDetailPage() {
                       }}
                     />
                   </div>
+                  )}
 
                   {/* Hesab yazılıb */}
                   <div
@@ -11400,7 +9725,7 @@ export default function SifarisDetailPage() {
                       type="text"
                       value={invoiceFreightPrice}
                       readOnly
-                      title="Daşıyıcı seçiləndə avtomatik gəlir; dəyişdirilə bilməz"
+                      title="Hesab sətirlərinin cəmi (miqdar × qiymət)"
                       placeholder="0.00"
                       style={{
                         border: "1px solid #cbd5e1",
@@ -11553,15 +9878,24 @@ export default function SifarisDetailPage() {
                     }}
                   >
                     {(() => {
-                      const topPrice =
+                      const current =
                         Number.parseFloat(
                           String(invoiceFreightPrice).replace(",", "."),
                         ) || 0;
-                      const bottomPrice = Number(invoiceRows[0]?.price) || 0;
-                      const mismatch =
-                        topPrice > 0 &&
-                        Math.abs(bottomPrice - topPrice) > 0.0001;
-                      return mismatch ? (
+                      const expected = invoiceExpectedPrice;
+                      if (
+                        expected == null ||
+                        expected <= 0 ||
+                        Math.abs(current - expected) < 0.0001
+                      ) {
+                        return null;
+                      }
+                      const currLabel = Number(current.toFixed(4)).toString();
+                      const expLabel = Number(expected.toFixed(4)).toString();
+                      const curr = invoiceCurrency || "";
+                      const direction =
+                        current > expected ? "yüksəltdiniz" : "azaltdınız";
+                      return (
                         <div
                           style={{
                             background: "#fef3c7",
@@ -11573,13 +9907,12 @@ export default function SifarisDetailPage() {
                             fontWeight: 600,
                           }}
                         >
-                          Diqqət: sətir qiyməti ({bottomPrice} {invoiceCurrency}
-                          ) yuxarıdakı daşıma qiymətindən ({invoiceFreightPrice}{" "}
-                          {invoiceCurrency}) fərqlidir. Yadda saxlayanda digər
-                          qiymət sahələri yenilənəcək; avtomatik xərclər
-                          dəyişməyəcək.
+                          Diqqət: daşıma qiyməti {expLabel} {curr} olmalıdır,
+                          lakin siz qiyməti {currLabel} {curr}-a {direction}.
+                          Bu yalnız xəbərdarlıqdır — hesabı saxlamağa davam
+                          edə bilərsiniz.
                         </div>
-                      ) : null;
+                      );
                     })()}
                     {invoiceRows.map((row) => (
                       <div
@@ -11715,40 +10048,12 @@ export default function SifarisDetailPage() {
                             }}
                             style={{
                               width: "100%",
-                              border: (() => {
-                                const top =
-                                  Number.parseFloat(
-                                    String(invoiceFreightPrice).replace(
-                                      ",",
-                                      ".",
-                                    ),
-                                  ) || 0;
-                                const mismatch =
-                                  row.id === invoiceRows[0]?.id &&
-                                  top > 0 &&
-                                  Math.abs((row.price || 0) - top) > 0.0001;
-                                return mismatch
-                                  ? "1px solid #f59e0b"
-                                  : "1px solid #cbd5e1";
-                              })(),
+                              border: "1px solid #cbd5e1",
                               borderRadius: "0.375rem",
                               padding: "0.5rem",
                               outline: "none",
                               fontSize: "0.825rem",
-                              backgroundColor: (() => {
-                                const top =
-                                  Number.parseFloat(
-                                    String(invoiceFreightPrice).replace(
-                                      ",",
-                                      ".",
-                                    ),
-                                  ) || 0;
-                                const mismatch =
-                                  row.id === invoiceRows[0]?.id &&
-                                  top > 0 &&
-                                  Math.abs((row.price || 0) - top) > 0.0001;
-                                return mismatch ? "#fffbeb" : "#ffffff";
-                              })(),
+                              backgroundColor: "#ffffff",
                             }}
                           />
                         </div>
@@ -11903,6 +10208,7 @@ export default function SifarisDetailPage() {
                     <button
                       type="button"
                       onClick={handleAddInvoiceRow}
+                      title="Sətir əlavə et"
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -11919,107 +10225,201 @@ export default function SifarisDetailPage() {
                     >
                       +
                     </button>
-                    <select
-                      style={{
-                        border: "1px solid #cbd5e1",
-                        borderRadius: "0.375rem",
-                        padding: "0.375rem 0.75rem",
-                        outline: "none",
-                        fontSize: "0.875rem",
-                        backgroundColor: "#ffffff",
-                        color: "#64748b",
-                      }}
-                      defaultValue="Şablon"
-                    >
-                      <option disabled value="Şablon">
-                        Şablon
-                      </option>
-                      <option value="Standard">Standard</option>
-                    </select>
                   </div>
                 </div>
 
-                {/* Checkboxes Row */}
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "2rem",
-                    borderTop: "1px solid #cbd5e1",
-                    paddingTop: "1.5rem",
-                  }}
-                >
-                  <label
+                {/* Alınmış hesab — sənəd əlavə et (məcburi) */}
+                {invoicesSubTab === "alinmis" && (
+                  <div
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      fontSize: "0.85rem",
-                      color: "#475569",
-                      cursor: "pointer",
+                      borderTop: "1px solid #cbd5e1",
+                      paddingTop: "1.5rem",
+                      marginTop: "0.5rem",
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={invoiceUseNonStandard}
-                      onChange={(e) =>
-                        setInvoiceUseNonStandard(e.target.checked)
-                      }
+                    <div
                       style={{
-                        width: "1.1rem",
-                        height: "1.1rem",
-                        accentColor: "#16a34a",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "0.75rem",
+                        marginBottom: "0.75rem",
+                        flexWrap: "wrap",
                       }}
-                    />
-                    Hesabın qeyri-standart şablonundan istifadə et
-                  </label>
-
-                  <label
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      fontSize: "0.85rem",
-                      color: "#475569",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={invoiceNoStampSign}
-                      onChange={(e) => setInvoiceNoStampSign(e.target.checked)}
-                      style={{
-                        width: "1.1rem",
-                        height: "1.1rem",
-                        accentColor: "#16a34a",
-                      }}
-                    />
-                    Möhürlər və imzalar olmadan
-                  </label>
-
-                  <label
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      fontSize: "0.85rem",
-                      color: "#475569",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={invoiceSendNotif}
-                      onChange={(e) => setInvoiceSendNotif(e.target.checked)}
-                      style={{
-                        width: "1.1rem",
-                        height: "1.1rem",
-                        accentColor: "#16a34a",
-                      }}
-                    />
-                    Göndərmə barədə məlumat verin
-                  </label>
-                </div>
+                    >
+                      <div>
+                        <h4
+                          style={{
+                            margin: 0,
+                            fontSize: "0.875rem",
+                            fontWeight: 700,
+                            color: "#475569",
+                          }}
+                        >
+                          Sənəd{" "}
+                          <span style={{ color: "#ef4444" }}>*</span>
+                        </h4>
+                        <p
+                          style={{
+                            margin: "0.25rem 0 0",
+                            fontSize: "0.75rem",
+                            color: "#94a3b8",
+                          }}
+                        >
+                          Alınmış hesabı saxlamaq üçün ən azı bir sənəd əlavə
+                          edin.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          invoicePendingFileRef.current?.click()
+                        }
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.4rem",
+                          background: "#0f172a",
+                          color: "#fff",
+                          border: 0,
+                          borderRadius: "0.375rem",
+                          padding: "0.5rem 0.85rem",
+                          fontSize: "0.825rem",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <FiUpload /> Sənəd əlavə et
+                      </button>
+                      <input
+                        ref={invoicePendingFileRef}
+                        type="file"
+                        multiple
+                        accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,.zip"
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                          const files = e.target.files;
+                          if (!files || files.length === 0) return;
+                          const uploaded: InvoiceDocumentItem[] = Array.from(
+                            files,
+                          ).map((file) => ({
+                            id: String(Date.now() + Math.random()),
+                            name: file.name,
+                            size: formatInvoiceDocSize(file.size),
+                            url: URL.createObjectURL(file),
+                            createdAt: new Date().toLocaleDateString("az-AZ"),
+                            file,
+                          }));
+                          setInvoicePendingDocs((prev) => [
+                            ...prev,
+                            ...uploaded,
+                          ]);
+                          e.target.value = "";
+                        }}
+                      />
+                    </div>
+                    {invoicePendingDocs.length === 0 ? (
+                      <div
+                        style={{
+                          border: "2px dashed #f59e0b",
+                          background: "#fffbeb",
+                          borderRadius: "0.5rem",
+                          padding: "1rem",
+                          color: "#92400e",
+                          fontSize: "0.825rem",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Sənəd əlavə olunmayıb — saxlama mümkün deyil.
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.5rem",
+                        }}
+                      >
+                        {invoicePendingDocs.map((doc) => (
+                          <div
+                            key={doc.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.75rem",
+                              padding: "0.65rem 0.85rem",
+                              border: "1px solid #e2e8f0",
+                              borderRadius: "0.5rem",
+                              background: "#fff",
+                            }}
+                          >
+                            <FiPaperclip
+                              style={{ color: "#64748b", flexShrink: 0 }}
+                            />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div
+                                style={{
+                                  fontSize: "0.825rem",
+                                  fontWeight: 600,
+                                  color: "#0f172a",
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                              >
+                                {doc.name}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "0.7rem",
+                                  color: "#94a3b8",
+                                }}
+                              >
+                                {doc.size} · {doc.createdAt}
+                              </div>
+                            </div>
+                            <a
+                              href={
+                                doc.url?.startsWith("blob:")
+                                  ? doc.url
+                                  : resolveUploadUrl(doc.url)
+                              }
+                              target="_blank"
+                              rel="noreferrer"
+                              title="Bax"
+                              style={{
+                                color: "#3b82f6",
+                                padding: 4,
+                                display: "flex",
+                              }}
+                            >
+                              <FiEye />
+                            </a>
+                            <button
+                              type="button"
+                              title="Sil"
+                              onClick={() =>
+                                setInvoicePendingDocs((prev) =>
+                                  prev.filter((d) => d.id !== doc.id),
+                                )
+                              }
+                              style={{
+                                border: 0,
+                                background: "transparent",
+                                color: "#dc2626",
+                                cursor: "pointer",
+                                padding: 4,
+                                display: "flex",
+                              }}
+                            >
+                              <FiTrash2 />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -12037,22 +10437,44 @@ export default function SifarisDetailPage() {
                 type="button"
                 onClick={handleSaveInvoice}
                 style={{
-                  background: "#22c55e",
+                  background:
+                    invoicesSubTab === "alinmis" &&
+                    invoicePendingDocs.length === 0
+                      ? "#86efac"
+                      : "#22c55e",
                   color: "#ffffff",
                   border: 0,
                   borderRadius: "0.375rem",
                   padding: "0.625rem 2rem",
                   fontWeight: 600,
                   fontSize: "0.9rem",
-                  cursor: "pointer",
+                  cursor:
+                    invoicesSubTab === "alinmis" &&
+                    invoicePendingDocs.length === 0
+                      ? "not-allowed"
+                      : "pointer",
                   transition: "background-color 0.2s",
+                  opacity:
+                    invoicesSubTab === "alinmis" &&
+                    invoicePendingDocs.length === 0
+                      ? 0.7
+                      : 1,
                 }}
-                onMouseOver={(e) =>
-                  (e.currentTarget.style.backgroundColor = "#16a34a")
-                }
-                onMouseOut={(e) =>
-                  (e.currentTarget.style.backgroundColor = "#22c55e")
-                }
+                onMouseOver={(e) => {
+                  if (
+                    invoicesSubTab === "alinmis" &&
+                    invoicePendingDocs.length === 0
+                  )
+                    return;
+                  e.currentTarget.style.backgroundColor = "#16a34a";
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor =
+                    invoicesSubTab === "alinmis" &&
+                    invoicePendingDocs.length === 0
+                      ? "#86efac"
+                      : "#22c55e";
+                }}
               >
                 Yaddaşda saxlamaq
               </button>

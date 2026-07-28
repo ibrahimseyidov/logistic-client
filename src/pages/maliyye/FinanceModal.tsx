@@ -338,6 +338,7 @@ export default function FinanceModal({
   defaultWallet?: CashWallet;
 }) {
   const [partnerKind, setPartnerKind] = useState<PartnerKind>("customer");
+  const [formError, setFormError] = useState("");
   const [formData, setFormData] = useState({
     type: "INCOME",
     category: "",
@@ -381,16 +382,31 @@ export default function FinanceModal({
   useEffect(() => {
     if (!isOpen) return;
     setAmountTouched(false);
+    setFormError("");
     if (initialData) {
       const method = initialData.paymentMethod || defaultWallet;
-      const hasCarrier = Boolean(initialData.carrierId);
-      const kind: PartnerKind = hasCarrier ? "carrier" : "customer";
+      const kind: PartnerKind =
+        initialData.partnerKind === "carrier" ||
+        initialData.partnerKind === "customer"
+          ? initialData.partnerKind
+          : initialData.carrierId
+            ? "carrier"
+            : initialData.type === "EXPENSE"
+              ? "carrier"
+              : "customer";
       setPartnerKind(kind);
       setFormData({
-        type: initialData.type || (kind === "customer" ? "INCOME" : "EXPENSE"),
-        category: initialData.category || "",
+        type:
+          initialData.type ||
+          (kind === "customer" ? "INCOME" : "EXPENSE"),
+        category:
+          initialData.category ||
+          (kind === "customer" ? "Müştəri ödənişi" : "Daşıyıcı ödənişi"),
         name: initialData.name || "",
-        amount: initialData.amount ? String(initialData.amount) : "",
+        amount:
+          initialData.amount != null && initialData.amount !== ""
+            ? String(initialData.amount)
+            : "",
         currency: initialData.currency || "AZN",
         paymentMethod:
           method === "Nağd" || method === "Nagd"
@@ -560,20 +576,34 @@ export default function FinanceModal({
     }));
   };
 
+  const canSave = useMemo(() => {
+    const partnerOk =
+      partnerKind === "customer"
+        ? Boolean(formData.customerId)
+        : Boolean(formData.carrierId);
+    const amountOk = Number(formData.amount) > 0;
+    return partnerOk && Boolean(formData.orderId) && amountOk;
+  }, [partnerKind, formData.customerId, formData.carrierId, formData.orderId, formData.amount]);
+
   const handleSave = () => {
-    if (!formData.amount || !(Number(formData.amount) > 0)) {
-      alert("Məbləğ daxil edin");
-      return;
-    }
     if (partnerKind === "customer" && !formData.customerId) {
-      alert("Müştəri seçin");
+      setFormError("Müştəri seçin");
       return;
     }
     if (partnerKind === "carrier" && !formData.carrierId) {
-      alert("Daşıyıcı seçin");
+      setFormError("Daşıyıcı seçin");
+      return;
+    }
+    if (!formData.orderId) {
+      setFormError("Ödəniş üçün sifariş seçilməlidir");
+      return;
+    }
+    if (!formData.amount || !(Number(formData.amount) > 0)) {
+      setFormError("Məbləğ daxil edin");
       return;
     }
 
+    setFormError("");
     const partnerName =
       partnerKind === "customer"
         ? entityLabel(selectedCustomer)
@@ -594,9 +624,7 @@ export default function FinanceModal({
       partner: partnerName,
       name:
         formData.name?.trim() ||
-        (formData.orderId
-          ? `${selectedOrderDebt?.orderNumber || "SF"} — ${partnerName}`
-          : partnerName),
+        `${selectedOrderDebt?.orderNumber || "SF"} — ${partnerName}`,
       category:
         formData.category ||
         (partnerKind === "customer" ? "Müştəri ödənişi" : "Daşıyıcı ödənişi"),
@@ -614,7 +642,11 @@ export default function FinanceModal({
         <div className={modalStyles.drawerHeader}>
           <div>
             <h2 className={modalStyles.drawerTitle}>
-              {initialData ? "Tranzaksiyanı redaktə et" : "Yeni Tranzaksiya"}
+              {initialData?.id
+                ? "Tranzaksiyanı redaktə et"
+                : initialData?.customerId || initialData?.carrierId
+                  ? "Ödəniş"
+                  : "Yeni Tranzaksiya"}
             </h2>
             <p className={modalStyles.drawerHint}>
               Real müştəri/daşıyıcı ödənişi — borc və alacaq avtomatik yenilənir
@@ -723,7 +755,7 @@ export default function FinanceModal({
 
           <div className={modalStyles.fieldStack}>
             <div className={modalStyles.sectionTitle}>
-              <span className={modalStyles.label}>Sifariş</span>
+              <span className={modalStyles.label}>Sifariş *</span>
               <button
                 type="button"
                 className={modalStyles.ghostBtn}
@@ -747,8 +779,16 @@ export default function FinanceModal({
                   : !formData.carrierId
               }
               onChange={(e) => {
+                const nextOrderId = e.target.value;
                 setAmountTouched(false);
-                setFormData({ ...formData, orderId: e.target.value });
+                setFormError("");
+                setFormData({
+                  ...formData,
+                  orderId: nextOrderId,
+                  ...(nextOrderId
+                    ? {}
+                    : { amount: "", name: "" }),
+                });
               }}
             >
               <option value="">Sifariş seçin</option>
@@ -759,6 +799,12 @@ export default function FinanceModal({
                 </option>
               ))}
             </select>
+            {!formData.orderId ? (
+              <span className={modalStyles.fieldHintWarn}>
+                Ödəniş üçün sifariş seçilməlidir — məbləğ sifariş qalığına görə
+                dolacaq
+              </span>
+            ) : null}
             {(partnerKind === "customer"
               ? formData.customerId
               : formData.carrierId) && orderDebtRows.length === 0 ? (
@@ -858,8 +904,8 @@ export default function FinanceModal({
             padding: "1rem 1.5rem",
             borderTop: "1px solid #e2e8f0",
             display: "flex",
-            justifyContent: "flex-end",
-            gap: "0.75rem",
+            flexDirection: "column",
+            gap: "0.65rem",
             background: "#ffffff",
             position: "absolute",
             bottom: 0,
@@ -867,20 +913,37 @@ export default function FinanceModal({
             right: 0,
           }}
         >
-          <button
-            type="button"
-            onClick={onClose}
-            className={modalStyles.footerBtnSecondary}
+          {formError ? (
+            <div className={modalStyles.formError}>{formError}</div>
+          ) : null}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "0.75rem",
+            }}
           >
-            Ləğv et
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            className={modalStyles.footerBtnPrimary}
-          >
-            Yadda saxla
-          </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className={modalStyles.footerBtnSecondary}
+            >
+              Ləğv et
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              className={modalStyles.footerBtnPrimary}
+              disabled={!canSave}
+              title={
+                !canSave
+                  ? "Sifariş, tərəfdaş və məbləğ doldurulmalıdır"
+                  : undefined
+              }
+            >
+              Yadda saxla
+            </button>
+          </div>
         </div>
       </div>
 
@@ -895,6 +958,7 @@ export default function FinanceModal({
         rows={orderDebtRows}
         onPickOrder={(orderId) => {
           setAmountTouched(false);
+          setFormError("");
           setFormData((prev) => ({ ...prev, orderId }));
         }}
       />

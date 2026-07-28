@@ -1,35 +1,81 @@
 import type { EmekFilterFormState, EmekRow } from "../types/emek.types";
-
-function inRange(value: string, from: string, to: string): boolean {
-  if (!from && !to) return true;
-  if (from && value < from) return false;
-  if (to && value > to) return false;
-  return true;
-}
+import { includesText, inDateRange } from "./formatDate";
 
 export function applyEmekFilters(rows: EmekRow[], f: EmekFilterFormState): EmekRow[] {
   return rows.filter((r) => {
-    if (f.company && r.company !== f.company) return false;
-    if (f.orderNumber.trim() && !r.orderNumber.toLowerCase().includes(f.orderNumber.trim().toLowerCase())) {
-      return false;
-    }
+    if (f.company && String(r.company || "") !== f.company) return false;
+    if (!includesText(r.orderNumber, f.orderNumber)) return false;
     if (f.tip === "order" && r.kind !== "order") return false;
     if (f.tip === "voyage" && r.kind !== "voyage") return false;
-    if (f.status === "progress" && r.orderStatus !== "Davam edir") return false;
-    if (f.status === "completed" && r.orderStatus !== "Tamamlandı") return false;
-    if (f.tripNumber.trim() && !r.tripNumber.toLowerCase().includes(f.tripNumber.trim().toLowerCase())) {
+
+    if (f.status === "progress") {
+      const s = String(r.orderStatus || "").toLowerCase();
+      if (
+        r.orderStatus !== "Davam edir" &&
+        !s.includes("progress") &&
+        !s.includes("davam")
+      ) {
+        return false;
+      }
+    }
+    if (f.status === "completed") {
+      const s = String(r.orderStatus || "").toLowerCase();
+      if (
+        r.orderStatus !== "Tamamlandı" &&
+        !s.includes("completed") &&
+        !s.includes("tamam")
+      ) {
+        return false;
+      }
+    }
+
+    if (!includesText(r.tripNumber, f.tripNumber)) return false;
+    if (f.customer && String(r.customer || "") !== f.customer) return false;
+    if (f.carrier && String(r.carrier || "") !== f.carrier) return false;
+
+    const customerType = String((r as any).customerType || "").toLowerCase();
+    if (
+      f.customerType &&
+      customerType &&
+      !customerType.includes(f.customerType.toLowerCase())
+    ) {
       return false;
     }
-    if (f.customer && r.customer !== f.customer) return false;
-    if (f.carrier && r.carrier !== f.carrier) return false;
-    if (!inRange(r.orderDateIso, f.orderDateFrom, f.orderDateTo)) return false;
+
+    if (!inDateRange(r.orderDateIso || r.orderDate, f.orderDateFrom, f.orderDateTo)) {
+      return false;
+    }
+    if (
+      !inDateRange(
+        (r as any).actCreatedAt,
+        f.actCreatedFrom,
+        f.actCreatedTo,
+      )
+    ) {
+      return false;
+    }
+    if (!inDateRange((r as any).actDate, f.actDateFrom, f.actDateTo)) return false;
+    if (!inDateRange((r as any).loadDate, f.loadDateFrom, f.loadDateTo)) return false;
+    if (!inDateRange((r as any).unloadDate, f.unloadDateFrom, f.unloadDateTo)) {
+      return false;
+    }
+    if (
+      !inDateRange(
+        r.paymentDate,
+        f.invoicePaymentFrom,
+        f.invoicePaymentTo,
+      )
+    ) {
+      return false;
+    }
+
     return true;
   });
 }
 
 export function aggregateEmekStats(rows: EmekRow[]) {
-  const profit = rows.reduce((s, r) => s + r.profitAzn, 0);
-  const bonus = rows.reduce((s, r) => s + r.totalBonusAzn, 0);
-  const reward = rows.reduce((s, r) => s + r.rewardAmount, 0);
+  const profit = rows.reduce((s, r) => s + (Number(r.profitAzn) || 0), 0);
+  const bonus = rows.reduce((s, r) => s + (Number(r.totalBonusAzn) || 0), 0);
+  const reward = rows.reduce((s, r) => s + (Number(r.rewardAmount) || 0), 0);
   return { profit, bonus, reward };
 }

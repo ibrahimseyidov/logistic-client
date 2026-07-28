@@ -124,6 +124,27 @@ export default function MusteriDetailPage() {
     [customer?.contactPersons, contactPersons],
   );
 
+  const directorLabel = useMemo(() => {
+    const isDirector = (position: unknown) => {
+      const p = String(position || "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+      return (
+        p === "direktor" ||
+        p === "director" ||
+        p.includes("direktor") ||
+        p.includes("director")
+      );
+    };
+    const directors = displayedContacts.filter((c) => isDirector(c.position));
+    if (directors.length > 0) {
+      return formatEntityContactNames(directors);
+    }
+    return "-";
+  }, [displayedContacts]);
+
   const customerDocuments = useMemo(
     () => parseCarrierDocuments(customer?.documents ?? customer?.documentsJson),
     [customer?.documents, customer?.documentsJson],
@@ -519,7 +540,7 @@ export default function MusteriDetailPage() {
               <div style={{ margin: 0, fontSize: "0.78rem", color: "#334155" }}>
                 <span style={{ color: "#64748b", fontWeight: 600 }}>Direktoru:</span>
                 <div style={{ marginTop: "2px", fontWeight: 500 }}>
-                  {formatEntityContactNames(displayedContacts)}
+                  {directorLabel}
                 </div>
               </div>
               

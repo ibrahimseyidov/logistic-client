@@ -1,5 +1,18 @@
 import React, { useMemo } from "react";
 import type { ActivityLogRow } from "../../../common/actions/activity-log.actions";
+import StatusBadge from "../../../common/components/StatusBadge";
+import {
+  actionLabelAz,
+  actionTone,
+  cleanNote,
+  cleanSummary,
+  entityDisplay,
+  fieldLabelAz,
+  filterLogObject,
+  formatLogValue,
+  humanizePreview,
+  shouldShowField,
+} from "../lib/activityLogDisplay";
 import styles from "./ActivityLogDetailModal.module.css";
 
 type ParsedDetails = {
@@ -17,15 +30,6 @@ type ParsedDetails = {
   rawText?: string;
 };
 
-const ACTION_LABEL: Record<string, string> = {
-  CREATE: "Yaratma",
-  UPDATE: "Yeniləmə",
-  DELETE: "Silmə",
-  POST: "Yaratma",
-  PUT: "Yeniləmə",
-  PATCH: "Yeniləmə",
-};
-
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
   const d = new Date(value);
@@ -39,17 +43,6 @@ function formatDateTime(value?: string | null) {
     second: "2-digit",
     hour12: false,
   });
-}
-
-function formatValue(v: unknown): string {
-  if (v === null || v === undefined || v === "") return "—";
-  if (typeof v === "string") return v;
-  if (typeof v === "number" || typeof v === "boolean") return String(v);
-  try {
-    return JSON.stringify(v, null, 2);
-  } catch {
-    return String(v);
-  }
 }
 
 function parseDetails(raw?: string | null): ParsedDetails {
@@ -66,6 +59,31 @@ function parseDetails(raw?: string | null): ParsedDetails {
   return { rawText: text, preview: text };
 }
 
+function ActionBadge({ action }: { action: string }) {
+  const tone = actionTone(action);
+  const toneClass =
+    tone === "create"
+      ? styles.badgeCreate
+      : tone === "delete"
+        ? styles.badgeDelete
+        : tone === "update"
+          ? styles.badgeUpdate
+          : styles.badgeDefault;
+  return (
+    <span className={`${styles.actionBadge} ${toneClass}`}>
+      {actionLabelAz(action)}
+    </span>
+  );
+}
+
+function ValueCell({ value, field }: { value: unknown; field?: string }) {
+  const text = formatLogValue(value, field);
+  if (field && /status/i.test(field) && text && text !== "—") {
+    return <StatusBadge label={String(value ?? text)} />;
+  }
+  return <span className={styles.valueText}>{text}</span>;
+}
+
 function KeyValueBlock({
   title,
   data,
@@ -74,25 +92,32 @@ function KeyValueBlock({
   data: unknown;
 }) {
   if (data == null) return null;
+
   if (typeof data !== "object" || Array.isArray(data)) {
     return (
       <section className={styles.section}>
         <h4 className={styles.sectionTitle}>{title}</h4>
-        <pre className={styles.pre}>{formatValue(data)}</pre>
+        <div className={styles.valueBlock}>
+          <ValueCell value={data} />
+        </div>
       </section>
     );
   }
-  const entries = Object.entries(data as Record<string, unknown>);
+
+  const filtered = filterLogObject(data);
+  if (!filtered) return null;
+  const entries = Object.entries(filtered);
   if (!entries.length) return null;
+
   return (
     <section className={styles.section}>
       <h4 className={styles.sectionTitle}>{title}</h4>
       <div className={styles.kvTable}>
         {entries.map(([k, v]) => (
           <div key={k} className={styles.kvRow}>
-            <div className={styles.kvKey}>{k}</div>
+            <div className={styles.kvKey}>{fieldLabelAz(k)}</div>
             <div className={styles.kvVal}>
-              <pre className={styles.inlinePre}>{formatValue(v)}</pre>
+              <ValueCell value={v} field={k} />
             </div>
           </div>
         ))}
@@ -114,7 +139,18 @@ export const ActivityLogDetailModal: React.FC<Props> = ({ row, onClose }) => {
 
   if (!row) return null;
 
-  const hasChanges = Array.isArray(parsed.changes) && parsed.changes.length > 0;
+  const changes = (parsed.changes || []).filter((c) =>
+    shouldShowField(c.field),
+  );
+  const hasChanges = changes.length > 0;
+  const note = cleanNote(parsed.note);
+  const summary = cleanSummary(
+    row.summary,
+    row.entityType,
+    row.entityId,
+    row.action,
+  );
+
   const hasStructured =
     hasChanges ||
     parsed.created != null ||
@@ -136,9 +172,9 @@ export const ActivityLogDetailModal: React.FC<Props> = ({ row, onClose }) => {
           <div>
             <h2 className={styles.title}>Log detalları</h2>
             <p className={styles.hint}>
-              {ACTION_LABEL[row.action] || row.action}
-              {row.entityType ? ` · ${row.entityType}` : ""}
-              {row.entityId ? ` #${row.entityId}` : ""}
+              {actionLabelAz(row.action)}
+              {" · "}
+              {entityDisplay(row.entityType, row.entityId)}
             </p>
           </div>
           <button type="button" className={styles.closeBtn} onClick={onClose}>
@@ -158,36 +194,26 @@ export const ActivityLogDetailModal: React.FC<Props> = ({ row, onClose }) => {
             </div>
             <div>
               <span className={styles.metaLabel}>Əməliyyat</span>
-              <strong>{ACTION_LABEL[row.action] || row.action}</strong>
+              <div style={{ marginTop: 4 }}>
+                <ActionBadge action={row.action} />
+              </div>
             </div>
             <div>
               <span className={styles.metaLabel}>Obyekt</span>
-              <strong>
-                {row.entityType || "—"}
-                {row.entityId ? ` #${row.entityId}` : ""}
-              </strong>
+              <strong>{entityDisplay(row.entityType, row.entityId)}</strong>
             </div>
           </section>
 
           <section className={styles.section}>
             <h4 className={styles.sectionTitle}>Qısa təsvir</h4>
-            <p className={styles.summary}>{row.summary}</p>
-            {parsed.note ? (
-              <p className={styles.note}>{parsed.note}</p>
-            ) : null}
-            {parsed.method || parsed.path ? (
-              <p className={styles.pathLine}>
-                <code>
-                  {parsed.method || ""} {parsed.path || ""}
-                </code>
-              </p>
-            ) : null}
+            <p className={styles.summary}>{summary}</p>
+            {note ? <p className={styles.note}>{note}</p> : null}
           </section>
 
           {hasChanges ? (
             <section className={styles.section}>
               <h4 className={styles.sectionTitle}>
-                Dəyişən sahələr ({parsed.changes!.length})
+                Dəyişən sahələr ({changes.length})
               </h4>
               <div className={styles.changeTable}>
                 <div className={`${styles.changeRow} ${styles.changeHead}`}>
@@ -195,15 +221,17 @@ export const ActivityLogDetailModal: React.FC<Props> = ({ row, onClose }) => {
                   <span>Əvvəl</span>
                   <span>Sonra</span>
                 </div>
-                {parsed.changes!.map((c) => (
+                {changes.map((c) => (
                   <div key={c.field} className={styles.changeRow}>
-                    <span className={styles.changeField}>{c.field}</span>
-                    <pre className={`${styles.changeVal} ${styles.from}`}>
-                      {formatValue(c.from)}
-                    </pre>
-                    <pre className={`${styles.changeVal} ${styles.to}`}>
-                      {formatValue(c.to)}
-                    </pre>
+                    <span className={styles.changeField}>
+                      {fieldLabelAz(c.field)}
+                    </span>
+                    <div className={`${styles.changeVal} ${styles.from}`}>
+                      <ValueCell value={c.from} field={c.field} />
+                    </div>
+                    <div className={`${styles.changeVal} ${styles.to}`}>
+                      <ValueCell value={c.to} field={c.field} />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -218,8 +246,10 @@ export const ActivityLogDetailModal: React.FC<Props> = ({ row, onClose }) => {
 
           {!hasStructured && parsed.rawText ? (
             <section className={styles.section}>
-              <h4 className={styles.sectionTitle}>Tam mətn</h4>
-              <pre className={styles.pre}>{parsed.rawText}</pre>
+              <h4 className={styles.sectionTitle}>Əlavə məlumat</h4>
+              <div className={styles.valueBlock}>
+                <ValueCell value={cleanSummary(parsed.rawText)} />
+              </div>
             </section>
           ) : null}
 
@@ -236,14 +266,5 @@ export const ActivityLogDetailModal: React.FC<Props> = ({ row, onClose }) => {
 
 export function detailsPreview(raw?: string | null): string {
   const parsed = parseDetails(raw);
-  if (parsed.preview) return parsed.preview;
-  if (parsed.rawText) {
-    return parsed.rawText.length > 80
-      ? `${parsed.rawText.slice(0, 80)}…`
-      : parsed.rawText;
-  }
-  if (parsed.changes?.length) {
-    return `${parsed.changes.length} sahə dəyişdi`;
-  }
-  return "—";
+  return humanizePreview(parsed.preview, parsed.changes, parsed.payload);
 }

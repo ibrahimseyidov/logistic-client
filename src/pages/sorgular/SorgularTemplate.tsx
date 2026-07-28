@@ -296,7 +296,10 @@ export default function SorgularTemplate({
           filter={filterDraft}
           onFilterChange={onFilterChange}
           companyOptions={companyOptions}
-          onClose={() => setIsFilterPanelOpen(false)}
+          onClose={() => {
+            setFilterDraft({ ...appliedFilter });
+            setIsFilterPanelOpen(false);
+          }}
           onClear={handleClear}
           onApplyFilter={handleApplyFilter}
           onSaveTemplate={handleSaveTemplate}

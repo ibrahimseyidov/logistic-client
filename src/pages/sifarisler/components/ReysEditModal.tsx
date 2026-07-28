@@ -561,6 +561,7 @@ export default function ReysEditModal({
       const fromPayload = Array.isArray(payload.selectedLoadIds)
         ? payload.selectedLoadIds.map((id: any) => String(id))
         : [];
+      // Yalnız bu reysə bağlı yüklər seçili görünsün (digər reysin seçimi daşınmasın)
       const linked = availableLoads
         .filter(
           (l) =>
@@ -568,14 +569,18 @@ export default function ReysEditModal({
             String(l.voyageId) === voyageId,
         )
         .map((l) => String(l.id));
+      const fromPayloadForThisVoyage = fromPayload.filter((id) => {
+        const load = availableLoads.find((l) => String(l.id) === id);
+        if (!load) return false;
+        const linkedVoyage =
+          load.voyageId != null && String(load.voyageId).trim() !== ""
+            ? String(load.voyageId)
+            : "";
+        // Başqa reysə bağlı yük bu reysdə seçili gəlməsin
+        return !linkedVoyage || linkedVoyage === voyageId;
+      });
       const initialSelected =
-        fromPayload.length > 0
-          ? fromPayload
-          : linked.length > 0
-            ? linked
-            : availableLoads.length === 1
-              ? [String(availableLoads[0].id)]
-              : [];
+        linked.length > 0 ? linked : fromPayloadForThisVoyage;
       setSelectedLoadIds(initialSelected);
     } else if (isOpen && !editVoyage) {
       const primaryOffer =
@@ -607,9 +612,10 @@ export default function ReysEditModal({
       setDriverPassport("");
       setLpStartDate(""); setLpEndDate(""); setLpCompany(""); setLpCity(""); setLpAddress(""); setLpCountry("Dəyəri seçin"); setLpSender("Dəyəri seçin");
       setUpStartDate(""); setUpEndDate(""); setUpCompany(""); setUpCity(""); setUpAddress(""); setUpCountry("Dəyəri seçin"); setUpReceiver("Dəyəri seçin");
-      setSelectedLoadIds(
-        availableLoads.length === 1 ? [String(availableLoads[0].id)] : [],
-      );
+      // Yeni reys: seçim boş başlayır — digər reysin yükləri avtomatik seçilməsin
+      setSelectedLoadIds([]);
+    } else if (!isOpen) {
+      setSelectedLoadIds([]);
     }
   }, [isOpen, editVoyage, availableLoads, priceOffers, defaultExpeditor, order]);
 

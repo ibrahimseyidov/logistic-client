@@ -8,6 +8,7 @@ import { useAuth } from "../../../contexts/AuthContext";
 export default function UserProfile() {
   const [isOpen, setIsOpen] = useState(false);
   const { user, logout } = useAuth();
+  const displayName = String(user?.name || "").trim() || "İstifadəçi";
 
   const handleLogout = () => {
     logout();
@@ -19,10 +20,12 @@ export default function UserProfile() {
       <button
         className={styles.profileButton}
         onClick={() => setIsOpen(!isOpen)}
+        type="button"
+        aria-label={displayName}
       >
         <FaUser className={styles.userIcon} />
         <span className={styles.userName} suppressHydrationWarning>
-          {user ? user.name : "Kullanıcı"}
+          {displayName}
         </span>
         <FaChevronDown
           className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ""}`}
@@ -35,12 +38,27 @@ export default function UserProfile() {
             <FaUser className={styles.dropdownUserIcon} />
             <div className={styles.userDetails}>
               <div className={styles.fullName} suppressHydrationWarning>
-                {user ? user.name : "Kullanıcı"}
+                {displayName}
               </div>
+              {user?.email ? (
+                <div
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "#64748b",
+                    marginTop: 2,
+                  }}
+                >
+                  {user.email}
+                </div>
+              ) : null}
             </div>
           </div>
           <hr className={styles.divider} />
-          <button className={styles.logoutButton} onClick={handleLogout}>
+          <button
+            type="button"
+            className={styles.logoutButton}
+            onClick={handleLogout}
+          >
             <FaSignOutAlt className={styles.logoutIcon} />
             Çıxış
           </button>

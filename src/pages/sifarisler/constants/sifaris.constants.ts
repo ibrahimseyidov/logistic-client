@@ -19,4 +19,6 @@ export const STATUS_OPTIONS = [
   { value: "planned", label: "Planlaşdırılıb" },
   { value: "progress", label: "Davam edir" },
   { value: "completed", label: "Tamamlandı" },
+  { value: "finance_closed", label: "Maliyyə bağlanıb" },
+  { value: "cancelled", label: "Ləğv edilib" },
 ];

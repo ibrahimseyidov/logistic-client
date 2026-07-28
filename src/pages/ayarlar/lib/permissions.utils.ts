@@ -15,57 +15,225 @@ export const CRUD_ACTIONS: { key: CrudAction; label: string }[] = [
   { key: "delete", label: "Sil" },
 ];
 
+export type PermissionChildDef = {
+  id: string;
+  label: string;
+  /** UI-də qrup başlığı (eyni group ardıcıl sətirlərdə bir də göstərilir) */
+  group?: string;
+  hint?: string;
+};
+
 export type PermissionModuleDef = {
   id: string;
   label: string;
   description?: string;
-  children?: { id: string; label: string }[];
+  children?: PermissionChildDef[];
 };
 
-/** Sidebar və səhifələrlə uyğun modul ağacı */
+/**
+ * Hər səhifə / detallı bölmə üçün ayrı CRUD.
+ * Sifariş nümunəsi: siyahı + detal tabları (yük, reys, maliyyə, hesab, sənəd, şərh…).
+ */
 export const PERMISSION_MODULES: PermissionModuleDef[] = [
   {
     id: "sorgular",
     label: "Sorğular",
-    description: "Aktiv / arxiv / qiymət təklifləri",
+    description: "Siyahı, detallar və modal əməliyyatları",
     children: [
-      { id: "active", label: "Aktiv sorğular" },
-      { id: "archive", label: "Arxiv sorğular" },
-      { id: "offers", label: "Qiymət təklifləri" },
+      { id: "active", label: "Aktiv sorğular", group: "Siyahı / tablar" },
+      { id: "archive", label: "Arxiv sorğular", group: "Siyahı / tablar" },
+      { id: "offers", label: "Qiymət təklifləri", group: "Siyahı / tablar" },
+      {
+        id: "detail",
+        label: "Sorğu detalları (əsas)",
+        group: "Detallar",
+        hint: "Detal səhifəsinə giriş və əsas məlumat",
+      },
+      {
+        id: "detail_comments",
+        label: "Şərhlər",
+        group: "Detallar",
+        hint: "Şərh əlavə / sil",
+      },
+      {
+        id: "detail_offers",
+        label: "Qiymət təklifləri (detal)",
+        group: "Detallar",
+      },
+      {
+        id: "detail_documents",
+        label: "Sənədlər",
+        group: "Detallar",
+        hint: "Yükləmə, hazırlama, silmə",
+      },
+      {
+        id: "detail_tasks",
+        label: "Tapşırıqlar (sorğuda)",
+        group: "Detallar",
+      },
     ],
   },
   {
     id: "sifarisler",
     label: "Sifarişlər",
-    description: "Sifariş, yük, reys, əməkhaqqı",
+    description: "Siyahı və sifariş detallarındakı bütün bölmələr",
     children: [
-      { id: "orders", label: "Sifarişlər" },
-      { id: "loads", label: "Yüklər" },
-      { id: "voyages", label: "Reyslər" },
-      { id: "payroll", label: "Əməkhaqqı" },
+      {
+        id: "orders",
+        label: "Sifarişlər siyahısı",
+        group: "Siyahı",
+        hint: "Siyahıya baxış, yeni sifariş, silmə",
+      },
+      {
+        id: "payroll",
+        label: "Əməkhaqqı",
+        group: "Siyahı",
+      },
+      {
+        id: "detail",
+        label: "Sifariş detalları (ümumi)",
+        group: "Detallar",
+        hint: "Detal səhifəsinə giriş, status dəyişmə",
+      },
+      {
+        id: "loads",
+        label: "Yüklər",
+        group: "Detallar",
+        hint: "Yük əlavə / redaktə / sil",
+      },
+      {
+        id: "voyages",
+        label: "Reyslər",
+        group: "Detallar",
+        hint: "Reys əlavə / redaktə / sil",
+      },
+      {
+        id: "finance",
+        label: "Maliyyə",
+        group: "Detallar",
+        hint: "Sifariş maliyyə əməliyyatları",
+      },
+      {
+        id: "documents",
+        label: "Sənədlər",
+        group: "Detallar",
+        hint: "PDF hazırlama, yükləmə, silmə",
+      },
+      {
+        id: "invoices",
+        label: "Hesablar",
+        group: "Detallar",
+        hint: "İrəli / ilkin / alınmış hesablar",
+      },
+      {
+        id: "comments",
+        label: "Şərhlər",
+        group: "Detallar",
+        hint: "Şərh əlavə / sil",
+      },
+      {
+        id: "order_tasks",
+        label: "Tapşırıqlar (sifarişdə)",
+        group: "Detallar",
+        hint: "Sifariş üzrə tapşırıq yaratma / redaktə / sil",
+      },
     ],
   },
   {
     id: "tapshiriqlar",
     label: "Tapşırıqlar",
-    description: "Tapşırıq yaratma, redaktə, silmə",
+    description: "Ümumi tapşırıq lövhəsi",
+    children: [
+      {
+        id: "board",
+        label: "Tapşırıq lövhəsi",
+        group: "Səhifə",
+        hint: "Kanban, yaratma, status, silmə",
+      },
+    ],
   },
   {
     id: "musteriler",
     label: "Müştərilər",
+    description: "Siyahı və müştəri detalları",
+    children: [
+      { id: "list", label: "Müştərilər siyahısı", group: "Siyahı" },
+      {
+        id: "detail",
+        label: "Müştəri detalları",
+        group: "Detallar",
+      },
+      {
+        id: "contacts",
+        label: "Əlaqədar şəxslər",
+        group: "Detallar",
+        hint: "Kontakt əlavə / redaktə / sil",
+      },
+      {
+        id: "finance",
+        label: "Maliyyə / borclar",
+        group: "Detallar",
+      },
+      {
+        id: "documents",
+        label: "Sənədlər",
+        group: "Detallar",
+      },
+    ],
   },
   {
     id: "dasiyicilar",
     label: "Daşıyıcılar",
+    description: "Siyahı və daşıyıcı detalları",
+    children: [
+      { id: "list", label: "Daşıyıcılar siyahısı", group: "Siyahı" },
+      {
+        id: "detail",
+        label: "Daşıyıcı detalları",
+        group: "Detallar",
+      },
+      {
+        id: "contacts",
+        label: "Əlaqədar şəxslər",
+        group: "Detallar",
+      },
+      {
+        id: "finance",
+        label: "Maliyyə / borclar",
+        group: "Detallar",
+      },
+      {
+        id: "documents",
+        label: "Sənədlər",
+        group: "Detallar",
+      },
+    ],
   },
   {
     id: "maliyye",
     label: "Maliyyə",
-    description: "Kasa, bank və hesabat",
+    description: "Kasa, bank, əməliyyatlar və hesabat",
     children: [
-      { id: "kasa", label: "Kassam" },
-      { id: "bank", label: "Bank hesabı" },
-      { id: "hesabat", label: "Maliyyə hesabatı" },
+      { id: "kasa", label: "Kassam", group: "Cüzdanlar" },
+      { id: "bank", label: "Bank hesabı", group: "Cüzdanlar" },
+      { id: "umumi", label: "Ümumi", group: "Cüzdanlar" },
+      {
+        id: "transactions",
+        label: "Əməliyyatlar",
+        group: "Əməliyyatlar",
+        hint: "Yeni əməliyyat (müştəri/daşıyıcı ödənişi)",
+      },
+      {
+        id: "expenses",
+        label: "Birbaşa xərclər",
+        group: "Əməliyyatlar",
+        hint: "Xərc yaratma / redaktə / sil",
+      },
+      {
+        id: "hesabat",
+        label: "Hesabatlar",
+        group: "Hesabat",
+      },
     ],
   },
   {
@@ -73,11 +241,11 @@ export const PERMISSION_MODULES: PermissionModuleDef[] = [
     label: "Parametrlər",
     description: "İstifadəçilər, sənədlər, loglar və s.",
     children: [
-      { id: "users", label: "İstifadəçilər" },
-      { id: "cash", label: "Kassa / Bank" },
-      { id: "lookups", label: "Lookup parametrləri" },
-      { id: "documents", label: "Sənədlər" },
-      { id: "logs", label: "Loglar" },
+      { id: "users", label: "İstifadəçilər", group: "Parametrlər" },
+      { id: "cash", label: "Kassa / Bank", group: "Parametrlər" },
+      { id: "lookups", label: "Lookup parametrləri", group: "Parametrlər" },
+      { id: "documents", label: "Sənəd şablonları", group: "Parametrlər" },
+      { id: "logs", label: "Loglar", group: "Parametrlər" },
     ],
   },
 ];
@@ -134,8 +302,16 @@ export function parseUserPermissions(raw: unknown): UserPermissions {
       next.children = {};
       for (const child of mod.children) {
         const csrc = src.children?.[child.id] || src[child.id] || {};
+        const hasExplicit =
+          csrc &&
+          typeof csrc === "object" &&
+          ("view" in csrc ||
+            "create" in csrc ||
+            "edit" in csrc ||
+            "delete" in csrc);
         next.children[child.id] = {
-          view: Boolean(csrc.view ?? src.view),
+          // Köhnə qeydlərdə yoxdursa parent view-dan miras; create/edit/delete default false
+          view: Boolean(hasExplicit ? csrc.view : (csrc.view ?? src.view)),
           create: Boolean(csrc.create ?? false),
           edit: Boolean(csrc.edit ?? false),
           delete: Boolean(csrc.delete ?? false),
@@ -167,9 +343,7 @@ export function setModuleAction(
     if (!mod.children) mod.children = {};
     if (!mod.children[childId]) mod.children[childId] = emptyCrud(false);
     mod.children[childId][action] = value;
-    // Alt-da view açılanda parent view də açılsın
     if (action === "view" && value) mod.view = true;
-    // Parent view bağlıdırsa alt create/edit/delete mənasızdır — view açıq olmalıdır
     if (action !== "view" && value) {
       mod.children[childId].view = true;
       mod.view = true;
@@ -191,7 +365,6 @@ export function setModuleAction(
   if (action !== "view" && value) {
     mod.view = true;
   }
-  // Parent create/edit/delete → children-ə yay (əlaqəli sistem)
   if (action !== "view" && mod.children) {
     for (const key of Object.keys(mod.children)) {
       mod.children[key][action] = value;
@@ -211,4 +384,37 @@ export function setModuleAll(
     next = setModuleAction(next, moduleId, a.key, value);
   }
   return next;
+}
+
+export function setChildAll(
+  perms: UserPermissions,
+  moduleId: string,
+  childId: string,
+  value: boolean,
+): UserPermissions {
+  let next = perms;
+  for (const a of CRUD_ACTIONS) {
+    next = setModuleAction(next, moduleId, a.key, value, childId);
+  }
+  return next;
+}
+
+/** Səhifə / bölmə icazəsi yoxlama */
+export function can(
+  perms: UserPermissions | null | undefined,
+  moduleId: string,
+  action: CrudAction,
+  childId?: string,
+): boolean {
+  if (!perms) return false;
+  const mod = perms[moduleId];
+  if (!mod) return false;
+  if (!mod.view && action !== "view") return false;
+  if (childId) {
+    const child = mod.children?.[childId];
+    if (!child) return false;
+    if (!child.view && action !== "view") return false;
+    return Boolean(child[action]);
+  }
+  return Boolean(mod[action]);
 }

@@ -121,7 +121,7 @@ const NAV_SECTIONS: NavSection[] = [
       },
       {
         id: "maliyye-hesabat",
-        label: "Maliyyə hesabatı",
+        label: "Hesabatlar",
         icon: <FaChartBar />,
         to: "/maliyye/hesabat",
       },

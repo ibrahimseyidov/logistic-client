@@ -1,3 +1,6 @@
+import { resolveCargoItemsFromInitialValues } from "../../sorgular/lib/cargoForm.utils";
+import { parseCompositePlace } from "./yukPrefill.utils";
+
 function parseRawPayload(rawPayloadJson?: string | null): Record<string, any> {
   if (!rawPayloadJson) return {};
   try {
@@ -21,12 +24,18 @@ function toInputDate(value: unknown): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function formatVoyageLabel(voyage: unknown): string {
-  if (!voyage) return "—";
-  if (typeof voyage === "string") return voyage || "—";
-  if (typeof voyage === "object") {
+export function formatVoyageLabel(voyage: unknown, voyageId?: unknown): string {
+  if (voyage && typeof voyage === "object") {
     const v = voyage as { tripRef?: string; id?: number | string };
-    return v.id ? `R-${v.id}` : "—";
+    if (v.id != null && String(v.id).trim() !== "") return `R-${v.id}`;
+    if (v.tripRef) return String(v.tripRef);
+  }
+  if (typeof voyage === "string") {
+    const text = voyage.trim();
+    if (text && text !== "—") return text;
+  }
+  if (voyageId != null && String(voyageId).trim() !== "") {
+    return `R-${voyageId}`;
   }
   return "—";
 }
@@ -64,23 +73,44 @@ function placeFromQuery(query: any, kind: "load" | "unload"): string {
     .join(", ");
 }
 
+function packagingFromQuery(query: any): string {
+  if (!query) return "";
+  const items = resolveCargoItemsFromInitialValues(query);
+  const first = items[0];
+  const pack = first?.packagingRows?.[0];
+  return (
+    displayValue(pack?.packagingType) ||
+    displayValue((first as any)?.packagingType) ||
+    ""
+  );
+}
+
 export function mapLoadRow(load: any, order?: any) {
   const raw = parseRawPayload(load.rawPayloadJson);
   const query = order?.query;
   const firstLp = Array.isArray(raw.loadingPlaces) ? raw.loadingPlaces[0] : null;
   const firstUp = Array.isArray(raw.unloadingPlaces) ? raw.unloadingPlaces[0] : null;
   const firstParam = Array.isArray(raw.parameters) ? raw.parameters[0] : null;
+  const parsedLoad = parseCompositePlace(
+    query?.loadPlace || load.loadPlace || raw.loadPlace,
+  );
+  const parsedUnload = parseCompositePlace(
+    query?.unloadPlace || load.unloadPlace || raw.unloadPlace,
+  );
 
   const packagingType =
     displayValue(load.packagingType) ||
     displayValue(raw.packagingType) ||
-    displayValue(firstParam?.packagingType);
+    displayValue(firstParam?.packagingType) ||
+    packagingFromQuery(query);
 
   const loadPlace =
     displayValue(load.loadPlace) ||
     displayValue(raw.loadPlace) ||
     (firstLp
-      ? [firstLp.company, firstLp.city, firstLp.address].filter((part) => displayValue(part)).join(", ")
+      ? [firstLp.company, firstLp.city, firstLp.address]
+          .filter((part) => displayValue(part))
+          .join(", ")
       : "") ||
     placeFromQuery(query, "load") ||
     "—";
@@ -89,7 +119,9 @@ export function mapLoadRow(load: any, order?: any) {
     displayValue(load.unloadPlace) ||
     displayValue(raw.unloadPlace) ||
     (firstUp
-      ? [firstUp.company, firstUp.city, firstUp.address].filter((part) => displayValue(part)).join(", ")
+      ? [firstUp.company, firstUp.city, firstUp.address]
+          .filter((part) => displayValue(part))
+          .join(", ")
       : "") ||
     placeFromQuery(query, "unload") ||
     "—";
@@ -101,6 +133,7 @@ export function mapLoadRow(load: any, order?: any) {
     displayValue(firstLp?.company) ||
     displayValue(query?.sender) ||
     displayValue(query?.loadPlaceCompany) ||
+    displayValue(parsedLoad.company) ||
     "—";
 
   const receiver =
@@ -110,6 +143,7 @@ export function mapLoadRow(load: any, order?: any) {
     displayValue(firstUp?.company) ||
     displayValue(query?.recipient) ||
     displayValue(query?.unloadPlaceCompany) ||
+    displayValue(parsedUnload.company) ||
     "—";
 
   const loadDate =
@@ -128,7 +162,9 @@ export function mapLoadRow(load: any, order?: any) {
 
   const containerNumber =
     displayValue(load.containerNumber) ||
+    displayValue(load.trackingNumber) ||
     displayValue(raw.containerNumber) ||
+    displayValue(raw.trackingNumber) ||
     "—";
 
   const weightKg = load.weightKg ?? raw.weight ?? firstParam?.weight;
@@ -138,11 +174,16 @@ export function mapLoadRow(load: any, order?: any) {
   return {
     ...load,
     number: load.id ? `Y-${load.id}` : "—",
-    name: displayValue(load.cargoName) || displayValue(raw.name) || "—",
+    name:
+      displayValue(load.cargoName) ||
+      displayValue(raw.name) ||
+      displayValue(query?.cargoComposition) ||
+      "—",
     containerNumber,
     params: buildParamsText(packagingType, ldm, volumeM3, weightKg),
     packagingType: packagingType || "—",
-    voyageLabel: formatVoyageLabel(load.voyage),
+    voyageId: load.voyageId ?? load.voyage?.id ?? null,
+    voyageLabel: formatVoyageLabel(load.voyage, load.voyageId),
     sender,
     receiver,
     loadPlace,

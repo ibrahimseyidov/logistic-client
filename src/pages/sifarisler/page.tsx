@@ -85,7 +85,6 @@ import type {
 import { emptySifarisFilter } from "./types/sifaris.types";
 import type { YukFilterFormState, YukFilterSectionId } from "./types/yuk.types";
 import { emptyYukFilter } from "./types/yuk.types";
-import { YUK_USER_OPTIONS } from "./constants/yuk.constants";
 import type {
   ReysFilterFormState,
   ReysFilterSectionId,
@@ -105,6 +104,7 @@ import {
   sumOrderCargoTotals,
 } from "./lib/orderCargoDisplay";
 import { resolveOfferExpenseFallbackAzn, resolveOfferSalesTotalSummary } from "./lib/offerExpense.utils";
+import { resolveOrderDocFlags } from "./lib/orderDocFlags";
 
 const YUK_ACCOUNT_OPTIONS: SelectOption[] = [
   { value: "", label: "Təfərrüatlı hesab irəli sür" },
@@ -157,16 +157,27 @@ export default function SifarislerPage() {
             const voyages = o.voyages || [];
             const cargoItems = resolveOrderCargoItems(o);
             const totals = sumOrderCargoTotals(o);
+            const docFlags = resolveOrderDocFlags(o);
             return {
               ...o,
+              ...docFlags,
               queryNumber: o.query?.number || "—",
               queryDate: formatDateOnly(o.query?.createdAt),
               orderDateIso: toDateIso(o.orderDate),
               orderDate: formatDateOnly(o.orderDate),
+              actCreatedAt: toDateIso(o.actCreatedAt) || o.actCreatedAt || "",
+              actDate: toDateIso(o.actDate) || o.actDate || "",
+              cmrUnloadDate: toDateIso(o.cmrUnloadDate) || o.cmrUnloadDate || "",
+              invoicedDate: toDateIso(o.invoicedDate) || o.invoicedDate || "",
               customer: o.customerName || "—",
+              manager: o.manager || "",
+              expeditor: o.expeditor || "",
+              extraManagers: o.extraManagers || "",
+              customerType: o.customerType || o.customer?.type || "",
               voyageNumber: voyages.length > 0 ? voyages.map((v: any) => (v.id ? `R-${v.id}` : "—")).join(", ") : "—",
               carriers: voyages.length > 0 ? voyages.map((v: any) => v.carrier || "—").join(", ") : "—",
               route: voyages.length > 0 ? voyages.map((v: any) => `${v.loading || "—"} → ${v.unloading || "—"}`).join(" | ") : "—",
+              voyages,
               cargoItems,
               cargoParams: formatCargoParamsText(cargoItems),
               weightKg: totals.weightKg || Number(o.weightKg) || 0,
@@ -217,9 +228,16 @@ export default function SifarislerPage() {
           const res = await axios.get(ENDPOINTS.VOYAGES.BASE, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } }).catch(() => ({ data: [] }));
           const mapped = (res.data || []).map((v: any) => ({
             ...v,
-            tripRef: v.id ? `R-${v.id}` : "—",
+            tripRef: v.tripRef || (v.id ? `R-${v.id}` : "—"),
             orderRef: v.order?.orderNumber || "—",
-            orderDate: v.order?.orderDate ? new Date(v.order.orderDate).toLocaleDateString("az-AZ") : "—"
+            orderDate: v.order?.orderDate
+              ? formatDateOnly(v.order.orderDate)
+              : "—",
+            orderDateIso: toDateIso(v.order?.orderDate),
+            tripDateIso: toDateIso(v.tripDateIso || v.loadDate || v.createdAt),
+            company: v.company || v.order?.company || "—",
+            transportMode: v.transportMode || "auto",
+            valueAzn: Number(v.valueAzn) || 0,
           }));
           setReysler(mapped);
         } else if (subTab === "loads") {
@@ -233,12 +251,51 @@ export default function SifarislerPage() {
             cargoNumber: l.id ? `Y-${l.id}` : "—",
             company: l.order?.company || "—",
             customer: l.order?.customerName || "—",
-            carrier: l.voyage?.carrier || "—"
+            carrier: l.voyage?.carrier || "—",
+            userLabel:
+              l.order?.manager ||
+              l.createdByName ||
+              l.user ||
+              l.order?.expeditor ||
+              "",
+            loadDate: toDateIso(l.loadDate) || l.loadDate || "",
+            unloadDate: toDateIso(l.unloadDate) || l.unloadDate || "",
+            weightKg: Number(l.weightKg) || 0,
+            volumeM3: Number(l.volumeM3) || 0,
+            ldm: Number(l.ldm) || 0,
           }));
           setYukler(mapped);
         } else if (subTab === "payroll") {
           const res = await axios.get(ENDPOINTS.PAYROLLS.BASE, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } }).catch(() => ({ data: [] }));
-          setEmekler(res.data || []);
+          const mapped = (res.data || []).map((p: any) => {
+            const order = p.order || {};
+            return {
+              ...p,
+              id: String(p.id),
+              kind: p.kind === "voyage" ? "voyage" : "order",
+              orderNumber: p.orderNumber || order.orderNumber || "—",
+              orderDate: formatDateOnly(p.orderDate || order.orderDate),
+              orderDateIso: toDateIso(p.orderDate || order.orderDate),
+              orderStatus: p.orderStatus || order.statusLabel || "—",
+              customer: p.customer || order.customerName || "—",
+              carrier: p.carrier || order.carriers || "—",
+              company: p.company || order.company || "—",
+              tripNumber: p.tripNumber || order.voyageNumber || "—",
+              paymentDate: toDateIso(p.paymentDate) || "",
+              actCreatedAt: toDateIso(order.actCreatedAt) || "",
+              actDate: toDateIso(order.actDate) || "",
+              loadDate: toDateIso(order.cmrUnloadDate) || "",
+              unloadDate: toDateIso(order.cmrUnloadDate) || "",
+              customerType: p.customerType || order.customerType || "",
+              profitAzn: Number(p.profitAzn) || Number(order.profitAzn) || 0,
+              totalBonusAzn: Number(p.totalBonusAzn) || 0,
+              rewardAmount: Number(p.rewardAmount) || 0,
+              expensesAzn: Number(p.expensesAzn) || Number(p.amountAzn) || 0,
+              revenuePct: Number(p.revenuePct) || 0,
+              bonusPct: Number(p.bonusPct) || 0,
+            };
+          });
+          setEmekler(mapped);
         }
       } catch (e) {
         console.error("Data fetch error:", e);
@@ -399,8 +456,8 @@ export default function SifarislerPage() {
   }, []);
 
   const onFilterChange = useCallback(
-    (field: keyof SifarisFilterFormState, value: string) => {
-      setFilterDraft((prev) => ({ ...prev, [field]: value }));
+    (field: keyof SifarisFilterFormState, value: string | boolean) => {
+      setFilterDraft((prev) => ({ ...prev, [field]: value as never }));
     },
     [],
   );
@@ -427,12 +484,46 @@ export default function SifarislerPage() {
   );
 
   const companyOptions: SelectOption[] = useMemo(() => {
-    const names = [...new Set(orders.map((r) => r.company))].sort();
+    const names = [...new Set(orders.map((r) => r.company).filter(Boolean))].sort();
     return [
       { value: "", label: "Hamısı" },
       ...names.map((n) => ({ value: n, label: n })),
     ];
   }, [orders]);
+
+  const managerOptions: SelectOption[] = useMemo(() => {
+    const names = [
+      ...new Set(orders.map((r) => r.manager).filter((n) => n && n !== "—")),
+    ].sort();
+    return [
+      { value: "", label: "Hamısı" },
+      ...names.map((n) => ({ value: String(n), label: String(n) })),
+    ];
+  }, [orders]);
+
+  const expeditorOptions: SelectOption[] = useMemo(() => {
+    const names = [
+      ...new Set(orders.map((r) => r.expeditor).filter((n) => n && n !== "—")),
+    ].sort();
+    return [
+      { value: "", label: "Hamısı" },
+      ...names.map((n) => ({ value: String(n), label: String(n) })),
+    ];
+  }, [orders]);
+
+  const yukUserOptions: SelectOption[] = useMemo(() => {
+    const names = [
+      ...new Set(
+        yukler
+          .map((r) => r.userLabel)
+          .filter((n) => n && String(n).trim() && n !== "—"),
+      ),
+    ].sort();
+    return [
+      { value: "", label: "Hamısı" },
+      ...names.map((n) => ({ value: String(n), label: String(n) })),
+    ];
+  }, [yukler]);
 
   const reysCompanyOptions: SelectOption[] = useMemo(() => {
     const names = [...new Set(reysler.map((r) => r.company))].sort();
@@ -1207,7 +1298,12 @@ export default function SifarislerPage() {
             filter={filterDraft}
             onFilterChange={onFilterChange}
             companyOptions={companyOptions}
-            onClose={() => setOpenFilterPanel(null)}
+            managerOptions={managerOptions}
+            expeditorOptions={expeditorOptions}
+            onClose={() => {
+              setFilterDraft({ ...appliedFilter });
+              setOpenFilterPanel(null);
+            }}
             onClear={handleClear}
             onApplyFilter={handleApplyFilter}
             onSaveTemplate={handleSaveTemplate}
@@ -1222,8 +1318,11 @@ export default function SifarislerPage() {
             toggleSection={toggleYukSection}
             filter={yukFilterDraft}
             onFilterChange={onYukFilterChange}
-            userOptions={YUK_USER_OPTIONS}
-            onClose={() => setOpenFilterPanel(null)}
+            userOptions={yukUserOptions}
+            onClose={() => {
+              setYukFilterDraft({ ...yukAppliedFilter });
+              setOpenFilterPanel(null);
+            }}
             onClear={handleYukClear}
             onApplyFilter={handleYukApplyFilter}
             onSaveTemplate={handleYukSaveTemplate}
@@ -1237,7 +1336,10 @@ export default function SifarislerPage() {
             filter={reysFilterDraft}
             onFilterChange={onReysFilterChange}
             companyOptions={reysCompanyOptions}
-            onClose={() => setOpenFilterPanel(null)}
+            onClose={() => {
+              setReysFilterDraft({ ...reysAppliedFilter });
+              setOpenFilterPanel(null);
+            }}
             onSaveTemplate={handleReysSaveTemplate}
             onClear={handleReysClear}
             onApplyFilter={handleReysApplyFilter}
@@ -1253,7 +1355,10 @@ export default function SifarislerPage() {
             companyOptions={emekCompanyOptions}
             customerOptions={emekCustomerOptions}
             carrierOptions={emekCarrierOptions}
-            onClose={() => setOpenFilterPanel(null)}
+            onClose={() => {
+              setEmekFilterDraft({ ...emekAppliedFilter });
+              setOpenFilterPanel(null);
+            }}
             onSaveTemplate={handleEmekSaveTemplate}
             onClear={handleEmekClear}
             onApplyFilter={handleEmekApplyFilter}

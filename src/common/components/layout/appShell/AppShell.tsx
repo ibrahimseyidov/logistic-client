@@ -19,7 +19,7 @@ const headerTitles: Record<string, string> = {
   "/musteriler": "Müştərilər",
   "/dasiyicilar": "Daşıyıcılar",
   "/maliyye": "Maliyyə",
-  "/maliyye/hesabat": "Maliyyə hesabatı",
+  "/maliyye/hesabat": "Hesabatlar",
 };
 
 function resolveHeaderTitle(pathname: string, search: string): string {
@@ -29,7 +29,7 @@ function resolveHeaderTitle(pathname: string, search: string): string {
   if (path.startsWith("/sifarisler/")) return "Sifariş detalı";
   if (path.startsWith("/musteriler/")) return "Müştəri detalı";
   if (path.startsWith("/dasiyicilar/")) return "Daşıyıcı detalı";
-  if (path === "/maliyye/hesabat") return "Maliyyə hesabatı";
+  if (path === "/maliyye/hesabat") return "Hesabatlar";
 
   if (path.startsWith("/ayarlar")) {
     const tab = parseAyarlarTab(new URLSearchParams(search).get("tab"));

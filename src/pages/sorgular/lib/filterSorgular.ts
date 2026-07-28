@@ -2,21 +2,39 @@ import type {
   FilterFormState,
   LogisticQueryRow,
   SorguSubTab,
-  SorguStatus,
 } from "../types/sorgu.types";
 
-function dayOnly(iso: string): string {
-  const d = new Date(iso);
+/** Local YYYY-MM-DD — UTC ilə gün sürüşməsinin qarşısını alır */
+function dayOnly(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const raw = String(iso).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function inRange(value: string, from: string, to: string): boolean {
   if (!from && !to) return true;
+  if (!value) return false;
   const v = value.slice(0, 10);
   if (from && v < from) return false;
   if (to && v > to) return false;
   return true;
+}
+
+function includesText(
+  haystack: string | null | undefined,
+  needle: string | null | undefined,
+): boolean {
+  const n = String(needle || "").trim().toLowerCase();
+  if (!n) return true;
+  return String(haystack || "")
+    .toLowerCase()
+    .includes(n);
 }
 
 export function filterByTab(
@@ -28,7 +46,10 @@ export function filterByTab(
   }
   if (tab === "archive") {
     return rows.filter(
-      (r) => r.status === "cancelled" || r.status === "completed" || r.status === "approved",
+      (r) =>
+        r.status === "cancelled" ||
+        r.status === "completed" ||
+        r.status === "approved",
     );
   }
   if (tab === "offers") {
@@ -36,14 +57,11 @@ export function filterByTab(
     rows.forEach((r) => {
       const items = (r as any).priceOfferItems;
       if (Array.isArray(items) && items.length > 0) {
-        items.forEach((off, idx) => {
+        items.forEach((off: any, idx: number) => {
           offerRows.push({
             ...r,
-            // Virtual ID to avoid duplicate keys in table
             id: `${r.id}-off-${idx}`,
-            // Override priceOffers to show specific offer info
             priceOffers: `${off.carrierName}: ${off.price} ${off.currency}`,
-            // Store original ID and offer item for specialized table
             originalId: r.id,
             offerItem: off,
           } as any);
@@ -60,41 +78,31 @@ export function applyFilters(
   f: FilterFormState,
 ): LogisticQueryRow[] {
   return rows.filter((r) => {
-    if (
-      f.queryNumber.trim() &&
-      !r.number.toLowerCase().includes(f.queryNumber.trim().toLowerCase())
-    ) {
+    if (!includesText(r.number, f.queryNumber)) return false;
+    if (!includesText(r.customerOrderRef, f.customerOrderRef)) return false;
+    if (f.company && String(r.company || "") !== f.company) return false;
+    if (!includesText(r.customer, f.customerName)) return false;
+    if (!includesText(r.loadPlace, f.loadPlace)) return false;
+    if (!includesText(r.unloadPlace, f.unloadPlace)) return false;
+
+    if (!inRange(dayOnly(r.createdAt), f.queryDateFrom, f.queryDateTo)) {
+      return false;
+    }
+    if (!inRange(dayOnly(r.loadDate), f.loadDateFrom, f.loadDateTo)) {
+      return false;
+    }
+    if (!inRange(dayOnly(r.unloadDate), f.unloadDateFrom, f.unloadDateTo)) {
       return false;
     }
     if (
-      f.customerOrderRef.trim() &&
-      !r.customerOrderRef
-        .toLowerCase()
-        .includes(f.customerOrderRef.trim().toLowerCase())
+      !inRange(
+        dayOnly(r.statusAssignedAt),
+        f.statusDateFrom,
+        f.statusDateTo,
+      )
     ) {
       return false;
     }
-    if (f.company && r.company !== f.company) return false;
-    if (
-      f.customerName.trim() &&
-      !r.customer.toLowerCase().includes(f.customerName.trim().toLowerCase())
-    ) {
-      return false;
-    }
-    if (
-      f.loadPlace.trim() &&
-      !r.loadPlace.toLowerCase().includes(f.loadPlace.trim().toLowerCase())
-    ) {
-      return false;
-    }
-    if (
-      f.unloadPlace.trim() &&
-      !r.unloadPlace.toLowerCase().includes(f.unloadPlace.trim().toLowerCase())
-    ) {
-      return false;
-    }
-    const created = dayOnly(r.createdAt);
-    if (!inRange(created, f.queryDateFrom, f.queryDateTo)) return false;
     return true;
   });
 }

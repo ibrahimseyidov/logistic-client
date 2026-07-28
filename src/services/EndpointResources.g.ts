@@ -63,6 +63,7 @@ export const ENDPOINTS = {
   INVOICES: {
     BASE: `${API}/invoices`,
     BY_ID: (id: number) => `${API}/invoices/${id}`,
+    UPLOAD: `${API}/invoices/upload`,
   },
   TASK: {
     BASE: `${API}/task`,

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import styles from "./maliyye.module.css";
-import { FiPlus, FiEdit2, FiTrash2 } from "react-icons/fi";
+import drawerStyles from "../sorgular/sorgular.module.css";
+import { FiFilter, FiPlus, FiEdit2, FiTrash2 } from "react-icons/fi";
 import {
   fetchFinanceTransactionsAction,
   createFinanceTransactionAction,
@@ -10,16 +11,27 @@ import {
   deleteFinanceTransactionAction,
 } from "../../common/actions/finance.actions";
 import Loading from "../../common/components/loading/Loading";
+import type { SelectOption } from "../../common/components/select/Select";
 import FinanceModal from "./FinanceModal";
+import SimpleExpenseModal from "./SimpleExpenseModal";
+import MaliyyeFiltersDrawer from "./MaliyyeFiltersDrawer";
 import SorgularPagination from "../sorgular/components/SorgularPagination";
 import {
   type CashWallet,
+  type WalletTab,
   SYSTEM_PARTNER_LABEL,
   isIncomeTx,
+  isSimpleExpenseTx,
   isSystemBalanceAdjustment,
   resolveTxCashAzn,
-  txMatchesWallet,
+  txMatchesWalletTab,
 } from "./lib/financeWallet.utils";
+import {
+  applyMaliyyeFilters,
+  countActiveMaliyyeFilters,
+  emptyMaliyyeFilter,
+  type MaliyyeFilterState,
+} from "./lib/filterMaliyye";
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
@@ -42,16 +54,61 @@ function formatDateOnly(value?: string | null) {
   return d.toLocaleDateString("az-AZ");
 }
 
+function partnerLabel(tx: any): string {
+  if (isSystemBalanceAdjustment(tx)) return SYSTEM_PARTNER_LABEL;
+  return (
+    tx.customer?.name ||
+    tx.customer?.company ||
+    tx.carrier?.name ||
+    tx.carrier?.companyName ||
+    tx.partner ||
+    ""
+  );
+}
+
+/** Cədvəl üçün sənəd tipi — kateqoriya və ya ad əsasında */
+function resolveDocType(tx: any): string {
+  const cat = String(tx?.category || "").trim();
+  if (cat) return cat;
+  const name = String(tx?.name || "").trim();
+  if (/balans\s*düzəlişi|balans\s*duzelisi/i.test(name)) {
+    return isIncomeTx(tx) ? "Kassa düzəlişi — mədaxil" : "Kassa düzəlişi — məxaric";
+  }
+  if (isSimpleExpenseTx(tx)) return "Ümumi xərc";
+  if (isIncomeTx(tx)) return "Gəlir";
+  return "Xərc";
+}
+
+/** Sənəd tipi badge — bütün xərclər eyni rəng (kateqoriya adından asılı deyil) */
+function docTypeBadgeClass(docType: string, isIncome: boolean): string {
+  const t = docType.toLowerCase();
+  if (t.includes("düzəliş") || t.includes("duzelis") || t.includes("balans")) {
+    return "docTypeAdjustment";
+  }
+  // Xərc sətirləri: Kommunal, Əməkhaqqı, Ümumi xərc, Daşıyıcı ödənişi — hamısı eyni
+  if (!isIncome) return "docTypeExpense";
+  if (t.includes("müştəri") || t.includes("mustəri")) return "docTypeCustomer";
+  if (t.includes("daşıyıcı") || t.includes("dasiyici")) return "docTypeCarrier";
+  return "docTypeDefault";
+}
+
 const PAGE_SIZE = 10;
 
 export default function MaliyyePage() {
-  const [walletTab, setWalletTab] = useState<CashWallet>("Kasa");
+  const [walletTab, setWalletTab] = useState<WalletTab>("Kasa");
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<any>(null);
+
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+  const [filterDraft, setFilterDraft] =
+    useState<MaliyyeFilterState>(emptyMaliyyeFilter);
+  const [appliedFilter, setAppliedFilter] =
+    useState<MaliyyeFilterState>(emptyMaliyyeFilter);
 
   const loadData = async () => {
     setLoading(true);
@@ -69,16 +126,30 @@ export default function MaliyyePage() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (!isFilterPanelOpen) return undefined;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsFilterPanelOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isFilterPanelOpen]);
+
   const walletTxs = useMemo(
-    () => transactions.filter((tx) => txMatchesWallet(tx, walletTab)),
+    () => transactions.filter((tx) => txMatchesWalletTab(tx, walletTab)),
     [transactions, walletTab],
+  );
+
+  const filteredTxs = useMemo(
+    () => applyMaliyyeFilters(walletTxs, appliedFilter),
+    [walletTxs, appliedFilter],
   );
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [walletTab]);
+  }, [walletTab, appliedFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(walletTxs.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredTxs.length / PAGE_SIZE));
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -86,8 +157,8 @@ export default function MaliyyePage() {
 
   const pagedTxs = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
-    return walletTxs.slice(start, start + PAGE_SIZE);
-  }, [walletTxs, currentPage]);
+    return filteredTxs.slice(start, start + PAGE_SIZE);
+  }, [filteredTxs, currentPage]);
 
   const getVisiblePages = () => {
     if (totalPages <= 7) {
@@ -114,7 +185,7 @@ export default function MaliyyePage() {
     let totalIn = 0;
     let totalOut = 0;
 
-    walletTxs.forEach((tx) => {
+    filteredTxs.forEach((tx) => {
       const azn = resolveTxCashAzn(tx);
       if (!(azn > 0)) return;
       if (isIncomeTx(tx)) totalIn += azn;
@@ -126,7 +197,87 @@ export default function MaliyyePage() {
       totalOut,
       balance: totalIn - totalOut,
     };
+  }, [filteredTxs]);
+
+  const categoryOptions: SelectOption[] = useMemo(() => {
+    const names = [
+      ...new Set(
+        walletTxs
+          .map((tx) => String(tx.category || "").trim())
+          .filter(Boolean),
+      ),
+    ].sort((a, b) => a.localeCompare(b, "az"));
+    return [
+      { value: "", label: "Hamısı" },
+      ...names.map((name) => ({ value: name, label: name })),
+    ];
   }, [walletTxs]);
+
+  const knownExpenseCategories = useMemo(
+    () =>
+      [
+        ...new Set(
+          transactions
+            .filter((tx) => !isIncomeTx(tx))
+            .map((tx) => String(tx.category || "").trim())
+            .filter(Boolean),
+        ),
+      ].sort((a, b) => a.localeCompare(b, "az")),
+    [transactions],
+  );
+
+  const partnerOptions: SelectOption[] = useMemo(() => {
+    const names = [
+      ...new Set(
+        walletTxs
+          .map((tx) => partnerLabel(tx).trim())
+          .filter((name) => name && name !== "—"),
+      ),
+    ].sort((a, b) => a.localeCompare(b, "az"));
+    return [
+      { value: "", label: "Hamısı" },
+      ...names.map((name) => ({ value: name, label: name })),
+    ];
+  }, [walletTxs]);
+
+  const createdByOptions: SelectOption[] = useMemo(() => {
+    const names = [
+      ...new Set(
+        walletTxs
+          .map((tx) => String(tx.createdByName || tx.user || "").trim())
+          .filter(Boolean),
+      ),
+    ].sort((a, b) => a.localeCompare(b, "az"));
+    return [
+      { value: "", label: "Hamısı" },
+      ...names.map((name) => ({ value: name, label: name })),
+    ];
+  }, [walletTxs]);
+
+  const activeFilterCount = useMemo(
+    () => countActiveMaliyyeFilters(appliedFilter),
+    [appliedFilter],
+  );
+
+  const onFilterChange = useCallback(
+    (field: keyof MaliyyeFilterState, value: string) => {
+      setFilterDraft((prev) => ({ ...prev, [field]: value }));
+    },
+    [],
+  );
+
+  const handleApplyFilter = () => {
+    setAppliedFilter({ ...filterDraft });
+    setCurrentPage(1);
+    setIsFilterPanelOpen(false);
+  };
+
+  const handleClearFilter = () => {
+    const empty = emptyMaliyyeFilter();
+    setFilterDraft(empty);
+    setAppliedFilter(empty);
+    setCurrentPage(1);
+  };
 
   const handleSave = async (data: any) => {
     try {
@@ -137,7 +288,9 @@ export default function MaliyyePage() {
       }
       const payload = {
         ...data,
-        paymentMethod: data.paymentMethod || walletTab,
+        paymentMethod:
+          data.paymentMethod ||
+          (walletTab === "Umumi" ? "Kasa" : walletTab),
         amount: Number(data.amount) || 0,
         category: data.category || undefined,
       };
@@ -147,6 +300,7 @@ export default function MaliyyePage() {
         await createFinanceTransactionAction(payload);
       }
       setIsModalOpen(false);
+      setIsExpenseModalOpen(false);
       setEditingTx(null);
       loadData();
     } catch {
@@ -168,8 +322,15 @@ export default function MaliyyePage() {
   if (loading && transactions.length === 0) return <Loading />;
 
   const isKasa = walletTab === "Kasa";
+  const isBank = walletTab === "Bank";
+  const isUmumi = walletTab === "Umumi";
+  const defaultWallet: CashWallet = isBank ? "Bank" : "Kasa";
   const fmt = (n: number) =>
     n.toLocaleString("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const emptyMessage =
+    activeFilterCount > 0
+      ? "Filterə uyğun əməliyyat yoxdur"
+      : "Bu bölmədə əməliyyat yoxdur";
 
   return (
     <div className={styles.page}>
@@ -184,10 +345,17 @@ export default function MaliyyePage() {
           </button>
           <button
             type="button"
-            className={`${styles.walletTab} ${!isKasa ? styles.walletTabActive : ""}`}
+            className={`${styles.walletTab} ${isBank ? styles.walletTabActive : ""}`}
             onClick={() => setWalletTab("Bank")}
           >
             Bank hesabı
+          </button>
+          <button
+            type="button"
+            className={`${styles.walletTab} ${isUmumi ? styles.walletTabActive : ""}`}
+            onClick={() => setWalletTab("Umumi")}
+          >
+            Ümumi
           </button>
         </div>
       </div>
@@ -196,31 +364,59 @@ export default function MaliyyePage() {
         <div className={styles.kasaHeaderRow}>
           <div>
             <h2 className={styles.kasaTitle}>
-              {isKasa ? "Kassam" : "Bank hesabı"}
+              {isUmumi ? "Ümumi" : isKasa ? "Kassam" : "Bank hesabı"}
             </h2>
             <p className={styles.kasaHint}>
-              {isKasa
-                ? "Yalnız kasaya girən, çıxan və hazırkı kassa məbləği"
-                : "Yalnız banka girən, çıxan və hazırkı bank qalığı"}
+              {isUmumi
+                ? "Kasa və bank əməliyyatlarının birgə görünüşü"
+                : isKasa
+                  ? "Yalnız kasaya girən, çıxan və hazırkı kassa məbləği"
+                  : "Yalnız banka girən, çıxan və hazırkı bank qalığı"}
             </p>
           </div>
-          <button
-            type="button"
-            className={styles.kasaAddBtn}
-            onClick={() => {
-              setEditingTx(null);
-              setIsModalOpen(true);
-            }}
-          >
-            <FiPlus />
-            Yeni əməliyyat
-          </button>
+          <div className={styles.kasaHeaderActions}>
+            <button
+              type="button"
+              className={styles.kasaFilterBtn}
+              onClick={() => {
+                setFilterDraft({ ...appliedFilter });
+                setIsFilterPanelOpen(true);
+              }}
+            >
+              <FiFilter />
+              Filtrlər
+              {activeFilterCount > 0 ? (
+                <span className={styles.filterBadge}>{activeFilterCount}</span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              className={styles.kasaExpenseBtn}
+              onClick={() => {
+                setEditingTx(null);
+                setIsExpenseModalOpen(true);
+              }}
+            >
+              Xərc
+            </button>
+            <button
+              type="button"
+              className={styles.kasaAddBtn}
+              onClick={() => {
+                setEditingTx(null);
+                setIsModalOpen(true);
+              }}
+            >
+              <FiPlus />
+              Yeni əməliyyat
+            </button>
+          </div>
         </div>
 
         <div className={styles.kasaStatsGrid}>
           <div className={`${styles.kasaStatCard} ${styles.kasaStatIn}`}>
             <div className={styles.kasaStatLabel}>
-              {isKasa ? "Kasaya girən" : "Banka girən"}
+              {isUmumi ? "Ümumi girən" : isKasa ? "Kasaya girən" : "Banka girən"}
             </div>
             <div className={styles.kasaStatValue}>{fmt(stats.totalIn)} AZN</div>
             <div className={styles.kasaStatSub}>Ümumi mədaxil</div>
@@ -228,7 +424,11 @@ export default function MaliyyePage() {
 
           <div className={`${styles.kasaStatCard} ${styles.kasaStatOut}`}>
             <div className={styles.kasaStatLabel}>
-              {isKasa ? "Kasadan çıxan" : "Bankdan çıxan"}
+              {isUmumi
+                ? "Ümumi çıxan"
+                : isKasa
+                  ? "Kasadan çıxan"
+                  : "Bankdan çıxan"}
             </div>
             <div className={styles.kasaStatValue}>{fmt(stats.totalOut)} AZN</div>
             <div className={styles.kasaStatSub}>Ümumi məxaric</div>
@@ -236,7 +436,11 @@ export default function MaliyyePage() {
 
           <div className={`${styles.kasaStatCard} ${styles.kasaStatBalance}`}>
             <div className={styles.kasaStatLabel}>
-              {isKasa ? "Kasada olan" : "Bankda olan"}
+              {isUmumi
+                ? "Ümumi qalıq"
+                : isKasa
+                  ? "Kasada olan"
+                  : "Bankda olan"}
             </div>
             <div
               className={styles.kasaStatValue}
@@ -255,7 +459,8 @@ export default function MaliyyePage() {
                 <th className={styles.th}>ID</th>
                 <th className={styles.th}>Tip / Metod</th>
                 <th className={styles.th}>Məbləğ</th>
-                <th className={styles.th}>Ad / Kateqoriya</th>
+                <th className={styles.th}>Ad</th>
+                <th className={styles.th}>Sənəd tipi</th>
                 <th className={styles.th}>Tərəfdaş</th>
                 <th className={styles.th}>Sifariş</th>
                 <th className={styles.th}>Əməliyyat tarixi</th>
@@ -267,8 +472,8 @@ export default function MaliyyePage() {
             <tbody>
               {pagedTxs.length === 0 ? (
                 <tr>
-                  <td className={styles.td} colSpan={10}>
-                    Bu bölmədə əməliyyat yoxdur
+                  <td className={styles.td} colSpan={11}>
+                    {emptyMessage}
                   </td>
                 </tr>
               ) : (
@@ -276,14 +481,8 @@ export default function MaliyyePage() {
                   const income = isIncomeTx(tx);
                   const azn = resolveTxCashAzn(tx);
                   const isSystem = isSystemBalanceAdjustment(tx);
-                  const partner = isSystem
-                    ? SYSTEM_PARTNER_LABEL
-                    : tx.customer?.name ||
-                      tx.customer?.company ||
-                      tx.carrier?.name ||
-                      tx.carrier?.companyName ||
-                      tx.partner ||
-                      "—";
+                  const partner = partnerLabel(tx) || "—";
+                  const docType = resolveDocType(tx);
                   return (
                     <tr key={tx.id} className={styles.tr}>
                       <td className={styles.td}>#{tx.id}</td>
@@ -307,9 +506,14 @@ export default function MaliyyePage() {
                       </td>
                       <td className={styles.td}>
                         <div className={styles.nameMain}>{tx.name || "—"}</div>
-                        {tx.category ? (
-                          <div className={styles.nameMeta}>{tx.category}</div>
-                        ) : null}
+                      </td>
+                      <td className={styles.td}>
+                        <span
+                          className={`${styles.docTypeBadge} ${styles[docTypeBadgeClass(docType, income)]}`}
+                          title={docType}
+                        >
+                          {docType}
+                        </span>
                       </td>
                       <td className={styles.td}>
                         {isSystem ? (
@@ -318,6 +522,14 @@ export default function MaliyyePage() {
                             title="Sistem balans düzəlişi"
                           >
                             {SYSTEM_PARTNER_LABEL}
+                          </span>
+                        ) : isSimpleExpenseTx(tx) ||
+                          /ümumi\s*xərc/i.test(partner) ? (
+                          <span
+                            className={styles.expensePartnerBadge}
+                            title="Birbaşa xərc"
+                          >
+                            {partner === "—" ? "Xərc" : partner}
                           </span>
                         ) : (
                           partner
@@ -370,7 +582,11 @@ export default function MaliyyePage() {
                               title="Redaktə"
                               onClick={() => {
                                 setEditingTx(tx);
-                                setIsModalOpen(true);
+                                if (isSimpleExpenseTx(tx)) {
+                                  setIsExpenseModalOpen(true);
+                                } else {
+                                  setIsModalOpen(true);
+                                }
                               }}
                               style={{
                                 border: "none",
@@ -412,7 +628,7 @@ export default function MaliyyePage() {
 
       <div className={styles.pageFooter}>
         <SorgularPagination
-          totalRows={walletTxs.length}
+          totalRows={filteredTxs.length}
           currentPage={currentPage}
           totalPages={totalPages}
           getVisiblePages={getVisiblePages}
@@ -420,12 +636,49 @@ export default function MaliyyePage() {
         />
       </div>
 
+      <div
+        className={`${drawerStyles.overlay} ${isFilterPanelOpen ? drawerStyles.overlayOpen : ""}`}
+        aria-hidden={!isFilterPanelOpen}
+        onClick={() => setIsFilterPanelOpen(false)}
+      />
+      <aside
+        className={`${drawerStyles.drawer} ${isFilterPanelOpen ? drawerStyles.drawerOpen : ""}`}
+        aria-hidden={!isFilterPanelOpen}
+      >
+        <MaliyyeFiltersDrawer
+          filter={filterDraft}
+          categoryOptions={categoryOptions}
+          partnerOptions={partnerOptions}
+          createdByOptions={createdByOptions}
+          onFilterChange={onFilterChange}
+          onClose={() => setIsFilterPanelOpen(false)}
+          onClear={handleClearFilter}
+          onApplyFilter={handleApplyFilter}
+        />
+      </aside>
+
       <FinanceModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingTx(null);
+        }}
         onSave={handleSave}
         initialData={editingTx}
-        defaultWallet={walletTab}
+        defaultWallet={defaultWallet}
+      />
+      <SimpleExpenseModal
+        isOpen={isExpenseModalOpen}
+        onClose={() => {
+          setIsExpenseModalOpen(false);
+          setEditingTx(null);
+        }}
+        onSave={handleSave}
+        initialData={
+          editingTx && isSimpleExpenseTx(editingTx) ? editingTx : null
+        }
+        knownCategories={knownExpenseCategories}
+        defaultWallet={defaultWallet}
       />
     </div>
   );

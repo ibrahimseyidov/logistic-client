@@ -18,6 +18,7 @@ export type SifarisFilterSectionId =
 export interface StatusHistoryItem {
   status: string;
   date: string;
+  changedBy?: string | null;
 }
 
 export interface SifarisOrderRow {
@@ -65,6 +66,7 @@ export interface SifarisOrderRow {
   hasReceivedInvoice?: boolean;
   hasTransportDoc?: boolean;
   hasHandoverAct?: boolean;
+  customerName?: string;
 
   // Edit Modal extra fields
   tags?: string;

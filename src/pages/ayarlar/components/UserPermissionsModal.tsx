@@ -6,6 +6,7 @@ import {
   PERMISSION_MODULES,
   buildDefaultPermissions,
   parseUserPermissions,
+  setChildAll,
   setModuleAction,
   setModuleAll,
   stringifyUserPermissions,
@@ -90,7 +91,8 @@ export const UserPermissionsModal: React.FC<Props> = ({
           <div>
             <h2 className={styles.title}>İcazələr</h2>
             <p className={styles.hint}>
-              <strong>{user.name}</strong> — hansı səhifələrdə nə edə bilər
+              <strong>{user.name}</strong> — hər səhifə və detal bölməsi üçün
+              ayrı-ayrı əlavə / redaktə / sil icazələri
             </p>
           </div>
           <button type="button" className={styles.closeBtn} onClick={onClose}>
@@ -134,6 +136,7 @@ export const UserPermissionsModal: React.FC<Props> = ({
             const p = perms[mod.id] || buildDefaultPermissions()[mod.id];
             const hasChildren = Boolean(mod.children?.length);
             const isOpenMod = Boolean(expanded[mod.id]);
+            let lastGroup = "";
 
             return (
               <div key={mod.id} className={styles.moduleBlock}>
@@ -167,7 +170,11 @@ export const UserPermissionsModal: React.FC<Props> = ({
                       title="Modul üçün hamısı"
                       onClick={() =>
                         setPerms((prev) =>
-                          setModuleAll(prev, mod.id, !CRUD_ACTIONS.every((a) => p[a.key])),
+                          setModuleAll(
+                            prev,
+                            mod.id,
+                            !CRUD_ACTIONS.every((a) => p[a.key]),
+                          ),
                         )
                       }
                     >
@@ -187,6 +194,9 @@ export const UserPermissionsModal: React.FC<Props> = ({
 
                 {hasChildren && isOpenMod
                   ? mod.children!.map((child) => {
+                      const showGroup =
+                        Boolean(child.group) && child.group !== lastGroup;
+                      if (child.group) lastGroup = child.group;
                       const cp = p.children?.[child.id] || {
                         view: false,
                         create: false,
@@ -194,23 +204,60 @@ export const UserPermissionsModal: React.FC<Props> = ({
                         delete: false,
                       };
                       const parentOff = !p.view;
+                      const childAllOn = CRUD_ACTIONS.every((a) => cp[a.key]);
                       return (
-                        <div key={child.id} className={styles.childRow}>
-                          <div className={styles.moduleInfo}>
-                            <span className={styles.expandSpacer} />
-                            <div className={styles.childLabel}>{child.label}</div>
-                          </div>
-                          {CRUD_ACTIONS.map((a) => (
-                            <label key={a.key} className={styles.checkCell}>
-                              <input
-                                type="checkbox"
-                                checked={Boolean(cp[a.key])}
+                        <React.Fragment key={child.id}>
+                          {showGroup ? (
+                            <div className={styles.groupHeader}>
+                              {child.group}
+                            </div>
+                          ) : null}
+                          <div className={styles.childRow}>
+                            <div className={styles.moduleInfo}>
+                              <span className={styles.expandSpacer} />
+                              <div>
+                                <div className={styles.childLabel}>
+                                  {child.label}
+                                </div>
+                                {child.hint ? (
+                                  <div className={styles.childHint}>
+                                    {child.hint}
+                                  </div>
+                                ) : null}
+                              </div>
+                              <button
+                                type="button"
+                                className={styles.miniAll}
+                                title="Bu bölmə üçün hamısı"
                                 disabled={parentOff}
-                                onChange={() => toggle(mod.id, a.key, child.id)}
-                              />
-                            </label>
-                          ))}
-                        </div>
+                                onClick={() =>
+                                  setPerms((prev) =>
+                                    setChildAll(
+                                      prev,
+                                      mod.id,
+                                      child.id,
+                                      !childAllOn,
+                                    ),
+                                  )
+                                }
+                              >
+                                <FiCheck size={12} />
+                              </button>
+                            </div>
+                            {CRUD_ACTIONS.map((a) => (
+                              <label key={a.key} className={styles.checkCell}>
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(cp[a.key])}
+                                  disabled={parentOff}
+                                  onChange={() =>
+                                    toggle(mod.id, a.key, child.id)
+                                  }
+                                />
+                              </label>
+                            ))}
+                          </div>
+                        </React.Fragment>
                       );
                     })
                   : null}

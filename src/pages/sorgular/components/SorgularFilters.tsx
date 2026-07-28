@@ -209,7 +209,7 @@ export default function SorgularFilters({
         {activeSections.has("dates") && (
           <SectionCard
             title="Tarix aralıqları"
-            description="Sorğunun tarix intervalını seçərək cədvəli daraldın."
+            description="Sorğu, yükləmə, boşaltma və status tarixlərinə görə cədvəli daraldın."
             icon={<FiCalendar className={styles.iconLg} />}
           >
             <div className={styles.gridOne}>
@@ -228,6 +228,60 @@ export default function SorgularFilters({
                     label="Tarixinə qədər"
                     value={filter.queryDateTo}
                     onChange={(value) => onFilterChange("queryDateTo", value)}
+                  />
+                </div>
+              </div>
+              <div className={styles.datePanel}>
+                <div className={styles.datePanelHeader}>
+                  <FiCalendar className={styles.accentIcon} />
+                  Yükləmə tarixi
+                </div>
+                <div className={styles.dateGrid}>
+                  <DateField
+                    label="Tarixindən"
+                    value={filter.loadDateFrom}
+                    onChange={(value) => onFilterChange("loadDateFrom", value)}
+                  />
+                  <DateField
+                    label="Tarixinə qədər"
+                    value={filter.loadDateTo}
+                    onChange={(value) => onFilterChange("loadDateTo", value)}
+                  />
+                </div>
+              </div>
+              <div className={styles.datePanel}>
+                <div className={styles.datePanelHeader}>
+                  <FiCalendar className={styles.accentIcon} />
+                  Boşaltma tarixi
+                </div>
+                <div className={styles.dateGrid}>
+                  <DateField
+                    label="Tarixindən"
+                    value={filter.unloadDateFrom}
+                    onChange={(value) => onFilterChange("unloadDateFrom", value)}
+                  />
+                  <DateField
+                    label="Tarixinə qədər"
+                    value={filter.unloadDateTo}
+                    onChange={(value) => onFilterChange("unloadDateTo", value)}
+                  />
+                </div>
+              </div>
+              <div className={styles.datePanel}>
+                <div className={styles.datePanelHeader}>
+                  <FiCalendar className={styles.accentIcon} />
+                  Status tarixi
+                </div>
+                <div className={styles.dateGrid}>
+                  <DateField
+                    label="Tarixindən"
+                    value={filter.statusDateFrom}
+                    onChange={(value) => onFilterChange("statusDateFrom", value)}
+                  />
+                  <DateField
+                    label="Tarixinə qədər"
+                    value={filter.statusDateTo}
+                    onChange={(value) => onFilterChange("statusDateTo", value)}
                   />
                 </div>
               </div>

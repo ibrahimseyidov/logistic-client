@@ -516,7 +516,10 @@ export default function SorgularPage() {
           filter={filterDraft}
           onFilterChange={onFilterChange}
           companyOptions={companyOptions}
-          onClose={() => setIsFilterPanelOpen(false)}
+          onClose={() => {
+            setFilterDraft({ ...appliedFilter });
+            setIsFilterPanelOpen(false);
+          }}
           onClear={handleClear}
           onApplyFilter={handleApplyFilter}
           onSaveTemplate={handleSaveTemplate}

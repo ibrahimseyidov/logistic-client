@@ -7,6 +7,7 @@ import StatusBadge from "../../../common/components/StatusBadge";
 import type { OrderStatusKind, SifarisOrderRow } from "../types/sifaris.types";
 import { CUSTOMER_OPTIONS } from "../../sorgular/constants/options.constants";
 import { formatDateOnly } from "../lib/formatDate";
+import { formatStatusHistoryMeta } from "../lib/statusHistory.utils";
 import { getCargoTransportLabel } from "../lib/orderCargoDisplay";
 import styles from "./SifarisTable.module.css";
 
@@ -669,7 +670,7 @@ export default function SifarisTable({
                             {item.status}
                           </span>
                           <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 500 }}>
-                            {item.date.includes("tərəfindən") ? item.date : `${item.date} (tərəfindən: Ulvi Adilzade)`}
+                            {formatStatusHistoryMeta(item)}
                           </span>
                         </div>
                       </div>

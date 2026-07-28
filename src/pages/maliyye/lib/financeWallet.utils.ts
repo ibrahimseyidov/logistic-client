@@ -2,6 +2,7 @@
 export const ORDER_BOOK_METHOD = "Sifariş";
 
 export type CashWallet = "Kasa" | "Bank";
+export type WalletTab = CashWallet | "Umumi";
 
 export function normalizeWallet(method?: string | null): CashWallet | null {
   const raw = String(method || "").trim();
@@ -62,6 +63,13 @@ export function txMatchesWallet(tx: any, wallet: CashWallet): boolean {
   return wallet === "Bank";
 }
 
+/** Kasa, Bank və ya hər ikisi (Ümumi) */
+export function txMatchesWalletTab(tx: any, tab: WalletTab): boolean {
+  if (!isCashMovementTx(tx)) return false;
+  if (tab === "Umumi") return true;
+  return txMatchesWallet(tx, tab);
+}
+
 export function resolveTxCashAzn(tx: any): number {
   const amount = Number(tx.amount);
   if (Number.isFinite(amount) && amount !== 0) {
@@ -81,6 +89,17 @@ export function isIncomeTx(tx: any): boolean {
   if (tx.type === "EXPENSE") return false;
   const profit = Number.parseFloat(String(tx.profit || "").replace(",", "."));
   return Number.isFinite(profit) ? profit >= 0 : false;
+}
+
+/** Birbaşa xərc — müştəri/daşıyıcı/sifariş bağlı deyil */
+export function isSimpleExpenseTx(tx: any): boolean {
+  if (!tx || isIncomeTx(tx)) return false;
+  if (tx.customerId != null && tx.customerId !== "") return false;
+  if (tx.carrierId != null && tx.carrierId !== "") return false;
+  if (tx.orderId != null && tx.orderId !== "") return false;
+  if (tx.customer?.id != null) return false;
+  if (tx.carrier?.id != null) return false;
+  return true;
 }
 
 /** Parametrlərdən balans düzəlişi — real tərəfdaş adı ilə qarışmasın */

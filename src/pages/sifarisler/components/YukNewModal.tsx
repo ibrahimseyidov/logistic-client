@@ -319,8 +319,92 @@ export default function YukNewModal({ isOpen, onClose, onConfirm, editLoad, orde
       if (editLoad.rawPayload?.unloadingCustoms) {
         setUnloadingCustoms(editLoad.rawPayload.unloadingCustoms);
       }
-      if (editLoad.rawPayload?.parameters) {
-        setParameters(editLoad.rawPayload.parameters);
+
+      const prefill = orderContext
+        ? buildYukPrefillFromOrder(orderContext, orderContext.voyage)
+        : null;
+
+      const rawParams = Array.isArray(editLoad.rawPayload?.parameters)
+        ? editLoad.rawPayload.parameters
+        : null;
+      const hasUsefulParams =
+        rawParams &&
+        rawParams.some(
+          (p: any) =>
+            (p.packagingType && p.packagingType !== "Dəyəri seçin") ||
+            p.weight ||
+            p.ldm ||
+            p.volume ||
+            p.length ||
+            p.width ||
+            p.height,
+        );
+
+      if (hasUsefulParams) {
+        setParameters(
+          rawParams.map((p: any, idx: number) => ({
+            id: p.id || `param-${idx + 1}`,
+            weight: p.weight || "",
+            packagingType:
+              p.packagingType && p.packagingType !== "—"
+                ? p.packagingType
+                : "Dəyəri seçin",
+            quantity: p.quantity || "",
+            ldm: p.ldm || "",
+            volume: p.volume || "",
+            length: p.length || "",
+            width: p.width || "",
+            height: p.height || "",
+          })),
+        );
+      } else if (prefill?.parameters?.length) {
+        setParameters(
+          prefill.parameters.map((p: any, idx: number) => ({
+            ...p,
+            id: p.id || `param-${idx + 1}`,
+            weight: p.weight || String(editLoad.weightKg ?? "") || "",
+            ldm: p.ldm || String(editLoad.ldm ?? "") || "",
+            volume: p.volume || String(editLoad.volumeM3 ?? "") || "",
+            packagingType:
+              (editLoad.packagingType &&
+                editLoad.packagingType !== "—" &&
+                editLoad.packagingType) ||
+              p.packagingType ||
+              "Dəyəri seçin",
+          })),
+        );
+      } else {
+        setParameters([
+          {
+            id: "param-1",
+            weight: String(editLoad.weightKg ?? "") || "",
+            packagingType:
+              editLoad.packagingType && editLoad.packagingType !== "—"
+                ? editLoad.packagingType
+                : "Dəyəri seçin",
+            quantity: editLoad.quantity || "1",
+            ldm: String(editLoad.ldm ?? "") || "",
+            volume: String(editLoad.volumeM3 ?? "") || "",
+            length: "",
+            width: "",
+            height: "",
+          },
+        ]);
+      }
+
+      if (!editLoad.name || editLoad.name === "—") {
+        if (prefill?.name) setName(prefill.name);
+      }
+      if (
+        (!editLoad.containerNumber || editLoad.containerNumber === "—") &&
+        prefill?.containerNumber
+      ) {
+        setContainerNumber(prefill.containerNumber);
+      }
+      const existingLoadingNumber =
+        editLoad.rawPayload?.loadingNumber || editLoad.loadingNumber || "";
+      if (!existingLoadingNumber && prefill?.loadingNumber) {
+        setLoadingNumber(prefill.loadingNumber);
       }
 
       const countrySet = new Set(

@@ -1,19 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { FaFileAlt, FaPlus, FaDownload, FaTrash, FaMagic } from "react-icons/fa";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  createDocumentTemplateAction,
-  deleteDocumentTemplateAction,
+  FaChevronDown,
+  FaFileAlt,
+  FaPlus,
+  FaDownload,
+  FaTrash,
+  FaMagic,
+} from "react-icons/fa";
+import {
   deleteOrderDocumentAction,
-  fetchDocumentPlaceholdersAction,
   fetchDocumentTemplatesAction,
   fetchOrderDocumentsAction,
   generateDocumentAction,
   resolveUploadUrl,
   type DocumentTemplate,
   type OrderDocumentRow,
-  type PlaceholderField,
 } from "../../actions/document.actions";
 import { useAppDispatch } from "../../store/hooks";
 import { showNotification } from "../../store/modalSlice";
@@ -47,27 +50,17 @@ export default function DocumentGeneratePanel({
 }: Props) {
   const dispatch = useAppDispatch();
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
-  const [placeholders, setPlaceholders] = useState<PlaceholderField[]>([]);
   const [orderDocs, setOrderDocs] = useState<OrderDocumentRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyCode, setBusyCode] = useState<string | null>(null);
-
-  const [customOpen, setCustomOpen] = useState(false);
-  const [customName, setCustomName] = useState("");
-  const [customBody, setCustomBody] = useState(
-    "Sənəd tarixi: {{documentDate}}\nMüştəri: {{customerName}}\nMarşrut: {{originLabel}} → {{destinationLabel}}\n",
-  );
-  const [customScope, setCustomScope] = useState<"query" | "order" | "both">(scope);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [tpls, ph] = await Promise.all([
-        fetchDocumentTemplatesAction(scope),
-        fetchDocumentPlaceholdersAction(),
-      ]);
+      const tpls = await fetchDocumentTemplatesAction(scope);
       setTemplates(tpls);
-      setPlaceholders(ph);
       if (orderId) {
         const docs = await fetchOrderDocumentsAction(orderId);
         setOrderDocs(docs);
@@ -83,13 +76,23 @@ export default function DocumentGeneratePanel({
     void load();
   }, [scope, orderId, queryId]);
 
-  const scopedPlaceholders = useMemo(
-    () =>
-      placeholders.filter(
-        (p) => p.scopes.includes(scope) || p.scopes.includes("both"),
-      ),
-    [placeholders, scope],
-  );
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
 
   const visibleTemplates = useMemo(() => {
     if (scope !== "order") return templates;
@@ -121,6 +124,7 @@ export default function DocumentGeneratePanel({
       return;
     }
 
+    setMenuOpen(false);
     setBusyCode(template.code);
     try {
       const meta = await generateDocumentAction({
@@ -163,52 +167,6 @@ export default function DocumentGeneratePanel({
     }
   };
 
-  const handleCreateCustom = async () => {
-    if (!customName.trim()) return;
-    try {
-      await createDocumentTemplateAction({
-        name: customName.trim(),
-        scope: customScope,
-        bodyText: customBody,
-        description: "İstifadəçi şablonu",
-      });
-      setCustomOpen(false);
-      setCustomName("");
-      dispatch(
-        showNotification({
-          message: "Yeni şablon əlavə edildi.",
-          type: "success",
-          autoCloseDuration: 2500,
-        }),
-      );
-      await load();
-    } catch (err: any) {
-      dispatch(
-        showNotification({
-          message: err?.response?.data?.message || "Şablon yaradılmadı.",
-          type: "error",
-          autoCloseDuration: 3000,
-        }),
-      );
-    }
-  };
-
-  const handleDeleteTemplate = async (tpl: DocumentTemplate) => {
-    if (tpl.isSystem) return;
-    try {
-      await deleteDocumentTemplateAction(tpl.id);
-      await load();
-    } catch (err: any) {
-      dispatch(
-        showNotification({
-          message: err?.response?.data?.message || "Silinmədi.",
-          type: "error",
-          autoCloseDuration: 3000,
-        }),
-      );
-    }
-  };
-
   const handleDeleteOrderDoc = async (id: number) => {
     try {
       await deleteOrderDocumentAction(id);
@@ -224,6 +182,8 @@ export default function DocumentGeneratePanel({
     return `${(bytes / 1024 ** i).toFixed(1)} ${["B", "KB", "MB"][i]}`;
   };
 
+  const isBusy = Boolean(busyCode);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       <div
@@ -237,14 +197,13 @@ export default function DocumentGeneratePanel({
       >
         <div>
           <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>
-            Sənəd hazırla
+            Sənədlər
           </h3>
           <p style={{ margin: "0.25rem 0 0", fontSize: "0.8rem", color: "#64748b" }}>
-            Məlumatlar sorğu/sifarişdən avtomatik doldurulur. İstəsəniz öz şablonunuzu da əlavə
-            edə bilərsiniz.
+            Şablondan PDF hazırlayın və ya fayl yükləyin.
           </p>
         </div>
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
           {onUpload ? (
             <label
               style={{
@@ -273,127 +232,126 @@ export default function DocumentGeneratePanel({
               />
             </label>
           ) : null}
-          <button
-            type="button"
-            onClick={() => setCustomOpen(true)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.4rem",
-              background: "#0f172a",
-              color: "#fff",
-              border: 0,
-              borderRadius: "0.5rem",
-              padding: "0.55rem 0.9rem",
-              fontSize: "0.825rem",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            <FaPlus /> Yeni şablon
-          </button>
+
+          <div ref={menuRef} style={{ position: "relative" }}>
+            <button
+              type="button"
+              disabled={loading || isBusy || visibleTemplates.length === 0}
+              onClick={() => setMenuOpen((open) => !open)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.45rem",
+                background: "#16a34a",
+                color: "#fff",
+                border: 0,
+                borderRadius: "0.5rem",
+                padding: "0.55rem 0.95rem",
+                fontSize: "0.825rem",
+                fontWeight: 600,
+                cursor: loading || isBusy || visibleTemplates.length === 0 ? "not-allowed" : "pointer",
+                opacity: loading || isBusy || visibleTemplates.length === 0 ? 0.7 : 1,
+              }}
+            >
+              <FaMagic />
+              {isBusy ? "Hazırlanır..." : "Sənəd hazırla"}
+              <FaChevronDown style={{ fontSize: "0.7rem", opacity: 0.9 }} />
+            </button>
+
+            {menuOpen ? (
+              <div
+                role="menu"
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 0.4rem)",
+                  right: 0,
+                  zIndex: 30,
+                  minWidth: 280,
+                  maxWidth: 360,
+                  maxHeight: 360,
+                  overflowY: "auto",
+                  background: "#fff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "0.65rem",
+                  boxShadow: "0 12px 28px rgba(15, 23, 42, 0.12)",
+                  padding: "0.35rem",
+                }}
+              >
+                {visibleTemplates.map((tpl) => (
+                  <button
+                    key={tpl.id}
+                    type="button"
+                    role="menuitem"
+                    disabled={isBusy}
+                    onClick={() => void handleGenerate(tpl)}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "0.65rem",
+                      textAlign: "left",
+                      border: 0,
+                      background: "transparent",
+                      borderRadius: "0.45rem",
+                      padding: "0.65rem 0.7rem",
+                      cursor: isBusy ? "not-allowed" : "pointer",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "#f8fafc";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 8,
+                        background: "#f1f5f9",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#475569",
+                        flexShrink: 0,
+                        marginTop: 1,
+                      }}
+                    >
+                      <FaFileAlt />
+                    </span>
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span
+                        style={{
+                          display: "block",
+                          fontWeight: 700,
+                          fontSize: "0.85rem",
+                          color: "#0f172a",
+                        }}
+                      >
+                        {tpl.name}
+                      </span>
+                      <span
+                        style={{
+                          display: "block",
+                          fontSize: "0.72rem",
+                          color: "#94a3b8",
+                          marginTop: 2,
+                        }}
+                      >
+                        {tpl.isSystem ? "Sistem şablonu" : "Özəl şablon"}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 
       {loading ? (
-        <p style={{ color: "#94a3b8", fontSize: "0.875rem" }}>Yüklənir...</p>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-            gap: "0.85rem",
-          }}
-        >
-          {visibleTemplates.map((tpl) => (
-            <div
-              key={tpl.id}
-              style={{
-                border: "1px solid #e2e8f0",
-                borderRadius: "0.65rem",
-                padding: "1rem",
-                background: "#fff",
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.65rem",
-              }}
-            >
-              <div style={{ display: "flex", gap: "0.65rem", alignItems: "flex-start" }}>
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 8,
-                    background: "#f1f5f9",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#475569",
-                    flexShrink: 0,
-                  }}
-                >
-                  <FaFileAlt />
-                </div>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: "0.875rem", color: "#0f172a" }}>
-                    {tpl.name}
-                  </div>
-                  <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: 2 }}>
-                    {tpl.isSystem ? "Sistem şablonu" : "Özəl şablon"} · {tpl.code}
-                  </div>
-                  {tpl.description ? (
-                    <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: 4 }}>
-                      {tpl.description}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: "0.4rem" }}>
-                <button
-                  type="button"
-                  disabled={busyCode === tpl.code}
-                  onClick={() => void handleGenerate(tpl)}
-                  style={{
-                    flex: 1,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "0.35rem",
-                    background: "#16a34a",
-                    color: "#fff",
-                    border: 0,
-                    borderRadius: "0.4rem",
-                    padding: "0.45rem 0.6rem",
-                    fontSize: "0.8rem",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    opacity: busyCode === tpl.code ? 0.7 : 1,
-                  }}
-                >
-                  <FaMagic /> {busyCode === tpl.code ? "Hazırlanır..." : "Hazırla (PDF)"}
-                </button>
-                {!tpl.isSystem ? (
-                  <button
-                    type="button"
-                    onClick={() => void handleDeleteTemplate(tpl)}
-                    title="Şablonu sil"
-                    style={{
-                      border: "1px solid #fecaca",
-                      background: "#fff",
-                      color: "#dc2626",
-                      borderRadius: "0.4rem",
-                      padding: "0.45rem 0.55rem",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <FaTrash />
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+        <p style={{ color: "#94a3b8", fontSize: "0.875rem", margin: 0 }}>Yüklənir...</p>
+      ) : null}
 
       {/* Saved / existing docs */}
       <div>
@@ -530,129 +488,6 @@ export default function DocumentGeneratePanel({
           ) : null}
         </div>
       </div>
-
-      {customOpen ? (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15,23,42,0.45)",
-            zIndex: 1000,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-          }}
-          onClick={() => setCustomOpen(false)}
-        >
-          <div
-            style={{
-              width: "min(640px, 100%)",
-              background: "#fff",
-              borderRadius: 12,
-              padding: 20,
-              maxHeight: "90vh",
-              overflow: "auto",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ margin: "0 0 0.75rem", fontSize: "1.05rem" }}>Yeni sənəd şablonu</h3>
-            <p style={{ margin: "0 0 1rem", fontSize: "0.8rem", color: "#64748b" }}>
-              Mətndə avtomatik sahələr üçün{" "}
-              <code>{"{{orderNumber}}"}</code>, <code>{"{{customerName}}"}</code> kimi
-              placeholder yazın.
-            </p>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-              Ad
-            </label>
-            <input
-              value={customName}
-              onChange={(e) => setCustomName(e.target.value)}
-              style={{
-                width: "100%",
-                marginBottom: 12,
-                padding: "0.55rem 0.7rem",
-                border: "1px solid #e2e8f0",
-                borderRadius: 8,
-              }}
-              placeholder="Məs: Xüsusi təsdiq məktubu"
-            />
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-              Harada istifadə olunur
-            </label>
-            <select
-              value={customScope}
-              onChange={(e) => setCustomScope(e.target.value as any)}
-              style={{
-                width: "100%",
-                marginBottom: 12,
-                padding: "0.55rem 0.7rem",
-                border: "1px solid #e2e8f0",
-                borderRadius: 8,
-              }}
-            >
-              <option value="query">Yalnız sorğular</option>
-              <option value="order">Yalnız sifarişlər</option>
-              <option value="both">Hər ikisi</option>
-            </select>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-              Şablon mətni
-            </label>
-            <textarea
-              value={customBody}
-              onChange={(e) => setCustomBody(e.target.value)}
-              rows={8}
-              style={{
-                width: "100%",
-                marginBottom: 8,
-                padding: "0.55rem 0.7rem",
-                border: "1px solid #e2e8f0",
-                borderRadius: 8,
-                fontFamily: "ui-monospace, monospace",
-                fontSize: 12,
-              }}
-            />
-            <div style={{ fontSize: 11, color: "#64748b", marginBottom: 14 }}>
-              Mövcud sahələr:{" "}
-              {scopedPlaceholders
-                .slice(0, 12)
-                .map((p) => `{{${p.key}}}`)
-                .join(", ")}
-              {scopedPlaceholders.length > 12 ? " ..." : ""}
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setCustomOpen(false)}
-                style={{
-                  border: "1px solid #e2e8f0",
-                  background: "#fff",
-                  borderRadius: 8,
-                  padding: "0.5rem 0.9rem",
-                  cursor: "pointer",
-                }}
-              >
-                Ləğv et
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleCreateCustom()}
-                style={{
-                  border: 0,
-                  background: "#16a34a",
-                  color: "#fff",
-                  borderRadius: 8,
-                  padding: "0.5rem 0.9rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Saxla
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -174,7 +174,7 @@ export function enrichPlaceFields(
 
   const company = pickFirst(place.company, source?.company, parsed.company);
   const city = pickFirst(place.city, source?.city, parsed.city);
-  const country =
+  let country =
     normalizeCountry(pickFirst(place.country, source?.country, parsed.country)) ||
     "Dəyəri seçin";
   const postal = pickFirst(place.postal, source?.postal, parsed.postal);
@@ -184,12 +184,20 @@ export function enrichPlaceFields(
   if (address && compositeBlob && address === compositeBlob) {
     address = parsed.address || "";
   }
+  // Ölkə kodu/adı ünvan sahəsinə düşübsə təmizlə
+  if (address && isCountryToken(address)) {
+    if (!country || country === "Dəyəri seçin") {
+      country = normalizeCountry(address) || country;
+    }
+    address = "";
+  }
   if (address) {
     const cleaned = address
       .split(",")
       .map((p) => p.trim())
       .filter((p) => {
         if (!p) return false;
+        if (isCountryToken(p)) return false;
         if (company && p.toLowerCase() === company.toLowerCase()) return false;
         if (city && p.toLowerCase() === city.toLowerCase()) return false;
         if (country && country !== "Dəyəri seçin") {
@@ -201,6 +209,7 @@ export function enrichPlaceFields(
       })
       .join(", ");
     address = cleaned || parsed.address || address;
+    if (address && isCountryToken(address)) address = "";
   }
 
   return {

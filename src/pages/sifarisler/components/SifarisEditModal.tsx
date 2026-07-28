@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { FiX, FiCalendar, FiSearch, FiPlus } from "react-icons/fi";
 import type { SifarisOrderRow } from "../types/sifaris.types";
 import styles from "../../sorgular/components/SorgularNewModal.module.css";
@@ -9,12 +9,108 @@ import {
   fetchLookupAction,
   createLookupAction,
 } from "../../../common/actions/lookup.actions";
+import {
+  normalizeCarrierContacts,
+  parseCarrierDocuments,
+} from "../../../common/utils/carrierDisplay.utils";
+import { formatDateOnly } from "../lib/formatDate";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (updatedOrder: SifarisOrderRow) => void;
+  onConfirm: (updatedOrder: SifarisOrderRow) => void | Promise<void>;
   order: SifarisOrderRow;
+  /** Optional finance rows — used to prefill Başlanğıc tarif when order.freight is empty */
+  financeTransactions?: Array<{
+    name?: string;
+    tarifPrice?: string;
+    edvliTarifPrice?: string;
+    tarifCurrency?: string;
+    edvliTarifCurrency?: string;
+  }>;
+}
+
+function unwrapList(data: unknown): any[] {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === "object") {
+    const obj = data as any;
+    if (Array.isArray(obj.data)) return obj.data;
+    if (Array.isArray(obj.customers)) return obj.customers;
+    if (Array.isArray(obj.users)) return obj.users;
+  }
+  return [];
+}
+
+function customerLabel(c: any): string {
+  return (
+    String(c?.name || c?.companyName || c?.company || c?.fullName || "").trim() ||
+    ""
+  );
+}
+
+function findCustomerId(
+  customers: any[],
+  raw: unknown,
+): string {
+  const value = String(raw ?? "").trim();
+  if (!value || value === "—") return "";
+  const byId = customers.find((c) => String(c?.id) === value);
+  if (byId?.id != null) return String(byId.id);
+  const lower = value.toLowerCase();
+  const byName = customers.find((c) => customerLabel(c).toLowerCase() === lower);
+  if (byName?.id != null) return String(byName.id);
+  return "";
+}
+
+function findUserId(users: any[], raw: unknown): string {
+  const value = String(raw ?? "").trim();
+  if (!value || value === "—") return "";
+  const byId = users.find((u) => String(u?.id) === value);
+  if (byId?.id != null) return String(byId.id);
+  const lower = value.toLowerCase();
+  const byName = users.find(
+    (u) => String(u?.name || "").trim().toLowerCase() === lower,
+  );
+  if (byName?.id != null) return String(byName.id);
+  return "";
+}
+
+function extractMoneyAmount(raw: unknown): string {
+  const text = String(raw ?? "").trim();
+  if (!text || text === "—") return "";
+  const m = text.replace(",", ".").match(/-?\d+(?:\.\d+)?/);
+  return m ? m[0] : "";
+}
+
+function extractCurrency(raw: unknown, fallback = "EUR"): string {
+  const text = String(raw ?? "").toUpperCase();
+  const m = text.match(/\b(AZN|USD|EUR|GBP|TRY|RUB)\b/);
+  return m ? m[1] : fallback;
+}
+
+function customerContactPersons(
+  customerObj: { id?: string | number; contactPersons?: unknown } | undefined,
+  contactsData: Array<{ entityType?: string; entityId?: string | number }>,
+) {
+  if (!customerObj) return [];
+  const scopedDb = contactsData.filter(
+    (contact) =>
+      contact.entityType === "customer" &&
+      customerObj.id != null &&
+      String(contact.entityId) === String(customerObj.id),
+  );
+  return normalizeCarrierContacts(
+    customerObj.contactPersons || [],
+    scopedDb as any,
+  );
+}
+
+function formatCustomerDocumentLabel(doc: {
+  number: string;
+  documentType?: string;
+  date: string;
+}) {
+  return [doc.date, doc.number, doc.documentType].filter(Boolean).join(" — ");
 }
 
 export default function SifarisEditModal({
@@ -22,6 +118,7 @@ export default function SifarisEditModal({
   onClose,
   onConfirm,
   order,
+  financeTransactions = [],
 }: Props) {
   // Local form states matching the screenshot exactly
   const [orderNumber, setOrderNumber] = useState("");
@@ -51,9 +148,7 @@ export default function SifarisEditModal({
   const [clientVatCode, setClientVatCode] = useState("");
   const [clientDate, setClientDate] = useState("27.05.2026");
   const [clientLang, setClientLang] = useState("Dəyəri seçin");
-  const [clientManagers, setClientManagers] = useState<string[]>([
-    "Ulvi Adilzade",
-  ]);
+  const [clientManagers, setClientManagers] = useState<string[]>([]);
   const [clientPermitted, setClientPermitted] = useState(true);
   const [clientInfo, setClientInfo] = useState("");
 
@@ -79,9 +174,9 @@ export default function SifarisEditModal({
         fetchCustomersAction(),
       ])
         .then(([u, c, cust]) => {
-          setUsersData(u);
-          setContactsData(c);
-          setCustomersData(cust);
+          setUsersData(unwrapList(u));
+          setContactsData(unwrapList(c));
+          setCustomersData(unwrapList(cust));
         })
         .catch((e) => console.error(e));
     }
@@ -108,56 +203,161 @@ export default function SifarisEditModal({
   const [paymentDelayDays, setPaymentDelayDays] = useState("0");
   const [incoterms, setIncoterms] = useState("");
 
-  // Populate fields on open
+  // Populate fields on open — wait for option lists so select values match
   useEffect(() => {
-    if (order && isOpen) {
-      setOrderNumber(order.orderNumber || "");
-      setOrderDate(order.orderDate || "");
-      setCustomerOrderRef(order.customerOrderRef || "");
-      setTags(order.tags || "");
+    if (!order || !isOpen) return;
 
-      setCustomer(order.customer || "");
-      setContractNumber(
-        order.contractNumber || "13.01.2026 - ZFAZ02/26 - Müqavilə",
-      );
-      setContactPerson(order.contactPerson || "Nijat Shabanly");
-      setManager(order.manager || "Ulvi Adilzade");
-      setExpeditor(order.expeditor || "Ulvi Adilzade");
+    const q = (order as any).query || {};
+    const pick = (...vals: unknown[]) => {
+      for (const v of vals) {
+        const s = String(v ?? "").trim();
+        if (s && s !== "—") return s;
+      }
+      return "";
+    };
+
+    setOrderNumber(pick(order.orderNumber));
+    setOrderDate(formatDateOnly(order.orderDate) === "—" ? "" : formatDateOnly(order.orderDate));
+    setCustomerOrderRef(
+      pick(order.customerOrderRef, q.customerOrderRef),
+    );
+    setTags(pick(order.tags, q.tags));
+
+    const customerRaw = pick(
+      order.customer,
+      (order as any).customerName,
+      (order as any).customerId,
+      q.customer,
+    );
+    setCustomer(findCustomerId(customersData, customerRaw) || customerRaw);
+
+    setContractNumber(pick(order.contractNumber, q.contractNumber));
+
+    const contactRaw = pick(order.contactPerson, q.contactPerson);
+    const contactById = contactsData.find(
+      (c: any) => String(c.id) === String(contactRaw),
+    );
+    setContactPerson(
+      contactById?.fullName || contactRaw,
+    );
+
+    const managerRaw = pick(order.manager, q.manager);
+    setManager(findUserId(usersData, managerRaw) || managerRaw);
+
+    const expeditorRaw = pick(order.expeditor, q.logist, q.expeditor);
+    setExpeditor(findUserId(usersData, expeditorRaw) || expeditorRaw);
+
+    const extraRaw = pick(order.extraManagers);
+    if (extraRaw) {
+      const parts = extraRaw.split(/,\s*/).filter(Boolean);
       setExtraManagers(
-        order.extraManagers
-          ? order.extraManagers.split(", ").filter(Boolean)
-          : ["Ulvi Adilzade"],
+        parts.map((p) => {
+          const id = findUserId(usersData, p);
+          if (!id) return p;
+          const u = usersData.find((x) => String(x.id) === id);
+          return u?.name || p;
+        }),
       );
-      setCompany(order.company || "Ziyafreight");
-      setExtraInfo(order.extraInfo || "");
-
-      // Pricing
-      setServiceName(order.serviceName || "Başlanğıc tarif");
-      setFreight(order.freight?.replace(/[^\d.]/g, "") || "190");
-      setFreightWithVat(order.freightWithVat || "190");
-      setVatRate(order.vatRate || "0%");
-      setCurrency(order.currency || "EUR");
-      setExchangeRateDate(order.exchangeRateDate || "26.05.2026");
-      setPaymentTerms(order.paymentTerms || "B/k 30 təqvim günü.");
-      setPaymentDelayDays(order.paymentDelayDays || "0");
-      setIncoterms(order.incoterms || "EXW");
+    } else {
+      setExtraManagers([]);
     }
-  }, [order, isOpen]);
+
+    setCompany(pick(order.company, q.company) || "Ziyafreight");
+    setExtraInfo(pick(order.extraInfo, q.additionalInfo));
+
+    // Pricing
+    const baslangicTx = financeTransactions.find(
+      (t) => String(t.name || "").trim() === "Başlanğıc tarif",
+    );
+    const freightAmount =
+      extractMoneyAmount(order.freight) ||
+      extractMoneyAmount(baslangicTx?.tarifPrice) ||
+      extractMoneyAmount(baslangicTx?.edvliTarifPrice);
+    const freightVatAmount =
+      extractMoneyAmount(order.freightWithVat) || freightAmount;
+    const curr =
+      pick(order.currency) ||
+      extractCurrency(
+        baslangicTx?.tarifCurrency ||
+          baslangicTx?.edvliTarifCurrency ||
+          order.freight,
+        "EUR",
+      );
+
+    setServiceName(pick(order.serviceName) || "Başlanğıc tarif");
+    setFreight(freightAmount);
+    setFreightWithVat(freightVatAmount);
+    setVatRate(pick(order.vatRate) || "0%");
+    setCurrency(curr);
+    setExchangeRateDate(
+      order.exchangeRateDate
+        ? formatDateOnly(String(order.exchangeRateDate)) === "—"
+          ? ""
+          : formatDateOnly(String(order.exchangeRateDate))
+        : "",
+    );
+    setPaymentTerms(pick(order.paymentTerms, q.paymentTerms));
+    setPaymentDelayDays(pick(order.paymentDelayDays) || "0");
+    setIncoterms(pick(order.incoterms, q.incoterms));
+  }, [order, isOpen, customersData, usersData, contactsData, financeTransactions]);
+
+  const selectedCustomerObj = useMemo(
+    () => customersData.find((c: any) => String(c.id) === String(customer)),
+    [customersData, customer],
+  );
+
+  const contactOptions = useMemo(
+    () => customerContactPersons(selectedCustomerObj, contactsData),
+    [selectedCustomerObj, contactsData],
+  );
+
+  const contractOptions = useMemo(() => {
+    const docs = parseCarrierDocuments(
+      selectedCustomerObj?.documents ?? selectedCustomerObj?.documentsJson,
+    );
+    const opts = docs.map((doc) => ({
+      value: formatCustomerDocumentLabel(doc),
+      label: formatCustomerDocumentLabel(doc),
+    }));
+    if (
+      contractNumber &&
+      !opts.some((o) => o.value === contractNumber)
+    ) {
+      opts.unshift({ value: contractNumber, label: contractNumber });
+    }
+    return opts;
+  }, [selectedCustomerObj, contractNumber]);
+
+  const [saving, setSaving] = useState(false);
 
   // Handler for saving
-  const handleSave = () => {
-    const formattedFreight = `${freight} ${currency}`;
+  const handleSave = async () => {
+    const selectedCustomerName =
+      customerLabel(selectedCustomerObj) ||
+      String((order as any).customerName || order.customer || "").trim();
+
+    const resolveUserName = (raw: string) => {
+      const id = findUserId(usersData, raw);
+      if (!id) return raw;
+      const u = usersData.find((x) => String(x.id) === id);
+      return u?.name || raw;
+    };
+
+    const formattedFreight =
+      freight && currency ? `${freight} ${currency}`.trim() : freight || "";
+
     const updated: SifarisOrderRow = {
       ...order,
       orderNumber,
       orderDate,
       customerOrderRef,
       tags,
-      customer,
+      customer: selectedCustomerName || customer,
+      customerName: selectedCustomerName || customer,
       contractNumber,
       contactPerson,
-      manager,
-      expeditor,
+      manager: resolveUserName(manager) || manager,
+      expeditor: resolveUserName(expeditor) || expeditor,
       extraManagers: extraManagers.join(", "),
       company,
       extraInfo,
@@ -171,7 +371,12 @@ export default function SifarisEditModal({
       paymentDelayDays,
       incoterms,
     };
-    onConfirm(updated);
+    setSaving(true);
+    try {
+      await onConfirm(updated);
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -181,7 +386,7 @@ export default function SifarisEditModal({
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 9999,
+        zIndex: 11000,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -598,6 +803,18 @@ export default function SifarisEditModal({
                     }}
                   >
                     <option value="">Dəyəri seçin</option>
+                    {customer &&
+                      !customersData.some(
+                        (opt) => String(opt.id) === String(customer),
+                      ) && (
+                        <option value={customer}>
+                          {String(
+                            (order as any).customerName ||
+                              order.customer ||
+                              customer,
+                          )}
+                        </option>
+                      )}
                     {customersData.map((opt) => (
                       <option key={opt.id} value={opt.id?.toString()}>
                         {opt.name || opt.companyName || opt.fullName}
@@ -624,7 +841,7 @@ export default function SifarisEditModal({
                     Müştəri ilə müqavilənin nömrəsi
                   </label>
                   <div style={{ position: "relative", display: "flex" }}>
-                    <input
+                    <select
                       value={contractNumber}
                       onChange={(e) => setContractNumber(e.target.value)}
                       style={{
@@ -636,8 +853,16 @@ export default function SifarisEditModal({
                         outline: "none",
                         width: "100%",
                         background: "#ffffff",
+                        cursor: "pointer",
                       }}
-                    />
+                    >
+                      <option value="">Dəyəri seçin</option>
+                      {contractOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -703,19 +928,21 @@ export default function SifarisEditModal({
                     }}
                   >
                     <option value="">Dəyəri seçin</option>
-                    {(() => {
-                      const cust = customersData.find(
-                        (c: any) => c.id?.toString() === customer,
-                      );
-                      const contacts = cust?.contactPersons || [];
-                      return contacts.map((c: any) => (
-                        <option key={c.id} value={c.fullName}>
-                          {c.position
-                            ? `${c.fullName} (${c.position})`
-                            : c.fullName}
-                        </option>
-                      ));
-                    })()}
+                    {contactPerson &&
+                      !contactOptions.some(
+                        (c: any) =>
+                          String(c.fullName || "").trim() ===
+                          String(contactPerson).trim(),
+                      ) && (
+                        <option value={contactPerson}>{contactPerson}</option>
+                      )}
+                    {contactOptions.map((c: any) => (
+                      <option key={c.id || c.fullName} value={c.fullName}>
+                        {c.position
+                          ? `${c.fullName} (${c.position})`
+                          : c.fullName}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -751,6 +978,10 @@ export default function SifarisEditModal({
                     }}
                   >
                     <option value="">Dəyəri seçin</option>
+                    {manager &&
+                      !usersData.some(
+                        (u: any) => String(u.id) === String(manager),
+                      ) && <option value={manager}>{manager}</option>}
                     {usersData.map((u: any) => (
                       <option key={u.id} value={u.id?.toString()}>
                         {u.name}
@@ -791,6 +1022,10 @@ export default function SifarisEditModal({
                     }}
                   >
                     <option value="">Dəyəri seçin</option>
+                    {expeditor &&
+                      !usersData.some(
+                        (u: any) => String(u.id) === String(expeditor),
+                      ) && <option value={expeditor}>{expeditor}</option>}
                     {usersData.map((u: any) => (
                       <option key={u.id} value={u.id?.toString()}>
                         {u.name}
@@ -915,6 +1150,11 @@ export default function SifarisEditModal({
                   >
                     <option value="Ziyafreight">Ziyafreight</option>
                     <option value="Ziyalog LLC">Ziyalog LLC</option>
+                    {company &&
+                      company !== "Ziyafreight" &&
+                      company !== "Ziyalog LLC" && (
+                        <option value={company}>{company}</option>
+                      )}
                   </select>
                 </div>
 
@@ -1382,29 +1622,31 @@ export default function SifarisEditModal({
           </button>
           <button
             type="button"
-            onClick={handleSave}
+            onClick={() => void handleSave()}
+            disabled={saving}
             style={{
-              background: "#22c55e",
+              background: saving ? "#86efac" : "#22c55e",
               border: "1px solid #22c55e",
               borderRadius: "0.5rem",
               padding: "0.625rem 1.5rem",
               fontSize: "0.875rem",
               fontWeight: 600,
               color: "#ffffff",
-              cursor: "pointer",
+              cursor: saving ? "not-allowed" : "pointer",
               transition: "all 0.2s ease",
               boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
             }}
             onMouseOver={(e) => {
+              if (saving) return;
               e.currentTarget.style.background = "#16a34a";
               e.currentTarget.style.borderColor = "#16a34a";
             }}
             onMouseOut={(e) => {
-              e.currentTarget.style.background = "#22c55e";
+              e.currentTarget.style.background = saving ? "#86efac" : "#22c55e";
               e.currentTarget.style.borderColor = "#22c55e";
             }}
           >
-            Yaddaşda saxlamaq
+            {saving ? "Saxlanılır..." : "Yaddaşda saxlamaq"}
           </button>
         </div>
 
