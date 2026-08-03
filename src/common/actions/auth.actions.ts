@@ -61,31 +61,6 @@ export interface AuthBootstrapData {
   branches: AuthBranch[];
 }
 
-const LOCAL_ACCESS_TOKEN = "local-demo-token";
-const LOCAL_REFRESH_TOKEN = "local-demo-refresh-token";
-const DEMO_EMAIL = "ibrahim@gmail.com";
-const DEMO_PASSWORD = "1234";
-
-const LOCAL_AUTH_BOOTSTRAP: AuthBootstrapData = {
-  user: {
-    id: "1",
-    name: "Ibrahim",
-    email: DEMO_EMAIL,
-    companyId: 1,
-    role: "admin",
-    roleId: 1,
-    permissions: null,
-  },
-  companyName: "Ziyalog",
-  branches: [
-    {
-      id: 1,
-      name: "Baş ofis",
-      companyId: 1,
-    },
-  ],
-};
-
 function mapMeResponseToBootstrap(data: {
   id: number;
   name: string;
@@ -114,21 +89,14 @@ function mapMeResponseToBootstrap(data: {
   };
 }
 
-export async function refreshTokenAction(refreshToken: string) {
-  if (refreshToken !== LOCAL_REFRESH_TOKEN) {
-    throw new Error("Token yenileme başarısız");
-  }
-
-  return {
-    token: LOCAL_ACCESS_TOKEN,
-    refreshToken: LOCAL_REFRESH_TOKEN,
-  } satisfies RefreshResponse;
+export async function refreshTokenAction(_refreshToken: string) {
+  throw new Error("Token yenileme başarısız");
 }
 
 export async function fetchAuthBootstrap(): Promise<AuthBootstrapData> {
   const token = getStoredAuthToken();
-  if (!token || token === LOCAL_ACCESS_TOKEN) {
-    return LOCAL_AUTH_BOOTSTRAP;
+  if (!token) {
+    throw new Error("İstifadəçi məlumatları yüklənmədi");
   }
 
   const response = await fetch(buildApiUrl("/api/user/me"), {
@@ -160,13 +128,6 @@ export async function fetchAuthBootstrap(): Promise<AuthBootstrapData> {
 export async function loginAction(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
-
-  if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
-    return {
-      token: LOCAL_ACCESS_TOKEN,
-      refreshToken: LOCAL_REFRESH_TOKEN,
-    } satisfies LoginResponse;
-  }
 
   const url = buildApiUrl("/api/auth/login");
   const response = await fetch(url, {

@@ -156,7 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     if (!user) return undefined;
     const token = getStoredAuthToken();
-    if (!token || token === "local-demo-token") return undefined;
+    if (!token) return undefined;
 
     let cancelled = false;
     const tick = async () => {
