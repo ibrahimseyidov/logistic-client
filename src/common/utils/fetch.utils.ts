@@ -80,6 +80,29 @@ export const fetchNoCache = async (
   }
   let response = await fetch(input, { ...init, headers, cache: "no-store" });
   if (response.status === 401 && retry) {
+    // Deaktiv hesab üçün refresh cəhd etmə — birbaşa çıxış
+    let deactivated = false;
+    try {
+      const cloned = response.clone();
+      const body = await cloned.json();
+      deactivated = body?.code === "ACCOUNT_DEACTIVATED";
+    } catch {
+      /* ignore */
+    }
+    if (deactivated) {
+      try {
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("auth_bootstrap_v1");
+      } catch {
+        /* ignore */
+      }
+      if (typeof window !== "undefined") {
+        window.location.href = "/login?reason=deactivated";
+      }
+      return response;
+    }
+
     // Refresh token ile yeni access token almayı dene
     let refreshToken = "";
     try {

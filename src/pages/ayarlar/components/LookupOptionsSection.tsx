@@ -21,12 +21,18 @@ interface Props {
   storageKey: LookupStorageKey;
   title: string;
   seed: Omit<LookupOptionRow, "id">[];
+  canCreate?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export const LookupOptionsSection: React.FC<Props> = ({
   storageKey,
   title,
   seed,
+  canCreate = true,
+  canEdit = true,
+  canDelete = true,
 }) => {
   const dispatch = useAppDispatch();
   const [rows, setRows] = useState<LookupOptionRow[]>([]);
@@ -97,13 +103,15 @@ export const LookupOptionsSection: React.FC<Props> = ({
       <AyarlarToolbar>
         <div className={actionStyles.wrapper}>
           <div className={actionStyles.group}>
-            <button
-              type="button"
-              className={`${actionStyles.buttonBase} ${actionStyles.buttonPrimary}`}
-              onClick={handleCreate}
-            >
-              <FiFilePlus /> Yeni əlavə et
-            </button>
+            {canCreate ? (
+              <button
+                type="button"
+                className={`${actionStyles.buttonBase} ${actionStyles.buttonPrimary}`}
+                onClick={handleCreate}
+              >
+                <FiFilePlus /> Yeni əlavə et
+              </button>
+            ) : null}
           </div>
           <div className={actionStyles.statsGroup}>
             <span className={actionStyles.statPill}>Cəmi: {rows.length}</span>
@@ -116,6 +124,8 @@ export const LookupOptionsSection: React.FC<Props> = ({
           rows={rows}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          canEdit={canEdit}
+          canDelete={canDelete}
         />
       </div>
 

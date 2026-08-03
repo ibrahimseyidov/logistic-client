@@ -7,6 +7,7 @@ import styles from "./SorgularTable.module.css";
 import React, { useState, useEffect } from "react";
 import { SorgularEditModal, SorgularOfferModal, SorguStatusDropdown } from "./index";
 import { useAppDispatch } from "../../../common/store/hooks";
+import { usePermissions } from "../../../common/hooks/usePermissions";
 import { showNotification } from "../../../common/store/modalSlice";
 import {
   updateQueryAction,
@@ -27,6 +28,8 @@ interface Props {
   onUpdate?: (updated: LogisticQueryRow) => void;
   onDelete?: (id: string | number) => void;
   onApproveStatus?: (row: LogisticQueryRow, payload: any) => void;
+  /** İcazə child: active | archive */
+  permChild?: string;
 }
 
 const COLUMN_COUNT = 11;
@@ -138,8 +141,20 @@ function getCargoTransportLabel(value: string) {
   return matched ? matched.label : value;
 }
 
-export default function SorgularTable({ rows, customers, onUpdate, onDelete, onApproveStatus }: Props) {
+export default function SorgularTable({
+  rows,
+  customers,
+  onUpdate,
+  onDelete,
+  onApproveStatus,
+  permChild = "active",
+}: Props) {
   const dispatch = useAppDispatch();
+  const { canEdit, canDelete, canCreate } = usePermissions();
+  const allowEdit = canEdit("sorgular", permChild);
+  const allowDelete = canDelete("sorgular", permChild);
+  const allowOffer = canCreate("sorgular", "offers");
+  const showActions = allowEdit || allowDelete || allowOffer;
   // Modalı kapatmak için fonksiyon
   const handleEditClose = () => {
     setEditModalOpen(false);
@@ -504,6 +519,7 @@ export default function SorgularTable({ rows, customers, onUpdate, onDelete, onA
                     <FaMinus className={styles.mutedText} />
                   )}
                 </td>
+                {showActions ? (
                 <td
                   className={`${styles.actionCell} ${styles.min120} ${styles.center}`}
                   onClick={(e) => e.stopPropagation()}
@@ -512,7 +528,8 @@ export default function SorgularTable({ rows, customers, onUpdate, onDelete, onA
                     className={styles.actionRow}
                     style={{ justifyContent: "center" }}
                   >
-                    <button
+                    {allowOffer ? (
+                      <button
                         type="button"
                         className={`${styles.iconButton} ${styles.detailsButton}`}
                         onClick={() => handleOfferClick(row)}
@@ -522,6 +539,8 @@ export default function SorgularTable({ rows, customers, onUpdate, onDelete, onA
                       >
                         <FaHandHoldingUsd />
                       </button>
+                    ) : null}
+                    {allowEdit ? (
                       <button
                         type="button"
                         className={`${styles.iconButton} ${styles.editButton}`}
@@ -531,17 +550,25 @@ export default function SorgularTable({ rows, customers, onUpdate, onDelete, onA
                       >
                         <FaEdit />
                       </button>
-                    <button
-                      type="button"
-                      title="Sil"
-                      className={`${styles.iconButton} ${styles.deleteButton}`}
-                      aria-label="Sil"
-                      onClick={() => handleDeleteClick(row)}
-                    >
-                      <FaTrash />
-                    </button>
+                    ) : null}
+                    {allowDelete ? (
+                      <button
+                        type="button"
+                        title="Sil"
+                        className={`${styles.iconButton} ${styles.deleteButton}`}
+                        aria-label="Sil"
+                        onClick={() => handleDeleteClick(row)}
+                      >
+                        <FaTrash />
+                      </button>
+                    ) : null}
                   </div>
                 </td>
+                ) : (
+                  <td className={`${styles.actionCell} ${styles.min120} ${styles.center}`}>
+                    <FaMinus className={styles.mutedText} />
+                  </td>
+                )}
               </tr>
             ))
           )}

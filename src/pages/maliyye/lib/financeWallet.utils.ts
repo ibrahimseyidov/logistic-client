@@ -1,3 +1,8 @@
+import {
+  convertToAznWithRates,
+  FALLBACK_AZN_RATES,
+} from "../../../common/utils/currency.utils";
+
 /** Sifariş uçotu — kasa/bank balansına toxunmur */
 export const ORDER_BOOK_METHOD = "Sifariş";
 
@@ -70,14 +75,20 @@ export function txMatchesWalletTab(tx: any, tab: WalletTab): boolean {
   return txMatchesWallet(tx, tab);
 }
 
-export function resolveTxCashAzn(tx: any): number {
+export function resolveTxCashAzn(
+  tx: any,
+  rates?: Record<string, number> | null,
+): number {
   const amount = Number(tx.amount);
   if (Number.isFinite(amount) && amount !== 0) {
     const curr = String(tx.currency || "AZN").toUpperCase();
     if (curr === "AZN") return Math.abs(amount);
-    // Sadə fallback kurslar (sifariş uçotu deyil, kasa statistikası)
-    const rates: Record<string, number> = { USD: 1.7, EUR: 1.93, TRY: 0.05 };
-    return Math.abs(amount) * (rates[curr] || 1);
+    const azn = convertToAznWithRates(
+      Math.abs(amount),
+      curr,
+      rates || FALLBACK_AZN_RATES,
+    );
+    return azn > 0 ? azn : 0;
   }
   const profit = Number.parseFloat(String(tx.profit || "").replace(",", "."));
   if (Number.isFinite(profit) && profit !== 0) return Math.abs(profit);

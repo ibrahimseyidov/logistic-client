@@ -12,8 +12,11 @@ import {
   AuthBranch,
   AuthUser,
   fetchAuthBootstrap,
+  isAccountDeactivatedError,
 } from "../actions/auth.actions";
 import { getStoredAuthToken } from "../utils/auth.utils";
+
+const STATUS_POLL_MS = 15_000;
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -103,6 +106,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
+  const forceLogoutDeactivated = useCallback(() => {
+    logout();
+    if (
+      typeof window !== "undefined" &&
+      !window.location.pathname.startsWith("/login")
+    ) {
+      window.location.href = "/login?reason=deactivated";
+    }
+  }, [logout]);
+
   useEffect(() => {
     const token = getStoredAuthToken();
     if (!token) {
@@ -119,6 +132,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       })
       .catch((err) => {
         console.error("Auth bootstrap failed:", err);
+        if (isAccountDeactivatedError(err)) {
+          forceLogoutDeactivated();
+          return;
+        }
         // Keep cached user if present; only clear when there is no cache
         const cached = loadCachedBootstrap();
         if (cached?.user) {
@@ -133,7 +150,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       .finally(() => {
         inFlightTokens.delete(token);
       });
-  }, [login]);
+  }, [login, forceLogoutDeactivated]);
+
+  // Deaktiv olunmuş hesabı tez aşkar etmək üçün periodik yoxlama
+  useEffect(() => {
+    if (!user) return undefined;
+    const token = getStoredAuthToken();
+    if (!token || token === "local-demo-token") return undefined;
+
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const bootstrap = await fetchAuthBootstrap();
+        if (cancelled) return;
+        if (
+          String(bootstrap.user.status || "")
+            .trim()
+            .toLowerCase() === "deactive"
+        ) {
+          forceLogoutDeactivated();
+        }
+      } catch (err) {
+        if (cancelled) return;
+        if (isAccountDeactivatedError(err)) {
+          forceLogoutDeactivated();
+        }
+      }
+    };
+
+    const id = window.setInterval(() => {
+      void tick();
+    }, STATUS_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [user?.id, forceLogoutDeactivated]);
 
   // If token appears later (e.g. another tab) or user was wiped, re-hydrate
   useEffect(() => {
@@ -158,14 +210,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           inFlightTokens.add(token);
           void fetchAuthBootstrap()
             .then((bootstrap) => login(bootstrap, token))
-            .catch(() => {})
+            .catch((err) => {
+              if (isAccountDeactivatedError(err)) forceLogoutDeactivated();
+            })
             .finally(() => inFlightTokens.delete(token));
         }
       }
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [login]);
+  }, [login, forceLogoutDeactivated]);
 
   return (
     <AuthContext.Provider

@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams, Navigate } from "react-router-dom";
 import { useAuth } from "../../common/contexts/AuthContext";
-import { isAdminUser } from "../../common/utils/auth.utils";
+import { usePermissions } from "../../common/hooks/usePermissions";
 import { INCOTERMS_OPTIONS, CARGO_TRANSPORT_OPTIONS } from "../sorgular/constants/options.constants";
 import {
   getAyarlarTabLabel,
   parseAyarlarTab,
   type AyarlarTab,
 } from "./constants/ayarlar.constants";
+import { ayarlarTabToPermChild } from "./lib/permissions.utils";
 import { LookupOptionsSection } from "./components/LookupOptionsSection";
 import { UsersSection } from "./components/UsersSection";
 import { DocumentsSection } from "./components/DocumentsSection";
@@ -26,32 +27,53 @@ const AyarlarPage: React.FC = () => {
   const initialTab = parseAyarlarTab(requestedTab);
   const [activeTab, setActiveTab] = useState<AyarlarTab>(initialTab);
 
-  const { user } = useAuth();
+  const { user, authReady } = useAuth();
+  const { canView, canCreate, canEdit, canDelete } = usePermissions();
 
   useEffect(() => {
     const nextTab = parseAyarlarTab(requestedTab);
     setActiveTab((prev) => (prev === nextTab ? prev : nextTab));
   }, [requestedTab]);
 
-  if (user && !isAdminUser(user)) {
-    return <Navigate to="/" replace />;
-  }
-
-  if (!user) {
+  if (!authReady || !user) {
     return null;
   }
 
+  const tabChild = ayarlarTabToPermChild(activeTab);
+  if (!canView("ayarlar", tabChild)) {
+    return <Navigate to="/no-access" replace />;
+  }
+
+  const usersCrud = {
+    canCreate: canCreate("ayarlar", "users"),
+    canEdit: canEdit("ayarlar", "users"),
+    canDelete: canDelete("ayarlar", "users"),
+  };
+  const lookupsCrud = {
+    canCreate: canCreate("ayarlar", "lookups"),
+    canEdit: canEdit("ayarlar", "lookups"),
+    canDelete: canDelete("ayarlar", "lookups"),
+  };
+  const documentsCrud = {
+    canCreate: canCreate("ayarlar", "documents"),
+    canEdit: canEdit("ayarlar", "documents"),
+    canDelete: canDelete("ayarlar", "documents"),
+  };
+
   return (
     <div className={ayarlarStyles.page}>
-      {activeTab === "users" && <UsersSection />}
+      {activeTab === "users" && <UsersSection {...usersCrud} />}
 
-      {activeTab === "cash" && <CashSettingsSection />}
+      {activeTab === "cash" && (
+        <CashSettingsSection canEdit={canEdit("ayarlar", "cash")} />
+      )}
 
       {activeTab === "cargo-specs" && (
         <LookupOptionsSection
           storageKey="cargo-specs"
           title={getAyarlarTabLabel("cargo-specs")}
           seed={CARGO_SPECS_SEED}
+          {...lookupsCrud}
         />
       )}
 
@@ -60,6 +82,7 @@ const AyarlarPage: React.FC = () => {
           storageKey="incoterms"
           title={getAyarlarTabLabel("incoterms")}
           seed={INCOTERMS_OPTIONS}
+          {...lookupsCrud}
         />
       )}
 
@@ -68,10 +91,11 @@ const AyarlarPage: React.FC = () => {
           storageKey="transport-types"
           title="Nəqliyyat tipləri"
           seed={CARGO_TRANSPORT_OPTIONS}
+          {...lookupsCrud}
         />
       )}
 
-      {activeTab === "documents" && <DocumentsSection />}
+      {activeTab === "documents" && <DocumentsSection {...documentsCrud} />}
 
       {activeTab === "logs" && <LogsSection />}
     </div>

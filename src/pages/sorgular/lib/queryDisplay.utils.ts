@@ -1,3 +1,5 @@
+import { CARGO_TRANSPORT_OPTIONS } from "../constants/options.constants";
+
 function parseCargoItems(query: any): any[] {
   if (Array.isArray(query?.cargoItems) && query.cargoItems.length > 0) {
     return query.cargoItems;
@@ -11,6 +13,18 @@ function parseCargoItems(query: any): any[] {
     }
   }
   return [];
+}
+
+function resolveTransportLabel(raw: unknown): string {
+  const value = String(raw ?? "").trim();
+  if (!value) return "";
+  const matched = CARGO_TRANSPORT_OPTIONS.find(
+    (opt) =>
+      opt.value === value ||
+      opt.label === value ||
+      String(opt.value).toLowerCase() === value.toLowerCase(),
+  );
+  return matched ? matched.label : value;
 }
 
 function formatQueryLocation(query: any, type: "load" | "unload"): string {
@@ -33,20 +47,36 @@ function formatQueryLocation(query: any, type: "load" | "unload"): string {
 }
 
 export function getQueryCargoSummary(query: any): string {
+  const items = parseCargoItems(query);
+  if (items.length > 0) {
+    return items
+      .map((item) => {
+        const parts = [String(item.name || item.cargoName || "Adsız yük").trim()];
+        const weight = item.weight ?? item.weightKg;
+        if (weight) parts.push(`${weight} kq`);
+        const volume = item.volume ?? item.volumeM3;
+        if (volume) parts.push(`${volume} m³`);
+        if (item.ldm) parts.push(`LDM: ${item.ldm}`);
+        if (item.quantity) parts.push(`${item.quantity} əd`);
+        return parts.filter(Boolean).join(" · ");
+      })
+      .join("; ");
+  }
+
   const cargoInfo = String(query?.cargoInfo ?? "").trim();
   if (cargoInfo) return cargoInfo;
+  const composition = String(query?.cargoComposition ?? "").trim();
+  if (composition) return composition;
+  return "—";
+}
 
-  const items = parseCargoItems(query);
-  if (items.length === 0) return "—";
-
-  return items
-    .map((item) => {
-      const parts = [item.name || "Adsız yük"];
-      if (item.weight) parts.push(`${item.weight} kq`);
-      if (item.ldm) parts.push(`LDM: ${item.ldm}`);
-      return parts.join(" | ");
-    })
-    .join("; ");
+export function getQueryTransportLabel(query: any): string {
+  const top = resolveTransportLabel(query?.transportType);
+  const fromItems = parseCargoItems(query)
+    .map((item) => resolveTransportLabel(item?.transportType))
+    .filter(Boolean);
+  const unique = Array.from(new Set([top, ...fromItems].filter(Boolean)));
+  return unique.length > 0 ? unique.join(", ") : "—";
 }
 
 export function getQueryDirectionLabel(query: any): string {

@@ -10,7 +10,7 @@ interface Comment {
 
 interface Props {
   comments: Comment[];
-  onAddComment: (text: string) => void;
+  onAddComment?: (text: string) => void;
   onDeleteComment?: (commentId: number) => void;
 }
 
@@ -23,13 +23,14 @@ export const QueryCommentsList: React.FC<Props> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newComment.trim()) return;
+    if (!onAddComment || !newComment.trim()) return;
     onAddComment(newComment);
     setNewComment("");
   };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      {onAddComment ? (
       <form onSubmit={handleSubmit} style={{ position: "relative" }}>
         <textarea
           value={newComment}
@@ -77,6 +78,7 @@ export const QueryCommentsList: React.FC<Props> = ({
           <FaPaperPlane />
         </button>
       </form>
+      ) : null}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
         {comments.map((comment) => (

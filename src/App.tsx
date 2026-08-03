@@ -17,6 +17,8 @@ import DasiyiciDetailPage from "./pages/dasiyicilar/detail/page";
 import MaliyyePage from "./pages/maliyye/page";
 import MaliyyeHesabatPage from "./pages/maliyye/hesabat/page";
 import RequireAuth from "./common/components/auth/RequireAuth";
+import NoAccessPage from "./common/components/auth/NoAccessPage";
+import HomeRedirect from "./common/components/auth/HomeRedirect";
 
 function App() {
   return (
@@ -25,6 +27,14 @@ function App() {
         <AppShell>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route
+              path="/no-access"
+              element={
+                <RequireAuth skipPermission>
+                  <NoAccessPage />
+                </RequireAuth>
+              }
+            />
             <Route
               path="/sorgular"
               element={
@@ -84,7 +94,7 @@ function App() {
             <Route
               path="/ayarlar"
               element={
-                  <RequireAuth>
+                <RequireAuth>
                   <AyarlarPage />
                 </RequireAuth>
               }
@@ -121,7 +131,14 @@ function App() {
                 </RequireAuth>
               }
             />
-            <Route path="/" element={<Navigate to="/sorgular" replace />} />
+            <Route
+              path="/"
+              element={
+                <RequireAuth skipPermission>
+                  <HomeRedirect />
+                </RequireAuth>
+              }
+            />
           </Routes>
         </AppShell>
       </BrowserRouter>

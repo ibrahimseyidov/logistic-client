@@ -49,14 +49,20 @@ import { resolveUploadUrl, fetchOrderDocumentsAction } from "../../../common/act
 import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
 import { useAuth } from "../../../common/contexts/AuthContext";
+import { usePermissions } from "../../../common/hooks/usePermissions";
 import styles from "./page.module.css";
 import {
   convertCurrencyToAzn,
+  convertToAznWithRates,
+  FALLBACK_AZN_RATES,
+  getAznRate,
   resolveFinanceExpenseAzn,
   resolveFinanceRevenueAzn,
   resolveVoyageExpenseAzn,
 } from "../../../common/utils/currency.utils";
+import { useCurrencyRates } from "../../../common/hooks/useCurrencyRates";
 import {
+  buildFinancePreviewRows,
   resolveOfferExpenseFallbackAzn,
   resolveOfferSalesTotalSummary,
 } from "../lib/offerExpense.utils";
@@ -73,6 +79,20 @@ import {
 import { updateQueryAction } from "../../../common/actions/query.actions";
 import { parseCarrierDocuments } from "../../../common/utils/carrierDisplay.utils";
 import type { UserRow } from "../../ayarlar/types/user.types";
+
+function formatCustomerDocumentLabel(doc: {
+  number: string;
+  documentType?: string;
+  date: string;
+}) {
+  return [doc.date, doc.number, doc.documentType].filter(Boolean).join(" — ");
+}
+
+function firstCustomerContractNumber(
+  docs: ReturnType<typeof parseCarrierDocuments>,
+) {
+  return docs.map((d) => String(d.number || "").trim()).find(Boolean) || "";
+}
 
 type InvoiceDocumentItem = {
   id: string;
@@ -232,6 +252,23 @@ export default function SifarisDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const dispatch = useAppDispatch();
   const { user } = useAuth();
+  const { canView, canCreate, canEdit, canDelete } = usePermissions();
+  const { ratesData } = useCurrencyRates();
+  const currencyRates = ratesData?.rates || FALLBACK_AZN_RATES;
+
+  const canEditOrder = canEdit("sifarisler", "detail");
+  const canCreateLoad = canCreate("sifarisler", "loads");
+  const canEditLoad = canEdit("sifarisler", "loads");
+  const canDeleteLoad = canDelete("sifarisler", "loads");
+  const canCreateVoyage = canCreate("sifarisler", "voyages");
+  const canEditVoyage = canEdit("sifarisler", "voyages");
+  const canDeleteVoyage = canDelete("sifarisler", "voyages");
+  const canCreateFinance = canCreate("sifarisler", "finance");
+  const canEditFinance = canEdit("sifarisler", "finance");
+  const canCreateInvoice = canCreate("sifarisler", "invoices");
+  const canEditInvoice = canEdit("sifarisler", "invoices");
+  const canDeleteInvoice = canDelete("sifarisler", "invoices");
+  const canCreateComment = canCreate("sifarisler", "comments");
   const [users, setUsers] = useState<UserRow[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [customerNameOverride, setCustomerNameOverride] = useState("");
@@ -615,6 +652,14 @@ export default function SifarisDetailPage() {
         return;
       }
 
+      // İrəli/ilkin → müştəri (payer); alınmış → daşıyıcı (payer)
+      const payerForType =
+        invoicesSubTab === "alinmis"
+          ? invoiceCarrier
+          : displayCustomerName && displayCustomerName !== "—"
+            ? displayCustomerName
+            : invoiceCarrier;
+
       const payload = {
         orderId: order?.id ? Number(order.id) : undefined,
         number: resolvedNumber,
@@ -622,7 +667,7 @@ export default function SifarisDetailPage() {
         amount: `${invoiceTotal} ${invoiceCurrency}`,
         status: existingInvoice?.status || "Gözlənilir",
         type: invoicesSubTab,
-        payer: invoiceCarrier,
+        payer: payerForType,
         contract: invoiceContract,
         creator: invoiceCreator,
         lang: invoiceLang,
@@ -1399,9 +1444,28 @@ export default function SifarisDetailPage() {
         order,
         voyages: voyagesList,
         financeTransactions,
+        currencyRates,
       }),
-    [order, voyagesList, financeTransactions],
+    [order, voyagesList, financeTransactions, currencyRates],
   );
+
+  /** Yalnız görüntü — borca / kassaya təsir etmir */
+  const financePreviewRows = useMemo(
+    () =>
+      buildFinancePreviewRows({
+        order,
+        voyages: voyagesList,
+        financeTransactions,
+        customerName: displayCustomerName,
+        currencyRates,
+      }),
+    [order, voyagesList, financeTransactions, displayCustomerName, currencyRates],
+  );
+
+  const financeTableRows = useMemo(() => {
+    if (financeTransactions.length > 0) return financeTransactions;
+    return financePreviewRows;
+  }, [financeTransactions, financePreviewRows]);
 
   /** Seçilib yaradılan Başlanğıc tarif / irəli hesab sətri — sidebar/banner üçün mənbə */
   const baslangicTarifDisplay = useMemo(() => {
@@ -1432,6 +1496,18 @@ export default function SifarisDetailPage() {
         if (currency === "AZN") {
           return `${price} AZN`;
         }
+        // 1:1 AZN (məs. 600 USD = 600 AZN) səhvdirsə — CBAR / təklif məzənnəsi
+        const looksLikeOneToOne =
+          !(azn > 0) || Math.abs(azn - price) < 0.001;
+        if (looksLikeOneToOne) {
+          if (offerSalesTotal?.salesAzn && offerSalesTotal.salesAzn > 0) {
+            return `${price} ${currency} (${offerSalesTotal.salesAzn.toFixed(2)} AZN)`;
+          }
+          const fixedAzn = convertToAznWithRates(price, currency, currencyRates);
+          if (fixedAzn > 0) {
+            return `${price} ${currency} (${fixedAzn.toFixed(2)} AZN)`;
+          }
+        }
         const aznPart = azn > 0 ? ` (${azn.toFixed(2)} AZN)` : "";
         return `${price} ${currency}${aznPart}`;
       }
@@ -1442,16 +1518,19 @@ export default function SifarisDetailPage() {
       return offerSalesTotal.labelSales;
     }
     return order?.freight || "—";
-  }, [financeTransactions, offerSalesTotal, order]);
+  }, [financeTransactions, offerSalesTotal, order, currencyRates]);
 
   const financeTotals = useMemo(() => {
     const isVoyageFinanceName = (name: unknown) =>
       /^Reys R-\d+$/i.test(String(name || "").trim());
 
-    const rates: Record<string, number> = { AZN: 1 };
+    // CBAR / fallback əsası — 1:1 heç vaxt öyrənilmir
+    const rates: Record<string, number> = { ...FALLBACK_AZN_RATES, ...currencyRates };
     const learnRate = (amount: number, currency: string, azn: number) => {
       const curr = (currency || "AZN").toUpperCase();
       if (curr === "AZN" || !(amount > 0) || !(azn > 0)) return;
+      // 1:1 (məs. 600 USD → 600 AZN) səhvdir — ignore
+      if (Math.abs(azn - amount) < 0.001) return;
       rates[curr] = azn / amount;
     };
 
@@ -1497,14 +1576,13 @@ export default function SifarisDetailPage() {
         );
       }
     });
-    if (!rates.USD) rates.USD = 1.7;
-    if (!rates.EUR) rates.EUR = 1.93;
 
     const toAznAmount = (amount: number, currency: string) => {
       const curr = (currency || "AZN").toUpperCase();
       if (!(amount > 0)) return 0;
       if (curr === "AZN") return amount;
-      return amount * (rates[curr] || 1);
+      const rate = getAznRate(curr, rates);
+      return rate > 0 ? amount * rate : 0;
     };
 
     const resolveVoyageParts = (v: any) => {
@@ -1525,13 +1603,13 @@ export default function SifarisDetailPage() {
     let otherFinanceExpAzn = 0;
 
     financeTransactions.forEach((t) => {
-      financeRevAzn += resolveFinanceRevenueAzn(t);
+      financeRevAzn += resolveFinanceRevenueAzn(t, rates);
 
       const name = String(t.name || "").trim();
       if (isVoyageFinanceName(name)) return;
       if (name === "Başlanğıc tarif") return;
 
-      otherFinanceExpAzn += resolveFinanceExpenseAzn(t);
+      otherFinanceExpAzn += resolveFinanceExpenseAzn(t, rates);
     });
 
     let voyageExpAzn = 0;
@@ -1540,17 +1618,20 @@ export default function SifarisDetailPage() {
     });
 
     let totalRevAzn = financeRevAzn;
-    let totalExpAzn = voyageExpAzn + otherFinanceExpAzn;
-
-    if (totalExpAzn <= 0) {
+    // Reys yalnız alış qiymətini daşıya bilər — təklifin total (alış+xərc) önbaxışı üstün tutulur
+    const offerTotalAzn = offerSalesTotal?.totalAzn || 0;
+    let totalExpAzn = otherFinanceExpAzn;
+    if (offerTotalAzn > voyageExpAzn) {
+      totalExpAzn += offerTotalAzn;
+    } else if (voyageExpAzn > 0) {
+      totalExpAzn += voyageExpAzn;
+    } else {
       totalExpAzn += resolveOfferExpenseFallbackAzn({
         order,
         voyages: voyagesList,
         financeTransactions,
+        currencyRates: rates,
       });
-      if (totalExpAzn <= 0 && offerSalesTotal && offerSalesTotal.totalAzn > 0) {
-        totalExpAzn = offerSalesTotal.totalAzn;
-      }
     }
 
     if (financeRevAzn <= 0 && offerSalesTotal && offerSalesTotal.salesAzn > 0) {
@@ -1568,7 +1649,7 @@ export default function SifarisDetailPage() {
       hasFinanceRevenue: financeRevAzn > 0,
       hasFinanceExpense: totalExpAzn > 0,
     };
-  }, [financeTransactions, voyagesList, order, offerSalesTotal]);
+  }, [financeTransactions, voyagesList, order, offerSalesTotal, currencyRates]);
 
   const financeExpenseLabel = useMemo(() => {
     const byCurrency: Record<string, { amount: number; azn: number }> = {};
@@ -1592,7 +1673,7 @@ export default function SifarisDetailPage() {
       const name = String(t.name || "").trim();
       if (/^Reys R-\d+$/i.test(name)) return;
       if (name === "Başlanğıc tarif") return;
-      const azn = resolveFinanceExpenseAzn(t);
+      const azn = resolveFinanceExpenseAzn(t, currencyRates);
       if (!(azn > 0)) return;
       const amount =
         Number.parseFloat(
@@ -1609,13 +1690,22 @@ export default function SifarisDetailPage() {
       return `${g.amount.toFixed(2)} ${curr} (${g.azn.toFixed(2)} AZN)`;
     });
 
+    // Təklif total (alış+xərc) reys alışından böyükdürsə — önbaxış üçün onu göstər
+    if (
+      offerSalesTotal?.labelTotal &&
+      offerSalesTotal.labelTotal !== "—" &&
+      offerSalesTotal.totalAzn >= financeTotals.voyageExpAzn
+    ) {
+      return offerSalesTotal.labelTotal;
+    }
+
     if (parts.length > 0) return parts.join(" + ");
 
     if (offerSalesTotal?.labelTotal && offerSalesTotal.labelTotal !== "—") {
       return offerSalesTotal.labelTotal;
     }
     return `${financeTotals.totalExpAzn.toFixed(2)} AZN`;
-  }, [financeTotals, financeTransactions, voyagesList, offerSalesTotal]);
+  }, [financeTotals, financeTransactions, voyagesList, offerSalesTotal, currencyRates]);
 
   // Removed previous unused useEffects
 
@@ -1859,6 +1949,49 @@ export default function SifarisDetailPage() {
           .toLowerCase() === carrier,
     );
   }, [voyagesList, invoiceCarrier]);
+
+  /** Seçilmiş müştərinin müqavilə sənədləri — hesab-faktura üçün */
+  const invoiceContractOptions = useMemo(() => {
+    const name = String(invoiceCarrier || "")
+      .trim()
+      .toLowerCase();
+    if (!name) return [] as Array<{ value: string; label: string }>;
+
+    const fromList = invoiceCarriersList.find(
+      (c) => c.name.toLowerCase() === name,
+    );
+    let docs = fromList?.documents || [];
+    if (docs.length === 0) {
+      const matched = (customers as any[]).find((c: any) => {
+        const names = [c.name, c.company, c.companyName, c.fullName]
+          .map((n) =>
+            String(n || "")
+              .trim()
+              .toLowerCase(),
+          )
+          .filter(Boolean);
+        return names.includes(name);
+      });
+      docs = parseCarrierDocuments(
+        matched?.documents ?? matched?.documentsJson,
+      );
+    }
+
+    const opts = docs
+      .filter((d) => String(d.number || "").trim())
+      .map((d) => ({
+        value: String(d.number).trim(),
+        label: formatCustomerDocumentLabel(d),
+      }));
+
+    if (
+      invoiceContract &&
+      !opts.some((o) => o.value === invoiceContract)
+    ) {
+      opts.unshift({ value: invoiceContract, label: invoiceContract });
+    }
+    return opts;
+  }, [invoiceCarrier, invoiceCarriersList, customers, invoiceContract]);
 
   const resolveInvoiceVoyageNumber = (carrierName?: string) => {
     const clean = (v: unknown) => {
@@ -2726,6 +2859,84 @@ export default function SifarisDetailPage() {
     }
   };
 
+  const canViewComments = canView("sifarisler", "comments");
+  const canViewOrderTasks = canView("sifarisler", "order_tasks");
+
+  // Tabs — yalnız Görüntülə açıq olan detal bölmələri
+  const tabItems = useMemo(() => {
+    const all: {
+      id: SifarisTabId;
+      label: string;
+      icon: React.ReactNode;
+      permChild: string | "comments_or_tasks";
+    }[] = [
+      {
+        id: "loads",
+        label: `Yüklər (${loadsList.length})`,
+        icon: <FiBox />,
+        permChild: "loads",
+      },
+      {
+        id: "voyages",
+        label: `Reyslər (${voyagesList.length})`,
+        icon: <FiTruck />,
+        permChild: "voyages",
+      },
+      {
+        id: "finance",
+        label: `Maliyyə (${financeTransactions.length || financePreviewRows.length})`,
+        icon: <FiDollarSign />,
+        permChild: "finance",
+      },
+      {
+        id: "documents",
+        label: `Sənədlər (${orderDocumentsCount})`,
+        icon: <FiFileText />,
+        permChild: "documents",
+      },
+      {
+        id: "invoices",
+        label: "Hesablar",
+        icon: <FiFile />,
+        permChild: "invoices",
+      },
+      {
+        id: "comments",
+        label:
+          canViewComments && canViewOrderTasks
+            ? "Şərhlər və Tapşırıqlar"
+            : canViewComments
+              ? "Şərhlər"
+              : "Tapşırıqlar",
+        icon: <FiMessageSquare />,
+        permChild: "comments_or_tasks",
+      },
+    ];
+
+    return all.filter((tab) => {
+      if (tab.permChild === "comments_or_tasks") {
+        return canViewComments || canViewOrderTasks;
+      }
+      return canView("sifarisler", tab.permChild);
+    });
+  }, [
+    loadsList.length,
+    voyagesList.length,
+    financeTransactions.length,
+    financePreviewRows.length,
+    orderDocumentsCount,
+    canView,
+    canViewComments,
+    canViewOrderTasks,
+  ]);
+
+  useEffect(() => {
+    if (tabItems.length === 0) return;
+    if (!tabItems.some((t) => t.id === activeTab)) {
+      setActiveTab(tabItems[0].id);
+    }
+  }, [tabItems, activeTab]);
+
   if (!order) {
     return (
       <div style={{ padding: "4rem", textAlign: "center" }}>
@@ -2804,36 +3015,6 @@ export default function SifarisDetailPage() {
     height: "16px",
   };
 
-  // Tabs navigation
-  const tabItems = [
-    {
-      id: "loads" as SifarisTabId,
-      label: `Yüklər (${loadsList.length})`,
-      icon: <FiBox />,
-    },
-    {
-      id: "voyages" as SifarisTabId,
-      label: `Reyslər (${voyagesList.length})`,
-      icon: <FiTruck />,
-    },
-    {
-      id: "finance" as SifarisTabId,
-      label: `Maliyyə (${financeTransactions.length})`,
-      icon: <FiDollarSign />,
-    },
-    {
-      id: "documents" as SifarisTabId,
-      label: `Sənədlər (${orderDocumentsCount})`,
-      icon: <FiFileText />,
-    },
-    { id: "invoices" as SifarisTabId, label: "Hesablar", icon: <FiFile /> },
-    {
-      id: "comments" as SifarisTabId,
-      label: `Şərhlər və Tapşırıqlar`,
-      icon: <FiMessageSquare />,
-    },
-  ];
-
   return (
     <div className={styles.container}>
       {/* Header */}
@@ -2857,6 +3038,7 @@ export default function SifarisDetailPage() {
             <span>Nr.: {order.orderNumber}</span>
           </div>
           <div className={styles.sidebarCard}>
+            {canEditOrder ? (
             <button
               type="button"
               className={styles.editBtn}
@@ -2867,6 +3049,7 @@ export default function SifarisDetailPage() {
               <FiEdit2 size={15} />
               {isOrderSaving ? "Saxlanılır..." : "Redaktə et"}
             </button>
+            ) : null}
 
             {/* Status Section */}
             <div
@@ -2876,6 +3059,8 @@ export default function SifarisDetailPage() {
                 background: "transparent",
                 padding: 0,
                 marginTop: "1rem",
+                pointerEvents: canEditOrder ? "auto" : "none",
+                opacity: canEditOrder ? 1 : 0.75,
               }}
             >
               <div
@@ -3239,6 +3424,7 @@ export default function SifarisDetailPage() {
               <div>
                 <div className={styles.contentCardHeader}>
                   <h3 className={styles.contentCardTitle}>Yüklər</h3>
+                  {canCreateLoad ? (
                   <button
                     type="button"
                     className={styles.addBtnGreen}
@@ -3246,6 +3432,7 @@ export default function SifarisDetailPage() {
                   >
                     + Əlavə et
                   </button>
+                  ) : null}
                 </div>
                 <div className={styles.tableWrapper}>
                   <table className={styles.table}>
@@ -3358,6 +3545,7 @@ export default function SifarisDetailPage() {
                                     }}
                                   />
                                 </button>
+                                {canEditLoad ? (
                                 <button
                                   type="button"
                                   className={styles.iconBtn}
@@ -3380,6 +3568,8 @@ export default function SifarisDetailPage() {
                                     <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                                   </svg>
                                 </button>
+                                ) : null}
+                                {canCreateLoad ? (
                                 <button
                                   type="button"
                                   className={styles.iconBtn}
@@ -3432,6 +3622,8 @@ export default function SifarisDetailPage() {
                                     }}
                                   />
                                 </button>
+                                ) : null}
+                                {canDeleteLoad ? (
                                 <button
                                   type="button"
                                   className={styles.iconBtn}
@@ -3473,6 +3665,7 @@ export default function SifarisDetailPage() {
                                     }}
                                   />
                                 </button>
+                                ) : null}
                               </div>
                             </div>
                           </td>
@@ -3488,6 +3681,7 @@ export default function SifarisDetailPage() {
               <div>
                 <div className={styles.contentCardHeader}>
                   <h3 className={styles.contentCardTitle}>Reyslər</h3>
+                  {canCreateVoyage ? (
                   <button
                     type="button"
                     className={styles.addBtnGreen}
@@ -3498,6 +3692,7 @@ export default function SifarisDetailPage() {
                   >
                     + Əlavə et
                   </button>
+                  ) : null}
                 </div>
                 <div className={styles.tableWrapper}>
                   <table className={styles.table}>
@@ -3576,7 +3771,9 @@ export default function SifarisDetailPage() {
                           <td className={`${styles.td} ${styles.tdNowrap}`}>
                             <select
                               value={v.status}
+                              disabled={!canEditVoyage}
                               onChange={(e) => {
+                                if (!canEditVoyage) return;
                                 const val = e.target.value;
                                 const updateData = { status: val };
                                 axios
@@ -3607,9 +3804,10 @@ export default function SifarisDetailPage() {
                                 fontSize: "0.8rem",
                                 background: "#ffffff",
                                 outline: "none",
-                                cursor: "pointer",
+                                cursor: canEditVoyage ? "pointer" : "not-allowed",
                                 fontWeight: 600,
                                 color: "#475569",
+                                opacity: canEditVoyage ? 1 : 0.7,
                               }}
                             >
                               <option value="Planlaşdırılıb">
@@ -3691,6 +3889,7 @@ export default function SifarisDetailPage() {
                                     }}
                                   />
                                 </button>
+                                {canEditVoyage ? (
                                 <button
                                   type="button"
                                   className={styles.iconBtn}
@@ -3714,6 +3913,8 @@ export default function SifarisDetailPage() {
                                     <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                                   </svg>
                                 </button>
+                                ) : null}
+                                {canDeleteVoyage ? (
                                 <button
                                   type="button"
                                   className={styles.iconBtn}
@@ -3731,6 +3932,7 @@ export default function SifarisDetailPage() {
                                     }}
                                   />
                                 </button>
+                                ) : null}
                               </div>
                             </div>
                           </td>
@@ -3755,6 +3957,7 @@ export default function SifarisDetailPage() {
                   <h3 className={styles.contentCardTitle} style={{ margin: 0 }}>
                     Maliyyə
                   </h3>
+{canCreateFinance ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -3790,50 +3993,82 @@ export default function SifarisDetailPage() {
                   >
                     <FiPlus /> Əlavə et
                   </button>
+                  ) : null}
                 </div>
 
-                <div
-                  style={{
-                    background: "#f4fbf7",
-                    border: "1px solid #bbf7d0",
-                    borderRadius: "0.375rem",
-                    padding: "0.75rem 1.25rem",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: "1rem",
-                  }}
-                >
+                {offerSalesTotal ? (
                   <div
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
+                      display: "grid",
+                      gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                      gap: "0.75rem",
+                      marginBottom: "1rem",
                     }}
                   >
-                    <span style={{ color: "#22c55e", fontWeight: "bold" }}>
-                      ➔
-                    </span>
-                    <span
-                      style={{
-                        fontSize: "0.85rem",
-                        color: "#334155",
-                        fontWeight: 600,
-                      }}
-                    >
-                      Müştəriyə başlanğıc qiymət (price from the request)
-                    </span>
+                    {[
+                      {
+                        label: "Satış",
+                        value: offerSalesTotal.labelSales,
+                        color: "#166534",
+                        bg: "#f0fdf4",
+                        border: "#bbf7d0",
+                      },
+                      {
+                        label: "Alış",
+                        value: offerSalesTotal.labelPurchase,
+                        color: "#92400e",
+                        bg: "#fffbeb",
+                        border: "#fde68a",
+                      },
+                      {
+                        label: "Xərc / Total",
+                        value: offerSalesTotal.labelTotal,
+                        color: "#9a3412",
+                        bg: "#fff7ed",
+                        border: "#fed7aa",
+                      },
+                      {
+                        label: "Gözlənilən mənfəət",
+                        value: `${offerSalesTotal.profitAzn.toFixed(2)} AZN`,
+                        color: "#1d4ed8",
+                        bg: "#eff6ff",
+                        border: "#bfdbfe",
+                      },
+                    ].map((card) => (
+                      <div
+                        key={card.label}
+                        style={{
+                          background: card.bg,
+                          border: `1px solid ${card.border}`,
+                          borderRadius: "0.5rem",
+                          padding: "0.75rem 0.9rem",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "0.72rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.02em",
+                            marginBottom: "0.35rem",
+                          }}
+                        >
+                          {card.label}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.95rem",
+                            fontWeight: 800,
+                            color: card.color,
+                          }}
+                        >
+                          {card.value}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <span
-                    style={{
-                      fontSize: "0.9rem",
-                      fontWeight: 700,
-                      color: "#166534",
-                    }}
-                  >
-                    {baslangicTarifDisplay}
-                  </span>
-                </div>
+                ) : null}
 
                 <div style={{ marginBottom: "1.5rem" }}>
                   <h4
@@ -3872,7 +4107,24 @@ export default function SifarisDetailPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {financeTransactions.map((tx) => (
+                        {financeTableRows.length === 0 ? (
+                          <tr>
+                            <td
+                              className={styles.td}
+                              colSpan={13}
+                              style={{
+                                textAlign: "center",
+                                color: "#94a3b8",
+                                padding: "1.5rem",
+                              }}
+                            >
+                              Sorğuda qiymət təklifi yoxdur
+                            </td>
+                          </tr>
+                        ) : (
+                          financeTableRows.map((tx: any) => {
+                            const isPreview = Boolean(tx.isPreview);
+                            return (
                           <tr key={tx.id}>
                             <td
                               className={styles.td}
@@ -3881,7 +4133,9 @@ export default function SifarisDetailPage() {
                               {tx.name}
                             </td>
                             <td className={styles.td}>
-                              {(() => {
+                              {isPreview
+                                ? tx.partner || "—"
+                                : (() => {
                                 const txAny = tx as any;
                                 const fromCustomerObj =
                                   (typeof txAny.customer?.name === "string" &&
@@ -3941,22 +4195,50 @@ export default function SifarisDetailPage() {
                                 );
                               })()}
                             </td>
-                            <td className={styles.td}>
+                            <td
+                              className={styles.td}
+                              style={
+                                tx.tarifPrice
+                                  ? { color: "#166534", fontWeight: 700 }
+                                  : undefined
+                              }
+                            >
                               {tx.tarifPrice
-                                ? `${tx.tarifPrice} ${tx.tarifCurrency} (${tx.tarifAzn} AZN)`
+                                ? `${tx.tarifPrice} ${tx.tarifCurrency}${tx.tarifAzn ? ` (${tx.tarifAzn} AZN)` : ""}`
                                 : ""}
                             </td>
-                            <td className={styles.td}>
+                            <td
+                              className={styles.td}
+                              style={
+                                tx.edvliTarifPrice
+                                  ? { color: "#166534", fontWeight: 700 }
+                                  : undefined
+                              }
+                            >
                               {tx.edvliTarifPrice
                                 ? `${tx.edvliTarifPrice} ${tx.edvliTarifCurrency} (${tx.edvliTarifAzn} AZN)`
                                 : ""}
                             </td>
-                            <td className={styles.td}>
+                            <td
+                              className={styles.td}
+                              style={
+                                tx.mesarifPrice
+                                  ? { color: "#b91c1c", fontWeight: 700 }
+                                  : undefined
+                              }
+                            >
                               {tx.mesarifPrice
                                 ? `${tx.mesarifPrice} ${tx.mesarifCurrency}${tx.mesarifAzn ? ` (${tx.mesarifAzn} AZN)` : ""}`
                                 : ""}
                             </td>
-                            <td className={styles.td}>
+                            <td
+                              className={styles.td}
+                              style={
+                                tx.edvliMesarifPrice
+                                  ? { color: "#b91c1c", fontWeight: 700 }
+                                  : undefined
+                              }
+                            >
                               {tx.edvliMesarifPrice
                                 ? `${tx.edvliMesarifPrice} ${tx.edvliMesarifCurrency}${tx.edvliMesarifAzn ? ` (${tx.edvliMesarifAzn} AZN)` : ""}`
                                 : ""}
@@ -4017,7 +4299,7 @@ export default function SifarisDetailPage() {
                               className={styles.td}
                               style={{ textAlign: "center" }}
                             >
-                              {tx.invoiceWritten ? (
+                              {!isPreview && tx.invoiceWritten ? (
                                 <span
                                   title="Yazılmış hesab"
                                   style={{
@@ -4037,7 +4319,7 @@ export default function SifarisDetailPage() {
                               className={styles.td}
                               style={{ textAlign: "center" }}
                             >
-                              {tx.invoiceReceived ? (
+                              {!isPreview && tx.invoiceReceived ? (
                                 <span
                                   title="Alınmış hesab"
                                   style={{
@@ -4058,6 +4340,7 @@ export default function SifarisDetailPage() {
                               className={styles.td}
                               style={{ textAlign: "right" }}
                             >
+                              {!isPreview && canEditFinance ? (
                               <button
                                 type="button"
                                 className={styles.iconBtn}
@@ -4077,9 +4360,12 @@ export default function SifarisDetailPage() {
                                   <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                                 </svg>
                               </button>
+                              ) : null}
                             </td>
                           </tr>
-                        ))}
+                            );
+                          })
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -4197,6 +4483,7 @@ export default function SifarisDetailPage() {
                                     }}
                                   />
                                 </button>
+                                {canEditVoyage ? (
                                 <button
                                   type="button"
                                   className={styles.iconBtn}
@@ -4219,6 +4506,8 @@ export default function SifarisDetailPage() {
                                     <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                                   </svg>
                                 </button>
+                                ) : null}
+                                {canDeleteVoyage ? (
                                 <button
                                   type="button"
                                   className={styles.iconBtn}
@@ -4235,6 +4524,7 @@ export default function SifarisDetailPage() {
                                     }}
                                   />
                                 </button>
+                                ) : null}
                               </div>
                             </td>
                           </tr>
@@ -4256,6 +4546,8 @@ export default function SifarisDetailPage() {
                       ? Number((order as any).queryId)
                       : null
                   }
+                  permModule="sifarisler"
+                  permChild="documents"
                 />
               </div>
             )}
@@ -4348,7 +4640,8 @@ export default function SifarisDetailPage() {
                     </button>
                   </div>
 
-                  <button
+                  {canCreateInvoice ? (
+<button
                     type="button"
                     onClick={() => {
                       setEditingInvoiceId(null);
@@ -4463,12 +4756,7 @@ export default function SifarisDetailPage() {
                         matchedCustomer?.documents ??
                           matchedCustomer?.documentsJson,
                       );
-                      const numbers = docs
-                        .map((d) => String(d.number || "").trim())
-                        .filter(Boolean);
-                      setInvoiceContract(
-                        numbers.length > 0 ? numbers.join(", ") : "",
-                      );
+                      setInvoiceContract(firstCustomerContractNumber(docs));
                       // Müştəri hesabı: satış qiyməti
                       const offer =
                         orderPriceOffers.find(
@@ -4510,20 +4798,32 @@ export default function SifarisDetailPage() {
                             : Array.isArray((data as any)?.customers)
                               ? (data as any).customers
                               : [];
-                          setInvoiceCarriersList(
-                            list
-                              .map((c: any) => ({
-                                id: String(c.id ?? ""),
-                                name: String(
-                                  c.name || c.company || c.companyName || "",
-                                ).trim(),
-                                documents: parseCarrierDocuments(
-                                  c.documents ?? c.documentsJson,
-                                ),
-                              }))
-                              .filter((c: { name: string }) => c.name),
-                          );
+                          const mapped = list
+                            .map((c: any) => ({
+                              id: String(c.id ?? ""),
+                              name: String(
+                                c.name || c.company || c.companyName || "",
+                              ).trim(),
+                              documents: parseCarrierDocuments(
+                                c.documents ?? c.documentsJson,
+                              ),
+                            }))
+                            .filter((c: { name: string }) => c.name);
+                          setInvoiceCarriersList(mapped);
                           setCustomers(list);
+                          if (customerName) {
+                            const found = mapped.find(
+                              (c: { name: string }) =>
+                                c.name.toLowerCase() ===
+                                customerName.toLowerCase(),
+                            );
+                            const first = firstCustomerContractNumber(
+                              found?.documents || [],
+                            );
+                            if (first) {
+                              setInvoiceContract((prev) => prev || first);
+                            }
+                          }
                         })
                         .catch(() => setInvoiceCarriersList([]));
                       setIsNewInvoiceModalOpen(true);
@@ -4550,6 +4850,7 @@ export default function SifarisDetailPage() {
                         ? "İlkin hesab əlavə et"
                         : "İrəli hesab əlavə et"}
                   </button>
+                  ) : null}
                 </div>
 
                 {/* Table or Empty State */}
@@ -4667,7 +4968,8 @@ export default function SifarisDetailPage() {
                                       </span>
                                     )}
                                   </button>
-                                  <button
+                                  {canCreateInvoice ? (
+<button
                                     type="button"
                                     title="Sənəd yüklə"
                                     onClick={() => openInvoiceDocUpload(inv.id)}
@@ -4686,7 +4988,9 @@ export default function SifarisDetailPage() {
                                   >
                                     <FiUpload style={{ fontSize: "0.95rem" }} />
                                   </button>
-                                  <button
+                                  ) : null}
+{canEditInvoice ? (
+<button
                                     type="button"
                                     title="Redaktə et"
                                     onClick={() => openEditInvoice(inv)}
@@ -4705,7 +5009,9 @@ export default function SifarisDetailPage() {
                                   >
                                     <FiEdit2 style={{ fontSize: "0.9rem" }} />
                                   </button>
-                                  <button
+                                  ) : null}
+{canDeleteInvoice ? (
+<button
                                     type="button"
                                     title="Sil"
                                     onClick={() => handleDeleteInvoice(inv)}
@@ -4724,6 +5030,7 @@ export default function SifarisDetailPage() {
                                   >
                                     <FiTrash2 style={{ fontSize: "0.9rem" }} />
                                   </button>
+                                  ) : null}
                                 </div>
                               </td>
                             </tr>
@@ -4745,6 +5052,7 @@ export default function SifarisDetailPage() {
                   }}
                 >
                   {/* Left Column: Comments List */}
+                  {canViewComments ? (
                   <div
                     style={{
                       display: "flex",
@@ -4771,6 +5079,7 @@ export default function SifarisDetailPage() {
                       >
                         Şərhlər ({comments.length})
                       </h3>
+                      {canCreateComment ? (
                       <button
                         type="button"
                         onClick={() => {
@@ -4796,6 +5105,7 @@ export default function SifarisDetailPage() {
                         <FiPlus />
                         Şərh yaz
                       </button>
+                      ) : null}
                     </div>
 
                     <div
@@ -4871,11 +5181,16 @@ export default function SifarisDetailPage() {
                       )}
                     </div>
                   </div>
+                  ) : null}
 
                   {/* Right Column: Tasks List */}
+                  {canViewOrderTasks ? (
                   <EntityTasksPanel
                     orderId={order?.id ? Number(order.id) : null}
+                    permModule="sifarisler"
+                    permChild="order_tasks"
                   />
+                  ) : null}
                 </div>
               </div>
             )}
@@ -9366,11 +9681,10 @@ export default function SifarisDetailPage() {
                               (c) =>
                                 c.name.toLowerCase() === name.toLowerCase(),
                             );
-                            const numbers = (found?.documents || [])
-                              .map((d) => String(d.number || "").trim())
-                              .filter(Boolean);
                             setInvoiceContract(
-                              numbers.length > 0 ? numbers.join(", ") : "",
+                              firstCustomerContractNumber(
+                                found?.documents || [],
+                              ),
                             );
                             const offer =
                               orderPriceOffers.find(
@@ -9454,44 +9768,37 @@ export default function SifarisDetailPage() {
                         >
                           Müştəri ilə müqavilənin nömrəsi
                         </label>
-                        <div
+                        <select
+                          value={invoiceContract}
+                          onChange={(e) =>
+                            setInvoiceContract(e.target.value)
+                          }
+                          disabled={!invoiceCarrier}
                           style={{
-                            position: "relative",
-                            display: "flex",
-                            alignItems: "center",
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.75rem",
+                            outline: "none",
+                            fontSize: "0.875rem",
+                            backgroundColor: invoiceCarrier
+                              ? "#ffffff"
+                              : "#f8fafc",
+                            cursor: invoiceCarrier ? "pointer" : "not-allowed",
                           }}
                         >
-                          <input
-                            type="text"
-                            value={invoiceContract}
-                            onChange={(e) =>
-                              setInvoiceContract(e.target.value)
-                            }
-                            style={{
-                              width: "100%",
-                              border: "1px solid #cbd5e1",
-                              borderRadius: "0.375rem",
-                              padding: "0.5rem 2rem 0.5rem 0.75rem",
-                              outline: "none",
-                              fontSize: "0.875rem",
-                              backgroundColor: "#ffffff",
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setInvoiceContract("")}
-                            style={{
-                              position: "absolute",
-                              right: "0.5rem",
-                              background: "transparent",
-                              border: 0,
-                              cursor: "pointer",
-                              color: "#64748b",
-                            }}
-                          >
-                            <FiX style={{ fontSize: "0.875rem" }} />
-                          </button>
-                        </div>
+                          <option value="">
+                            {invoiceCarrier
+                              ? invoiceContractOptions.length > 0
+                                ? "Müqavilə seçin"
+                                : "Bu müştərinin müqaviləsi yoxdur"
+                              : "Əvvəlcə müştəri seçin"}
+                          </option>
+                          {invoiceContractOptions.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </>
                   )}

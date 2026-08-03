@@ -8,6 +8,8 @@ interface Props {
   onEdit: (row: LookupOptionRow) => void;
   onDelete: (id: number) => void;
   singleColumn?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export const LookupOptionsTable: React.FC<Props> = ({
@@ -15,8 +17,11 @@ export const LookupOptionsTable: React.FC<Props> = ({
   onEdit,
   onDelete,
   singleColumn = false,
+  canEdit = true,
+  canDelete = true,
 }) => {
-  const columnCount = singleColumn ? 2 : 3;
+  const showActions = canEdit || canDelete;
+  const columnCount = (singleColumn ? 1 : 2) + (showActions ? 1 : 0);
 
   return (
     <div className={styles.tableWrapper}>
@@ -27,7 +32,9 @@ export const LookupOptionsTable: React.FC<Props> = ({
               <th className={`${styles.headerCell} ${styles.center}`}>Kod</th>
             ) : null}
             <th className={`${styles.headerCell} ${styles.center}`}>Ad</th>
-            <th className={styles.headerCell}>Əməliyyatlar</th>
+            {showActions ? (
+              <th className={styles.headerCell}>Əməliyyatlar</th>
+            ) : null}
           </tr>
         </thead>
         <tbody>
@@ -48,24 +55,30 @@ export const LookupOptionsTable: React.FC<Props> = ({
                 <td className={`${styles.cell} ${styles.center}`}>
                   {row.label}
                 </td>
-                <td className={styles.cell}>
-                  <div className={styles.actionRow}>
-                    <button
-                      type="button"
-                      className={`${styles.iconButton} ${styles.detailsButton}`}
-                      onClick={() => onEdit(row)}
-                    >
-                      <FaEdit />
-                    </button>
-                    <button
-                      type="button"
-                      className={`${styles.iconButton} ${styles.deleteButton}`}
-                      onClick={() => onDelete(row.id)}
-                    >
-                      <FaTrash />
-                    </button>
-                  </div>
-                </td>
+                {showActions ? (
+                  <td className={styles.cell}>
+                    <div className={styles.actionRow}>
+                      {canEdit ? (
+                        <button
+                          type="button"
+                          className={`${styles.iconButton} ${styles.detailsButton}`}
+                          onClick={() => onEdit(row)}
+                        >
+                          <FaEdit />
+                        </button>
+                      ) : null}
+                      {canDelete ? (
+                        <button
+                          type="button"
+                          className={`${styles.iconButton} ${styles.deleteButton}`}
+                          onClick={() => onDelete(row.id)}
+                        >
+                          <FaTrash />
+                        </button>
+                      ) : null}
+                    </div>
+                  </td>
+                ) : null}
               </tr>
             ))
           )}

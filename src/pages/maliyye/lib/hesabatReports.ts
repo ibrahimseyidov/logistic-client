@@ -24,13 +24,16 @@ import {
   resolveOfferExpenseFallbackAzn,
   resolveOfferSalesTotalSummary,
 } from "../../sifarisler/lib/offerExpense.utils";
+import {
+  getQueryCargoSummary,
+  getQueryDirectionLabel,
+} from "../../sorgular/lib/queryDisplay.utils";
 
 export type ReportId =
   | "customers"
   | "carriers"
   | "queries"
   | "orders"
-  | "voyages"
   | "expenses";
 
 export type ReportFilter = {
@@ -295,14 +298,23 @@ export function buildQueryRows(
         return false;
       }
       const customerName = resolveQueryCustomerName(q);
+      const route = getQueryDirectionLabel(q);
+      const cargo = getQueryCargoSummary(q);
       const hay = [
         q.number,
         customerName,
         q.customer,
         q.manager,
+        route,
+        cargo,
+        q.loadCity,
+        q.unloadCity,
+        q.loadCountry,
+        q.unloadCountry,
         q.loadPlace,
         q.unloadPlace,
         q.transportType,
+        q.cargoInfo,
         status,
       ]
         .filter(Boolean)
@@ -312,17 +324,28 @@ export function buildQueryRows(
     .map((q) => {
       const customerName = resolveQueryCustomerName(q);
       const status = String(q.status || q.statusLabel || "—");
+      const route = getQueryDirectionLabel(q);
+      const cargo = getQueryCargoSummary(q);
       return {
         key: String(q.id),
         cells: [
           q.number || "—",
           customerName,
-          [q.loadPlace, q.unloadPlace].filter(Boolean).join(" → ") || "—",
-          q.transportType || "—",
+          route,
+          cargo,
           status,
-          formatShortDate(q.loadDate || q.createdAt),
+          formatShortDate(
+            q.loadDate || q.createdAt || q.statusAssignedAt,
+          ),
         ],
-        raw: { ...q, _customerName: customerName, _status: status },
+        raw: {
+          ...q,
+          id: q.id,
+          _customerName: customerName,
+          _status: status,
+          _route: route,
+          _cargo: cargo,
+        },
       };
     });
 }
@@ -495,196 +518,12 @@ export function buildOrderRows(
           o.statusLabel || o.statusKind || "—",
           formatShortDate(o.orderDate || o.createdAt),
         ],
-        raw: { ...o, _finance: fin, _customerName: customerName },
-      };
-    });
-}
-
-export function flattenVoyages(orders: any[]): any[] {
-  const out: any[] = [];
-  orders.forEach((o) => {
-    const voyages = Array.isArray(o.voyages) ? o.voyages : [];
-    voyages.forEach((v: any) => {
-      out.push({
-        ...v,
-        orderNumber: o.orderNumber,
-        orderId: o.id,
-        orderCustomer: o.customerName,
-        orderCustomerId: o.customerId,
-        _order: o,
-      });
-    });
-  });
-  return out;
-}
-
-function resolveVoyageCarrierName(voyage: any, carriers: any[]): string {
-  if (voyage?.carrierId != null && voyage.carrierId !== "") {
-    const byId = carriers.find((c) => String(c.id) === String(voyage.carrierId));
-    if (byId) {
-      const label = entityLabel(byId);
-      if (label) return label;
-    }
-  }
-  const raw = String(voyage?.carrier || "").trim();
-  if (!raw || raw === "—") return "—";
-  const byName = findCarrierForName(carriers, raw);
-  if (byName) {
-    const label = entityLabel(byName);
-    if (label) return label;
-  }
-  return raw;
-}
-
-function resolveVoyageCustomerName(
-  voyage: any,
-  customers: any[],
-): string {
-  const order = voyage?._order;
-  if (order) {
-    return resolveOrderCustomerFullName(order, customers);
-  }
-  const raw = String(voyage?.customer || voyage?.orderCustomer || "").trim();
-  if (!raw) return "—";
-  const byName = findCustomerForName(customers, raw);
-  if (byName) {
-    const label = entityLabel(byName);
-    if (label) return label;
-  }
-  return raw;
-}
-
-/** Reys üzrə qiymət / xərc / ödəniş / qalıq / qazanc (AZN) */
-export function summarizeVoyageReportFinance(
-  voyage: any,
-  transactions: any[],
-): {
-  priceAzn: number;
-  expenseAzn: number;
-  paidAzn: number;
-  balanceAzn: number;
-  profitAzn: number;
-} {
-  const order = voyage?._order || null;
-  const oid = String(voyage?.orderId ?? order?.id ?? "");
-  const voyageId = String(voyage?.id ?? "");
-  const tripRef = String(voyage?.tripRef || (voyageId ? `R-${voyageId}` : "")).trim();
-  const carrierName = String(voyage?.carrier || "").trim();
-  const orderTxs = (transactions || []).filter(
-    (tx) => String(tx.orderId) === oid,
-  );
-
-  let expenseAzn = resolveVoyageExpenseAzn(voyage);
-  if (!(expenseAzn > 0)) {
-    orderTxs.forEach((tx) => {
-      if (!isOrderBookkeepingTx(tx)) return;
-      const name = String(tx.name || "").trim();
-      const matchesReys =
-        (tripRef && namesMatch(name, `Reys ${tripRef}`)) ||
-        (voyageId && /^Reys R-/i.test(name) && name.includes(voyageId));
-      if (!matchesReys && !namesMatch(tx.partner, carrierName)) return;
-      if (matchesReys || (carrierName && namesMatch(tx.partner, carrierName))) {
-        expenseAzn += resolveFinanceExpenseAzn(tx);
-      }
-    });
-  }
-
-  let priceAzn = 0;
-  let paidAzn = 0;
-  if (order) {
-    const orderFin = summarizeOrderReportFinance(order, transactions);
-    const voyageCount = Array.isArray(order.voyages)
-      ? Math.max(1, order.voyages.length)
-      : 1;
-    // Qiymət / ödəniş — sifariş gəliri və müştəri ödənişi (reys sayına bölünür)
-    priceAzn =
-      voyageCount > 1 && orderFin.priceAzn > 0
-        ? orderFin.priceAzn / voyageCount
-        : orderFin.priceAzn;
-    paidAzn =
-      voyageCount > 1 && orderFin.paidAzn > 0
-        ? orderFin.paidAzn / voyageCount
-        : orderFin.paidAzn;
-  }
-  if (!(priceAzn > 0)) {
-    priceAzn = expenseAzn;
-  }
-
-  return {
-    priceAzn,
-    expenseAzn, // yalnız məlumat — qalıq hesablamasına daxil deyil
-    paidAzn,
-    // Qalıq = Qiymət − Ödəniş
-    balanceAzn: Math.max(0, priceAzn - paidAzn),
-    profitAzn: priceAzn - expenseAzn,
-  };
-}
-
-export function buildVoyageRows(
-  voyages: any[],
-  filter: ReportFilter,
-  opts: {
-    transactions?: any[];
-    customers?: any[];
-    carriers?: any[];
-  } = {},
-): GenericReportRow[] {
-  const transactions = opts.transactions || [];
-  const customers = opts.customers || [];
-  const carriers = opts.carriers || [];
-
-  return voyages
-    .filter((v) => {
-      const status = String(v.tripStatus || v.tripStatusKind || "");
-      if (filter.status && status !== filter.status && v.tripStatusKind !== filter.status) {
-        return false;
-      }
-      if (!inDateRange(v.tripDateIso || v.loadDate || v.createdAt, filter)) {
-        return false;
-      }
-      const carrierName = resolveVoyageCarrierName(v, carriers);
-      const customerName = resolveVoyageCustomerName(v, customers);
-      const hay = [
-        v.tripRef,
-        v.orderNumber,
-        carrierName,
-        customerName,
-        v.carrier,
-        v.customer || v.orderCustomer,
-        v.vehicleInfo,
-        v.loading,
-        v.unloading,
-        status,
-      ]
-        .filter(Boolean)
-        .join(" ");
-      return matchesSearch(hay, filter.search);
-    })
-    .map((v) => {
-      const carrierName = resolveVoyageCarrierName(v, carriers);
-      const customerName = resolveVoyageCustomerName(v, customers);
-      const fin = summarizeVoyageReportFinance(v, transactions);
-      const status = String(v.tripStatus || v.tripStatusKind || "—");
-      return {
-        key: String(v.id),
-        cells: [
-          v.tripRef || `#${v.id}`,
-          v.orderNumber || "—",
-          customerName,
-          fmtAznAmount(fin.priceAzn),
-          fmtAznAmount(fin.expenseAzn),
-          fmtAznAmount(fin.paidAzn),
-          fmtAznAmount(fin.balanceAzn),
-          fmtAznAmount(fin.profitAzn),
-          status,
-          formatShortDate(v.tripDateIso || v.loadDate || v.createdAt),
-        ],
         raw: {
-          ...v,
+          ...o,
+          id: o.id,
+          _orderId: o.id,
           _finance: fin,
-          _carrierName: carrierName,
           _customerName: customerName,
-          _status: status,
         },
       };
     });

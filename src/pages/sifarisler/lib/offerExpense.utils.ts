@@ -1,4 +1,6 @@
 import {
+  convertToAznWithRates,
+  getAznRate,
   parseStoredAzn,
   resolveFinanceExpenseAzn,
   resolveFinanceRevenueAzn,
@@ -25,15 +27,81 @@ function parsePriceOffers(query: any): any[] {
   return [];
 }
 
-function inferAznRate(financeTransactions: any[]): number {
+/**
+ * Verilmiş valyuta üçün AZN məzənnəsi.
+ * Prioritet: CBAR rates → tx/reys-dən öyrənilən (1:1 deyil) → fallback.
+ */
+function resolveAznRate(
+  currency: string,
+  rates?: Record<string, number> | null,
+  financeTransactions: any[] = [],
+  voyages: any[] = [],
+  order?: any,
+): number {
+  const curr = (currency || "AZN").toUpperCase();
+  if (curr === "AZN") return 1;
+
+  // 1) CBAR / API rates
+  const fromApi = rates?.[curr];
+  if (typeof fromApi === "number" && fromApi > 0) return fromApi;
+
+  // 2) Finance tx-dən öyrən (1:1 rədd et)
   for (const tx of financeTransactions || []) {
-    const price = toNumber(tx.tarifPrice || tx.edvliTarifPrice);
-    const azn = parseStoredAzn(tx.tarifAzn) ?? parseStoredAzn(tx.edvliTarifAzn);
-    if (price > 0 && azn != null && azn > 0) {
+    const txCurr = String(
+      tx.tarifCurrency || tx.mesarifCurrency || tx.edvliTarifCurrency || "",
+    )
+      .trim()
+      .toUpperCase();
+    if (txCurr && txCurr !== curr) continue;
+    const price = toNumber(
+      tx.tarifPrice || tx.edvliTarifPrice || tx.mesarifPrice,
+    );
+    const azn =
+      parseStoredAzn(tx.tarifAzn) ??
+      parseStoredAzn(tx.edvliTarifAzn) ??
+      parseStoredAzn(tx.mesarifAzn);
+    if (price > 0 && azn != null && azn > 0 && Math.abs(azn - price) > 0.001) {
       return azn / price;
     }
   }
-  return 1;
+
+  // 3) Reys qiymətindən
+  for (const v of voyages || []) {
+    const text = String(v?.price || v?.tripPrice || "");
+    const m = text.match(
+      /^([0-9]+(?:[.,][0-9]+)?)\s*([A-Za-z]{3}).*?\(([0-9]+(?:[.,][0-9]+)?)\s*AZN/i,
+    );
+    if (!m) continue;
+    const amount = Number.parseFloat(m[1].replace(",", ".")) || 0;
+    const vCurr = String(m[2] || "").toUpperCase();
+    const azn = Number.parseFloat(m[3].replace(",", ".")) || 0;
+    if (vCurr !== curr) continue;
+    if (amount > 0 && azn > 0 && Math.abs(azn - amount) > 0.001) {
+      return azn / amount;
+    }
+  }
+
+  // 4) Sifariş fraxtından: "600 USD (1020.00 AZN)"
+  const freightText = String(order?.freight || order?.freightWithVat || "");
+  const fm = freightText.match(
+    /([0-9]+(?:[.,][0-9]+)?)\s*([A-Za-z]{3}).*?\(([0-9]+(?:[.,][0-9]+)?)\s*AZN/i,
+  );
+  if (fm) {
+    const amount = Number.parseFloat(fm[1].replace(",", ".")) || 0;
+    const fCurr = String(fm[2] || "").toUpperCase();
+    const azn = Number.parseFloat(fm[3].replace(",", ".")) || 0;
+    if (
+      fCurr === curr &&
+      amount > 0 &&
+      azn > 0 &&
+      Math.abs(azn - amount) > 0.001
+    ) {
+      return azn / amount;
+    }
+  }
+
+  // 5) Fallback (USD/EUR/TRY…) — heç vaxt 1:1
+  return getAznRate(curr, null);
 }
 
 function collectCarrierNames(order: any, voyages: any[]): Set<string> {
@@ -56,8 +124,14 @@ export function resolveOfferExpenseFallbackAzn(params: {
   order: any;
   voyages?: any[];
   financeTransactions?: any[];
+  currencyRates?: Record<string, number> | null;
 }): number {
-  const { order, voyages = [], financeTransactions = [] } = params;
+  const {
+    order,
+    voyages = [],
+    financeTransactions = [],
+    currencyRates,
+  } = params;
   const already =
     (financeTransactions || []).reduce(
       (sum, tx) => sum + resolveFinanceExpenseAzn(tx),
@@ -87,7 +161,6 @@ export function resolveOfferExpenseFallbackAzn(params: {
   });
   const useOffers = matched.length > 0 ? matched : [offers[0]];
 
-  const rate = inferAznRate(financeTransactions);
   return useOffers.reduce((sum, offer) => {
     const purchase = toNumber(offer?.price);
     const expense = toNumber(offer?.expense);
@@ -97,7 +170,14 @@ export function resolveOfferExpenseFallbackAzn(params: {
     if (!(total > 0)) return sum;
     const currency = String(offer?.currency || "AZN").toUpperCase();
     if (currency === "AZN") return sum + total;
-    return sum + total * rate;
+    const rate = resolveAznRate(
+      currency,
+      currencyRates,
+      financeTransactions,
+      voyages,
+      order,
+    );
+    return sum + (rate > 0 ? total * rate : 0);
   }, 0);
 }
 
@@ -126,6 +206,7 @@ export function resolveOfferSalesTotalSummary(params: {
   order: any;
   voyages?: any[];
   financeTransactions?: any[];
+  currencyRates?: Record<string, number> | null;
 }): {
   sales: number;
   total: number;
@@ -141,6 +222,7 @@ export function resolveOfferSalesTotalSummary(params: {
   labelTotal: string;
   labelPurchase: string;
   labelExpense: string;
+  carrierName: string;
 } | null {
   const offer = resolveSelectedPriceOffer(params);
   if (!offer) return null;
@@ -154,18 +236,24 @@ export function resolveOfferSalesTotalSummary(params: {
   if (!(sales > 0) && !(total > 0)) return null;
 
   const currency = String(offer.currency || "AZN").trim() || "AZN";
-  const rate = inferAznRate(params.financeTransactions || []);
-  const toAzn = (amount: number) => {
-    if (!(amount > 0)) return 0;
-    if (currency.toUpperCase() === "AZN") return amount;
-    return amount * (rate > 0 ? rate : 1);
-  };
+  const rate = resolveAznRate(
+    currency,
+    params.currencyRates,
+    params.financeTransactions || [],
+    params.voyages || [],
+    params.order,
+  );
+  const ratesMap = { ...(params.currencyRates || {}), [currency]: rate };
+  const toAzn = (amount: number) =>
+    convertToAznWithRates(amount, currency, ratesMap);
+
   const salesAzn = toAzn(sales);
   const totalAzn = toAzn(total);
   const formatLabel = (amount: number) => {
     if (!(amount > 0)) return "—";
     if (currency.toUpperCase() === "AZN") return `${amount} AZN`;
     const azn = toAzn(amount);
+    if (!(azn > 0)) return `${amount} ${currency}`;
     return `${amount} ${currency} (${azn.toFixed(2)} AZN)`;
   };
 
@@ -184,7 +272,151 @@ export function resolveOfferSalesTotalSummary(params: {
     labelTotal: formatLabel(total),
     labelPurchase: formatLabel(purchase),
     labelExpense: formatLabel(expense),
+    carrierName: String(offer.carrierName || "").trim(),
   };
+}
+
+export type FinancePreviewRow = {
+  id: string;
+  name: string;
+  partner: string;
+  tarifPrice: string;
+  tarifCurrency: string;
+  tarifAzn: string;
+  mesarifPrice: string;
+  mesarifCurrency: string;
+  mesarifAzn: string;
+  profit: string;
+  isPreview: true;
+  costDate: string;
+  user: string;
+};
+
+/**
+ * Sorğu qiymət təklifindən yalnız görüntü (önbaxış) sətirləri —
+ * real maliyyə əməliyyatı / borc yaratmır.
+ */
+export function buildFinancePreviewRows(params: {
+  order: any;
+  voyages?: any[];
+  financeTransactions?: any[];
+  customerName?: string;
+  currencyRates?: Record<string, number> | null;
+}): FinancePreviewRow[] {
+  const summary = resolveOfferSalesTotalSummary(params);
+  if (!summary) return [];
+
+  const currency = summary.currency || "AZN";
+  const fmtAzn = (n: number) => (n > 0 ? n.toFixed(2) : "");
+  const fmtAmt = (n: number) => (n > 0 ? String(n) : "");
+  const carrier =
+    summary.carrierName ||
+    String(params.voyages?.[0]?.carrier || "").trim() ||
+    "Daşıyıcı";
+  const customer =
+    String(params.customerName || "").trim() ||
+    String(params.order?.customer || "").trim() ||
+    "Müştəri";
+
+  const rows: FinancePreviewRow[] = [];
+
+  if (summary.sales > 0) {
+    rows.push({
+      id: "preview-sales",
+      name: "Satış qiyməti",
+      partner: customer,
+      tarifPrice: fmtAmt(summary.sales),
+      tarifCurrency: currency,
+      tarifAzn: fmtAzn(summary.salesAzn),
+      mesarifPrice: "",
+      mesarifCurrency: "",
+      mesarifAzn: "",
+      profit: "",
+      isPreview: true,
+      costDate: "",
+      user: "Sistem",
+    });
+  }
+
+  if (summary.purchase > 0) {
+    rows.push({
+      id: "preview-purchase",
+      name: "Alış qiyməti",
+      partner: carrier,
+      tarifPrice: "",
+      tarifCurrency: "",
+      tarifAzn: "",
+      mesarifPrice: fmtAmt(summary.purchase),
+      mesarifCurrency: currency,
+      mesarifAzn: fmtAzn(summary.purchaseAzn),
+      profit: "",
+      isPreview: true,
+      costDate: "",
+      user: "Sistem",
+    });
+  }
+
+  if (summary.expense > 0) {
+    rows.push({
+      id: "preview-expense",
+      name: "Xərc",
+      partner: carrier,
+      tarifPrice: "",
+      tarifCurrency: "",
+      tarifAzn: "",
+      mesarifPrice: fmtAmt(summary.expense),
+      mesarifCurrency: currency,
+      mesarifAzn: fmtAzn(summary.expenseAzn),
+      profit: "",
+      isPreview: true,
+      costDate: "",
+      user: "Sistem",
+    });
+  }
+
+  // Alış/xərc yoxdursa, yalnız total varsa — onu göstər
+  if (
+    !(summary.purchase > 0) &&
+    !(summary.expense > 0) &&
+    summary.total > 0
+  ) {
+    rows.push({
+      id: "preview-total",
+      name: "Total qiymət",
+      partner: carrier,
+      tarifPrice: "",
+      tarifCurrency: "",
+      tarifAzn: "",
+      mesarifPrice: fmtAmt(summary.total),
+      mesarifCurrency: currency,
+      mesarifAzn: fmtAzn(summary.totalAzn),
+      profit: "",
+      isPreview: true,
+      costDate: "",
+      user: "Sistem",
+    });
+  }
+
+  if (rows.length > 0) {
+    const profit = summary.profitAzn;
+    rows.push({
+      id: "preview-profit",
+      name: "Gözlənilən mənfəət",
+      partner: "—",
+      tarifPrice: "",
+      tarifCurrency: "",
+      tarifAzn: "",
+      mesarifPrice: "",
+      mesarifCurrency: "",
+      mesarifAzn: "",
+      profit: `${profit.toFixed(2)} AZN`,
+      isPreview: true,
+      costDate: "",
+      user: "Sistem",
+    });
+  }
+
+  return rows;
 }
 
 export function hasFinanceRevenue(financeTransactions: any[]): boolean {

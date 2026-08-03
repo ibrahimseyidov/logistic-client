@@ -4,6 +4,7 @@ import { FiEye, FiCopy, FiTrash2, FiInfo, FiClock, FiCheck, FiFileText, FiFile, 
 import { Link, useNavigate } from "react-router-dom";
 import * as Popover from "@radix-ui/react-popover";
 import StatusBadge from "../../../common/components/StatusBadge";
+import { usePermissions } from "../../../common/hooks/usePermissions";
 import type { OrderStatusKind, SifarisOrderRow } from "../types/sifaris.types";
 import { CUSTOMER_OPTIONS } from "../../sorgular/constants/options.constants";
 import { formatDateOnly } from "../lib/formatDate";
@@ -137,6 +138,10 @@ export default function SifarisTable({
   onStatusChange,
 }: Props) {
   const navigate = useNavigate();
+  const { canCreate, canEdit, canDelete } = usePermissions();
+  const allowDuplicate = canCreate("sifarisler", "orders");
+  const allowEditStatus = canEdit("sifarisler", "orders");
+  const allowDelete = canDelete("sifarisler", "orders");
   const [historyOrder, setHistoryOrder] = useState<SifarisOrderRow | null>(null);
   const pageIds = rows.map((r) => r.id);
   const allSelected =
@@ -245,6 +250,27 @@ export default function SifarisTable({
               <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
                 {(() => {
                   const currentOpt = STATUS_OPTIONS.find((o) => o.value === row.statusKind) || STATUS_OPTIONS[0];
+                  if (!allowEditStatus) {
+                    return (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.4rem",
+                          border: `1px solid ${currentOpt.border}`,
+                          borderRadius: "999px",
+                          padding: "0.3rem 0.85rem",
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          backgroundColor: currentOpt.bg,
+                          color: currentOpt.text,
+                        }}
+                      >
+                        <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: currentOpt.dot }} />
+                        {currentOpt.label}
+                      </span>
+                    );
+                  }
                   return (
                     <Popover.Root>
                       <Popover.Trigger asChild>
@@ -514,61 +540,65 @@ export default function SifarisTable({
                   <FiEye style={{ fontSize: "1.1rem" }} />
                 </button>
 
-                <button
-                  type="button"
-                  title="Kopyalamaq"
-                  onClick={() => onDuplicateClick(row.id)}
-                  style={{
-                    background: "transparent",
-                    border: 0,
-                    cursor: "pointer",
-                    color: "#10b981",
-                    padding: "0.375rem",
-                    borderRadius: "0.375rem",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transition: "all 0.2s ease",
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.background = "#ecfdf5";
-                    e.currentTarget.style.transform = "scale(1.1)";
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.background = "transparent";
-                    e.currentTarget.style.transform = "scale(1)";
-                  }}
-                >
-                  <FiCopy style={{ fontSize: "1.1rem" }} />
-                </button>
+                {allowDuplicate ? (
+                  <button
+                    type="button"
+                    title="Kopyalamaq"
+                    onClick={() => onDuplicateClick(row.id)}
+                    style={{
+                      background: "transparent",
+                      border: 0,
+                      cursor: "pointer",
+                      color: "#10b981",
+                      padding: "0.375rem",
+                      borderRadius: "0.375rem",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.background = "#ecfdf5";
+                      e.currentTarget.style.transform = "scale(1.1)";
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.background = "transparent";
+                      e.currentTarget.style.transform = "scale(1)";
+                    }}
+                  >
+                    <FiCopy style={{ fontSize: "1.1rem" }} />
+                  </button>
+                ) : null}
 
-                <button
-                  type="button"
-                  title="Silmək"
-                  onClick={() => onDeleteClick(row.id)}
-                  style={{
-                    background: "transparent",
-                    border: 0,
-                    cursor: "pointer",
-                    color: "#ef4444",
-                    padding: "0.375rem",
-                    borderRadius: "0.375rem",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transition: "all 0.2s ease",
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.background = "#fef2f2";
-                    e.currentTarget.style.transform = "scale(1.1)";
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.background = "transparent";
-                    e.currentTarget.style.transform = "scale(1)";
-                  }}
-                >
-                  <FiTrash2 style={{ fontSize: "1.1rem" }} />
-                </button>
+                {allowDelete ? (
+                  <button
+                    type="button"
+                    title="Silmək"
+                    onClick={() => onDeleteClick(row.id)}
+                    style={{
+                      background: "transparent",
+                      border: 0,
+                      cursor: "pointer",
+                      color: "#ef4444",
+                      padding: "0.375rem",
+                      borderRadius: "0.375rem",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.background = "#fef2f2";
+                      e.currentTarget.style.transform = "scale(1.1)";
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.background = "transparent";
+                      e.currentTarget.style.transform = "scale(1)";
+                    }}
+                  >
+                    <FiTrash2 style={{ fontSize: "1.1rem" }} />
+                  </button>
+                ) : null}
               </div>
             </td>
           </tr>

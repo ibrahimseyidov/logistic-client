@@ -1,6 +1,7 @@
 import {
   SYSTEM_PARTNER_LABEL,
   isIncomeTx,
+  isSimpleExpenseTx,
   isSystemBalanceAdjustment,
   normalizeWallet,
   resolveTxCashAzn,
@@ -38,7 +39,7 @@ export function emptyMaliyyeFilter(): MaliyyeFilterState {
 }
 
 function parseTxDate(tx: any): Date | null {
-  const raw = tx?.date || tx?.costDate;
+  const raw = tx?.date || tx?.costDate || tx?.createdAt || tx?.updatedAt;
   if (!raw) return null;
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return null;
@@ -55,7 +56,7 @@ function dayEnd(ymd: string): Date {
   return new Date(y, m - 1, d, 23, 59, 59, 999);
 }
 
-function partnerLabel(tx: any): string {
+export function partnerLabel(tx: any): string {
   if (isSystemBalanceAdjustment(tx)) return SYSTEM_PARTNER_LABEL;
   return (
     tx?.customer?.name ||
@@ -67,22 +68,104 @@ function partnerLabel(tx: any): string {
   );
 }
 
+/** Cədvəl / axtarış üçün sənəd tipi */
+export function resolveDocType(tx: any): string {
+  const cat = String(tx?.category || "").trim();
+  if (cat) return cat;
+  const name = String(tx?.name || "").trim();
+  if (/balans\s*düzəlişi|balans\s*duzelisi/i.test(name)) {
+    return isIncomeTx(tx)
+      ? "Kassa düzəlişi — mədaxil"
+      : "Kassa düzəlişi — məxaric";
+  }
+  if (isSimpleExpenseTx(tx)) return "Ümumi xərc";
+  if (isIncomeTx(tx)) return "Gəlir";
+  return "Xərc";
+}
+
+function formatSearchDate(tx: any): string {
+  const d = parseTxDate(tx);
+  if (!d) return "";
+  return d.toLocaleDateString("az-AZ");
+}
+
+/** Bütün görünən + gizli sahələr üzrə axtarış haystack */
+function buildSearchHaystack(
+  tx: any,
+  rates?: Record<string, number> | null,
+): string {
+  const azn = resolveTxCashAzn(tx, rates);
+  const amount = Number(tx?.amount);
+  const currency = String(tx?.currency || "AZN").toUpperCase();
+  const income = isIncomeTx(tx);
+  const wallet = normalizeWallet(tx?.paymentMethod) || "Bank";
+
+  return [
+    tx?.id,
+    `#${tx?.id}`,
+    income ? "gəlir" : "xərc",
+    income ? "gelir" : "xerc",
+    income ? "giriş" : "çıxış",
+    income ? "giris" : "cixis",
+    wallet,
+    tx?.paymentMethod,
+    tx?.name,
+    tx?.category,
+    resolveDocType(tx),
+    partnerLabel(tx),
+    tx?.orderId != null ? String(tx.orderId) : "",
+    tx?.orderId != null ? `#${tx.orderId}` : "",
+    tx?.order?.orderNumber,
+    tx?.orderNumber,
+    Number.isFinite(amount) ? String(amount) : "",
+    Number.isFinite(amount) ? amount.toFixed(2) : "",
+    currency,
+    azn > 0 ? azn.toFixed(2) : "",
+    azn > 0 ? String(Math.round(azn)) : "",
+    azn > 0 ? `+${azn.toFixed(2)}` : "",
+    azn > 0 ? `-${azn.toFixed(2)}` : "",
+    `${azn.toFixed(2)} azn`,
+    formatSearchDate(tx),
+    tx?.createdByName,
+    tx?.updatedByName,
+    tx?.user,
+    tx?.description,
+    tx?.note,
+    tx?.notes,
+    tx?.comment,
+    tx?.type,
+  ]
+    .filter((v) => v != null && String(v).trim() !== "")
+    .join(" ")
+    .toLowerCase();
+}
+
 export function applyMaliyyeFilters(
   txs: any[],
   filter: MaliyyeFilterState,
+  rates?: Record<string, number> | null,
 ): any[] {
   const search = filter.search.trim().toLowerCase();
   const category = filter.category.trim().toLowerCase();
   const partner = filter.partner.trim().toLowerCase();
   const orderId = filter.orderId.trim().replace(/^#/, "");
   const createdBy = filter.createdBy.trim().toLowerCase();
-  const amountMin = Number.parseFloat(String(filter.amountMin).replace(",", "."));
-  const amountMax = Number.parseFloat(String(filter.amountMax).replace(",", "."));
+  const amountMin = Number.parseFloat(
+    String(filter.amountMin).replace(",", "."),
+  );
+  const amountMax = Number.parseFloat(
+    String(filter.amountMax).replace(",", "."),
+  );
   const hasMin = Number.isFinite(amountMin);
   const hasMax = Number.isFinite(amountMax);
   const walletFilter = filter.paymentMethod
     ? (normalizeWallet(filter.paymentMethod) as CashWallet | null)
     : null;
+
+  // Çoxsözlü axtarış: hər söz haystack-də olmalıdır
+  const searchTokens = search
+    ? search.split(/\s+/).filter(Boolean)
+    : [];
 
   return txs.filter((tx) => {
     if (filter.type === "INCOME" && !isIncomeTx(tx)) return false;
@@ -103,7 +186,8 @@ export function applyMaliyyeFilters(
 
     if (category) {
       const cat = String(tx.category || "").toLowerCase();
-      if (!cat.includes(category)) return false;
+      const doc = resolveDocType(tx).toLowerCase();
+      if (!cat.includes(category) && !doc.includes(category)) return false;
     }
 
     if (partner) {
@@ -113,35 +197,26 @@ export function applyMaliyyeFilters(
 
     if (orderId) {
       const oid = String(tx.orderId ?? "");
-      if (!oid.includes(orderId)) return false;
+      const onum = String(tx.order?.orderNumber || tx.orderNumber || "");
+      if (!oid.includes(orderId) && !onum.includes(orderId)) return false;
     }
 
     if (createdBy) {
-      const by = String(tx.createdByName || tx.user || "").toLowerCase();
+      const by = String(
+        tx.createdByName || tx.user || tx.updatedByName || "",
+      ).toLowerCase();
       if (!by.includes(createdBy)) return false;
     }
 
     if (hasMin || hasMax) {
-      const azn = resolveTxCashAzn(tx);
+      const azn = resolveTxCashAzn(tx, rates);
       if (hasMin && azn < amountMin) return false;
       if (hasMax && azn > amountMax) return false;
     }
 
-    if (search) {
-      const hay = [
-        tx.id,
-        tx.name,
-        tx.category,
-        partnerLabel(tx),
-        tx.orderId ? `#${tx.orderId}` : "",
-        tx.paymentMethod,
-        tx.createdByName,
-        tx.user,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      if (!hay.includes(search)) return false;
+    if (searchTokens.length > 0) {
+      const hay = buildSearchHaystack(tx, rates);
+      if (!searchTokens.every((token) => hay.includes(token))) return false;
     }
 
     return true;

@@ -42,8 +42,14 @@ import {
   matchesCarrierEntity,
   queryMatchesCarrier,
 } from "../../../common/utils/entityActivity.utils";
+import { usePermissions } from "../../../common/hooks/usePermissions";
 
-const TAB_ITEMS = ["Məlumatlar", "Sorğular", "Sifarişlər", "Maliyyə"];
+const TAB_ITEMS: { label: string; permChild: string }[] = [
+  { label: "Məlumatlar", permChild: "detail" },
+  { label: "Sorğular", permChild: "detail" },
+  { label: "Sifarişlər", permChild: "detail" },
+  { label: "Maliyyə", permChild: "finance" },
+];
 
 function resolveCountryValue(stored: string): string {
   const trimmed = String(stored ?? "").trim();
@@ -78,6 +84,8 @@ export default function DasiyiciDetailPage() {
   const navigate = useNavigate();
   const { carrierId } = useParams();
   const dispatch = useAppDispatch();
+  const { canView, canCreate } = usePermissions();
+  const canCreateContact = canCreate("dasiyicilar", "contacts");
 
   const [carrier, setCarrier] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -105,6 +113,18 @@ export default function DasiyiciDetailPage() {
     salesGroup: "",
     contactPersons: [] as string[],
   });
+
+  const visibleTabs = useMemo(
+    () => TAB_ITEMS.filter((t) => canView("dasiyicilar", t.permChild)),
+    [canView],
+  );
+
+  useEffect(() => {
+    if (visibleTabs.length === 0) return;
+    if (!visibleTabs.some((t) => t.label === activeTab)) {
+      setActiveTab(visibleTabs[0].label);
+    }
+  }, [visibleTabs, activeTab]);
 
   const loadData = async () => {
     if (!carrierId) return;
@@ -185,42 +205,55 @@ export default function DasiyiciDetailPage() {
     };
   }, [orders]);
 
-  // Dynamic Finance Info
+  // Dynamic Finance Info — daşıyıcı YALNIZ "Alınmış hesab" ilə borclanır
   const financeStats = useMemo(() => {
     const payments: any[] = [];
     let totalPaid = 0;
     let outstandingDebt = 0;
 
     financeTransactions.forEach((tx) => {
-      const amount = parseMoney(String(tx.amount ?? 0));
-      const isIncome = tx.type === "INCOME";
+      const name = String(tx.name || "");
+      const isAlinmis =
+        name.startsWith("Alınmış hesab") ||
+        (tx.category === "ORDER_BOOK" &&
+          (parseMoney(tx.mesarifAzn) > 0 || parseMoney(tx.mesarifPrice) > 0) &&
+          !(parseMoney(tx.tarifAzn) > 0 || parseMoney(tx.tarifPrice) > 0));
+
+      // İrəli hesab / müştəri tarifi daşıyıcıya düşməsin
+      if (name.startsWith("İrəli hesab") || !isAlinmis) {
+        if (tx.type === "INCOME") {
+          const paid = parseMoney(String(tx.amount ?? 0));
+          if (paid > 0) {
+            totalPaid += paid;
+            payments.push({
+              date: tx.date || tx.costDate || new Date().toISOString(),
+              purpose: name || "Ödəniş",
+              amount: paid,
+              currency: tx.currency || "AZN",
+              status: "Mədaxil",
+              type: "INCOME",
+            });
+          }
+        }
+        return;
+      }
+
+      const amount =
+        parseMoney(tx.mesarifAzn) ||
+        parseMoney(tx.edvliMesarifAzn) ||
+        parseMoney(String(tx.amount ?? 0)) ||
+        parseMoney(tx.mesarifPrice);
+      if (!(amount > 0)) return;
+
       payments.push({
         date: tx.date || tx.costDate || new Date().toISOString(),
-        purpose: tx.name || tx.category || "Maliyyə əməliyyatı",
+        purpose: name || "Alınmış hesab",
         amount,
-        currency: tx.currency || "AZN",
-        status: isIncome ? "Mədaxil" : "Məxaric",
-        type: tx.type,
+        currency: tx.mesarifCurrency || tx.currency || "AZN",
+        status: "Ödənilməyib",
+        type: "EXPENSE",
       });
-      if (isIncome) totalPaid += amount;
-      else outstandingDebt += amount;
-    });
-
-    orders.forEach((o) => {
-      const amount = parseMoney(o.freight);
-      if (o.statusKind === "completed" || o.statusKind === "finance_closed") {
-        totalPaid += amount;
-        payments.push({
-          date: o.orderDate || new Date().toISOString().split("T")[0],
-          purpose: `${o.orderNumber} nömrəli sifariş ödənişi`,
-          amount,
-          currency: "AZN",
-          status: "Uğurlu",
-          type: "INCOME",
-        });
-      } else if (o.statusKind !== "cancelled") {
-        outstandingDebt += amount;
-      }
+      outstandingDebt += amount;
     });
 
     return {
@@ -229,7 +262,7 @@ export default function DasiyiciDetailPage() {
       overpayment: 0,
       payments,
     };
-  }, [orders, financeTransactions]);
+  }, [financeTransactions]);
 
   const openEditModal = () => {
     if (!carrier) return;
@@ -369,14 +402,14 @@ export default function DasiyiciDetailPage() {
           {carrier.company}
         </div>
         <div className={styles.tabs}>
-          {TAB_ITEMS.map((tab) => (
+          {visibleTabs.map((tab) => (
             <button
-              key={tab}
+              key={tab.label}
               type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`${styles.tabButton} ${activeTab === tab ? styles.activeTab : ""}`}
+              onClick={() => setActiveTab(tab.label)}
+              className={`${styles.tabButton} ${activeTab === tab.label ? styles.activeTab : ""}`}
             >
-              {tab}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -475,6 +508,7 @@ export default function DasiyiciDetailPage() {
               <div className={styles.infoCard}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc", padding: "0 12px", minHeight: "44px", borderBottom: "1px solid #e7edf5" }}>
                   <h3 style={{ margin: 0, borderBottom: "none", fontSize: "0.76rem", letterSpacing: "0.08em", textTransform: "uppercase", color: "#475569" }}>Daşıyıcı əlaqədar şəxsləri</h3>
+                  {canCreateContact ? (
                   <button
                     type="button"
                     onClick={() => setIsContactModalOpen(true)}
@@ -495,6 +529,7 @@ export default function DasiyiciDetailPage() {
                     <FiPlus />
                     Yeni əlaqədar şəxs
                   </button>
+                  ) : null}
                 </div>
                 
                 <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "10px" }}>

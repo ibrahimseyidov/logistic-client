@@ -6,7 +6,9 @@ import {
   fetchUsersAction,
   updateUserAction,
 } from "../../../common/actions/user.actions";
+import { fetchAuthBootstrap } from "../../../common/actions/auth.actions";
 import { ConfirmModal } from "../../../common/components/ConfirmModal";
+import { useAuth } from "../../../common/contexts/AuthContext";
 import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
 import actionStyles from "../../sorgular/components/SorgularActionBar.module.css";
@@ -17,7 +19,18 @@ import { UserModal } from "./UserModal";
 import { UserPermissionsModal } from "./UserPermissionsModal";
 import { UsersTable } from "./UsersTable";
 
-export const UsersSection: React.FC = () => {
+type Props = {
+  canCreate?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
+};
+
+export const UsersSection: React.FC<Props> = ({
+  canCreate = true,
+  canEdit = true,
+  canDelete = true,
+}) => {
+  const { user: authUser, login, logout } = useAuth();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -105,6 +118,23 @@ export const UsersSection: React.FC = () => {
       if (selectedUser) {
         const updated = await updateUserAction(selectedUser.id, payload);
         setUsers(users.map((u) => (u.id === selectedUser.id ? { ...u, ...updated } : u)));
+        // Öz hesabını deaktiv edərsə dərhal çıxış
+        if (
+          authUser &&
+          String(authUser.id) === String(selectedUser.id) &&
+          String(data.status || "").toLowerCase() === "deactive"
+        ) {
+          dispatch(
+            showNotification({
+              message: "Hesab deaktiv edildi — çıxış edilir",
+              type: "info",
+            }),
+          );
+          setIsModalOpen(false);
+          logout();
+          window.location.href = "/login?reason=deactivated";
+          return;
+        }
         dispatch(
           showNotification({ message: "İstifadəçi yeniləndi", type: "success" }),
         );
@@ -150,6 +180,15 @@ export const UsersSection: React.FC = () => {
             : u,
         ),
       );
+      // Cari istifadəçinin icazəsi dəyişibsə sessiyanı yenilə
+      if (authUser && String(authUser.id) === String(permissionsUser.id)) {
+        try {
+          const bootstrap = await fetchAuthBootstrap();
+          login(bootstrap);
+        } catch {
+          /* ignore */
+        }
+      }
       dispatch(
         showNotification({
           message: "İcazələr yadda saxlanıldı",
@@ -172,13 +211,15 @@ export const UsersSection: React.FC = () => {
       <AyarlarToolbar>
         <div className={actionStyles.wrapper}>
           <div className={actionStyles.group}>
-            <button
-              type="button"
-              className={`${actionStyles.buttonBase} ${actionStyles.buttonPrimary}`}
-              onClick={handleCreate}
-            >
-              <FiPlus /> Yeni istifadəçi
-            </button>
+            {canCreate ? (
+              <button
+                type="button"
+                className={`${actionStyles.buttonBase} ${actionStyles.buttonPrimary}`}
+                onClick={handleCreate}
+              >
+                <FiPlus /> Yeni istifadəçi
+              </button>
+            ) : null}
             <button
               type="button"
               className={`${actionStyles.buttonBase} ${actionStyles.buttonSecondary}`}
@@ -220,6 +261,8 @@ export const UsersSection: React.FC = () => {
             onEdit={handleEdit}
             onPermissions={handlePermissions}
             onDelete={handleDelete}
+            canEdit={canEdit}
+            canDelete={canDelete}
           />
         )}
       </div>

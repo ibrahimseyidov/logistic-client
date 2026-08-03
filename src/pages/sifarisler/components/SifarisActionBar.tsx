@@ -1,4 +1,5 @@
 import { FiFilePlus, FiFilter } from "react-icons/fi";
+import { usePermissions } from "../../../common/hooks/usePermissions";
 import styles from "./ToolbarCommon.module.css";
 
 interface Stats {
@@ -31,18 +32,23 @@ export default function SifarisActionBar({
   onExportExcel,
   activeFilterCount,
 }: Props) {
+  const { canCreate } = usePermissions();
+  const allowCreate = canCreate("sifarisler", "orders");
+
   return (
     <div className={styles.wrapper}>
       <div className={styles.topRow}>
         <div className={styles.leftActions}>
-          <button
-            type="button"
-            onClick={onNew}
-            className={`${styles.buttonBase} ${styles.buttonPrimary}`}
-          >
-            <FiFilePlus />
-            Yeni sifariş
-          </button>
+          {allowCreate ? (
+            <button
+              type="button"
+              onClick={onNew}
+              className={`${styles.buttonBase} ${styles.buttonPrimary}`}
+            >
+              <FiFilePlus />
+              Yeni sifariş
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={onToggleFilters}

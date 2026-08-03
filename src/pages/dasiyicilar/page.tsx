@@ -12,6 +12,7 @@ import type { SelectOption } from "../../common/components/select/Select";
 import { buildApiUrl } from "../../common/utils/fetch.utils";
 import { FiFilePlus, FiFilter, FiX } from "react-icons/fi";
 import { FaEdit, FaTrash } from "react-icons/fa";
+import { usePermissions } from "../../common/hooks/usePermissions";
 import {
   fetchCarriersAction,
   createCarrierAction,
@@ -101,6 +102,10 @@ const EMPTY_FORM = {
 
 export default function DasiyicilarPage() {
   const dispatch = useAppDispatch();
+  const { canCreate, canEdit, canDelete } = usePermissions();
+  const allowCreate = canCreate("dasiyicilar", "list");
+  const allowEdit = canEdit("dasiyicilar", "list");
+  const allowDelete = canDelete("dasiyicilar", "list");
   const PAGE_SIZE = 12;
   const [rows, setRows] = useState<CarrierRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -884,18 +889,20 @@ export default function DasiyicilarPage() {
       <div className={sorguLayoutStyles.header}>
         <section className={sorguActionBarStyles.wrapper}>
           <div className={sorguActionBarStyles.group}>
-            <button
-              type="button"
-              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonPrimary}`}
-              onClick={() => {
-                pendingDocumentFilesRef.current.clear();
-                setDocumentDraft({ number: "", documentType: "", date: "" });
-                setActivePanel("new");
-              }}
-            >
-              <FiFilePlus />
-              Yeni daşıyıcı
-            </button>
+            {allowCreate ? (
+              <button
+                type="button"
+                className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonPrimary}`}
+                onClick={() => {
+                  pendingDocumentFilesRef.current.clear();
+                  setDocumentDraft({ number: "", documentType: "", date: "" });
+                  setActivePanel("new");
+                }}
+              >
+                <FiFilePlus />
+                Yeni daşıyıcı
+              </button>
+            ) : null}
             <button
               type="button"
               className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonSecondary}`}
@@ -975,26 +982,34 @@ export default function DasiyicilarPage() {
                    <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.orderCount}</td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.queriesCount}</td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                    <div className={sorguTableStyles.actionRow}>
-                      <button
-                        type="button"
-                        className={`${sorguTableStyles.iconButton} ${sorguTableStyles.detailsButton}`}
-                        onClick={() => openEditModal(row)}
-                        aria-label="Redaktə et"
-                        title="Redaktə et"
-                      >
-                        <FaEdit />
-                      </button>
-                      <button
-                        type="button"
-                        className={`${sorguTableStyles.iconButton} ${sorguTableStyles.deleteButton}`}
-                        onClick={() => handleDeleteCarrierClick(row.id)}
-                        aria-label="Sil"
-                        title="Sil"
-                      >
-                        <FaTrash />
-                      </button>
-                    </div>
+                    {allowEdit || allowDelete ? (
+                      <div className={sorguTableStyles.actionRow}>
+                        {allowEdit ? (
+                          <button
+                            type="button"
+                            className={`${sorguTableStyles.iconButton} ${sorguTableStyles.detailsButton}`}
+                            onClick={() => openEditModal(row)}
+                            aria-label="Redaktə et"
+                            title="Redaktə et"
+                          >
+                            <FaEdit />
+                          </button>
+                        ) : null}
+                        {allowDelete ? (
+                          <button
+                            type="button"
+                            className={`${sorguTableStyles.iconButton} ${sorguTableStyles.deleteButton}`}
+                            onClick={() => handleDeleteCarrierClick(row.id)}
+                            aria-label="Sil"
+                            title="Sil"
+                          >
+                            <FaTrash />
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                 </tr>
               ))}

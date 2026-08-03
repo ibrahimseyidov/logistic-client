@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   fetchAuthBootstrap,
   loginAction,
@@ -8,12 +8,19 @@ import { useAuth } from "../../common/contexts/AuthContext";
 import styles from "./login.module.css";
 
 export default function LoginPage() {
+  const [searchParams] = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("elmir.ahmadov2@gmail.com");
   const [password, setPassword] = useState("Elmir123ase!");
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (searchParams.get("reason") === "deactivated") {
+      setError("Hesabınız deaktiv edilib. Yenidən giriş mümkün deyil.");
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

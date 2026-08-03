@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import styles from "./maliyye.module.css";
-import drawerStyles from "../sorgular/sorgular.module.css";
 import { FiFilter, FiPlus, FiEdit2, FiTrash2 } from "react-icons/fi";
 import {
   fetchFinanceTransactionsAction,
@@ -30,8 +29,13 @@ import {
   applyMaliyyeFilters,
   countActiveMaliyyeFilters,
   emptyMaliyyeFilter,
+  partnerLabel,
+  resolveDocType,
   type MaliyyeFilterState,
 } from "./lib/filterMaliyye";
+import { usePermissions } from "../../common/hooks/usePermissions";
+import { useCurrencyRates } from "../../common/hooks/useCurrencyRates";
+import { FALLBACK_AZN_RATES } from "../../common/utils/currency.utils";
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
@@ -54,31 +58,6 @@ function formatDateOnly(value?: string | null) {
   return d.toLocaleDateString("az-AZ");
 }
 
-function partnerLabel(tx: any): string {
-  if (isSystemBalanceAdjustment(tx)) return SYSTEM_PARTNER_LABEL;
-  return (
-    tx.customer?.name ||
-    tx.customer?.company ||
-    tx.carrier?.name ||
-    tx.carrier?.companyName ||
-    tx.partner ||
-    ""
-  );
-}
-
-/** Cədvəl üçün sənəd tipi — kateqoriya və ya ad əsasında */
-function resolveDocType(tx: any): string {
-  const cat = String(tx?.category || "").trim();
-  if (cat) return cat;
-  const name = String(tx?.name || "").trim();
-  if (/balans\s*düzəlişi|balans\s*duzelisi/i.test(name)) {
-    return isIncomeTx(tx) ? "Kassa düzəlişi — mədaxil" : "Kassa düzəlişi — məxaric";
-  }
-  if (isSimpleExpenseTx(tx)) return "Ümumi xərc";
-  if (isIncomeTx(tx)) return "Gəlir";
-  return "Xərc";
-}
-
 /** Sənəd tipi badge — bütün xərclər eyni rəng (kateqoriya adından asılı deyil) */
 function docTypeBadgeClass(docType: string, isIncome: boolean): string {
   const t = docType.toLowerCase();
@@ -95,7 +74,25 @@ function docTypeBadgeClass(docType: string, isIncome: boolean): string {
 const PAGE_SIZE = 10;
 
 export default function MaliyyePage() {
-  const [walletTab, setWalletTab] = useState<WalletTab>("Kasa");
+  const { canView, canCreate, canEdit, canDelete } = usePermissions();
+  const { ratesData } = useCurrencyRates();
+  const currencyRates = ratesData?.rates || FALLBACK_AZN_RATES;
+  const canKasa = canView("maliyye", "kasa");
+  const canBank = canView("maliyye", "bank");
+  const canUmumi = canView("maliyye", "umumi");
+  const allowCreateTx = canCreate("maliyye", "transactions");
+  const allowCreateExpense = canCreate("maliyye", "expenses");
+  const allowEditTx = canEdit("maliyye", "transactions");
+  const allowDeleteTx = canDelete("maliyye", "transactions");
+  const allowEditExpense = canEdit("maliyye", "expenses");
+  const allowDeleteExpense = canDelete("maliyye", "expenses");
+  const firstAllowedWallet: WalletTab = canKasa
+    ? "Kasa"
+    : canBank
+      ? "Bank"
+      : "Umumi";
+
+  const [walletTab, setWalletTab] = useState<WalletTab>(firstAllowedWallet);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -126,23 +123,21 @@ export default function MaliyyePage() {
     loadData();
   }, []);
 
-  useEffect(() => {
-    if (!isFilterPanelOpen) return undefined;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setIsFilterPanelOpen(false);
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isFilterPanelOpen]);
+  const resolvedWallet: WalletTab =
+    (walletTab === "Kasa" && canKasa) ||
+    (walletTab === "Bank" && canBank) ||
+    (walletTab === "Umumi" && canUmumi)
+      ? walletTab
+      : firstAllowedWallet;
 
   const walletTxs = useMemo(
-    () => transactions.filter((tx) => txMatchesWalletTab(tx, walletTab)),
-    [transactions, walletTab],
+    () => transactions.filter((tx) => txMatchesWalletTab(tx, resolvedWallet)),
+    [transactions, resolvedWallet],
   );
 
   const filteredTxs = useMemo(
-    () => applyMaliyyeFilters(walletTxs, appliedFilter),
-    [walletTxs, appliedFilter],
+    () => applyMaliyyeFilters(walletTxs, appliedFilter, currencyRates),
+    [walletTxs, appliedFilter, currencyRates],
   );
 
   useEffect(() => {
@@ -186,7 +181,7 @@ export default function MaliyyePage() {
     let totalOut = 0;
 
     filteredTxs.forEach((tx) => {
-      const azn = resolveTxCashAzn(tx);
+      const azn = resolveTxCashAzn(tx, currencyRates);
       if (!(azn > 0)) return;
       if (isIncomeTx(tx)) totalIn += azn;
       else totalOut += azn;
@@ -197,7 +192,7 @@ export default function MaliyyePage() {
       totalOut,
       balance: totalIn - totalOut,
     };
-  }, [filteredTxs]);
+  }, [filteredTxs, currencyRates]);
 
   const categoryOptions: SelectOption[] = useMemo(() => {
     const names = [
@@ -321,9 +316,9 @@ export default function MaliyyePage() {
 
   if (loading && transactions.length === 0) return <Loading />;
 
-  const isKasa = walletTab === "Kasa";
-  const isBank = walletTab === "Bank";
-  const isUmumi = walletTab === "Umumi";
+  const isKasa = resolvedWallet === "Kasa";
+  const isBank = resolvedWallet === "Bank";
+  const isUmumi = resolvedWallet === "Umumi";
   const defaultWallet: CashWallet = isBank ? "Bank" : "Kasa";
   const fmt = (n: number) =>
     n.toLocaleString("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -336,27 +331,33 @@ export default function MaliyyePage() {
     <div className={styles.page}>
       <div className={styles.pageHeader}>
         <div className={styles.walletTabs}>
-          <button
-            type="button"
-            className={`${styles.walletTab} ${isKasa ? styles.walletTabActive : ""}`}
-            onClick={() => setWalletTab("Kasa")}
-          >
-            Kassam
-          </button>
-          <button
-            type="button"
-            className={`${styles.walletTab} ${isBank ? styles.walletTabActive : ""}`}
-            onClick={() => setWalletTab("Bank")}
-          >
-            Bank hesabı
-          </button>
-          <button
-            type="button"
-            className={`${styles.walletTab} ${isUmumi ? styles.walletTabActive : ""}`}
-            onClick={() => setWalletTab("Umumi")}
-          >
-            Ümumi
-          </button>
+          {canKasa ? (
+            <button
+              type="button"
+              className={`${styles.walletTab} ${isKasa ? styles.walletTabActive : ""}`}
+              onClick={() => setWalletTab("Kasa")}
+            >
+              Kassam
+            </button>
+          ) : null}
+          {canBank ? (
+            <button
+              type="button"
+              className={`${styles.walletTab} ${isBank ? styles.walletTabActive : ""}`}
+              onClick={() => setWalletTab("Bank")}
+            >
+              Bank hesabı
+            </button>
+          ) : null}
+          {canUmumi ? (
+            <button
+              type="button"
+              className={`${styles.walletTab} ${isUmumi ? styles.walletTabActive : ""}`}
+              onClick={() => setWalletTab("Umumi")}
+            >
+              Ümumi
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -389,27 +390,31 @@ export default function MaliyyePage() {
                 <span className={styles.filterBadge}>{activeFilterCount}</span>
               ) : null}
             </button>
-            <button
-              type="button"
-              className={styles.kasaExpenseBtn}
-              onClick={() => {
-                setEditingTx(null);
-                setIsExpenseModalOpen(true);
-              }}
-            >
-              Xərc
-            </button>
-            <button
-              type="button"
-              className={styles.kasaAddBtn}
-              onClick={() => {
-                setEditingTx(null);
-                setIsModalOpen(true);
-              }}
-            >
-              <FiPlus />
-              Yeni əməliyyat
-            </button>
+            {allowCreateExpense ? (
+              <button
+                type="button"
+                className={styles.kasaExpenseBtn}
+                onClick={() => {
+                  setEditingTx(null);
+                  setIsExpenseModalOpen(true);
+                }}
+              >
+                Xərc
+              </button>
+            ) : null}
+            {allowCreateTx ? (
+              <button
+                type="button"
+                className={styles.kasaAddBtn}
+                onClick={() => {
+                  setEditingTx(null);
+                  setIsModalOpen(true);
+                }}
+              >
+                <FiPlus />
+                Yeni əməliyyat
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -479,7 +484,7 @@ export default function MaliyyePage() {
               ) : (
                 pagedTxs.map((tx) => {
                   const income = isIncomeTx(tx);
-                  const azn = resolveTxCashAzn(tx);
+                  const azn = resolveTxCashAzn(tx, currencyRates);
                   const isSystem = isSystemBalanceAdjustment(tx);
                   const partner = partnerLabel(tx) || "—";
                   const docType = resolveDocType(tx);
@@ -576,45 +581,63 @@ export default function MaliyyePage() {
                             —
                           </span>
                         ) : (
-                          <div style={{ display: "flex", gap: "0.4rem" }}>
-                            <button
-                              type="button"
-                              title="Redaktə"
-                              onClick={() => {
-                                setEditingTx(tx);
-                                if (isSimpleExpenseTx(tx)) {
-                                  setIsExpenseModalOpen(true);
-                                } else {
-                                  setIsModalOpen(true);
-                                }
-                              }}
-                              style={{
-                                border: "none",
-                                background: "#eff6ff",
-                                color: "#2563eb",
-                                borderRadius: "0.4rem",
-                                padding: "0.35rem",
-                                cursor: "pointer",
-                              }}
-                            >
-                              <FiEdit2 size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              title="Sil"
-                              onClick={() => handleDelete(tx)}
-                              style={{
-                                border: "none",
-                                background: "#fef2f2",
-                                color: "#dc2626",
-                                borderRadius: "0.4rem",
-                                padding: "0.35rem",
-                                cursor: "pointer",
-                              }}
-                            >
-                              <FiTrash2 size={14} />
-                            </button>
-                          </div>
+                          (() => {
+                            const isExpense = isSimpleExpenseTx(tx);
+                            const canEditRow = isExpense
+                              ? allowEditExpense
+                              : allowEditTx;
+                            const canDeleteRow = isExpense
+                              ? allowDeleteExpense
+                              : allowDeleteTx;
+                            if (!canEditRow && !canDeleteRow) {
+                              return <span className={styles.lockedActions}>—</span>;
+                            }
+                            return (
+                              <div style={{ display: "flex", gap: "0.4rem" }}>
+                                {canEditRow ? (
+                                  <button
+                                    type="button"
+                                    title="Redaktə"
+                                    onClick={() => {
+                                      setEditingTx(tx);
+                                      if (isExpense) {
+                                        setIsExpenseModalOpen(true);
+                                      } else {
+                                        setIsModalOpen(true);
+                                      }
+                                    }}
+                                    style={{
+                                      border: "none",
+                                      background: "#eff6ff",
+                                      color: "#2563eb",
+                                      borderRadius: "0.4rem",
+                                      padding: "0.35rem",
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    <FiEdit2 size={14} />
+                                  </button>
+                                ) : null}
+                                {canDeleteRow ? (
+                                  <button
+                                    type="button"
+                                    title="Sil"
+                                    onClick={() => handleDelete(tx)}
+                                    style={{
+                                      border: "none",
+                                      background: "#fef2f2",
+                                      color: "#dc2626",
+                                      borderRadius: "0.4rem",
+                                      padding: "0.35rem",
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    <FiTrash2 size={14} />
+                                  </button>
+                                ) : null}
+                              </div>
+                            );
+                          })()
                         )}
                       </td>
                     </tr>
@@ -636,26 +659,17 @@ export default function MaliyyePage() {
         />
       </div>
 
-      <div
-        className={`${drawerStyles.overlay} ${isFilterPanelOpen ? drawerStyles.overlayOpen : ""}`}
-        aria-hidden={!isFilterPanelOpen}
-        onClick={() => setIsFilterPanelOpen(false)}
+      <MaliyyeFiltersDrawer
+        open={isFilterPanelOpen}
+        filter={filterDraft}
+        categoryOptions={categoryOptions}
+        partnerOptions={partnerOptions}
+        createdByOptions={createdByOptions}
+        onFilterChange={onFilterChange}
+        onClose={() => setIsFilterPanelOpen(false)}
+        onClear={handleClearFilter}
+        onApplyFilter={handleApplyFilter}
       />
-      <aside
-        className={`${drawerStyles.drawer} ${isFilterPanelOpen ? drawerStyles.drawerOpen : ""}`}
-        aria-hidden={!isFilterPanelOpen}
-      >
-        <MaliyyeFiltersDrawer
-          filter={filterDraft}
-          categoryOptions={categoryOptions}
-          partnerOptions={partnerOptions}
-          createdByOptions={createdByOptions}
-          onFilterChange={onFilterChange}
-          onClose={() => setIsFilterPanelOpen(false)}
-          onClear={handleClearFilter}
-          onApplyFilter={handleApplyFilter}
-        />
-      </aside>
 
       <FinanceModal
         isOpen={isModalOpen}

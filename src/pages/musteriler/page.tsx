@@ -12,6 +12,7 @@ import { buildApiUrl } from "../../common/utils/fetch.utils";
 import { type CustomerRow } from "./data";
 import { FiFilePlus, FiFilter, FiX } from "react-icons/fi";
 import { FaEdit, FaTrash } from "react-icons/fa";
+import { usePermissions } from "../../common/hooks/usePermissions";
 import {
   fetchCustomersAction,
   createCustomerAction,
@@ -102,6 +103,10 @@ const EMPTY_FORM = {
 
 export default function MusterilerPage() {
   const dispatch = useAppDispatch();
+  const { canCreate, canEdit, canDelete } = usePermissions();
+  const allowCreate = canCreate("musteriler", "list");
+  const allowEdit = canEdit("musteriler", "list");
+  const allowDelete = canDelete("musteriler", "list");
   const PAGE_SIZE = 12;
   const [rows, setRows] = useState<CustomerRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -891,14 +896,16 @@ export default function MusterilerPage() {
       <div className={sorguLayoutStyles.header}>
         <section className={sorguActionBarStyles.wrapper}>
           <div className={sorguActionBarStyles.group}>
-            <button
-              type="button"
-              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonPrimary}`}
-              onClick={() => setActivePanel("new")}
-            >
-              <FiFilePlus />
-              Yeni müştəri
-            </button>
+            {allowCreate ? (
+              <button
+                type="button"
+                className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonPrimary}`}
+                onClick={() => setActivePanel("new")}
+              >
+                <FiFilePlus />
+                Yeni müştəri
+              </button>
+            ) : null}
             <button
               type="button"
               className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonSecondary}`}
@@ -982,26 +989,34 @@ export default function MusterilerPage() {
                    <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.orderCount}</td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>{row.queriesCount}</td>
                   <td className={`${sorguTableStyles.cell} ${sorguTableStyles.center}`}>
-                    <div className={sorguTableStyles.actionRow}>
-                      <button
-                        type="button"
-                        className={`${sorguTableStyles.iconButton} ${sorguTableStyles.detailsButton}`}
-                        onClick={() => openEditModal(row)}
-                        aria-label="Redaktə et"
-                        title="Redaktə et"
-                      >
-                        <FaEdit />
-                      </button>
-                      <button
-                        type="button"
-                        className={`${sorguTableStyles.iconButton} ${sorguTableStyles.deleteButton}`}
-                        onClick={() => handleDeleteCustomerClick(row.id)}
-                        aria-label="Sil"
-                        title="Sil"
-                      >
-                        <FaTrash />
-                      </button>
-                    </div>
+                    {allowEdit || allowDelete ? (
+                      <div className={sorguTableStyles.actionRow}>
+                        {allowEdit ? (
+                          <button
+                            type="button"
+                            className={`${sorguTableStyles.iconButton} ${sorguTableStyles.detailsButton}`}
+                            onClick={() => openEditModal(row)}
+                            aria-label="Redaktə et"
+                            title="Redaktə et"
+                          >
+                            <FaEdit />
+                          </button>
+                        ) : null}
+                        {allowDelete ? (
+                          <button
+                            type="button"
+                            className={`${sorguTableStyles.iconButton} ${sorguTableStyles.deleteButton}`}
+                            onClick={() => handleDeleteCustomerClick(row.id)}
+                            aria-label="Sil"
+                            title="Sil"
+                          >
+                            <FaTrash />
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                 </tr>
               ))}

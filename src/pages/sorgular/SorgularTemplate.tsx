@@ -277,34 +277,21 @@ export default function SorgularTemplate({
         onSubmit={handleNewSubmit}
       />
 
-      <div
-        className={`${styles.overlay} ${
-          isFilterPanelOpen ? styles.overlayOpen : ""
-        }`}
-        aria-hidden={!isFilterPanelOpen}
+      <SorgularFilters
+        open={isFilterPanelOpen}
+        activeSections={activeSections}
+        toggleSection={toggleSection}
+        filter={filterDraft}
+        onFilterChange={onFilterChange}
+        companyOptions={companyOptions}
+        onClose={() => {
+          setFilterDraft({ ...appliedFilter });
+          setIsFilterPanelOpen(false);
+        }}
+        onClear={handleClear}
+        onApplyFilter={handleApplyFilter}
+        onSaveTemplate={handleSaveTemplate}
       />
-
-      <aside
-        className={`${styles.drawer} ${
-          isFilterPanelOpen ? styles.drawerOpen : ""
-        }`}
-        aria-hidden={!isFilterPanelOpen}
-      >
-        <SorgularFilters
-          activeSections={activeSections}
-          toggleSection={toggleSection}
-          filter={filterDraft}
-          onFilterChange={onFilterChange}
-          companyOptions={companyOptions}
-          onClose={() => {
-            setFilterDraft({ ...appliedFilter });
-            setIsFilterPanelOpen(false);
-          }}
-          onClear={handleClear}
-          onApplyFilter={handleApplyFilter}
-          onSaveTemplate={handleSaveTemplate}
-        />
-      </aside>
     </div>
   );
 }

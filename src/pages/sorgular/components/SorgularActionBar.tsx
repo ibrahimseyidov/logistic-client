@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { FiFilePlus, FiFilter, FiUpload, FiDownload, FiChevronDown } from "react-icons/fi";
+import { usePermissions } from "../../../common/hooks/usePermissions";
 import styles from "./SorgularActionBar.module.css";
 
 interface Props {
@@ -10,6 +11,8 @@ interface Props {
   onImportExcel: () => void;
   onExportExcel: () => void;
   activeFilterCount: number;
+  /** İcazə child: active | archive | offers */
+  permChild?: string;
 }
 
 export default function SorgularActionBar({
@@ -20,7 +23,10 @@ export default function SorgularActionBar({
   onImportExcel,
   onExportExcel,
   activeFilterCount,
+  permChild = "active",
 }: Props) {
+  const { canCreate } = usePermissions();
+  const allowCreate = canCreate("sorgular", permChild);
   const [isExcelOpen, setIsExcelOpen] = useState(false);
   const excelRef = useRef<HTMLDivElement>(null);
 
@@ -37,14 +43,16 @@ export default function SorgularActionBar({
   return (
     <div className={styles.wrapper}>
       <div className={styles.group}>
-        <button
-          type="button"
-          onClick={onNew}
-          className={`${styles.buttonBase} ${styles.buttonPrimary}`}
-        >
-          <FiFilePlus />
-          Yeni sorğu
-        </button>
+        {allowCreate ? (
+          <button
+            type="button"
+            onClick={onNew}
+            className={`${styles.buttonBase} ${styles.buttonPrimary}`}
+          >
+            <FiFilePlus />
+            Yeni sorğu
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onOpenFilters}

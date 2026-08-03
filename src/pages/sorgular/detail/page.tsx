@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Loading from "../../../common/components/loading/Loading";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { FaArrowLeft, FaEdit } from "react-icons/fa";
+import { usePermissions } from "../../../common/hooks/usePermissions";
 import {
   buildSorguDetailView,
   type SorguDetailTabId,
@@ -95,6 +96,13 @@ export default function SorguDetailPage() {
   const { sorguKey } = useParams<{ sorguKey: string }>();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const { canView, canCreate, canEdit, canDelete } = usePermissions();
+  const canEditQuery = canEdit("sorgular", "detail");
+  const canCreateComment = canCreate("sorgular", "detail_comments");
+  const canDeleteComment = canDelete("sorgular", "detail_comments");
+  const canCreateOffer = canCreate("sorgular", "detail_offers");
+  const canEditOffer = canEdit("sorgular", "detail_offers");
+  const canDeleteOffer = canDelete("sorgular", "detail_offers");
   const [tab, setTab] = useState<SorguDetailTabId>("main");
   const [row, setRow] = useState<LogisticQueryRow | null>(null);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -344,6 +352,32 @@ export default function SorguDetailPage() {
     }
   };
 
+  const tabs = useMemo(() => {
+    const all: { id: SorguDetailTabId; label: string; permChild: string }[] = [
+      { id: "main", label: "Əsas məlumat", permChild: "detail" },
+      { id: "comments", label: "Şərhlər", permChild: "detail_comments" },
+      {
+        id: "offers",
+        label: `Qiymət təklifləri (${detail?.offersCount ?? 0})`,
+        permChild: "detail_offers",
+      },
+      {
+        id: "documents",
+        label: `Sənədlər (${documents.length})`,
+        permChild: "detail_documents",
+      },
+      { id: "tasks", label: "Tapşırıqlar", permChild: "detail_tasks" },
+    ];
+    return all.filter((t) => canView("sorgular", t.permChild));
+  }, [detail?.offersCount, documents.length, canView]);
+
+  useEffect(() => {
+    if (tabs.length === 0) return;
+    if (!tabs.some((t) => t.id === tab)) {
+      setTab(tabs[0].id);
+    }
+  }, [tabs, tab]);
+
   if (loading)
     return (
       <div style={{ position: "relative", minHeight: 320 }}>
@@ -366,20 +400,6 @@ export default function SorguDetailPage() {
 
   const { row: r } = detail;
 
-  const tabs: { id: SorguDetailTabId; label: string }[] = [
-    { id: "main", label: "Əsas məlumat" },
-    { id: "comments", label: "Şərhlər" },
-    {
-      id: "offers",
-      label: `Qiymət təklifləri (${detail.offersCount})`,
-    },
-    {
-      id: "documents",
-      label: `Sənədlər (${documents.length})`,
-    },
-    { id: "tasks", label: "Tapşırıqlar" },
-  ];
-
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -397,6 +417,7 @@ export default function SorguDetailPage() {
       <div className={styles.layout}>
         <aside className={styles.sidebar}>
           <div className={styles.card}>
+            {canEditQuery ? (
             <button
               type="button"
               className={styles.editBtn}
@@ -404,6 +425,7 @@ export default function SorguDetailPage() {
             >
               <FaEdit /> Redaktə et
             </button>
+            ) : null}
             <div style={{ marginBottom: 20 }}>
               <span className={styles.status}>{r.status}</span>
             </div>
@@ -726,22 +748,30 @@ export default function SorguDetailPage() {
                   userName: c.user?.name || "Bilinməyən",
                   createdAt: c.createdAt,
                 }))}
-                onAddComment={handleAddComment}
-                onDeleteComment={handleDeleteComment}
+                onAddComment={canCreateComment ? handleAddComment : undefined}
+                onDeleteComment={
+                  canDeleteComment ? handleDeleteComment : undefined
+                }
               />
             )}
             {tab === "offers" && (
               <QueryOffersList
                 offers={detail.priceOfferItems}
-                onOpenAddModal={handleOpenAddOffer}
-                onEditOffer={handleEditOffer}
-                onDeleteOffer={handleDeleteOffer}
+                onOpenAddModal={
+                  canCreateOffer ? handleOpenAddOffer : undefined
+                }
+                onEditOffer={canEditOffer ? handleEditOffer : undefined}
+                onDeleteOffer={
+                  canDeleteOffer ? handleDeleteOffer : undefined
+                }
               />
             )}
             {tab === "documents" && (
               <DocumentGeneratePanel
                 scope="query"
                 queryId={row.id}
+                permModule="sorgular"
+                permChild="detail_documents"
                 existingDocs={documents.map((d) => ({
                   id: d.id,
                   name: d.name,
@@ -758,7 +788,13 @@ export default function SorguDetailPage() {
                 }}
               />
             )}
-            {tab === "tasks" && <EntityTasksPanel queryId={row.id} />}
+            {tab === "tasks" && (
+              <EntityTasksPanel
+                queryId={row.id}
+                permModule="sorgular"
+                permChild="detail_tasks"
+              />
+            )}
           </div>
         </div>
       </div>

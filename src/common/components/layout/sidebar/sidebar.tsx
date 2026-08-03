@@ -15,19 +15,21 @@ import {
   FaWallet,
 } from "react-icons/fa";
 import { useSidebarLayout } from "../SidebarLayoutContext";
-import { useAuth } from "../../../contexts/AuthContext";
-import { isAdminUser } from "../../../utils/auth.utils";
+import { usePermissions } from "../../../hooks/usePermissions";
 import {
   AYARLAR_TABS,
   AYARLAR_TITLE,
   type AyarlarTab,
 } from "../../../../pages/ayarlar/constants/ayarlar.constants";
+import { ayarlarTabToPermChild } from "../../../../pages/ayarlar/lib/permissions.utils";
 import styles from "./sidebar.module.css";
 
 type NavChild = {
   to: string;
   label: string;
   matchTab?: string;
+  /** İcazə child id (yoxdursa matchTab / default) */
+  permChild?: string;
 };
 
 type NavItem = {
@@ -36,7 +38,10 @@ type NavItem = {
   icon: ReactNode;
   to: string;
   children?: NavChild[];
-  adminOnly?: boolean;
+  /** Modul icazə id */
+  permModule: string;
+  /** Modul səviyyəsində child (siyahı) */
+  permChild?: string;
   /** Pathname for active check when `to` includes ?query */
   matchPath?: string;
   matchTab?: string;
@@ -56,21 +61,26 @@ const NAV_SECTIONS: NavSection[] = [
         label: "Sorğular",
         icon: <FaClipboardList />,
         to: "/sorgular",
+        permModule: "sorgular",
+        permChild: "active",
         children: [
           {
             to: "/sorgular?tab=active",
             label: "Aktiv sorğular",
             matchTab: "active",
+            permChild: "active",
           },
           {
             to: "/sorgular?tab=archive",
             label: "Arxiv sorğular",
             matchTab: "archive",
+            permChild: "archive",
           },
           {
             to: "/sorgular?tab=offers",
             label: "Qiymət təklifləri",
             matchTab: "offers",
+            permChild: "offers",
           },
         ],
       },
@@ -79,6 +89,8 @@ const NAV_SECTIONS: NavSection[] = [
         label: "Sifarişlər",
         icon: <FaShoppingCart />,
         to: "/sifarisler",
+        permModule: "sifarisler",
+        permChild: "orders",
       },
     ],
   },
@@ -90,6 +102,8 @@ const NAV_SECTIONS: NavSection[] = [
         label: "Tapşırıqlar",
         icon: <FaTasks />,
         to: "/tapshiriqlar",
+        permModule: "tapshiriqlar",
+        permChild: "board",
       },
     ],
   },
@@ -101,12 +115,16 @@ const NAV_SECTIONS: NavSection[] = [
         label: "Müştərilər",
         icon: <FaUsers />,
         to: "/musteriler",
+        permModule: "musteriler",
+        permChild: "list",
       },
       {
         id: "dasiyicilar",
         label: "Daşıyıcılar",
         icon: <FaTruck />,
         to: "/dasiyicilar",
+        permModule: "dasiyicilar",
+        permChild: "list",
       },
     ],
   },
@@ -118,12 +136,16 @@ const NAV_SECTIONS: NavSection[] = [
         label: "Maliyyə",
         icon: <FaWallet />,
         to: "/maliyye",
+        permModule: "maliyye",
+        permChild: "kasa",
       },
       {
         id: "maliyye-hesabat",
         label: "Hesabatlar",
         icon: <FaChartBar />,
         to: "/maliyye/hesabat",
+        permModule: "maliyye",
+        permChild: "hesabat",
       },
     ],
   },
@@ -136,11 +158,13 @@ const NAV_SECTIONS: NavSection[] = [
         icon: <FaCog />,
         to: "/ayarlar",
         matchPath: "/ayarlar",
-        adminOnly: true,
+        permModule: "ayarlar",
+        permChild: "users",
         children: AYARLAR_TABS.map((tab) => ({
           to: `/ayarlar?tab=${tab.id}`,
           label: tab.label,
           matchTab: tab.id,
+          permChild: ayarlarTabToPermChild(tab.id),
         })),
       },
     ],
@@ -159,7 +183,7 @@ function getTabFromPath(
 
 export default function Sidebar() {
   const { collapsed, toggleSidebar } = useSidebarLayout();
-  const { user } = useAuth();
+  const { canView } = usePermissions();
   const location = useLocation();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
@@ -250,7 +274,18 @@ export default function Sidebar() {
 
   const visibleSections = NAV_SECTIONS.map((section) => ({
     ...section,
-    items: section.items.filter((item) => !item.adminOnly || isAdminUser(user)),
+    items: section.items
+      .filter((item) => canView(item.permModule, item.permChild))
+      .map((item) => {
+        if (!item.children?.length) return item;
+        const children = item.children.filter((child) =>
+          canView(
+            item.permModule,
+            child.permChild || child.matchTab || item.permChild,
+          ),
+        );
+        return { ...item, children };
+      }),
   })).filter((section) => section.items.length > 0);
 
   return (

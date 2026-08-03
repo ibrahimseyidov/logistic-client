@@ -420,6 +420,7 @@ export default function SorgularPage() {
           onImportExcel={handleImportExcel}
           onExportExcel={handleExportExcel}
           activeFilterCount={activeFilterCount}
+          permChild={subTab === "archive" ? "archive" : subTab === "offers" ? "offers" : "active"}
         />
       </div>
 
@@ -439,6 +440,7 @@ export default function SorgularPage() {
               onUpdate={handleRowUpdate}
               onDelete={handleRowDelete}
               onApproveStatus={handleApproveRequest}
+              permChild={subTab === "archive" ? "archive" : "active"}
             />
           )
         )}
@@ -497,34 +499,21 @@ export default function SorgularPage() {
         isLoading={isDeletingOffer}
       />
 
-      <div
-        className={`${styles.overlay} ${
-          isFilterPanelOpen ? styles.overlayOpen : ""
-        }`}
-        aria-hidden={!isFilterPanelOpen}
+      <SorgularFilters
+        open={isFilterPanelOpen}
+        activeSections={activeSections}
+        toggleSection={toggleSection}
+        filter={filterDraft}
+        onFilterChange={onFilterChange}
+        companyOptions={companyOptions}
+        onClose={() => {
+          setFilterDraft({ ...appliedFilter });
+          setIsFilterPanelOpen(false);
+        }}
+        onClear={handleClear}
+        onApplyFilter={handleApplyFilter}
+        onSaveTemplate={handleSaveTemplate}
       />
-
-      <aside
-        className={`${styles.drawer} ${
-          isFilterPanelOpen ? styles.drawerOpen : ""
-        }`}
-        aria-hidden={!isFilterPanelOpen}
-      >
-        <SorgularFilters
-          activeSections={activeSections}
-          toggleSection={toggleSection}
-          filter={filterDraft}
-          onFilterChange={onFilterChange}
-          companyOptions={companyOptions}
-          onClose={() => {
-            setFilterDraft({ ...appliedFilter });
-            setIsFilterPanelOpen(false);
-          }}
-          onClear={handleClear}
-          onApplyFilter={handleApplyFilter}
-          onSaveTemplate={handleSaveTemplate}
-        />
-      </aside>
     </div>
   );
 }

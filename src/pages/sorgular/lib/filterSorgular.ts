@@ -78,7 +78,27 @@ export function applyFilters(
   f: FilterFormState,
 ): LogisticQueryRow[] {
   return rows.filter((r) => {
-    if (!includesText(r.number, f.queryNumber)) return false;
+    // Nömrə axtarışı — bütün əsas mətn sahələrində də işləsin
+    if (f.queryNumber.trim()) {
+      const q = f.queryNumber.trim().toLowerCase();
+      const hay = [
+        r.number,
+        r.customerOrderRef,
+        r.company,
+        r.customer,
+        r.loadPlace,
+        r.unloadPlace,
+        r.status,
+        (r as any).manager,
+        (r as any).logist,
+        (r as any).tags,
+        r.id,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
     if (!includesText(r.customerOrderRef, f.customerOrderRef)) return false;
     if (f.company && String(r.company || "") !== f.company) return false;
     if (!includesText(r.customer, f.customerName)) return false;

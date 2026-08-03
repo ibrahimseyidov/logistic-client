@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import {
   FiArrowLeft,
   FiClipboard,
@@ -28,15 +29,15 @@ import StatusBadge, {
 } from "../../../common/components/StatusBadge";
 import SorgularPagination from "../../sorgular/components/SorgularPagination";
 import FinanceModal from "../FinanceModal";
+import { findCustomerForName } from "../lib/financePartner.utils";
+import { getQueryDetailPath } from "../../sorgular/lib/queryDisplay.utils";
 import {
   buildExpenseRows,
   buildOrderRows,
   buildPartnerRows,
   buildQueryRows,
-  buildVoyageRows,
   emptyReportFilter,
   filterPartnerRows,
-  flattenVoyages,
   uniqueCategories,
   uniqueStatuses,
   type PartnerRow,
@@ -75,12 +76,6 @@ const REPORT_CARDS: {
     title: "Sifariş hesabatları",
     description: "Qiymət, xərc, ödəniş, qalıq və qazanc",
     icon: <FiPackage size={28} />,
-  },
-  {
-    id: "voyages",
-    title: "Reys hesabatları",
-    description: "Qiymət, xərc, ödəniş, qalıq və qazanc",
-    icon: <FiTruck size={28} />,
   },
   {
     id: "expenses",
@@ -187,8 +182,6 @@ export default function MaliyyeHesabatPage() {
     filter,
   ]);
 
-  const voyages = useMemo(() => flattenVoyages(orders), [orders]);
-
   const genericRows = useMemo(() => {
     if (!activeReport || isPartnerReport) return [];
     if (activeReport === "queries") {
@@ -197,13 +190,6 @@ export default function MaliyyeHesabatPage() {
     if (activeReport === "orders") {
       return buildOrderRows(orders, filter, { transactions, customers });
     }
-    if (activeReport === "voyages") {
-      return buildVoyageRows(voyages, filter, {
-        transactions,
-        customers,
-        carriers,
-      });
-    }
     if (activeReport === "expenses") return buildExpenseRows(transactions, filter);
     return [];
   }, [
@@ -211,10 +197,8 @@ export default function MaliyyeHesabatPage() {
     isPartnerReport,
     queries,
     orders,
-    voyages,
     transactions,
     customers,
-    carriers,
     filter,
   ]);
 
@@ -290,11 +274,8 @@ export default function MaliyyeHesabatPage() {
     if (activeReport === "orders") {
       return uniqueStatuses(orders, ["statusLabel", "statusKind"]);
     }
-    if (activeReport === "voyages") {
-      return uniqueStatuses(voyages, ["tripStatus", "tripStatusKind"]);
-    }
     return [];
-  }, [activeReport, queries, orders, voyages]);
+  }, [activeReport, queries, orders]);
 
   const categoryOptions = useMemo(
     () => (activeReport === "expenses" ? uniqueCategories(transactions) : []),
@@ -321,6 +302,50 @@ export default function MaliyyeHesabatPage() {
       orderId: "",
     });
     setPaymentOpen(true);
+  };
+
+  const openOrderRowPayment = (raw: any) => {
+    const orderId = raw?.id != null ? String(raw.id) : "";
+    let customerId =
+      raw?.customerId != null && raw.customerId !== ""
+        ? String(raw.customerId)
+        : "";
+    if (!customerId) {
+      const found = findCustomerForName(
+        customers,
+        raw?._customerName || raw?.customerName || raw?.customer,
+      );
+      if (found?.id != null) customerId = String(found.id);
+    }
+    setPaymentSeed({
+      partnerKind: "customer",
+      type: "INCOME",
+      category: "Müştəri ödənişi",
+      customerId,
+      carrierId: "",
+      amount: "",
+      currency: "AZN",
+      paymentMethod: "Kasa",
+      name: "",
+      orderId,
+    });
+    setPaymentOpen(true);
+  };
+
+  const resolveOrderDetailId = (
+    raw: any,
+    report: ReportId | null,
+    rowKey?: string,
+  ) => {
+    if (report !== "orders") return "";
+    if (raw?.id != null && raw.id !== "") return String(raw.id);
+    if (raw?._orderId != null && raw._orderId !== "") {
+      return String(raw._orderId);
+    }
+    if (rowKey && rowKey !== "undefined" && rowKey !== "null") {
+      return String(rowKey);
+    }
+    return "";
   };
 
   const handlePaymentSave = async (data: any) => {
@@ -361,7 +386,7 @@ export default function MaliyyeHesabatPage() {
       ];
     }
     if (activeReport === "queries") {
-      return ["№", "Müştəri", "Marşrut", "Nəqliyyat", "Status", "Tarix"];
+      return ["№", "Müştəri", "Marşrut", "Yüklər", "Status", "Tarix"];
     }
     if (activeReport === "orders") {
       return [
@@ -374,24 +399,14 @@ export default function MaliyyeHesabatPage() {
         "Qazanc",
         "Status",
         "Tarix",
-      ];
-    }
-    if (activeReport === "voyages") {
-      return [
-        "Reys",
-        "Sifariş",
-        "Müştəri",
-        "Qiymət",
-        "Xərclər",
-        "Ödəniş",
-        "Qalıq",
-        "Qazanc",
-        "Status",
-        "Tarix",
+        "Əməliyyat",
       ];
     }
     return ["ID", "Ad", "Kateqoriya", "Metod", "Məbləğ", "Tarix"];
   })();
+
+  const hasStickyActionCol =
+    isPartnerReport || activeReport === "orders";
 
   const hint = (() => {
     switch (activeReport) {
@@ -403,8 +418,6 @@ export default function MaliyyeHesabatPage() {
         return "Sorğular üzrə hesabat — tarix, status və axtarış";
       case "orders":
         return "Sifarişlər üzrə qiymət, xərc, ödəniş, qalıq və qazanc";
-      case "voyages":
-        return "Reyslər üzrə qiymət, xərc, ödəniş, qalıq və qazanc";
       case "expenses":
         return "Xərc əməliyyatları — kateqoriya, metod və tarix filtri";
       default:
@@ -519,9 +532,7 @@ export default function MaliyyeHesabatPage() {
                 <option value="">Hamısı</option>
                 {statusOptions.map((s) => (
                   <option key={s} value={s}>
-                    {activeReport === "queries" ||
-                    activeReport === "orders" ||
-                    activeReport === "voyages"
+                    {activeReport === "queries" || activeReport === "orders"
                       ? statusLabelAz(s)
                       : s}
                   </option>
@@ -610,8 +621,15 @@ export default function MaliyyeHesabatPage() {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  {tableHeaders.map((h) => (
-                    <th key={h} className={styles.th}>
+                  {tableHeaders.map((h, hi) => (
+                    <th
+                      key={h}
+                      className={`${styles.th}${
+                        hasStickyActionCol && hi === tableHeaders.length - 1
+                          ? ` ${styles.reportActionTh}`
+                          : ""
+                      }`}
+                    >
                       {h}
                     </th>
                   ))}
@@ -651,7 +669,7 @@ export default function MaliyyeHesabatPage() {
                       >
                         {fmtAzn(r.balanceAzn)}
                       </td>
-                      <td className={styles.td}>
+                      <td className={`${styles.td} ${styles.reportActionTd}`}>
                         <button
                           type="button"
                           className={styles.reportPayBtn}
@@ -665,7 +683,24 @@ export default function MaliyyeHesabatPage() {
                     </tr>
                   ))
                 ) : (
-                  pagedGeneric.map((r) => (
+                  pagedGeneric.map((r) => {
+                    const orderDetailId = resolveOrderDetailId(
+                      r.raw,
+                      activeReport,
+                      r.key,
+                    );
+                    const queryDetailPath =
+                      activeReport === "queries"
+                        ? getQueryDetailPath(r.raw || { id: r.key })
+                        : "";
+                    const showOrderLink = activeReport === "orders";
+                    const showQueryLink =
+                      activeReport === "queries" &&
+                      Boolean(queryDetailPath) &&
+                      queryDetailPath !== "/sorgular";
+                    const showPayBtn = activeReport === "orders";
+
+                    return (
                     <tr key={r.key} className={styles.tr}>
                       {r.cells.map((cell, idx) => {
                         const fin = r.raw?._finance as
@@ -701,30 +736,31 @@ export default function MaliyyeHesabatPage() {
                           }
                         }
 
-                        if (activeReport === "voyages") {
-                          if (idx === 4) {
-                            cellStyle = { color: "#b91c1c", fontWeight: 600 };
-                          } else if (idx === 5) {
-                            cellStyle = { color: "#059669", fontWeight: 600 };
-                          } else if (idx === 6) {
-                            const bal = Number(fin?.balanceAzn) || 0;
-                            cellStyle = {
-                              color: bal > 0 ? "#dc2626" : "#059669",
-                              fontWeight: 700,
-                            };
-                          } else if (idx === 7) {
-                            const profit = Number(fin?.profitAzn) || 0;
-                            cellStyle = {
-                              color: profit >= 0 ? "#059669" : "#dc2626",
-                              fontWeight: 700,
-                            };
-                          }
-                        }
-
                         const isStatusBadge =
                           (activeReport === "queries" && idx === 4) ||
-                          (activeReport === "orders" && idx === 7) ||
-                          (activeReport === "voyages" && idx === 8);
+                          (activeReport === "orders" && idx === 7);
+
+                        if (activeReport === "queries" && idx === 3) {
+                          cellStyle = {
+                            ...cellStyle,
+                            whiteSpace: "normal",
+                            maxWidth: 280,
+                            fontSize: "0.78rem",
+                            color: "#475569",
+                            fontWeight: 500,
+                          };
+                        }
+
+                        const isOrderLink =
+                          showOrderLink &&
+                          idx === 0 &&
+                          Boolean(orderDetailId) &&
+                          String(cell || "").trim() !== "—";
+
+                        const isQueryLink =
+                          showQueryLink &&
+                          idx === 0 &&
+                          String(cell || "").trim() !== "—";
 
                         return (
                           <td
@@ -736,21 +772,49 @@ export default function MaliyyeHesabatPage() {
                               <StatusBadge
                                 label={String(cell || "—")}
                                 kind={
-                                  activeReport === "voyages"
-                                    ? String(r.raw?.tripStatusKind || "")
-                                    : activeReport === "orders"
-                                      ? String(r.raw?.statusKind || "")
-                                      : undefined
+                                  activeReport === "orders"
+                                    ? String(r.raw?.statusKind || "")
+                                    : undefined
                                 }
                               />
+                            ) : isOrderLink ? (
+                              <Link
+                                to={`/sifarisler/${orderDetailId}`}
+                                className={styles.reportOrderLink}
+                                title="Sifarişə keç"
+                              >
+                                {cell}
+                              </Link>
+                            ) : isQueryLink ? (
+                              <Link
+                                to={queryDetailPath}
+                                className={styles.reportOrderLink}
+                                title="Sorğuya keç"
+                              >
+                                {cell}
+                              </Link>
                             ) : (
                               cell
                             )}
                           </td>
                         );
                       })}
+                      {showPayBtn ? (
+                        <td className={`${styles.td} ${styles.reportActionTd}`}>
+                          <button
+                            type="button"
+                            className={styles.reportPayBtn}
+                            onClick={() => openOrderRowPayment(r.raw)}
+                            title="Ödəniş"
+                          >
+                            <FiDollarSign size={14} />
+                            Ödəniş
+                          </button>
+                        </td>
+                      ) : null}
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>

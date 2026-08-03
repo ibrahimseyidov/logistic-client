@@ -399,7 +399,7 @@ export function setChildAll(
   return next;
 }
 
-/** Səhifə / bölmə icazəsi yoxlama */
+/** Səhifə / bölmə icazəsi yoxlama — bağlı (false) = görünməz / istifadə olunmaz */
 export function can(
   perms: UserPermissions | null | undefined,
   moduleId: string,
@@ -409,12 +409,74 @@ export function can(
   if (!perms) return false;
   const mod = perms[moduleId];
   if (!mod) return false;
-  if (!mod.view && action !== "view") return false;
+  // Parent view bağlıdırsa heç bir alt əməliyyat açıq deyil
+  if (!mod.view) return false;
   if (childId) {
     const child = mod.children?.[childId];
     if (!child) return false;
-    if (!child.view && action !== "view") return false;
+    if (!child.view) return false;
     return Boolean(child[action]);
   }
   return Boolean(mod[action]);
+}
+
+/** Ayarlar tab → icazə child id */
+export function ayarlarTabToPermChild(tab: string): string {
+  if (tab === "users" || tab === "cash" || tab === "documents" || tab === "logs") {
+    return tab;
+  }
+  // cargo-specs / incoterms / transport-types → lookups
+  return "lookups";
+}
+
+/** Nav / route → modul (+ optional child) */
+export function routeToPermission(
+  pathname: string,
+  search = "",
+): { moduleId: string; childId?: string } | null {
+  const tab = new URLSearchParams(search).get("tab") || undefined;
+
+  if (pathname.startsWith("/sorgular/")) {
+    return { moduleId: "sorgular", childId: "detail" };
+  }
+  if (pathname.startsWith("/sorgular")) {
+    const child =
+      tab === "archive" || tab === "offers" || tab === "active" ? tab : "active";
+    return { moduleId: "sorgular", childId: child };
+  }
+  if (pathname.startsWith("/sifarisler/")) {
+    return { moduleId: "sifarisler", childId: "detail" };
+  }
+  if (pathname.startsWith("/sifarisler")) {
+    return { moduleId: "sifarisler", childId: "orders" };
+  }
+  if (pathname.startsWith("/tapshiriqlar")) {
+    return { moduleId: "tapshiriqlar", childId: "board" };
+  }
+  if (pathname.startsWith("/musteriler/")) {
+    return { moduleId: "musteriler", childId: "detail" };
+  }
+  if (pathname.startsWith("/musteriler")) {
+    return { moduleId: "musteriler", childId: "list" };
+  }
+  if (pathname.startsWith("/dasiyicilar/")) {
+    return { moduleId: "dasiyicilar", childId: "detail" };
+  }
+  if (pathname.startsWith("/dasiyicilar")) {
+    return { moduleId: "dasiyicilar", childId: "list" };
+  }
+  if (pathname.startsWith("/maliyye/hesabat")) {
+    return { moduleId: "maliyye", childId: "hesabat" };
+  }
+  if (pathname.startsWith("/maliyye")) {
+    // Kasa / Bank / Ümumi tabları səhifə daxilində süzülür — parent view kifayətdir
+    return { moduleId: "maliyye" };
+  }
+  if (pathname.startsWith("/ayarlar")) {
+    return {
+      moduleId: "ayarlar",
+      childId: ayarlarTabToPermChild(tab || "users"),
+    };
+  }
+  return null;
 }

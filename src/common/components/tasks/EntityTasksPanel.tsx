@@ -10,6 +10,7 @@ import {
 } from "../../../common/actions/task.actions";
 import { fetchUserDirectoryAction } from "../../../common/actions/user.actions";
 import { useAuth } from "../../../common/contexts/AuthContext";
+import { usePermissions } from "../../../common/hooks/usePermissions";
 import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
 import type { SelectOption } from "../../../common/components/select/Select";
@@ -22,6 +23,9 @@ import type {
 type Props = {
   orderId?: number | null;
   queryId?: number | null;
+  /** İcazə: modul + child (məs. sifarisler/order_tasks) */
+  permModule?: string;
+  permChild?: string;
 };
 
 const STATUS_OPTIONS: { value: string; label: string; color: string; bg: string }[] = [
@@ -48,9 +52,17 @@ function statusMeta(status: string) {
   );
 }
 
-export default function EntityTasksPanel({ orderId, queryId }: Props) {
+export default function EntityTasksPanel({
+  orderId,
+  queryId,
+  permModule,
+  permChild,
+}: Props) {
   const dispatch = useAppDispatch();
   const { user } = useAuth();
+  const { canCreate, canEdit } = usePermissions();
+  const allowCreate = !permModule || canCreate(permModule, permChild);
+  const allowEdit = !permModule || canEdit(permModule, permChild);
   const [tasks, setTasks] = useState<TaskDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -117,6 +129,7 @@ export default function EntityTasksPanel({ orderId, queryId }: Props) {
 
   const handleSave = async (payload: TaskModalSavePayload) => {
     if (saving) return;
+    if (editingId != null ? !allowEdit : !allowCreate) return;
     setSaving(true);
     try {
       const body = {
@@ -209,6 +222,7 @@ export default function EntityTasksPanel({ orderId, queryId }: Props) {
         <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#1e293b" }}>
           Tapşırıqlar ({tasks.length})
         </h3>
+        {allowCreate ? (
         <button
           type="button"
           onClick={() => {
@@ -232,6 +246,7 @@ export default function EntityTasksPanel({ orderId, queryId }: Props) {
           <FiPlus />
           Tapşırıq əlavə et
         </button>
+        ) : null}
       </div>
 
       <div
@@ -268,9 +283,10 @@ export default function EntityTasksPanel({ orderId, queryId }: Props) {
                   display: "flex",
                   flexDirection: "column",
                   gap: "0.75rem",
-                  cursor: "pointer",
+                  cursor: allowEdit ? "pointer" : "default",
                 }}
                 onClick={() => {
+                  if (!allowEdit) return;
                   setEditingId(task.id);
                   setModalOpen(true);
                 }}
@@ -311,9 +327,11 @@ export default function EntityTasksPanel({ orderId, queryId }: Props) {
 
                   <select
                     value={STATUS_OPTIONS.some((s) => s.value === task.status) ? task.status : "todo"}
+                    disabled={!allowEdit}
                     onClick={(e) => e.stopPropagation()}
                     onChange={(e) => {
                       e.stopPropagation();
+                      if (!allowEdit) return;
                       void changeStatus(task, e.target.value);
                     }}
                     style={{
@@ -325,8 +343,9 @@ export default function EntityTasksPanel({ orderId, queryId }: Props) {
                       padding: "0.3rem 0.5rem",
                       fontSize: "0.72rem",
                       fontWeight: 700,
-                      cursor: "pointer",
+                      cursor: allowEdit ? "pointer" : "not-allowed",
                       maxWidth: "8.5rem",
+                      opacity: allowEdit ? 1 : 0.7,
                     }}
                     aria-label="Status"
                   >

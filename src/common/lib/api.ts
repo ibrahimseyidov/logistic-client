@@ -41,10 +41,20 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Clear token and redirect to login if necessary
-      localStorage.removeItem("token");
+      const code = error.response?.data?.code;
+      const deactivated = code === "ACCOUNT_DEACTIVATED";
+      try {
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("auth_bootstrap_v1");
+      } catch {
+        /* ignore */
+      }
+      document.cookie = "token=; path=/; max-age=0";
       if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
-        window.location.href = "/login";
+        window.location.href = deactivated
+          ? "/login?reason=deactivated"
+          : "/login";
       }
     }
     return Promise.reject(error);

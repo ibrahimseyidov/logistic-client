@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   convertToAznWithRates,
+  FALLBACK_AZN_RATES,
   fetchCurrencyRates,
+  getAznRate,
   type CurrencyRatesResponse,
 } from "../utils/currency.utils";
 
@@ -21,7 +23,7 @@ export function useCurrencyRates(date?: string) {
           setRatesData({
             date: date || "",
             source: "fallback",
-            rates: { AZN: 1, USD: 1.7, EUR: 1.9324, TRY: 0.0364 },
+            rates: { ...FALLBACK_AZN_RATES },
           });
         }
       })
@@ -35,18 +37,17 @@ export function useCurrencyRates(date?: string) {
 
   const toAzn = useCallback(
     (amount: number, currency: string) => {
-      if (!ratesData) return amount;
-      return convertToAznWithRates(amount, currency, ratesData.rates);
+      return convertToAznWithRates(
+        amount,
+        currency,
+        ratesData?.rates || FALLBACK_AZN_RATES,
+      );
     },
     [ratesData],
   );
 
   const getRate = useCallback(
-    (currency: string) => {
-      const code = (currency || "AZN").toUpperCase();
-      if (code === "AZN") return 1;
-      return ratesData?.rates[code] ?? 1;
-    },
+    (currency: string) => getAznRate(currency, ratesData?.rates),
     [ratesData],
   );
 

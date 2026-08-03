@@ -14,6 +14,8 @@ interface Props {
   selectedId?: number | null;
   onEdit: (tpl: DocumentTemplate) => void;
   onDelete: (tpl: DocumentTemplate) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export const DocumentTemplatesTable: React.FC<Props> = ({
@@ -21,7 +23,11 @@ export const DocumentTemplatesTable: React.FC<Props> = ({
   selectedId,
   onEdit,
   onDelete,
+  canEdit = true,
+  canDelete = true,
 }) => {
+  const showActions = canEdit || canDelete;
+
   return (
     <div className={tableStyles.tableWrapper}>
       <table className={tableStyles.table}>
@@ -31,13 +37,15 @@ export const DocumentTemplatesTable: React.FC<Props> = ({
             <th className={`${tableStyles.headerCell} ${tableStyles.min120}`}>Tip</th>
             <th className={`${tableStyles.headerCell} ${tableStyles.min120}`}>Scope</th>
             <th className={`${tableStyles.headerCell} ${tableStyles.min150}`}>Kod</th>
-            <th className={`${tableStyles.headerCell} ${tableStyles.min120}`}>Əməliyyat</th>
+            {showActions ? (
+              <th className={`${tableStyles.headerCell} ${tableStyles.min120}`}>Əməliyyat</th>
+            ) : null}
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={5} className={tableStyles.center} style={{ padding: "40px" }}>
+              <td colSpan={showActions ? 5 : 4} className={tableStyles.center} style={{ padding: "40px" }}>
                 Şablon tapılmadı
               </td>
             </tr>
@@ -60,28 +68,32 @@ export const DocumentTemplatesTable: React.FC<Props> = ({
                   {SCOPE_LABEL[row.scope] || row.scope}
                 </td>
                 <td className={`${tableStyles.cell} ${tableStyles.center}`}>{row.code}</td>
-                <td className={`${tableStyles.cell} ${tableStyles.center}`}>
-                  <div className={tableStyles.actionRow}>
-                    <button
-                      type="button"
-                      className={`${tableStyles.iconButton} ${tableStyles.detailsButton}`}
-                      onClick={() => onEdit(row)}
-                      title="Redaktə et"
-                    >
-                      <FaEdit />
-                    </button>
-                    {!row.isSystem ? (
-                      <button
-                        type="button"
-                        className={`${tableStyles.iconButton} ${tableStyles.deleteButton}`}
-                        onClick={() => onDelete(row)}
-                        title="Sil"
-                      >
-                        <FaTrash />
-                      </button>
-                    ) : null}
-                  </div>
-                </td>
+                {showActions ? (
+                  <td className={`${tableStyles.cell} ${tableStyles.center}`}>
+                    <div className={tableStyles.actionRow}>
+                      {canEdit ? (
+                        <button
+                          type="button"
+                          className={`${tableStyles.iconButton} ${tableStyles.detailsButton}`}
+                          onClick={() => onEdit(row)}
+                          title="Redaktə et"
+                        >
+                          <FaEdit />
+                        </button>
+                      ) : null}
+                      {canDelete && !row.isSystem ? (
+                        <button
+                          type="button"
+                          className={`${tableStyles.iconButton} ${tableStyles.deleteButton}`}
+                          onClick={() => onDelete(row)}
+                          title="Sil"
+                        >
+                          <FaTrash />
+                        </button>
+                      ) : null}
+                    </div>
+                  </td>
+                ) : null}
               </tr>
             ))
           )}

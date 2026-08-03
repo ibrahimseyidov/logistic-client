@@ -41,8 +41,14 @@ import {
   getQueryDetailPath,
 } from "../../sorgular/lib/queryDisplay.utils";
 import { matchesCustomerEntity } from "../../../common/utils/entityActivity.utils";
+import { usePermissions } from "../../../common/hooks/usePermissions";
 
-const TAB_ITEMS = ["Məlumatlar", "Sorğular", "Sifarişlər", "Maliyyə"];
+const TAB_ITEMS: { label: string; permChild: string }[] = [
+  { label: "Məlumatlar", permChild: "detail" },
+  { label: "Sorğular", permChild: "detail" },
+  { label: "Sifarişlər", permChild: "detail" },
+  { label: "Maliyyə", permChild: "finance" },
+];
 
 function parseMoney(value: string | number | undefined | null): number {
   if (value == null || value === "") return 0;
@@ -52,17 +58,24 @@ function parseMoney(value: string | number | undefined | null): number {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
+function resolveCustomerReceivableAmount(tx: any): number {
+  // Müştəri yalnız tarif / irəli hesab — məsarif (alınmış/daşıyıcı) sayılmır
+  return (
+    parseMoney(tx.tarifAzn) ||
+    parseMoney(tx.edvliTarifAzn) ||
+    parseMoney(tx.tarifPrice) ||
+    parseMoney(tx.edvliTarifPrice) ||
+    0
+  );
+}
+
 function resolveCustomerTransactionStatus(tx: any): string {
   if (tx.type === "INCOME") return "Mədaxil";
 
-  const receivableAmount =
-    parseMoney(tx.tarifAzn) ||
-    parseMoney(tx.tarifPrice) ||
-    parseMoney(tx.edvliTarifAzn) ||
-    parseMoney(tx.edvliTarifPrice);
+  const receivableAmount = resolveCustomerReceivableAmount(tx);
 
   if (receivableAmount > 0) {
-    return tx.invoiceReceived ? "Ödənilib" : "Ödənilməyib";
+    return "Ödənilməyib";
   }
 
   return "Məxaric";
@@ -89,6 +102,8 @@ export default function MusteriDetailPage() {
   const navigate = useNavigate();
   const { customerId } = useParams();
   const dispatch = useAppDispatch();
+  const { canView, canCreate } = usePermissions();
+  const canCreateContact = canCreate("musteriler", "contacts");
 
   const [customer, setCustomer] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -118,6 +133,18 @@ export default function MusteriDetailPage() {
     salesGroup: "",
     contactPersons: [] as any[],
   });
+
+  const visibleTabs = useMemo(
+    () => TAB_ITEMS.filter((t) => canView("musteriler", t.permChild)),
+    [canView],
+  );
+
+  useEffect(() => {
+    if (visibleTabs.length === 0) return;
+    if (!visibleTabs.some((t) => t.label === activeTab)) {
+      setActiveTab(visibleTabs[0].label);
+    }
+  }, [visibleTabs, activeTab]);
 
   const displayedContacts = useMemo(
     () => normalizeCarrierContacts(customer?.contactPersons, contactPersons),
@@ -242,105 +269,63 @@ export default function MusteriDetailPage() {
     };
   }, [orders]);
 
-  // Dynamic Finance Info
+  // Dynamic Finance Info — müştəri YALNIZ "İrəli hesab" / tarif ilə borclanır
   const financeStats = useMemo(() => {
     const payments: any[] = [];
     let totalPaid = 0;
     let outstandingDebt = 0;
     let overpayment = 0;
 
-    const orderIdsWithTx = new Set(
-      transactions
-        .filter((tx) => tx.orderId != null)
-        .map((tx) => String(tx.orderId)),
-    );
-
     transactions.forEach((tx) => {
-      const amount =
-        parseMoney(String(tx.amount ?? "")) ||
-        parseMoney(tx.tarifAzn) ||
-        parseMoney(tx.tarifPrice) ||
-        parseMoney(tx.mesarifPrice);
-      const isIncome = tx.type === "INCOME";
-
-      payments.push({
-        id: `tx-${tx.id}`,
-        date: tx.date || tx.costDate || tx.createdAt,
-        purpose:
-          tx.name ||
-          tx.category ||
-          (tx.orderId ? `${tx.orderId} nömrəli sifariş əməliyyatı` : "Maliyyə əməliyyatı"),
-        amount: isIncome ? amount : -amount,
-        currency: tx.currency || tx.tarifCurrency || "AZN",
-        status: resolveCustomerTransactionStatus(tx),
-      });
-
-      if (isIncome) totalPaid += amount;
-      else outstandingDebt += amount;
-    });
-
-    orders.forEach((order) => {
-      const freight =
-        parseMoney(order.freightAzn) || parseMoney(order.freight);
-      const profit =
-        parseMoney(order.profitAzn) || parseMoney(order.profit);
-
-      if (orderIdsWithTx.has(String(order.id))) {
+      const name = String(tx.name || "");
+      // Alınmış hesab / daşıyıcı məsarifi müştəri borcuna düşməsin
+      if (
+        name.startsWith("Alınmış hesab") ||
+        (parseMoney(tx.mesarifAzn) > 0 &&
+          !(resolveCustomerReceivableAmount(tx) > 0))
+      ) {
         return;
       }
 
-      if (
-        order.statusKind === "completed" ||
-        order.statusKind === "finance_closed"
-      ) {
-        if (freight > 0) {
-          totalPaid += freight;
-          payments.push({
-            id: `order-${order.id}-freight`,
-            date: order.orderDate || order.createdAt,
-            purpose: `${order.orderNumber} — sifariş gəliri`,
-            amount: freight,
-            currency: "AZN",
-            status: "Ödənilib",
-          });
-        }
-      } else if (order.statusKind !== "cancelled" && freight > 0) {
-        outstandingDebt += freight;
+      const receivable = resolveCustomerReceivableAmount(tx);
+      const isIreli =
+        name.startsWith("İrəli hesab") ||
+        (tx.category === "ORDER_BOOK" && receivable > 0);
+
+      if (tx.type === "INCOME") {
+        const paid = parseMoney(String(tx.amount ?? "")) || receivable;
+        if (!(paid > 0)) return;
+        totalPaid += paid;
         payments.push({
-          id: `order-${order.id}-pending`,
-          date: order.orderDate || order.createdAt,
-          purpose: `${order.orderNumber} — gözlənilən ödəniş`,
-          amount: freight,
-          currency: "AZN",
-          status: "Gözləmədə",
+          id: `tx-${tx.id}`,
+          date: tx.date || tx.costDate || tx.createdAt,
+          purpose: name || "Ödəniş",
+          amount: paid,
+          currency: tx.currency || tx.tarifCurrency || "AZN",
+          status: "Mədaxil",
         });
+        return;
       }
 
-      if (profit > 0 && Math.abs(profit - freight) > 0.01) {
-        payments.push({
-          id: `order-${order.id}-profit`,
-          date: order.orderDate || order.createdAt,
-          purpose: `${order.orderNumber} — mənfəət`,
-          amount: profit,
-          currency: "AZN",
-          status: "Mənfəət",
-        });
-      }
+      // Borc yalnız irəli hesab / müştəri tarifi
+      if (!isIreli || !(receivable > 0)) return;
+
+      outstandingDebt += receivable;
+      payments.push({
+        id: `tx-${tx.id}`,
+        date: tx.date || tx.costDate || tx.createdAt,
+        purpose: name || "İrəli hesab",
+        amount: -receivable,
+        currency: tx.currency || tx.tarifCurrency || "AZN",
+        status: resolveCustomerTransactionStatus(tx),
+      });
     });
 
-    const totalExpectedFreight = orders
-      .filter((order) => order.statusKind !== "cancelled")
-      .reduce(
-        (sum, order) =>
-          sum + (parseMoney(order.freightAzn) || parseMoney(order.freight)),
-        0,
-      );
-
-    const netDebt = totalExpectedFreight - totalPaid;
-    if (netDebt < 0) {
-      overpayment = Math.abs(netDebt);
-    } else if (outstandingDebt < netDebt) {
-      outstandingDebt = netDebt;
+    if (totalPaid > outstandingDebt) {
+      overpayment = totalPaid - outstandingDebt;
+      outstandingDebt = 0;
+    } else {
+      outstandingDebt = outstandingDebt - totalPaid;
     }
 
     payments.sort(
@@ -355,7 +340,7 @@ export default function MusteriDetailPage() {
       totalSales: orderStats.sales,
       totalProfit: orderStats.profit,
     };
-  }, [orders, orderStats, transactions]);
+  }, [orderStats, transactions]);
 
   const openEditModal = () => {
     if (!customer) return;
@@ -499,14 +484,14 @@ export default function MusteriDetailPage() {
       <div className={styles.topBar}>
         <div className={styles.companyName}>{customer.company}</div>
         <div className={styles.tabs}>
-          {TAB_ITEMS.map((tab) => (
+          {visibleTabs.map((tab) => (
             <button
-              key={tab}
+              key={tab.label}
               type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`${styles.tabButton} ${activeTab === tab ? styles.activeTab : ""}`}
+              onClick={() => setActiveTab(tab.label)}
+              className={`${styles.tabButton} ${activeTab === tab.label ? styles.activeTab : ""}`}
             >
-              {tab}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -597,6 +582,7 @@ export default function MusteriDetailPage() {
               <div className={styles.infoCard}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc", padding: "0 12px", minHeight: "44px", borderBottom: "1px solid #e7edf5" }}>
                   <h3 style={{ margin: 0, borderBottom: "none", fontSize: "0.76rem", letterSpacing: "0.08em", textTransform: "uppercase", color: "#475569" }}>Əlaqədar şəxslər</h3>
+                  {canCreateContact ? (
                   <button
                     type="button"
                     onClick={() => setIsContactModalOpen(true)}
@@ -617,6 +603,7 @@ export default function MusteriDetailPage() {
                     <FiPlus />
                     Yeni əlaqədar şəxs
                   </button>
+                  ) : null}
                 </div>
                 
                 <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "10px" }}>

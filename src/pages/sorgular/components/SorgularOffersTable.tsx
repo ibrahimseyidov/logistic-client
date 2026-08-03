@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import styles from "./SorgularTable.module.css";
 import type { LogisticQueryRow } from "../types/sorgu.types";
 import { CUSTOMER_OPTIONS } from "../constants/options.constants";
+import { usePermissions } from "../../../common/hooks/usePermissions";
 
 interface Props {
   rows: LogisticQueryRow[];
@@ -87,6 +88,11 @@ function getLoadPlaceLabel(row: LogisticQueryRow) {
 }
 
 export const SorgularOffersTable: React.FC<Props> = ({ rows, customers, onDeleteOffer, onEditQuery }) => {
+  const { canEdit, canDelete } = usePermissions();
+  const allowEdit = canEdit("sorgular", "offers");
+  const allowDelete = canDelete("sorgular", "offers");
+  const showActions = allowEdit || allowDelete;
+
   return (
     <div className={styles.tableWrapper}>
       <div className={styles.tableContainer}>
@@ -102,7 +108,9 @@ export const SorgularOffersTable: React.FC<Props> = ({ rows, customers, onDelete
               <th className={styles.headerCell}>Satıcı</th>
               <th className={styles.headerCell}>Yükləmə</th>
               <th className={styles.headerCell}>Tarix</th>
-              <th className={styles.headerCell}>Əməliyyatlar</th>
+              {showActions ? (
+                <th className={styles.headerCell}>Əməliyyatlar</th>
+              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -125,32 +133,38 @@ export const SorgularOffersTable: React.FC<Props> = ({ rows, customers, onDelete
                     {getLoadPlaceLabel(row)}
                   </td>
                   <td className={styles.cell} style={{ textAlign: "center" }}>{new Date(row.offerItem?.createdAt || row.createdAt).toLocaleDateString("az-AZ")}</td>
-                  <td className={styles.cell}>
-                    <div className={styles.actionRow}>
-                      <button
-                        className={`${styles.iconButton} ${styles.editButton}`}
-                        onClick={() => onEditQuery(row.originalId || row.id)}
-                        title="Sorğunu redaktə et"
-                        type="button"
-                      >
-                        <FaEdit />
-                      </button>
-                      <button
-                        className={`${styles.iconButton} ${styles.deleteButton}`}
-                        onClick={() => onDeleteOffer(row.originalId || row.id, row.offerItem?.id)}
-                        title="Təklifi sil"
-                        type="button"
-                      >
-                        <FaTrash />
-                      </button>
-                    </div>
-                  </td>
+                  {showActions ? (
+                    <td className={styles.cell}>
+                      <div className={styles.actionRow}>
+                        {allowEdit ? (
+                          <button
+                            className={`${styles.iconButton} ${styles.editButton}`}
+                            onClick={() => onEditQuery(row.originalId || row.id)}
+                            title="Sorğunu redaktə et"
+                            type="button"
+                          >
+                            <FaEdit />
+                          </button>
+                        ) : null}
+                        {allowDelete ? (
+                          <button
+                            className={`${styles.iconButton} ${styles.deleteButton}`}
+                            onClick={() => onDeleteOffer(row.originalId || row.id, row.offerItem?.id)}
+                            title="Təklifi sil"
+                            type="button"
+                          >
+                            <FaTrash />
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
+                  ) : null}
                 </tr>
               );
             })}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={10} style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>
+                <td colSpan={showActions ? 10 : 9} style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>
                   Heç bir qiymət təklifi tapılmadı.
                 </td>
               </tr>

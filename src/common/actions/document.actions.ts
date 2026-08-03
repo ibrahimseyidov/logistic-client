@@ -80,7 +80,16 @@ export type OrderDocumentRow = {
   type: string;
   size: number;
   templateCode?: string | null;
+  htmlContent?: string | null;
   createdAt: string;
+};
+
+export type OrderDocumentEditPayload = {
+  id: number;
+  name: string;
+  templateCode: string | null;
+  orderId: number;
+  html: string;
 };
 
 export async function fetchDocumentTemplatesAction(
@@ -228,6 +237,27 @@ export async function fetchOrderDocumentsAction(
     headers: getHeaders(),
   });
   return Array.isArray(res.data) ? res.data : [];
+}
+
+export async function fetchOrderDocumentEditAction(
+  id: number,
+): Promise<OrderDocumentEditPayload> {
+  const res = await axios.get(buildApiUrl(`/api/documents/order-docs/${id}/edit`), {
+    headers: getHeaders(),
+  });
+  return res.data;
+}
+
+export async function updateOrderDocumentHtmlAction(
+  id: number,
+  html: string,
+): Promise<OrderDocumentRow> {
+  const res = await axios.put(
+    buildApiUrl(`/api/documents/order-docs/${id}`),
+    { html },
+    { headers: getHeaders() },
+  );
+  return res.data;
 }
 
 export async function deleteOrderDocumentAction(id: number): Promise<void> {

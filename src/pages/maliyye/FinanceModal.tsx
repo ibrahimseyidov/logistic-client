@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { FiList, FiX } from "react-icons/fi";
 import drawerStyles from "../sorgular/sorgular.module.css";
 import modalStyles from "./FinanceModal.module.css";
@@ -31,10 +31,24 @@ type PartnerKind = "customer" | "carrier";
 type OrderDebtInfo = {
   orderId: number;
   orderNumber: string;
+  orderDate: string;
   owedAzn: number;
   paidAzn: number;
   remainingAzn: number;
 };
+
+function formatOrderDate(raw?: string | Date | null): string {
+  if (!raw) return "—";
+  const s = String(raw).trim();
+  if (!s) return "—";
+  // artıq dd.mm.yyyy və ya oxşar formatdadırsa olduğu kimi göstər
+  if (/^\d{1,2}[./-]\d{1,2}[./-]\d{2,4}/.test(s)) {
+    return s.split(/[T\s]/)[0];
+  }
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleDateString("az-AZ");
+}
 
 function asList(data: unknown): any[] {
   if (Array.isArray(data)) return data;
@@ -262,6 +276,7 @@ function PartnerOrdersModal({
               <thead>
                 <tr>
                   <th>Sifariş</th>
+                  <th>Tarix</th>
                   <th>Borc</th>
                   <th>Ödənilib</th>
                   <th>Qalıq</th>
@@ -274,6 +289,11 @@ function PartnerOrdersModal({
                     <td>
                       <span className={modalStyles.orderIdBadge}>
                         {r.orderNumber}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={modalStyles.dateCell}>
+                        {r.orderDate || "—"}
                       </span>
                     </td>
                     <td>
@@ -357,6 +377,8 @@ export default function FinanceModal({
   const [financeTxs, setFinanceTxs] = useState<any[]>([]);
   const [ordersModalOpen, setOrdersModalOpen] = useState(false);
   const [amountTouched, setAmountTouched] = useState(false);
+  /** Tərəfdaş üçün sifariş avtomatik seçilibsə — təkrar yazmamaq üçün */
+  const autoPickPartnerKeyRef = useRef("");
 
   useEffect(() => {
     if (!isOpen) return;
@@ -380,7 +402,10 @@ export default function FinanceModal({
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      autoPickPartnerKeyRef.current = "";
+      return;
+    }
     setAmountTouched(false);
     setFormError("");
     if (initialData) {
@@ -483,6 +508,9 @@ export default function FinanceModal({
         return {
           orderId: Number(o.id),
           orderNumber: o.orderNumber || `SF-${o.id}`,
+          orderDate: formatOrderDate(
+            o.orderDate || o.orderDateIso || o.createdAt,
+          ),
           ...debt,
         };
       })
@@ -519,6 +547,9 @@ export default function FinanceModal({
         return {
           orderId: Number(formData.orderId),
           orderNumber: ord?.orderNumber || `SF-${formData.orderId}`,
+          orderDate: formatOrderDate(
+            ord?.orderDate || ord?.orderDateIso || ord?.createdAt,
+          ),
           ...debt,
         };
       })()
@@ -529,6 +560,61 @@ export default function FinanceModal({
     partnerKind,
     financeTxs,
     orders,
+    selectedCustomer,
+    selectedCarrier,
+  ]);
+
+  // Hesabatdan / tərəfdaş seçimindən gələndə sifarişi avtomatik seç
+  useEffect(() => {
+    if (!isOpen) return;
+    const partnerId =
+      partnerKind === "customer" ? formData.customerId : formData.carrierId;
+    if (!partnerId) return;
+
+    const partner =
+      partnerKind === "customer" ? selectedCustomer : selectedCarrier;
+    // Tərəfdaş siyahısı / sifarişlər hələ gəlməyibsə gözlə
+    if (!partner) return;
+    if (orders.length === 0) return;
+
+    const partnerKey = `${partnerKind}:${partnerId}`;
+
+    if (formData.orderId) {
+      autoPickPartnerKeyRef.current = partnerKey;
+      return;
+    }
+    if (autoPickPartnerKeyRef.current === partnerKey) return;
+
+    if (orderDebtRows.length === 0) {
+      autoPickPartnerKeyRef.current = partnerKey;
+      return;
+    }
+
+    const pick =
+      [...orderDebtRows]
+        .sort((a, b) => b.remainingAzn - a.remainingAzn)
+        .find((r) => r.remainingAzn > 0) ||
+      [...orderDebtRows]
+        .sort((a, b) => b.owedAzn - a.owedAzn)
+        .find((r) => r.owedAzn > 0) ||
+      orderDebtRows[0];
+
+    autoPickPartnerKeyRef.current = partnerKey;
+    if (!pick) return;
+
+    setAmountTouched(false);
+    setFormData((prev) => ({
+      ...prev,
+      orderId: String(pick.orderId),
+    }));
+  }, [
+    isOpen,
+    partnerKind,
+    formData.customerId,
+    formData.carrierId,
+    formData.orderId,
+    orderDebtRows,
+    orders.length,
     selectedCustomer,
     selectedCarrier,
   ]);
@@ -545,9 +631,7 @@ export default function FinanceModal({
       ...prev,
       amount: selectedOrderDebt.remainingAzn.toFixed(2),
       currency: "AZN",
-      name:
-        prev.name?.trim() ||
-        `${selectedOrderDebt.orderNumber} — ${partnerName}`,
+      name: `${selectedOrderDebt.orderNumber} — ${partnerName}`,
       category:
         prev.category ||
         (partnerKind === "customer" ? "Müştəri ödənişi" : "Daşıyıcı ödənişi"),

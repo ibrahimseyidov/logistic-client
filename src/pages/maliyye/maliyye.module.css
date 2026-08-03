@@ -690,7 +690,7 @@
 
 .reportDrawerBody .table {
   width: 100%;
-  min-width: 0;
+  min-width: 920px;
   table-layout: auto;
 }
 
@@ -702,10 +702,37 @@
   vertical-align: middle;
 }
 
+.reportActionTh,
+.reportActionTd {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: #fff;
+  box-shadow: -6px 0 10px rgba(15, 23, 42, 0.06);
+}
+
+.reportActionTh {
+  background: #f8fafc;
+  z-index: 3;
+}
+
 .reportDrawerFooter {
   flex-shrink: 0;
   border-top: 1px solid #e2e8f0;
   background: #fff;
+}
+
+.reportOrderLink {
+  color: #1d4ed8;
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+.reportOrderLink:hover {
+  color: #1e40af;
+  border-bottom-color: #93c5fd;
 }
 
 .reportPayBtn {

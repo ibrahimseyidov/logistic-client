@@ -8,6 +8,8 @@ interface Props {
   onEdit: (user: UserRow) => void;
   onPermissions: (user: UserRow) => void;
   onDelete: (id: number) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 const statusLabels: Record<string, string> = {
@@ -20,7 +22,11 @@ export const UsersTable: React.FC<Props> = ({
   onEdit,
   onPermissions,
   onDelete,
+  canEdit = true,
+  canDelete = true,
 }) => {
+  const showActions = canEdit || canDelete;
+
   return (
     <div className={styles.tableWrapper}>
       <table className={styles.table}>
@@ -29,7 +35,9 @@ export const UsersTable: React.FC<Props> = ({
             <th className={styles.headerCell}>Ad soyad</th>
             <th className={styles.headerCell}>Email</th>
             <th className={styles.headerCell}>Status</th>
-            <th className={styles.headerCell}>Əməliyyatlar</th>
+            {showActions ? (
+              <th className={styles.headerCell}>Əməliyyatlar</th>
+            ) : null}
           </tr>
         </thead>
         <tbody>
@@ -53,35 +61,43 @@ export const UsersTable: React.FC<Props> = ({
                   {statusLabels[row.status] || row.status}
                 </span>
               </td>
-              <td className={styles.cell}>
-                <div className={styles.actionRow}>
-                  <button
-                    type="button"
-                    className={`${styles.iconButton} ${styles.detailsButton}`}
-                    title="Redaktə"
-                    onClick={() => onEdit(row)}
-                  >
-                    <FaEdit />
-                  </button>
-                  <button
-                    type="button"
-                    className={`${styles.iconButton} ${styles.detailsButton}`}
-                    title="İcazələr"
-                    onClick={() => onPermissions(row)}
-                    style={{ color: "#7c3aed" }}
-                  >
-                    <FaUserShield />
-                  </button>
-                  <button
-                    type="button"
-                    className={`${styles.iconButton} ${styles.deleteButton}`}
-                    title="Sil"
-                    onClick={() => onDelete(row.id)}
-                  >
-                    <FaTrash />
-                  </button>
-                </div>
-              </td>
+              {showActions ? (
+                <td className={styles.cell}>
+                  <div className={styles.actionRow}>
+                    {canEdit ? (
+                      <button
+                        type="button"
+                        className={`${styles.iconButton} ${styles.detailsButton}`}
+                        title="Redaktə"
+                        onClick={() => onEdit(row)}
+                      >
+                        <FaEdit />
+                      </button>
+                    ) : null}
+                    {canEdit ? (
+                      <button
+                        type="button"
+                        className={`${styles.iconButton} ${styles.detailsButton}`}
+                        title="İcazələr"
+                        onClick={() => onPermissions(row)}
+                        style={{ color: "#7c3aed" }}
+                      >
+                        <FaUserShield />
+                      </button>
+                    ) : null}
+                    {canDelete ? (
+                      <button
+                        type="button"
+                        className={`${styles.iconButton} ${styles.deleteButton}`}
+                        title="Sil"
+                        onClick={() => onDelete(row.id)}
+                      >
+                        <FaTrash />
+                      </button>
+                    ) : null}
+                  </div>
+                </td>
+              ) : null}
             </tr>
           ))}
         </tbody>

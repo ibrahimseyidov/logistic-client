@@ -46,6 +46,7 @@ type WalletCardProps = {
   label: string;
   txs: any[];
   onAdjusted: () => void;
+  canEdit?: boolean;
 };
 
 const WalletCard: React.FC<WalletCardProps> = ({
@@ -53,6 +54,7 @@ const WalletCard: React.FC<WalletCardProps> = ({
   label,
   txs,
   onAdjusted,
+  canEdit = true,
 }) => {
   const dispatch = useAppDispatch();
   const { user } = useAuth();
@@ -167,43 +169,51 @@ const WalletCard: React.FC<WalletCardProps> = ({
         </div>
       </div>
 
-      <label className={styles.field}>
-        <span className={styles.fieldLabel}>Yeni balans (AZN)</span>
-        <input
-          type="number"
-          step="0.01"
-          className={styles.input}
-          value={target}
-          onChange={(e) => setTarget(e.target.value)}
-          placeholder="məs. 100"
-        />
-      </label>
+      {canEdit ? (
+        <>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Yeni balans (AZN)</span>
+            <input
+              type="number"
+              step="0.01"
+              className={styles.input}
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              placeholder="məs. 100"
+            />
+          </label>
 
-      {Number.isFinite(delta) && absDelta > 0.009 ? (
-        <p className={styles.hint}>
-          {delta > 0
-            ? `Tətbiq ediləndə: ${wallet === "Kasa" ? "Kassaya" : "Bank hesabına"} ${fmtAzn(absDelta)} AZN daxil ediləcək.`
-            : `Tətbiq ediləndə: ${wallet === "Kasa" ? "Kassadan" : "Bank hesabından"} ${fmtAzn(absDelta)} AZN çıxış yazılacaq.`}
-        </p>
+          {Number.isFinite(delta) && absDelta > 0.009 ? (
+            <p className={styles.hint}>
+              {delta > 0
+                ? `Tətbiq ediləndə: ${wallet === "Kasa" ? "Kassaya" : "Bank hesabına"} ${fmtAzn(absDelta)} AZN daxil ediləcək.`
+                : `Tətbiq ediləndə: ${wallet === "Kasa" ? "Kassadan" : "Bank hesabından"} ${fmtAzn(absDelta)} AZN çıxış yazılacaq.`}
+            </p>
+          ) : (
+            <p className={styles.hintMuted}>
+              İstədiyiniz balansı yazın — sistem fərqi avtomatik gəlir/xərc kimi qeyd edəcək.
+            </p>
+          )}
+
+          <button
+            type="button"
+            className={styles.applyBtn}
+            onClick={() => void handleApply()}
+            disabled={saving || !Number.isFinite(targetNum)}
+          >
+            {saving ? "Saxlanılır..." : "Balansı tətbiq et"}
+          </button>
+        </>
       ) : (
-        <p className={styles.hintMuted}>
-          İstədiyiniz balansı yazın — sistem fərqi avtomatik gəlir/xərc kimi qeyd edəcək.
-        </p>
+        <p className={styles.hintMuted}>Yalnız baxış — balans dəyişdirmə icazəsi yoxdur.</p>
       )}
-
-      <button
-        type="button"
-        className={styles.applyBtn}
-        onClick={() => void handleApply()}
-        disabled={saving || !Number.isFinite(targetNum)}
-      >
-        {saving ? "Saxlanılır..." : "Balansı tətbiq et"}
-      </button>
     </div>
   );
 };
 
-export const CashSettingsSection: React.FC = () => {
+export const CashSettingsSection: React.FC<{ canEdit?: boolean }> = ({
+  canEdit = true,
+}) => {
   const dispatch = useAppDispatch();
   const [txs, setTxs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -262,12 +272,14 @@ export const CashSettingsSection: React.FC = () => {
               label="Kassa"
               txs={txs}
               onAdjusted={load}
+              canEdit={canEdit}
             />
             <WalletCard
               wallet="Bank"
               label="Bank"
               txs={txs}
               onAdjusted={load}
+              canEdit={canEdit}
             />
           </div>
         )}

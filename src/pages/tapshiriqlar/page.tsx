@@ -33,6 +33,7 @@ import {
 } from "../../common/actions/task.actions";
 import { fetchUserDirectoryAction } from "../../common/actions/user.actions";
 import { useAuth } from "../../common/contexts/AuthContext";
+import { usePermissions } from "../../common/hooks/usePermissions";
 import Loading from "../../common/components/loading/Loading";
 
 const BOARD_COLUMNS = [
@@ -71,6 +72,10 @@ export default function TapshiriqlarPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { canCreate, canEdit, canDelete } = usePermissions();
+  const allowCreate = canCreate("tapshiriqlar", "board");
+  const allowEdit = canEdit("tapshiriqlar", "board");
+  const allowDelete = canDelete("tapshiriqlar", "board");
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -333,11 +338,37 @@ export default function TapshiriqlarPage() {
     if (appliedFilters.status && task.status !== appliedFilters.status) {
       return false;
     }
-    if (
-      appliedFilters.taskName &&
-      !task.title.toLowerCase().includes(appliedFilters.taskName.toLowerCase())
-    ) {
-      return false;
+    if (appliedFilters.tag) {
+      const tags = Array.isArray(task.tags)
+        ? task.tags
+        : String(task.tag || task.tags || "")
+            .split(",")
+            .map((t: string) => t.trim())
+            .filter(Boolean);
+      const needle = fold(appliedFilters.tag);
+      const tagOk = tags.some(
+        (t: any) =>
+          fold(String(t?.name || t?.label || t || "")) === needle ||
+          String(t?.id || "") === appliedFilters.tag,
+      );
+      if (!tagOk) return false;
+    }
+    if (appliedFilters.taskName) {
+      const q = appliedFilters.taskName.trim().toLowerCase();
+      const hay = [
+        task.title,
+        task.description,
+        task.counterparty,
+        task.author?.name,
+        ...(task.executors || []).map((e) => e.name),
+        task.status,
+        task.deadlineDate,
+        task.id,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (!hay.includes(q)) return false;
     }
     return true;
   };
@@ -484,14 +515,16 @@ export default function TapshiriqlarPage() {
       <div className={sorguLayoutStyles.header}>
         <section className={sorguActionBarStyles.wrapper}>
           <div className={sorguActionBarStyles.group}>
-            <button
-              type="button"
-              onClick={() => handleOpenCreateTask("todo")}
-              className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonPrimary}`}
-            >
-              <FaPlus aria-hidden />
-              Yeni tapşırıq
-            </button>
+            {allowCreate ? (
+              <button
+                type="button"
+                onClick={() => handleOpenCreateTask("todo")}
+                className={`${sorguActionBarStyles.buttonBase} ${sorguActionBarStyles.buttonPrimary}`}
+              >
+                <FaPlus aria-hidden />
+                Yeni tapşırıq
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => setIsFilterPanelOpen(true)}
@@ -540,13 +573,15 @@ export default function TapshiriqlarPage() {
                 </header>
 
                 <div className={styles.kanbanColumnBody}>
-                  <button
-                    type="button"
-                    className={styles.createTriggerButton}
-                    onClick={() => handleOpenCreateTask(column.id)}
-                  >
-                    + Kart əlavə et
-                  </button>
+                  {allowCreate ? (
+                    <button
+                      type="button"
+                      className={styles.createTriggerButton}
+                      onClick={() => handleOpenCreateTask(column.id)}
+                    >
+                      + Kart əlavə et
+                    </button>
+                  ) : null}
 
                   <div className={styles.cardStack}>
                     {columnTasks.length === 0 ? (
@@ -560,10 +595,12 @@ export default function TapshiriqlarPage() {
                               ? styles.taskCardDragging
                               : ""
                           }`}
-                          draggable
+                          draggable={allowEdit}
                           onDragStart={(e) => onCardDragStart(e, task.id)}
                           onDragEnd={onCardDragEnd}
-                          onDoubleClick={() => handleOpenEditTask(task.id)}
+                          onDoubleClick={() => {
+                            if (allowEdit) handleOpenEditTask(task.id);
+                          }}
                         >
                           <div className={styles.taskCardTop}>
                             <h3
@@ -572,31 +609,37 @@ export default function TapshiriqlarPage() {
                             >
                               {clipText(task.title, 48)}
                             </h3>
-                            <div className={styles.taskCardActions}>
-                              <button
-                                type="button"
-                                className={styles.cardIconBtn}
-                                title="Düzəliş et"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleOpenEditTask(task.id);
-                                }}
-                              >
-                                <FaEdit />
-                              </button>
-                              <button
-                                type="button"
-                                className={`${styles.cardIconBtn} ${styles.cardIconDanger}`}
-                                title="Sil"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setTaskToDelete(task.id);
-                                  setDeleteConfirmOpen(true);
-                                }}
-                              >
-                                <FaTrash />
-                              </button>
-                            </div>
+                            {(allowEdit || allowDelete) ? (
+                              <div className={styles.taskCardActions}>
+                                {allowEdit ? (
+                                  <button
+                                    type="button"
+                                    className={styles.cardIconBtn}
+                                    title="Düzəliş et"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenEditTask(task.id);
+                                    }}
+                                  >
+                                    <FaEdit />
+                                  </button>
+                                ) : null}
+                                {allowDelete ? (
+                                  <button
+                                    type="button"
+                                    className={`${styles.cardIconBtn} ${styles.cardIconDanger}`}
+                                    title="Sil"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTaskToDelete(task.id);
+                                      setDeleteConfirmOpen(true);
+                                    }}
+                                  >
+                                    <FaTrash />
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : null}
                           </div>
 
                           {task.description ? (
@@ -673,28 +716,19 @@ export default function TapshiriqlarPage() {
         </div>
       </div>
 
-      <div
-        className={`${styles.overlay} ${isFilterPanelOpen ? styles.overlayOpen : ""}`}
-        aria-hidden={!isFilterPanelOpen}
+      <TaskFiltersDrawer
+        open={isFilterPanelOpen}
+        filter={filterDraft}
+        authorOptions={authorOptions}
+        executorOptions={executorOptions}
+        counterpartyOptions={counterpartyOptions}
+        statusOptions={statusOptions}
+        tagOptions={tagOptions}
+        onFilterChange={handleFilterChange}
+        onClose={() => setIsFilterPanelOpen(false)}
+        onClear={handleClearFilterForList}
+        onApplyFilter={handleApplyFilterForList}
       />
-
-      <aside
-        className={`${styles.drawer} ${isFilterPanelOpen ? styles.drawerOpen : ""}`}
-        aria-hidden={!isFilterPanelOpen}
-      >
-        <TaskFiltersDrawer
-          filter={filterDraft}
-          authorOptions={authorOptions}
-          executorOptions={executorOptions}
-          counterpartyOptions={counterpartyOptions}
-          statusOptions={statusOptions}
-          tagOptions={tagOptions}
-          onFilterChange={handleFilterChange}
-          onClose={() => setIsFilterPanelOpen(false)}
-          onClear={handleClearFilterForList}
-          onApplyFilter={handleApplyFilterForList}
-        />
-      </aside>
 
       <footer className={sorguLayoutStyles.footer}>
         <p className={styles.footerText}>Ziyalog Copyright © 2013-2026</p>

@@ -29,8 +29,30 @@ export interface AuthUser {
   email: string;
   companyId: number;
   role: string;
+  /** active | deactive */
+  status?: string;
   /** @deprecated Prefer `role` from API */
   roleId?: number;
+  /** JSON string və ya parse olunmuş icazələr */
+  permissions?: string | null;
+}
+
+export class AccountDeactivatedError extends Error {
+  code = "ACCOUNT_DEACTIVATED" as const;
+  constructor(message = "Hesab deaktiv edilib") {
+    super(message);
+    this.name = "AccountDeactivatedError";
+  }
+}
+
+export function isAccountDeactivatedError(err: unknown): boolean {
+  if (err instanceof AccountDeactivatedError) return true;
+  if (!err || typeof err !== "object") return false;
+  const anyErr = err as { code?: string; message?: string };
+  return (
+    anyErr.code === "ACCOUNT_DEACTIVATED" ||
+    /deaktiv/i.test(String(anyErr.message || ""))
+  );
 }
 
 export interface AuthBootstrapData {
@@ -52,6 +74,7 @@ const LOCAL_AUTH_BOOTSTRAP: AuthBootstrapData = {
     companyId: 1,
     role: "admin",
     roleId: 1,
+    permissions: null,
   },
   companyName: "Ziyalog",
   branches: [
@@ -68,6 +91,8 @@ function mapMeResponseToBootstrap(data: {
   name: string;
   email: string;
   role?: string;
+  status?: string;
+  permissions?: string | null;
 }): AuthBootstrapData {
   return {
     user: {
@@ -76,6 +101,13 @@ function mapMeResponseToBootstrap(data: {
       email: data.email,
       companyId: 1,
       role: data.role || "operator",
+      status: data.status || "active",
+      permissions:
+        typeof data.permissions === "string"
+          ? data.permissions
+          : data.permissions != null
+            ? JSON.stringify(data.permissions)
+            : null,
     },
     companyName: null,
     branches: [],
@@ -106,10 +138,22 @@ export async function fetchAuthBootstrap(): Promise<AuthBootstrapData> {
   });
 
   if (!response.ok) {
-    throw new Error("İstifadəçi məlumatları yüklənmədi");
+    const errorData = await response.json().catch(() => ({}));
+    if (
+      errorData?.code === "ACCOUNT_DEACTIVATED" ||
+      /deaktiv/i.test(String(errorData?.message || ""))
+    ) {
+      throw new AccountDeactivatedError(
+        errorData?.message || "Hesab deaktiv edilib",
+      );
+    }
+    throw new Error(errorData?.message || "İstifadəçi məlumatları yüklənmədi");
   }
 
   const data = await response.json();
+  if (String(data?.status || "").trim().toLowerCase() === "deactive") {
+    throw new AccountDeactivatedError("Hesab deaktiv edilib");
+  }
   return mapMeResponseToBootstrap(data);
 }
 
@@ -134,6 +178,14 @@ export async function loginAction(formData: FormData) {
   });
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
+    if (
+      errorData?.code === "ACCOUNT_DEACTIVATED" ||
+      /deaktiv/i.test(String(errorData?.message || ""))
+    ) {
+      throw new AccountDeactivatedError(
+        errorData?.message || "Hesabınız deaktiv edilib. Giriş mümkün deyil.",
+      );
+    }
     throw new Error(errorData.message || "Login failed");
   }
   return (await response.json()) as LoginResponse;

@@ -8,23 +8,31 @@ import {
   FaDownload,
   FaTrash,
   FaMagic,
+  FaEdit,
 } from "react-icons/fa";
 import {
   deleteOrderDocumentAction,
   fetchDocumentTemplatesAction,
+  fetchOrderDocumentEditAction,
   fetchOrderDocumentsAction,
   generateDocumentAction,
   resolveUploadUrl,
+  updateOrderDocumentHtmlAction,
   type DocumentTemplate,
   type OrderDocumentRow,
 } from "../../actions/document.actions";
 import { useAppDispatch } from "../../store/hooks";
 import { showNotification } from "../../store/modalSlice";
+import { usePermissions } from "../../hooks/usePermissions";
+import DocumentEditModal from "./DocumentEditModal";
 
 type Props = {
   scope: "query" | "order";
   queryId?: number | null;
   orderId?: number | null;
+  /** İcazə: modul + child (məs. sifarisler/documents) */
+  permModule?: string;
+  permChild?: string;
   /** When documents are managed by parent (query docs), call after generate */
   onGenerated?: () => void;
   /** Existing uploaded docs for query page (optional display) */
@@ -43,18 +51,31 @@ export default function DocumentGeneratePanel({
   scope,
   queryId,
   orderId,
+  permModule,
+  permChild,
   onGenerated,
   existingDocs,
   onDeleteExisting,
   onUpload,
 }: Props) {
   const dispatch = useAppDispatch();
+  const { canCreate, canDelete, canEdit } = usePermissions();
+  const allowCreate =
+    !permModule || canCreate(permModule, permChild);
+  const allowDelete =
+    !permModule || canDelete(permModule, permChild);
+  const allowEdit = !permModule || canEdit(permModule, permChild);
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
   const [orderDocs, setOrderDocs] = useState<OrderDocumentRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyCode, setBusyCode] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editHtml, setEditHtml] = useState("");
+  const [editDocId, setEditDocId] = useState<number | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -176,6 +197,57 @@ export default function DocumentGeneratePanel({
     }
   };
 
+  const handleOpenEdit = async (doc: OrderDocumentRow) => {
+    try {
+      const payload = await fetchOrderDocumentEditAction(doc.id);
+      setEditDocId(payload.id);
+      setEditTitle(payload.name);
+      setEditHtml(payload.html);
+      setEditOpen(true);
+    } catch (err: any) {
+      dispatch(
+        showNotification({
+          message:
+            err?.response?.data?.message ||
+            "Bu sənəd redaktə edilə bilmir (yalnız şablondan hazırlananlar).",
+          type: "error",
+          autoCloseDuration: 3500,
+        }),
+      );
+    }
+  };
+
+  const handleSaveEdit = async (html: string) => {
+    if (!editDocId) return;
+    setEditSaving(true);
+    try {
+      const updated = await updateOrderDocumentHtmlAction(editDocId, html);
+      setOrderDocs((prev) =>
+        prev.map((d) => (d.id === updated.id ? { ...d, ...updated } : d)),
+      );
+      setEditOpen(false);
+      setEditDocId(null);
+      setEditHtml("");
+      dispatch(
+        showNotification({
+          message: "Sənəd yeniləndi.",
+          type: "success",
+          autoCloseDuration: 2800,
+        }),
+      );
+    } catch (err: any) {
+      dispatch(
+        showNotification({
+          message: err?.response?.data?.message || "Saxlanarkən xəta.",
+          type: "error",
+          autoCloseDuration: 3500,
+        }),
+      );
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const formatSize = (bytes: number) => {
     if (!bytes) return "0 B";
     const i = Math.floor(Math.log(bytes) / Math.log(1024));
@@ -204,7 +276,7 @@ export default function DocumentGeneratePanel({
           </p>
         </div>
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
-          {onUpload ? (
+          {onUpload && allowCreate ? (
             <label
               style={{
                 display: "inline-flex",
@@ -233,6 +305,7 @@ export default function DocumentGeneratePanel({
             </label>
           ) : null}
 
+          {allowCreate ? (
           <div ref={menuRef} style={{ position: "relative" }}>
             <button
               type="button"
@@ -346,6 +419,7 @@ export default function DocumentGeneratePanel({
               </div>
             ) : null}
           </div>
+          ) : null}
         </div>
       </div>
 
@@ -397,6 +471,22 @@ export default function DocumentGeneratePanel({
                     {doc.templateCode ? ` · ${doc.templateCode}` : ""}
                   </div>
                 </div>
+                {allowEdit ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleOpenEdit(doc)}
+                    style={{
+                      border: 0,
+                      background: "transparent",
+                      color: "#2563eb",
+                      cursor: "pointer",
+                      padding: 6,
+                    }}
+                    title="Redaktə et"
+                  >
+                    <FaEdit />
+                  </button>
+                ) : null}
                 <a
                   href={resolveUploadUrl(doc.url)}
                   target="_blank"
@@ -406,6 +496,7 @@ export default function DocumentGeneratePanel({
                 >
                   <FaDownload />
                 </a>
+                {allowDelete ? (
                 <button
                   type="button"
                   onClick={() => void handleDeleteOrderDoc(doc.id)}
@@ -416,9 +507,11 @@ export default function DocumentGeneratePanel({
                     cursor: "pointer",
                     padding: 6,
                   }}
+                  title="Sil"
                 >
                   <FaTrash />
                 </button>
+                ) : null}
               </div>
             ))}
 
@@ -460,7 +553,7 @@ export default function DocumentGeneratePanel({
               >
                 <FaDownload />
               </a>
-              {onDeleteExisting ? (
+              {onDeleteExisting && allowDelete ? (
                 <button
                   type="button"
                   onClick={() => onDeleteExisting(doc.id)}
@@ -488,6 +581,20 @@ export default function DocumentGeneratePanel({
           ) : null}
         </div>
       </div>
+
+      <DocumentEditModal
+        open={editOpen}
+        title={editTitle}
+        html={editHtml}
+        saving={editSaving}
+        onClose={() => {
+          if (editSaving) return;
+          setEditOpen(false);
+          setEditDocId(null);
+          setEditHtml("");
+        }}
+        onSave={(html) => void handleSaveEdit(html)}
+      />
     </div>
   );
 }

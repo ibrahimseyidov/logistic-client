@@ -257,7 +257,7 @@
 
 .ordersPanel {
   position: relative;
-  width: min(760px, 96vw);
+  width: min(880px, 96vw);
   max-height: 82vh;
   background: #ffffff;
   border-radius: 1rem;
@@ -413,6 +413,13 @@
 
 .modalTable tbody tr:hover {
   background: #f8fbff;
+}
+
+.dateCell {
+  color: #64748b;
+  font-size: 0.84rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .orderIdBadge {

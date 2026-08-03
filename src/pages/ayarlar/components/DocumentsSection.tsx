@@ -37,7 +37,17 @@ const FONT_OPTIONS = [
   "Calibri, Candara, sans-serif",
 ];
 
-export const DocumentsSection: React.FC = () => {
+type DocumentsSectionProps = {
+  canCreate?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
+};
+
+export const DocumentsSection: React.FC<DocumentsSectionProps> = ({
+  canCreate = true,
+  canEdit = true,
+  canDelete = true,
+}) => {
   const dispatch = useAppDispatch();
   const [tab, setTab] = useState<EditorTab>("brand");
   const [loading, setLoading] = useState(true);
@@ -302,13 +312,15 @@ export const DocumentsSection: React.FC = () => {
             >
               Şablonlar
             </button>
-            <button
-              type="button"
-              className={`${actionStyles.buttonBase} ${actionStyles.buttonSecondary}`}
-              onClick={() => setCreateOpen(true)}
-            >
-              <FiPlus /> Yeni şablon
-            </button>
+            {canCreate ? (
+              <button
+                type="button"
+                className={`${actionStyles.buttonBase} ${actionStyles.buttonSecondary}`}
+                onClick={() => setCreateOpen(true)}
+              >
+                <FiPlus /> Yeni şablon
+              </button>
+            ) : null}
           </div>
         </div>
       </AyarlarToolbar>
@@ -533,15 +545,17 @@ export const DocumentsSection: React.FC = () => {
               </div>
             </div>
 
-            <button
-              type="button"
-              className={`${actionStyles.buttonBase} ${actionStyles.buttonPrimary}`}
-              onClick={() => void handleSaveBrand()}
-              disabled={saving}
-              style={{ marginTop: 16 }}
-            >
-              <FiSave /> {saving ? "Saxlanılır..." : "Brendi saxla"}
-            </button>
+            {canEdit ? (
+              <button
+                type="button"
+                className={`${actionStyles.buttonBase} ${actionStyles.buttonPrimary}`}
+                onClick={() => void handleSaveBrand()}
+                disabled={saving}
+                style={{ marginTop: 16 }}
+              >
+                <FiSave /> {saving ? "Saxlanılır..." : "Brendi saxla"}
+              </button>
+            ) : null}
           </div>
         </div>
       ) : editing && selected ? (
@@ -575,14 +589,16 @@ export const DocumentsSection: React.FC = () => {
                   <FiRefreshCw /> Standarta qayıt
                 </button>
               ) : null}
-              <button
-                type="button"
-                className={`${actionStyles.buttonBase} ${actionStyles.buttonPrimary}`}
-                onClick={() => void handleSaveTemplate()}
-                disabled={saving}
-              >
-                <FiSave /> Saxla
-              </button>
+              {canEdit ? (
+                <button
+                  type="button"
+                  className={`${actionStyles.buttonBase} ${actionStyles.buttonPrimary}`}
+                  onClick={() => void handleSaveTemplate()}
+                  disabled={saving}
+                >
+                  <FiSave /> Saxla
+                </button>
+              ) : null}
               <button
                 type="button"
                 className={`${actionStyles.buttonBase} ${actionStyles.buttonSecondary}`}
@@ -650,6 +666,8 @@ export const DocumentsSection: React.FC = () => {
               selectedId={null}
               onEdit={selectTemplate}
               onDelete={(tpl) => setDeleteId(tpl.id)}
+              canEdit={canEdit}
+              canDelete={canDelete}
             />
           </div>
         </div>
