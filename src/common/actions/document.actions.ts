@@ -266,6 +266,42 @@ export async function deleteOrderDocumentAction(id: number): Promise<void> {
   });
 }
 
+export type QueryDocumentEditPayload = {
+  id: number;
+  name: string;
+  templateCode: string | null;
+  queryId: number;
+  html: string;
+};
+
+export async function fetchQueryDocumentEditAction(
+  id: number,
+): Promise<QueryDocumentEditPayload> {
+  const res = await axios.get(buildApiUrl(`/api/documents/query-docs/${id}/edit`), {
+    headers: getHeaders(),
+  });
+  return res.data;
+}
+
+export async function updateQueryDocumentHtmlAction(
+  id: number,
+  html: string,
+): Promise<{
+  id: number;
+  name: string;
+  url: string;
+  size: number;
+  templateCode?: string | null;
+  createdAt?: string;
+}> {
+  const res = await axios.put(
+    buildApiUrl(`/api/documents/query-docs/${id}`),
+    { html },
+    { headers: getHeaders() },
+  );
+  return res.data;
+}
+
 export function resolveUploadUrl(url: string): string {
   if (!url) return "";
   if (url.startsWith("data:")) return url;

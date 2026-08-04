@@ -15,9 +15,11 @@ import {
   fetchDocumentTemplatesAction,
   fetchOrderDocumentEditAction,
   fetchOrderDocumentsAction,
+  fetchQueryDocumentEditAction,
   generateDocumentAction,
   resolveUploadUrl,
   updateOrderDocumentHtmlAction,
+  updateQueryDocumentHtmlAction,
   type DocumentTemplate,
   type OrderDocumentRow,
 } from "../../actions/document.actions";
@@ -42,9 +44,12 @@ type Props = {
     url: string;
     size: number;
     createdAt: string;
+    templateCode?: string | null;
   }>;
   onDeleteExisting?: (id: number) => void;
   onUpload?: (file: File) => void;
+  /** Called after query document HTML edit so parent can refresh list */
+  onExistingDocsChanged?: () => void;
 };
 
 export default function DocumentGeneratePanel({
@@ -57,6 +62,7 @@ export default function DocumentGeneratePanel({
   existingDocs,
   onDeleteExisting,
   onUpload,
+  onExistingDocsChanged,
 }: Props) {
   const dispatch = useAppDispatch();
   const { canCreate, canDelete, canEdit } = usePermissions();
@@ -76,6 +82,7 @@ export default function DocumentGeneratePanel({
   const [editTitle, setEditTitle] = useState("");
   const [editHtml, setEditHtml] = useState("");
   const [editDocId, setEditDocId] = useState<number | null>(null);
+  const [editScope, setEditScope] = useState<"order" | "query">("order");
 
   const load = async () => {
     setLoading(true);
@@ -200,6 +207,32 @@ export default function DocumentGeneratePanel({
   const handleOpenEdit = async (doc: OrderDocumentRow) => {
     try {
       const payload = await fetchOrderDocumentEditAction(doc.id);
+      setEditScope("order");
+      setEditDocId(payload.id);
+      setEditTitle(payload.name);
+      setEditHtml(payload.html);
+      setEditOpen(true);
+    } catch (err: any) {
+      dispatch(
+        showNotification({
+          message:
+            err?.response?.data?.message ||
+            "Bu sənəd redaktə edilə bilmir (yalnız şablondan hazırlananlar).",
+          type: "error",
+          autoCloseDuration: 3500,
+        }),
+      );
+    }
+  };
+
+  const handleOpenQueryEdit = async (doc: {
+    id: number;
+    name: string;
+    templateCode?: string | null;
+  }) => {
+    try {
+      const payload = await fetchQueryDocumentEditAction(doc.id);
+      setEditScope("query");
       setEditDocId(payload.id);
       setEditTitle(payload.name);
       setEditHtml(payload.html);
@@ -221,10 +254,16 @@ export default function DocumentGeneratePanel({
     if (!editDocId) return;
     setEditSaving(true);
     try {
-      const updated = await updateOrderDocumentHtmlAction(editDocId, html);
-      setOrderDocs((prev) =>
-        prev.map((d) => (d.id === updated.id ? { ...d, ...updated } : d)),
-      );
+      if (editScope === "query") {
+        await updateQueryDocumentHtmlAction(editDocId, html);
+        onExistingDocsChanged?.();
+        onGenerated?.();
+      } else {
+        const updated = await updateOrderDocumentHtmlAction(editDocId, html);
+        setOrderDocs((prev) =>
+          prev.map((d) => (d.id === updated.id ? { ...d, ...updated } : d)),
+        );
+      }
       setEditOpen(false);
       setEditDocId(null);
       setEditHtml("");
@@ -545,11 +584,28 @@ export default function DocumentGeneratePanel({
                   {formatSize(doc.size)} · {new Date(doc.createdAt).toLocaleDateString("az-AZ")}
                 </div>
               </div>
+              {allowEdit ? (
+                <button
+                  type="button"
+                  onClick={() => void handleOpenQueryEdit(doc)}
+                  style={{
+                    border: 0,
+                    background: "transparent",
+                    color: "#2563eb",
+                    cursor: "pointer",
+                    padding: 6,
+                  }}
+                  title="Redaktə et"
+                >
+                  <FaEdit />
+                </button>
+              ) : null}
               <a
                 href={resolveUploadUrl(doc.url)}
                 target="_blank"
                 rel="noreferrer"
                 style={{ color: "#475569", padding: 6 }}
+                title="Yüklə"
               >
                 <FaDownload />
               </a>

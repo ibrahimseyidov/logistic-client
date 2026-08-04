@@ -782,10 +782,14 @@ export default function SorguDetailPage() {
                   url: resolveUploadUrl(d.url),
                   size: d.size,
                   createdAt: d.createdAt,
+                  templateCode: d.templateCode ?? null,
                 }))}
                 onUpload={handleUploadDocument}
                 onDeleteExisting={handleDeleteDocument}
                 onGenerated={() => {
+                  if (row) fetchDocumentsAction(row.id).then(setDocuments);
+                }}
+                onExistingDocsChanged={() => {
                   if (row) fetchDocumentsAction(row.id).then(setDocuments);
                 }}
               />
