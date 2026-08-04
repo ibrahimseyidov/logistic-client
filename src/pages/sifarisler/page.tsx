@@ -1278,93 +1278,75 @@ export default function SifarislerPage() {
         />
       )}
 
-      <div
-        className={`${styles.overlay} ${
-          openFilterPanel ? styles.overlayOpen : ""
-        }`}
-        aria-hidden={!openFilterPanel}
+      <SifarisFilters
+        open={openFilterPanel === "orders"}
+        activeSections={activeSections}
+        toggleSection={toggleSection}
+        filter={filterDraft}
+        onFilterChange={onFilterChange}
+        companyOptions={companyOptions}
+        managerOptions={managerOptions}
+        expeditorOptions={expeditorOptions}
+        onClose={() => {
+          setFilterDraft({ ...appliedFilter });
+          setOpenFilterPanel(null);
+        }}
+        onClear={handleClear}
+        onApplyFilter={handleApplyFilter}
+        onSaveTemplate={handleSaveTemplate}
+        templates={templates}
+        onLoadTemplate={handleLoadTemplate}
       />
 
-      <aside
-        className={`${styles.drawer} ${
-          openFilterPanel ? styles.drawerOpen : ""
-        }`}
-        aria-hidden={!openFilterPanel}
-      >
-        {openFilterPanel === "orders" ? (
-          <SifarisFilters
-            activeSections={activeSections}
-            toggleSection={toggleSection}
-            filter={filterDraft}
-            onFilterChange={onFilterChange}
-            companyOptions={companyOptions}
-            managerOptions={managerOptions}
-            expeditorOptions={expeditorOptions}
-            onClose={() => {
-              setFilterDraft({ ...appliedFilter });
-              setOpenFilterPanel(null);
-            }}
-            onClear={handleClear}
-            onApplyFilter={handleApplyFilter}
-            onSaveTemplate={handleSaveTemplate}
-            templates={templates}
-            onLoadTemplate={handleLoadTemplate}
-          />
-        ) : null}
+      <YukFilters
+        open={openFilterPanel === "loads"}
+        activeSections={yukActiveSections}
+        toggleSection={toggleYukSection}
+        filter={yukFilterDraft}
+        onFilterChange={onYukFilterChange}
+        userOptions={yukUserOptions}
+        onClose={() => {
+          setYukFilterDraft({ ...yukAppliedFilter });
+          setOpenFilterPanel(null);
+        }}
+        onClear={handleYukClear}
+        onApplyFilter={handleYukApplyFilter}
+        onSaveTemplate={handleYukSaveTemplate}
+      />
 
-        {openFilterPanel === "loads" ? (
-          <YukFilters
-            activeSections={yukActiveSections}
-            toggleSection={toggleYukSection}
-            filter={yukFilterDraft}
-            onFilterChange={onYukFilterChange}
-            userOptions={yukUserOptions}
-            onClose={() => {
-              setYukFilterDraft({ ...yukAppliedFilter });
-              setOpenFilterPanel(null);
-            }}
-            onClear={handleYukClear}
-            onApplyFilter={handleYukApplyFilter}
-            onSaveTemplate={handleYukSaveTemplate}
-          />
-        ) : null}
+      <ReysFilters
+        open={openFilterPanel === "voyages"}
+        activeSections={reysActiveSections}
+        toggleSection={toggleReysSection}
+        filter={reysFilterDraft}
+        onFilterChange={onReysFilterChange}
+        companyOptions={reysCompanyOptions}
+        onClose={() => {
+          setReysFilterDraft({ ...reysAppliedFilter });
+          setOpenFilterPanel(null);
+        }}
+        onSaveTemplate={handleReysSaveTemplate}
+        onClear={handleReysClear}
+        onApplyFilter={handleReysApplyFilter}
+      />
 
-        {openFilterPanel === "voyages" ? (
-          <ReysFilters
-            activeSections={reysActiveSections}
-            toggleSection={toggleReysSection}
-            filter={reysFilterDraft}
-            onFilterChange={onReysFilterChange}
-            companyOptions={reysCompanyOptions}
-            onClose={() => {
-              setReysFilterDraft({ ...reysAppliedFilter });
-              setOpenFilterPanel(null);
-            }}
-            onSaveTemplate={handleReysSaveTemplate}
-            onClear={handleReysClear}
-            onApplyFilter={handleReysApplyFilter}
-          />
-        ) : null}
-
-        {openFilterPanel === "payroll" ? (
-          <EmekFilters
-            activeSections={emekActiveSections}
-            toggleSection={toggleEmekSection}
-            filter={emekFilterDraft}
-            onFilterChange={onEmekFilterChange}
-            companyOptions={emekCompanyOptions}
-            customerOptions={emekCustomerOptions}
-            carrierOptions={emekCarrierOptions}
-            onClose={() => {
-              setEmekFilterDraft({ ...emekAppliedFilter });
-              setOpenFilterPanel(null);
-            }}
-            onSaveTemplate={handleEmekSaveTemplate}
-            onClear={handleEmekClear}
-            onApplyFilter={handleEmekApplyFilter}
-          />
-        ) : null}
-      </aside>
+      <EmekFilters
+        open={openFilterPanel === "payroll"}
+        activeSections={emekActiveSections}
+        toggleSection={toggleEmekSection}
+        filter={emekFilterDraft}
+        onFilterChange={onEmekFilterChange}
+        companyOptions={emekCompanyOptions}
+        customerOptions={emekCustomerOptions}
+        carrierOptions={emekCarrierOptions}
+        onClose={() => {
+          setEmekFilterDraft({ ...emekAppliedFilter });
+          setOpenFilterPanel(null);
+        }}
+        onSaveTemplate={handleEmekSaveTemplate}
+        onClear={handleEmekClear}
+        onApplyFilter={handleEmekApplyFilter}
+      />
     </div>
   );
 }

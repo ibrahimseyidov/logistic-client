@@ -1,6 +1,10 @@
 import type { ReactNode } from "react";
-import { FiBookmark, FiFilter, FiX } from "react-icons/fi";
-import styles from "./FilterPanelShell.module.css";
+import { FiBookmark } from "react-icons/fi";
+import {
+  FilterChip,
+  FilterChipRow,
+  FilterDrawer,
+} from "../../../common/components/filters";
 
 interface SectionItem<T extends string> {
   id: T;
@@ -8,6 +12,7 @@ interface SectionItem<T extends string> {
 }
 
 interface Props<T extends string> {
+  open: boolean;
   title: string;
   description: string;
   sections: readonly SectionItem<T>[];
@@ -21,6 +26,7 @@ interface Props<T extends string> {
 }
 
 export default function FilterPanelShell<T extends string>({
+  open,
   title,
   description,
   sections,
@@ -33,87 +39,51 @@ export default function FilterPanelShell<T extends string>({
   children,
 }: Props<T>) {
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
-        <div className={styles.headerTop}>
-          <div className={styles.headerInfo}>
-            <div className={styles.iconWrap}>
-              <FiFilter className={styles.icon} />
-            </div>
-            <div>
-              <h2 className={styles.title}>{title}</h2>
-              <p className={styles.description}>{description}</p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className={styles.closeButton}
-            aria-label="Filtrləri bağla"
-          >
-            <FiX className={styles.icon} />
-          </button>
-        </div>
-
-        <div className={styles.sections}>
-          {sections.map(({ id, label }) => {
-            const isActive = activeSections.has(id);
-
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => onToggleSection(id)}
-                className={`${styles.sectionButton} ${
-                  isActive ? styles.sectionButtonActive : ""
-                }`}
-              >
-                <span
-                  className={`${styles.sectionDot} ${
-                    isActive ? styles.sectionDotActive : ""
-                  }`}
-                />
-                {label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className={styles.content}>{children}</div>
-
-      <div className={styles.footer}>
-        <div className={styles.footerRow}>
-          <button
-            type="button"
-            onClick={onSaveTemplate}
-            className={`${styles.buttonBase} ${styles.buttonSecondary}`}
-          >
-            <FiBookmark />
-            Filtrləri şablon kimi yaddaşda saxla
-          </button>
-
-          <div className={styles.footerActions}>
-            <button
-              type="button"
-              onClick={onClear}
-              className={`${styles.buttonBase} ${styles.buttonSecondary}`}
-            >
-              <FiX />
-              Təmizlə
-            </button>
-            <button
-              type="button"
-              onClick={onApplyFilter}
-              className={`${styles.buttonBase} ${styles.buttonPrimary}`}
-            >
-              <FiFilter />
-              Filterdən keçir
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <FilterDrawer
+      open={open}
+      onClose={onClose}
+      onClear={onClear}
+      onApply={onApplyFilter}
+      title={title}
+      description={description}
+      applyLabel="Filtrdən keçir"
+      headerExtra={
+        <FilterChipRow>
+          {sections.map(({ id, label }) => (
+            <FilterChip
+              key={id}
+              label={label}
+              active={activeSections.has(id)}
+              onClick={() => onToggleSection(id)}
+            />
+          ))}
+        </FilterChipRow>
+      }
+      footerStart={
+        <button
+          type="button"
+          onClick={onSaveTemplate}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.4rem",
+            height: "2.4rem",
+            padding: "0 0.85rem",
+            borderRadius: "0.5rem",
+            border: "1px solid #e2e8f0",
+            background: "#fff",
+            color: "#475569",
+            fontSize: "0.8rem",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          <FiBookmark size={14} />
+          Şablon saxla
+        </button>
+      }
+    >
+      {children}
+    </FilterDrawer>
   );
 }

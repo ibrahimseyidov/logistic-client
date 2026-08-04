@@ -13,6 +13,7 @@ import type {
 } from "../types/sifaris.types";
 
 interface Props {
+  open: boolean;
   activeSections: Set<SifarisFilterSectionId>;
   toggleSection: (id: SifarisFilterSectionId) => void;
   filter: SifarisFilterFormState;
@@ -32,6 +33,7 @@ interface Props {
 }
 
 export default function SifarisFilters({
+  open,
   activeSections,
   toggleSection,
   filter,
@@ -56,6 +58,7 @@ export default function SifarisFilters({
 
   return (
     <FilterPanelShell
+      open={open}
       title="Filtrlər"
       description="Sifarişləri daha sürətli tapmaq üçün status, tarix və müştəri meyarlarına görə görünüşü fərdiləşdirin."
       sections={FILTER_SECTIONS}

@@ -10,9 +10,17 @@ import Select from "../../common/components/select/Select";
 import type { SelectOption } from "../../common/components/select/Select";
 import { buildApiUrl } from "../../common/utils/fetch.utils";
 import { type CustomerRow } from "./data";
-import { FiFilePlus, FiFilter, FiX } from "react-icons/fi";
+import { FiFilePlus, FiFilter, FiSearch, FiX } from "react-icons/fi";
 import { FaEdit, FaTrash } from "react-icons/fa";
 import { usePermissions } from "../../common/hooks/usePermissions";
+import {
+  FilterDateField,
+  FilterDrawer,
+  FilterGrid,
+  FilterSection,
+  FilterSelectField,
+  FilterTextField,
+} from "../../common/components/filters";
 import {
   fetchCustomersAction,
   createCustomerAction,
@@ -1063,122 +1071,102 @@ export default function MusterilerPage() {
         </div>
       </div>
 
+      <FilterDrawer
+        open={activePanel === "filter"}
+        onClose={() => setActivePanel(null)}
+        onClear={handleClearFilter}
+        onApply={handleApplyFilter}
+        title="Filtrlər"
+        description="Müəllif, status, tarix və sənəd nömrəsinə görə müştəriləri daraldın."
+      >
+        <FilterSection title="Əsas məlumatlar">
+          <FilterGrid>
+            <FilterSelectField
+              label="Müəllif"
+              value={filterDraft.author}
+              options={PLACEHOLDER}
+              onChange={(value) => handleFilterChange("author", value)}
+            />
+            <FilterTextField
+              label="Kontragentlər"
+              value={filterDraft.counterparty}
+              onChange={(value) => handleFilterChange("counterparty", value)}
+              placeholder="Şirkət adı"
+              icon={<FiSearch />}
+            />
+            <FilterSelectField
+              label="Status"
+              value={filterDraft.status}
+              options={STATUS_OPTIONS}
+              onChange={(value) => handleFilterChange("status", value)}
+            />
+            <FilterSelectField
+              label="Müştəri tipi"
+              value={filterDraft.customerType}
+              options={customerTypeOptions}
+              onChange={(value) => handleFilterChange("customerType", value)}
+            />
+            <FilterTextField
+              label="Sənəd nömrəsi"
+              value={filterDraft.documentNo}
+              onChange={(value) => handleFilterChange("documentNo", value)}
+              placeholder="Axtar..."
+              icon={<FiSearch />}
+            />
+            <FilterTextField
+              label="Hesab nömrəsi"
+              value={filterDraft.registerNo}
+              onChange={(value) => handleFilterChange("registerNo", value)}
+              placeholder="Axtar..."
+              icon={<FiSearch />}
+            />
+          </FilterGrid>
+        </FilterSection>
+        <FilterSection title="Tarixlər">
+          <FilterGrid>
+            <FilterDateField
+              label="Tarixdən"
+              value={filterDraft.dateFrom}
+              onChange={(value) => handleFilterChange("dateFrom", value)}
+            />
+            <FilterDateField
+              label="Tarixədək"
+              value={filterDraft.dateTo}
+              onChange={(value) => handleFilterChange("dateTo", value)}
+            />
+          </FilterGrid>
+        </FilterSection>
+        <FilterSection title="Digər">
+          <FilterGrid cols={1}>
+            <FilterTextField
+              label="Sonuncu əlaqə (ən az gün)"
+              value={filterDraft.daysSinceLastContact}
+              onChange={(value) =>
+                handleFilterChange("daysSinceLastContact", value)
+              }
+              placeholder="Gün sayı..."
+            />
+          </FilterGrid>
+        </FilterSection>
+      </FilterDrawer>
+
       <div
-        className={`${sorguLayoutStyles.overlay} ${activePanel ? sorguLayoutStyles.overlayOpen : ""}`}
-        aria-hidden={!activePanel}
+        className={`${sorguLayoutStyles.overlay} ${
+          activePanel === "new" || activePanel === "edit"
+            ? sorguLayoutStyles.overlayOpen
+            : ""
+        }`}
+        aria-hidden={!(activePanel === "new" || activePanel === "edit")}
       />
 
       <aside
-        className={`${sorguLayoutStyles.drawer} ${activePanel ? sorguLayoutStyles.drawerOpen : ""}`}
-        aria-hidden={!activePanel}
+        className={`${sorguLayoutStyles.drawer} ${
+          activePanel === "new" || activePanel === "edit"
+            ? sorguLayoutStyles.drawerOpen
+            : ""
+        }`}
+        aria-hidden={!(activePanel === "new" || activePanel === "edit")}
       >
-        {activePanel === "filter" ? (
-          <div className={styles.filterPanel}>
-            <div className={styles.filterHeader}>
-              <h3>Filtrlər</h3>
-              <button type="button" onClick={() => setActivePanel(null)}>
-                <FiX />
-              </button>
-            </div>
-            <div className={styles.filtersGrid}>
-              <label className={styles.field}>
-                <span>Müəllif</span>
-                <Select
-                  value={filterDraft.author}
-                  options={PLACEHOLDER}
-                  onChange={(value) => handleFilterChange("author", value)}
-                />
-              </label>
-              <label className={styles.field}>
-                <span>Kontragentlər</span>
-                <input
-                  value={filterDraft.counterparty}
-                  onChange={(event) =>
-                    handleFilterChange("counterparty", event.target.value)
-                  }
-                  className={styles.input}
-                  placeholder="Şirkət adı"
-                />
-              </label>
-              <label className={styles.field}>
-                <span>Status</span>
-                <Select
-                  value={filterDraft.status}
-                  options={STATUS_OPTIONS}
-                  onChange={(value) => handleFilterChange("status", value)}
-                />
-              </label>
-              <label className={styles.field}>
-                <span>Müştəri tipi</span>
-                <Select
-                  value={filterDraft.customerType}
-                  options={customerTypeOptions}
-                  onChange={(value) => handleFilterChange("customerType", value)}
-                />
-              </label>
-              <label className={styles.field}>
-                <span>Sənəd nömrəsi</span>
-                <input
-                  value={filterDraft.documentNo}
-                  onChange={(event) =>
-                    handleFilterChange("documentNo", event.target.value)
-                  }
-                  className={styles.input}
-                  placeholder="Axtar..."
-                />
-              </label>
-              <label className={styles.field}>
-                <span>Hesab nömrəsi</span>
-                <input
-                  value={filterDraft.registerNo}
-                  onChange={(event) =>
-                    handleFilterChange("registerNo", event.target.value)
-                  }
-                  className={styles.input}
-                  placeholder="Axtar..."
-                />
-              </label>
-              <label className={styles.field}>
-                <span>Tarixdən</span>
-                <input
-                  type="date"
-                  value={filterDraft.dateFrom}
-                  onChange={(event) => handleFilterChange("dateFrom", event.target.value)}
-                  className={styles.input}
-                />
-              </label>
-              <label className={styles.field}>
-                <span>Tarixədək</span>
-                <input
-                  type="date"
-                  value={filterDraft.dateTo}
-                  onChange={(event) => handleFilterChange("dateTo", event.target.value)}
-                  className={styles.input}
-                />
-              </label>
-              <label className={styles.field}>
-                <span>Sonuncu əlaqə (ən az gün)</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={filterDraft.daysSinceLastContact}
-                  onChange={(event) => handleFilterChange("daysSinceLastContact", event.target.value)}
-                  className={styles.input}
-                  placeholder="Gün sayı..."
-                />
-              </label>
-            </div>
-            <div className={styles.filterFooter}>
-              <button type="button" className={styles.clearButton} onClick={handleClearFilter}>
-                Filtrləri təmizlə
-              </button>
-              <button type="button" className={styles.applyButton} onClick={handleApplyFilter}>
-                Filterdən keçir
-              </button>
-            </div>
-          </div>
-        ) : null}
-
         {(() => {
           const isNew = activePanel === "new";
           const isEdit = activePanel === "edit" && editingCustomerId;

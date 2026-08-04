@@ -9,6 +9,7 @@ import type {
 } from "../types/yuk.types";
 
 interface Props {
+  open: boolean;
   activeSections: Set<YukFilterSectionId>;
   toggleSection: (id: YukFilterSectionId) => void;
   filter: YukFilterFormState;
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export default function YukFilters({
+  open,
   activeSections,
   toggleSection,
   filter,
@@ -33,6 +35,7 @@ export default function YukFilters({
 }: Props) {
   return (
     <FilterPanelShell
+      open={open}
       title="Filtrlər"
       description="Yükləri istifadəçi, şirkət və əlaqəli tərəf meyarlarına görə daha sürətli süzün."
       sections={YUK_FILTER_SECTIONS}

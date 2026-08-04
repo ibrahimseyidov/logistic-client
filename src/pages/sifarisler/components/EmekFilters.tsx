@@ -14,6 +14,7 @@ import type {
 } from "../types/emek.types";
 
 interface Props {
+  open: boolean;
   activeSections: Set<EmekFilterSectionId>;
   toggleSection: (id: EmekFilterSectionId) => void;
   filter: EmekFilterFormState;
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export default function EmekFilters({
+  open,
   activeSections,
   toggleSection,
   filter,
@@ -42,6 +44,7 @@ export default function EmekFilters({
 }: Props) {
   return (
     <FilterPanelShell
+      open={open}
       title="Filtrlər"
       description="Əmək haqqı hesablamasını şirkət, tarix, müştəri və daşıyıcı üzrə dəqiqləşdirin."
       sections={EMEK_FILTER_SECTIONS}

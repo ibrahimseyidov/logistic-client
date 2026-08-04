@@ -9,6 +9,7 @@ import type {
 } from "../types/reys.types";
 
 interface Props {
+  open: boolean;
   activeSections: Set<ReysFilterSectionId>;
   toggleSection: (id: ReysFilterSectionId) => void;
   filter: ReysFilterFormState;
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export default function ReysFilters({
+  open,
   activeSections,
   toggleSection,
   filter,
@@ -33,6 +35,7 @@ export default function ReysFilters({
 }: Props) {
   return (
     <FilterPanelShell
+      open={open}
       title="Filtrlər"
       description="Reysləri şirkət, tarix və reys nömrəsinə görə süzüb nəticəni ayrıca görünüşdə izləyin."
       sections={REYS_FILTER_SECTIONS}
