@@ -32,6 +32,15 @@ function formatPercentage(value?: number | null): string {
   return String(value);
 }
 
+function apiErrorMessage(err: unknown, fallback: string): string {
+  const data = (err as any)?.response?.data;
+  const msg =
+    (typeof data?.message === "string" && data.message) ||
+    (typeof data?.error === "string" && data.error) ||
+    "";
+  return msg.trim() || fallback;
+}
+
 export const LookupManagerModal: React.FC<LookupManagerModalProps> = ({
   isOpen,
   onClose,
@@ -94,7 +103,10 @@ export const LookupManagerModal: React.FC<LookupManagerModalProps> = ({
     } catch (e) {
       console.error(e);
       dispatch(
-        showNotification({ message: "Əlavə edilərkən xəta baş verdi", type: "error" }),
+        showNotification({
+          message: apiErrorMessage(e, "Əlavə edilərkən xəta baş verdi"),
+          type: "error",
+        }),
       );
     }
   };
@@ -122,7 +134,10 @@ export const LookupManagerModal: React.FC<LookupManagerModalProps> = ({
     } catch (e) {
       console.error(e);
       dispatch(
-        showNotification({ message: "Yenilənərkən xəta baş verdi", type: "error" }),
+        showNotification({
+          message: apiErrorMessage(e, "Yenilənərkən xəta baş verdi"),
+          type: "error",
+        }),
       );
     }
   };
@@ -143,7 +158,10 @@ export const LookupManagerModal: React.FC<LookupManagerModalProps> = ({
     } catch (e) {
       console.error(e);
       dispatch(
-        showNotification({ message: "Silinərkən xəta baş verdi", type: "error" }),
+        showNotification({
+          message: apiErrorMessage(e, "Silinərkən xəta baş verdi"),
+          type: "error",
+        }),
       );
     } finally {
       setIsDeleting(false);

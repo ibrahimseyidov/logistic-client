@@ -9,8 +9,16 @@ function getAuthToken() {
 export async function fetchUsersAction(): Promise<UserRow[]> {
   const token = getAuthToken();
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
-  const res = await axios.get(buildApiUrl("/api/user"), { headers });
-  return res.data;
+  try {
+    const res = await axios.get(buildApiUrl("/api/user"), { headers });
+    return Array.isArray(res.data) ? res.data : [];
+  } catch (err: any) {
+    // Köhnə admin-only cavab və ya şəbəkə xətası — directory fallback
+    if (err?.response?.status === 403 || err?.response?.status === 401) {
+      return fetchUserDirectoryAction() as Promise<UserRow[]>;
+    }
+    throw err;
+  }
 }
 
 /** Active users for task assignment (available to all authenticated users). */
