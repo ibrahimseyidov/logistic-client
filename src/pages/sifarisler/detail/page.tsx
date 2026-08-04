@@ -1635,10 +1635,10 @@ export default function SifarisDetailPage() {
     });
 
     let totalRevAzn = financeRevAzn;
-    // Xərclər: reys cəmi (Alış) + digər maliyyə məsarifi; reys yoxdursa təklif/fallback
+    // Xərclər: reys (alış) + təklif xərci + digər maliyyə məsarifi
     let totalExpAzn = otherFinanceExpAzn;
     if (voyageExpAzn > 0) {
-      totalExpAzn += voyageExpAzn;
+      totalExpAzn += voyageExpAzn + (offerSalesTotal?.expenseAzn || 0);
     } else if (offerSalesTotal?.purchaseAzn && offerSalesTotal.purchaseAzn > 0) {
       totalExpAzn +=
         offerSalesTotal.purchaseAzn + (offerSalesTotal.expenseAzn || 0);
@@ -1766,6 +1766,69 @@ export default function SifarisDetailPage() {
     financeTotals.profitAzn,
     offerSalesTotal,
   ]);
+
+  /** Maliyyə tabının üst kartları — reys + təklif + əlavə edilən əməliyyatlar */
+  const maliyyeHeaderCards = useMemo(() => {
+    if (!offerSalesTotal && !(financeTotals.totalRevAzn > 0)) return null;
+
+    const salesAzn =
+      financeTotals.totalRevAzn > 0
+        ? financeTotals.totalRevAzn
+        : offerSalesTotal?.salesAzn || 0;
+    const purchaseAzn =
+      offerSalesTotal?.purchaseAzn || financeTotals.voyageExpAzn || 0;
+    const offerExpenseAzn = offerSalesTotal?.expenseAzn || 0;
+    const otherExpAzn = financeTotals.otherFinanceExpAzn || 0;
+    const totalAzn = purchaseAzn + offerExpenseAzn + otherExpAzn;
+    const profitAzn = salesAzn - totalAzn;
+
+    const formatTotalLabel = () => {
+      if (!(totalAzn > 0)) return "—";
+
+      const purchase = offerSalesTotal?.purchase || 0;
+      const purchaseCurr =
+        offerSalesTotal?.purchaseCurrency || offerSalesTotal?.currency || "AZN";
+      const expense = offerSalesTotal?.expense || 0;
+      const offerCurr = offerSalesTotal?.currency || purchaseCurr;
+
+      // Əlavə maliyyə sətri yoxdursa — alış+xərc eyni valyutada
+      if (!(otherExpAzn > 0.001) && offerSalesTotal?.labelTotal) {
+        return offerSalesTotal.labelTotal;
+      }
+
+      // Eyni valyutada alış+xərc + digər AZN
+      if (
+        purchase > 0 &&
+        purchaseCurr.toUpperCase() !== "AZN" &&
+        (expense <= 0 || offerCurr.toUpperCase() === purchaseCurr.toUpperCase())
+      ) {
+        const base = purchase + (offerCurr === purchaseCurr ? expense : 0);
+        if (otherExpAzn > 0.001) {
+          return `${base} ${purchaseCurr} + ${otherExpAzn.toFixed(2)} AZN (${totalAzn.toFixed(2)} AZN)`;
+        }
+        return `${base} ${purchaseCurr} (${totalAzn.toFixed(2)} AZN)`;
+      }
+
+      return `${totalAzn.toFixed(2)} AZN`;
+    };
+
+    return {
+      labelSales:
+        offerSalesTotal?.labelSales && offerSalesTotal.labelSales !== "—"
+          ? offerSalesTotal.labelSales
+          : salesAzn > 0
+            ? `${salesAzn.toFixed(2)} AZN`
+            : "—",
+      labelPurchase:
+        offerSalesTotal?.labelPurchase && offerSalesTotal.labelPurchase !== "—"
+          ? offerSalesTotal.labelPurchase
+          : purchaseAzn > 0
+            ? `${purchaseAzn.toFixed(2)} AZN`
+            : "—",
+      labelTotal: formatTotalLabel(),
+      profitAzn,
+    };
+  }, [offerSalesTotal, financeTotals]);
 
   // Removed previous unused useEffects
 
@@ -4055,7 +4118,7 @@ export default function SifarisDetailPage() {
                   ) : null}
                 </div>
 
-                {offerSalesTotal ? (
+                {maliyyeHeaderCards ? (
                   <div
                     style={{
                       display: "grid",
@@ -4067,28 +4130,28 @@ export default function SifarisDetailPage() {
                     {[
                       {
                         label: "Satış",
-                        value: offerSalesTotal.labelSales,
+                        value: maliyyeHeaderCards.labelSales,
                         color: "#166534",
                         bg: "#f0fdf4",
                         border: "#bbf7d0",
                       },
                       {
                         label: "Alış",
-                        value: offerSalesTotal.labelPurchase,
+                        value: maliyyeHeaderCards.labelPurchase,
                         color: "#92400e",
                         bg: "#fffbeb",
                         border: "#fde68a",
                       },
                       {
                         label: "Xərc / Total",
-                        value: offerSalesTotal.labelTotal,
+                        value: maliyyeHeaderCards.labelTotal,
                         color: "#9a3412",
                         bg: "#fff7ed",
                         border: "#fed7aa",
                       },
                       {
                         label: "Gözlənilən mənfəət",
-                        value: `${offerSalesTotal.profitAzn.toFixed(2)} AZN`,
+                        value: `${maliyyeHeaderCards.profitAzn.toFixed(2)} AZN`,
                         color: "#1d4ed8",
                         bg: "#eff6ff",
                         border: "#bfdbfe",
