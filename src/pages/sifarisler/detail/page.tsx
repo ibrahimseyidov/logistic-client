@@ -1615,15 +1615,24 @@ export default function SifarisDetailPage() {
       return { amount, currency, azn };
     };
 
-    let financeRevAzn = 0;
+    let baslangicRevAzn = 0;
+    let otherFinanceRevAzn = 0;
     let otherFinanceExpAzn = 0;
 
     financeTransactions.forEach((t) => {
-      financeRevAzn += resolveFinanceRevenueAzn(t, rates);
-
       const name = String(t.name || "").trim();
+      const isBaslangic =
+        name === "Başlanğıc tarif" || /^İrəli hesab #/i.test(name);
+      const revAzn = resolveFinanceRevenueAzn(t, rates);
+
+      if (isBaslangic) {
+        baslangicRevAzn += revAzn;
+      } else {
+        otherFinanceRevAzn += revAzn;
+      }
+
       if (isVoyageFinanceName(name)) return;
-      if (name === "Başlanğıc tarif") return;
+      if (isBaslangic) return;
 
       otherFinanceExpAzn += resolveFinanceExpenseAzn(t, rates);
     });
@@ -1633,7 +1642,15 @@ export default function SifarisDetailPage() {
       voyageExpAzn += resolveVoyageParts(v).azn;
     });
 
-    let totalRevAzn = financeRevAzn;
+    // Fraxt = satış / başlanğıc tarif — əlavə edilən adi sətirlər fraxtı əvəz etməsin
+    const freightAzn =
+      baslangicRevAzn > 0
+        ? baslangicRevAzn
+        : offerSalesTotal?.salesAzn || 0;
+
+    // Gəlir: sabit fraxt + digər tarif sətirləri (əlavə gəlir)
+    const totalRevAzn = freightAzn + otherFinanceRevAzn;
+
     // Xərclər: reys (alış) + təklif xərci + digər maliyyə məsarifi
     let totalExpAzn = otherFinanceExpAzn;
     if (voyageExpAzn > 0) {
@@ -1650,19 +1667,17 @@ export default function SifarisDetailPage() {
       });
     }
 
-    if (financeRevAzn <= 0 && offerSalesTotal && offerSalesTotal.salesAzn > 0) {
-      totalRevAzn = offerSalesTotal.salesAzn;
-    }
-
     return {
+      freightAzn,
       totalRevAzn,
       totalExpAzn,
       profitAzn: totalRevAzn - totalExpAzn,
       voyageExpAzn,
       otherFinanceExpAzn,
+      otherFinanceRevAzn,
       resolveVoyageParts,
       toAznAmount,
-      hasFinanceRevenue: financeRevAzn > 0,
+      hasFinanceRevenue: freightAzn > 0 || otherFinanceRevAzn > 0,
       hasFinanceExpense: totalExpAzn > 0,
     };
   }, [financeTransactions, voyagesList, order, offerSalesTotal, currencyRates]);
@@ -1771,9 +1786,11 @@ export default function SifarisDetailPage() {
     if (!offerSalesTotal && !(financeTotals.totalRevAzn > 0)) return null;
 
     const salesAzn =
-      financeTotals.totalRevAzn > 0
-        ? financeTotals.totalRevAzn
-        : offerSalesTotal?.salesAzn || 0;
+      (financeTotals.freightAzn || 0) > 0
+        ? financeTotals.freightAzn + (financeTotals.otherFinanceRevAzn || 0)
+        : financeTotals.totalRevAzn > 0
+          ? financeTotals.totalRevAzn
+          : offerSalesTotal?.salesAzn || 0;
     const purchaseAzn =
       offerSalesTotal?.purchaseAzn || financeTotals.voyageExpAzn || 0;
     const offerExpenseAzn = offerSalesTotal?.expenseAzn || 0;
@@ -3441,11 +3458,11 @@ export default function SifarisDetailPage() {
               />
               <DlRow
                 label="Fraxt"
-                value={`${financeTotals.totalRevAzn.toFixed(2)} AZN`}
+                value={`${(financeTotals.freightAzn || financeTotals.totalRevAzn).toFixed(2)} AZN`}
               />
               <DlRow
                 label="Fraxt ƏDV ilə"
-                value={`${financeTotals.totalRevAzn.toFixed(2)} AZN`}
+                value={`${(financeTotals.freightAzn || financeTotals.totalRevAzn).toFixed(2)} AZN`}
               />
               <DlRow
                 label="Xərclər (Total qiymət)"
