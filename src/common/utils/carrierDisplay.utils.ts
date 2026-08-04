@@ -185,10 +185,15 @@ export function mergeCarrierFormContacts(
   const mode = options?.mode ?? "new";
   const entityId = options?.entityId;
 
-  const scoped =
-    mode === "edit" && entityId
-      ? available.filter((c) => String(c.entityId) === String(entityId))
-      : available.filter((c) => !c.entityId);
+  // Yeni müştəri/daşıyıcı: yalnız bu formda əlavə olunanlar.
+  // Digər entity-siz (orphan) kontaktlar qarışmamalıdır.
+  if (mode === "new") {
+    return normalizeCarrierContacts(formContacts, []);
+  }
+
+  const scoped = entityId
+    ? available.filter((c) => String(c.entityId) === String(entityId))
+    : [];
 
   return normalizeCarrierContacts(formContacts, scoped);
 }
@@ -211,6 +216,7 @@ export function scopeEntityContacts(
     return available.filter((c) => String(c.entityId) === String(entityId));
   }
 
+  // Yeni form: yalnız bu sessiyada yaradılan (hələ entity-yə bağlanmayan) kontaktlar
   return available.filter((c) => !c.entityId);
 }
 

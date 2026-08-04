@@ -1332,25 +1332,27 @@ export default function MusterilerPage() {
                 <div className={styles.newPanelCard}>
                   <h3 className={styles.newPanelCardTitle}>Əlaqə məlumatları</h3>
                   <div className={styles.newPanelGrid}>
-                    <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
-                      <div className={styles.sectionBox}>
-                        <p className={styles.sectionBoxTitle}>Müştəri əlaqədar şəxsləri</p>
-                        <p className={styles.sectionBoxHint}>
-                          Əlaqədar şəxsləri «İdarə et» düyməsi ilə əlavə edin.
-                        </p>
-                        <div className={styles.inlineControlRow}>
-                          <div className={styles.contactPersonList} aria-hidden="true" />
-                          <button
-                            type="button"
-                            className={styles.manageButton}
-                            onClick={() => setIsContactModalOpen(true)}
-                            title="Əlaqədar şəxsləri idarə et"
-                          >
-                            İdarə et
-                          </button>
+                    {isEdit ? (
+                      <div className={styles.field} style={{ gridColumn: "1 / -1" }}>
+                        <div className={styles.sectionBox}>
+                          <p className={styles.sectionBoxTitle}>Müştəri əlaqədar şəxsləri</p>
+                          <p className={styles.sectionBoxHint}>
+                            Əlaqədar şəxsləri «İdarə et» düyməsi ilə əlavə edin.
+                          </p>
+                          <div className={styles.inlineControlRow}>
+                            <div className={styles.contactPersonList} aria-hidden="true" />
+                            <button
+                              type="button"
+                              className={styles.manageButton}
+                              onClick={() => setIsContactModalOpen(true)}
+                              title="Əlaqədar şəxsləri idarə et"
+                            >
+                              İdarə et
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    ) : null}
                     <label className={styles.field}>
                       <span>Telefon nömrəsi</span>
                       <input
@@ -1559,20 +1561,20 @@ export default function MusterilerPage() {
         isLoading={isInlineDeleting}
       />
       <ContactPersonManagerModal
-        isOpen={isContactModalOpen}
+        isOpen={isContactModalOpen && activePanel === "edit"}
         onClose={() => setIsContactModalOpen(false)}
         contacts={mergeCarrierFormContacts(
-          (activePanel === "new" ? newForm : editForm).contactPersons,
+          editForm.contactPersons,
           availableContacts,
           {
-            mode: activePanel === "new" ? "new" : "edit",
+            mode: "edit",
             entityId: editingCustomerId,
           },
         )}
         onAdd={handleCreateContactPerson}
         onEdit={handleEditContactPerson}
         onRemove={requestRemoveContactPerson}
-        entityName={(activePanel === "new" ? newForm : editForm).company}
+        entityName={editForm.company}
         entityTypeLabel="müştəri"
         emptyMessage="Bu müştəriyə aid heç bir əlaqədar şəxs tapılmadı."
       />

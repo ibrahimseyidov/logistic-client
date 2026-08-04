@@ -23,7 +23,6 @@ import {
 import {
   createContactPersonAction,
   deleteContactPersonAction,
-  fetchContactPersonsAction,
   updateContactPersonAction,
   type ContactPersonRow,
 } from "../../../common/actions/contact.actions";
@@ -152,8 +151,8 @@ export function CarrierCreateDrawer({
   useEffect(() => {
     if (!isOpen) return;
     resetForm();
+    setAvailableContacts([]);
     void Promise.all([
-      fetchContactPersonsAction({ entityType: "carrier" }).then(setAvailableContacts).catch(() => {}),
       fetchLookupAction("carrier-types").then(setCarrierTypesData).catch(() => setCarrierTypesData([])),
       fetchLookupAction("activity-types").then(setActivityTypesData).catch(() => setActivityTypesData([])),
       fetchLookupAction("countries")
@@ -562,25 +561,6 @@ export function CarrierCreateDrawer({
             <div className={panelStyles.newPanelCard}>
               <h3 className={panelStyles.newPanelCardTitle}>Əlaqə məlumatları</h3>
               <div className={panelStyles.newPanelGrid}>
-                <div className={panelStyles.field} style={{ gridColumn: "1 / -1" }}>
-                  <div className={panelStyles.sectionBox}>
-                    <p className={panelStyles.sectionBoxTitle}>Daşıyıcı əlaqədar şəxsləri</p>
-                    <p className={panelStyles.sectionBoxHint}>
-                      Əlaqədar şəxsləri «İdarə et» düyməsi ilə əlavə edin.
-                    </p>
-                    <div className={panelStyles.inlineControlRow}>
-                      <div className={panelStyles.contactPersonList} aria-hidden="true" />
-                      <button
-                        type="button"
-                        className={panelStyles.manageButton}
-                        onClick={() => setIsContactModalOpen(true)}
-                        title="Əlaqədar şəxsləri idarə et"
-                      >
-                        İdarə et
-                      </button>
-                    </div>
-                  </div>
-                </div>
                 <label className={panelStyles.field}>
                   <span>Telefon nömrəsi</span>
                   <input
@@ -732,21 +712,6 @@ export function CarrierCreateDrawer({
           </div>
         </div>
       </aside>
-
-      <ContactPersonManagerModal
-        isOpen={isContactModalOpen}
-        onClose={() => setIsContactModalOpen(false)}
-        contacts={mergeCarrierFormContacts(form.contactPersons, availableContacts, {
-          mode: "new",
-          entityId: null,
-        })}
-        onAdd={handleCreateContactPerson}
-        onEdit={handleEditContactPerson}
-        onRemove={(contact) => requestRemoveContactPerson(contact)}
-        entityName={form.company}
-        entityTypeLabel="daşıyıcı"
-        emptyMessage="Bu daşıyıcıya aid heç bir əlaqədar şəxs tapılmadı."
-      />
 
       {activeLookupModal ? (
         <LookupManagerModal

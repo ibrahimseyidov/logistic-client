@@ -1315,25 +1315,27 @@ export default function DasiyicilarPage() {
                 <div className={modalStyles.newPanelCard}>
                   <h3 className={modalStyles.newPanelCardTitle}>Əlaqə məlumatları</h3>
                   <div className={modalStyles.newPanelGrid}>
-                    <div className={modalStyles.field} style={{ gridColumn: '1 / -1' }}>
-                      <div className={modalStyles.sectionBox}>
-                        <p className={modalStyles.sectionBoxTitle}>Daşıyıcı əlaqədar şəxsləri</p>
-                        <p className={modalStyles.sectionBoxHint}>
-                          Əlaqədar şəxsləri «İdarə et» düyməsi ilə əlavə edin.
-                        </p>
-                        <div className={modalStyles.inlineControlRow}>
-                          <div className={modalStyles.contactPersonList} aria-hidden="true" />
-                          <button
-                            type="button"
-                            className={modalStyles.manageButton}
-                            onClick={() => setIsContactModalOpen(true)}
-                            title="Əlaqədar şəxsləri idarə et"
-                          >
-                            İdarə et
-                          </button>
+                    {isEdit ? (
+                      <div className={modalStyles.field} style={{ gridColumn: "1 / -1" }}>
+                        <div className={modalStyles.sectionBox}>
+                          <p className={modalStyles.sectionBoxTitle}>Daşıyıcı əlaqədar şəxsləri</p>
+                          <p className={modalStyles.sectionBoxHint}>
+                            Əlaqədar şəxsləri «İdarə et» düyməsi ilə əlavə edin.
+                          </p>
+                          <div className={modalStyles.inlineControlRow}>
+                            <div className={modalStyles.contactPersonList} aria-hidden="true" />
+                            <button
+                              type="button"
+                              className={modalStyles.manageButton}
+                              onClick={() => setIsContactModalOpen(true)}
+                              title="Əlaqədar şəxsləri idarə et"
+                            >
+                              İdarə et
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    ) : null}
                     <label className={modalStyles.field}>
                       <span>Telefon nömrəsi</span>
                       <input
@@ -1542,20 +1544,20 @@ export default function DasiyicilarPage() {
         isLoading={isInlineDeleting}
       />
       <ContactPersonManagerModal
-        isOpen={isContactModalOpen}
+        isOpen={isContactModalOpen && activePanel === "edit"}
         onClose={() => setIsContactModalOpen(false)}
         contacts={mergeCarrierFormContacts(
-          (activePanel === "new" ? newForm : editForm).contactPersons,
+          editForm.contactPersons,
           availableContacts,
           {
-            mode: activePanel === "new" ? "new" : "edit",
+            mode: "edit",
             entityId: editingCarrierId,
           },
         )}
         onAdd={handleCreateContactPerson}
         onEdit={handleEditContactPerson}
         onRemove={requestRemoveContactPerson}
-        entityName={(activePanel === "new" ? newForm : editForm).company}
+        entityName={editForm.company}
         entityTypeLabel="daşıyıcı"
         emptyMessage="Bu daşıyıcıya aid heç bir əlaqədar şəxs tapılmadı."
       />
