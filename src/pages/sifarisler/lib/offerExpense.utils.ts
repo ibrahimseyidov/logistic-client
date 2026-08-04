@@ -421,6 +421,7 @@ export function buildFinancePreviewRows(params: {
   const currency = summary.currency || "AZN";
   const fmtAzn = (n: number) => (n > 0 ? n.toFixed(2) : "");
   const fmtAmt = (n: number) => (n > 0 ? String(n) : "");
+  const fmtProfit = (n: number) => `${n.toFixed(2)} AZN`;
   const carrier =
     summary.carrierName ||
     String(params.voyages?.[0]?.carrier || "").trim() ||
@@ -443,7 +444,7 @@ export function buildFinancePreviewRows(params: {
       mesarifPrice: "",
       mesarifCurrency: "",
       mesarifAzn: "",
-      profit: "",
+      profit: fmtProfit(summary.salesAzn),
       isPreview: true,
       costDate: "",
       user: "Sistem",
@@ -462,7 +463,7 @@ export function buildFinancePreviewRows(params: {
       mesarifPrice: fmtAmt(summary.purchase),
       mesarifCurrency: purchaseCurr,
       mesarifAzn: fmtAzn(summary.purchaseAzn),
-      profit: "",
+      profit: fmtProfit(-summary.purchaseAzn),
       isPreview: true,
       costDate: "",
       user: "Sistem",
@@ -480,7 +481,7 @@ export function buildFinancePreviewRows(params: {
       mesarifPrice: fmtAmt(summary.expense),
       mesarifCurrency: currency,
       mesarifAzn: fmtAzn(summary.expenseAzn),
-      profit: "",
+      profit: fmtProfit(-summary.expenseAzn),
       isPreview: true,
       costDate: "",
       user: "Sistem",
@@ -503,7 +504,7 @@ export function buildFinancePreviewRows(params: {
       mesarifPrice: fmtAmt(summary.total),
       mesarifCurrency: currency,
       mesarifAzn: fmtAzn(summary.totalAzn),
-      profit: "",
+      profit: fmtProfit(-summary.totalAzn),
       isPreview: true,
       costDate: "",
       user: "Sistem",
