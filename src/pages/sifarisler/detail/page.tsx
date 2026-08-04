@@ -265,6 +265,7 @@ export default function SifarisDetailPage() {
   const canDeleteVoyage = canDelete("sifarisler", "voyages");
   const canCreateFinance = canCreate("sifarisler", "finance");
   const canEditFinance = canEdit("sifarisler", "finance");
+  const canDeleteFinance = canDelete("sifarisler", "finance");
   const canCreateInvoice = canCreate("sifarisler", "invoices");
   const canEditInvoice = canEdit("sifarisler", "invoices");
   const canDeleteInvoice = canDelete("sifarisler", "invoices");
@@ -1037,8 +1038,8 @@ export default function SifarisDetailPage() {
           headers: { Authorization: "Bearer " + localStorage.getItem("token") },
         })
         .then((res) => {
-          setFinanceTransactions(
-            financeTransactions.map((t) =>
+          setFinanceTransactions((prev) =>
+            prev.map((t) =>
               t.id === selectedTxForEdit.id ? res.data : t,
             ),
           );
@@ -1092,7 +1093,7 @@ export default function SifarisDetailPage() {
           headers: { Authorization: "Bearer " + localStorage.getItem("token") },
         })
         .then((res) => {
-          setFinanceTransactions([res.data, ...financeTransactions]);
+          setFinanceTransactions((prev) => [res.data, ...prev]);
         })
         .catch(console.error);
     }
@@ -1105,6 +1106,27 @@ export default function SifarisDetailPage() {
     setTxExpQty("1");
     setTxExpPrice("0");
     setTxDescription("");
+  };
+
+  const handleDeleteTransaction = async (tx: any) => {
+    if (!tx?.id || tx.isPreview) return;
+    if (!window.confirm("Bu maliyyə əməliyyatını silmək istəyirsiniz?")) return;
+    try {
+      await axios.delete(ENDPOINTS.FINANCE.BASE + "/" + tx.id, {
+        headers: {
+          Authorization: "Bearer " + localStorage.getItem("token"),
+        },
+      });
+      setFinanceTransactions((prev) => prev.filter((t) => t.id !== tx.id));
+    } catch (e) {
+      console.error(e);
+      dispatch(
+        showNotification({
+          type: "error",
+          message: "Maliyyə əməliyyatı silinə bilmədi.",
+        }),
+      );
+    }
   };
 
   const [voyagesList, setVoyagesList] = useState<
@@ -1462,31 +1484,6 @@ export default function SifarisDetailPage() {
     [order, voyagesList, financeTransactions, displayCustomerName, currencyRates],
   );
 
-  const financeTableRows = useMemo(() => {
-    const base =
-      financeTransactions.length > 0
-        ? financeTransactions
-        : financePreviewRows;
-    // Alış qiyməti həmişə reys cəminə uyğun göstərilsin
-    if (
-      !offerSalesTotal?.purchaseFromVoyages ||
-      !(offerSalesTotal.purchase > 0)
-    ) {
-      return base;
-    }
-    const purchaseCurr =
-      offerSalesTotal.purchaseCurrency || offerSalesTotal.currency || "AZN";
-    return base.map((row: any) => {
-      if (String(row?.name || "").trim() !== "Alış qiyməti") return row;
-      return {
-        ...row,
-        mesarifPrice: String(offerSalesTotal.purchase),
-        mesarifCurrency: purchaseCurr,
-        mesarifAzn: offerSalesTotal.purchaseAzn.toFixed(2),
-      };
-    });
-  }, [financeTransactions, financePreviewRows, offerSalesTotal]);
-
   /** Seçilib yaradılan Başlanğıc tarif / irəli hesab sətri — sidebar/banner üçün mənbə */
   const baslangicTarifDisplay = useMemo(() => {
     const tx =
@@ -1726,6 +1723,49 @@ export default function SifarisDetailPage() {
     }
     return `${financeTotals.totalExpAzn.toFixed(2)} AZN`;
   }, [financeTotals, financeTransactions, voyagesList, offerSalesTotal, currencyRates]);
+
+  /** Sistem önbaxış sətirləri + əlavə edilən real əməliyyatlar birlikdə */
+  const financeTableRows = useMemo(() => {
+    const previewWithoutProfit = financePreviewRows.filter(
+      (r) => String(r.id) !== "preview-profit",
+    );
+    const profitPreview = financePreviewRows.find(
+      (r) => String(r.id) === "preview-profit",
+    );
+
+    let rows: any[] = [...previewWithoutProfit, ...financeTransactions];
+
+    if (profitPreview) {
+      rows.push({
+        ...profitPreview,
+        profit: `${financeTotals.profitAzn.toFixed(2)} AZN`,
+      });
+    }
+
+    if (
+      offerSalesTotal?.purchaseFromVoyages &&
+      offerSalesTotal.purchase > 0
+    ) {
+      const purchaseCurr =
+        offerSalesTotal.purchaseCurrency || offerSalesTotal.currency || "AZN";
+      rows = rows.map((row) => {
+        if (String(row?.name || "").trim() !== "Alış qiyməti") return row;
+        return {
+          ...row,
+          mesarifPrice: String(offerSalesTotal.purchase),
+          mesarifCurrency: purchaseCurr,
+          mesarifAzn: offerSalesTotal.purchaseAzn.toFixed(2),
+        };
+      });
+    }
+
+    return rows;
+  }, [
+    financePreviewRows,
+    financeTransactions,
+    financeTotals.profitAzn,
+    offerSalesTotal,
+  ]);
 
   // Removed previous unused useEffects
 
@@ -2904,7 +2944,7 @@ export default function SifarisDetailPage() {
       },
       {
         id: "finance",
-        label: `Maliyyə (${financeTransactions.length || financePreviewRows.length})`,
+        label: `Maliyyə (${financeTableRows.length})`,
         icon: <FiDollarSign />,
         permChild: "finance",
       },
@@ -2942,8 +2982,7 @@ export default function SifarisDetailPage() {
   }, [
     loadsList.length,
     voyagesList.length,
-    financeTransactions.length,
-    financePreviewRows.length,
+    financeTableRows.length,
     orderDocumentsCount,
     canView,
     canViewComments,
@@ -4122,7 +4161,7 @@ export default function SifarisDetailPage() {
                           <th className={styles.th}>Xərclərin tarixi</th>
                           <th
                             className={styles.th}
-                            style={{ width: "45px" }}
+                            style={{ width: "80px" }}
                           ></th>
                         </tr>
                       </thead>
@@ -4360,26 +4399,53 @@ export default function SifarisDetailPage() {
                               className={styles.td}
                               style={{ textAlign: "right" }}
                             >
-                              {!isPreview && canEditFinance ? (
-                              <button
-                                type="button"
-                                className={styles.iconBtn}
-                                onClick={() => handleEditTransaction(tx)}
-                                title="Redaktə et"
-                              >
-                                <svg
-                                  width="12"
-                                  height="12"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="#6366f1"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
+                              {!isPreview && (canEditFinance || canDeleteFinance) ? (
+                                <div
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "0.15rem",
+                                  }}
                                 >
-                                  <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                                </svg>
-                              </button>
+                                  {canEditFinance ? (
+                                    <button
+                                      type="button"
+                                      className={styles.iconBtn}
+                                      onClick={() => handleEditTransaction(tx)}
+                                      title="Redaktə et"
+                                    >
+                                      <svg
+                                        width="12"
+                                        height="12"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="#6366f1"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      >
+                                        <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                                      </svg>
+                                    </button>
+                                  ) : null}
+                                  {canDeleteFinance ? (
+                                    <button
+                                      type="button"
+                                      className={styles.iconBtn}
+                                      onClick={() =>
+                                        void handleDeleteTransaction(tx)
+                                      }
+                                      title="Sil"
+                                    >
+                                      <FiTrash2
+                                        style={{
+                                          color: "#dc2626",
+                                          fontSize: "0.85rem",
+                                        }}
+                                      />
+                                    </button>
+                                  ) : null}
+                                </div>
                               ) : null}
                             </td>
                           </tr>
