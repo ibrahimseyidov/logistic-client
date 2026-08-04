@@ -1110,7 +1110,6 @@ export default function SifarisDetailPage() {
 
   const handleDeleteTransaction = async (tx: any) => {
     if (!tx?.id || tx.isPreview) return;
-    if (!window.confirm("Bu maliyyə əməliyyatını silmək istəyirsiniz?")) return;
     try {
       await axios.delete(ENDPOINTS.FINANCE.BASE + "/" + tx.id, {
         headers: {
@@ -4495,9 +4494,15 @@ export default function SifarisDetailPage() {
                                     <button
                                       type="button"
                                       className={styles.iconBtn}
-                                      onClick={() =>
-                                        void handleDeleteTransaction(tx)
-                                      }
+                                      onClick={() => {
+                                        openDeleteConfirm(
+                                          "Maliyyə əməliyyatını sil",
+                                          `"${String(tx.name || "Əməliyyat").trim()}" silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarıla bilməz.`,
+                                          () => {
+                                            void handleDeleteTransaction(tx);
+                                          },
+                                        );
+                                      }}
                                       title="Sil"
                                     >
                                       <FiTrash2
