@@ -1463,9 +1463,29 @@ export default function SifarisDetailPage() {
   );
 
   const financeTableRows = useMemo(() => {
-    if (financeTransactions.length > 0) return financeTransactions;
-    return financePreviewRows;
-  }, [financeTransactions, financePreviewRows]);
+    const base =
+      financeTransactions.length > 0
+        ? financeTransactions
+        : financePreviewRows;
+    // Alış qiyməti həmişə reys cəminə uyğun göstərilsin
+    if (
+      !offerSalesTotal?.purchaseFromVoyages ||
+      !(offerSalesTotal.purchase > 0)
+    ) {
+      return base;
+    }
+    const purchaseCurr =
+      offerSalesTotal.purchaseCurrency || offerSalesTotal.currency || "AZN";
+    return base.map((row: any) => {
+      if (String(row?.name || "").trim() !== "Alış qiyməti") return row;
+      return {
+        ...row,
+        mesarifPrice: String(offerSalesTotal.purchase),
+        mesarifCurrency: purchaseCurr,
+        mesarifAzn: offerSalesTotal.purchaseAzn.toFixed(2),
+      };
+    });
+  }, [financeTransactions, financePreviewRows, offerSalesTotal]);
 
   /** Seçilib yaradılan Başlanğıc tarif / irəli hesab sətri — sidebar/banner üçün mənbə */
   const baslangicTarifDisplay = useMemo(() => {
@@ -1618,13 +1638,13 @@ export default function SifarisDetailPage() {
     });
 
     let totalRevAzn = financeRevAzn;
-    // Reys yalnız alış qiymətini daşıya bilər — təklifin total (alış+xərc) önbaxışı üstün tutulur
-    const offerTotalAzn = offerSalesTotal?.totalAzn || 0;
+    // Xərclər: reys cəmi (Alış) + digər maliyyə məsarifi; reys yoxdursa təklif/fallback
     let totalExpAzn = otherFinanceExpAzn;
-    if (offerTotalAzn > voyageExpAzn) {
-      totalExpAzn += offerTotalAzn;
-    } else if (voyageExpAzn > 0) {
+    if (voyageExpAzn > 0) {
       totalExpAzn += voyageExpAzn;
+    } else if (offerSalesTotal?.purchaseAzn && offerSalesTotal.purchaseAzn > 0) {
+      totalExpAzn +=
+        offerSalesTotal.purchaseAzn + (offerSalesTotal.expenseAzn || 0);
     } else {
       totalExpAzn += resolveOfferExpenseFallbackAzn({
         order,
@@ -1690,16 +1710,16 @@ export default function SifarisDetailPage() {
       return `${g.amount.toFixed(2)} ${curr} (${g.azn.toFixed(2)} AZN)`;
     });
 
-    // Təklif total (alış+xərc) reys alışından böyükdürsə — önbaxış üçün onu göstər
-    if (
-      offerSalesTotal?.labelTotal &&
-      offerSalesTotal.labelTotal !== "—" &&
-      offerSalesTotal.totalAzn >= financeTotals.voyageExpAzn
-    ) {
-      return offerSalesTotal.labelTotal;
-    }
-
+    // Sol Xərclər — əvvəl reys (və digər məsarif) hissəsindən
     if (parts.length > 0) return parts.join(" + ");
+
+    if (
+      offerSalesTotal?.purchaseFromVoyages &&
+      offerSalesTotal.labelPurchase &&
+      offerSalesTotal.labelPurchase !== "—"
+    ) {
+      return offerSalesTotal.labelPurchase;
+    }
 
     if (offerSalesTotal?.labelTotal && offerSalesTotal.labelTotal !== "—") {
       return offerSalesTotal.labelTotal;
