@@ -19,6 +19,7 @@ import {
   deleteCommentAction,
   updateQueryAction,
 } from "../../../common/actions/query.actions";
+import { resolveUploadUrl } from "../../../common/actions/document.actions";
 import { fetchCustomersAction } from "../../../common/actions/customer.actions";
 import { fetchUsersAction } from "../../../common/actions/user.actions";
 import type { LogisticQueryRow } from "../types/sorgu.types";
@@ -97,7 +98,10 @@ export default function SorguDetailPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { canView, canCreate, canEdit, canDelete } = usePermissions();
-  const canEditQuery = canEdit("sorgular", "detail");
+  const canEditQuery =
+    canEdit("sorgular", "detail") ||
+    canEdit("sorgular", "active") ||
+    canEdit("sorgular", "archive");
   const canCreateComment = canCreate("sorgular", "detail_comments");
   const canDeleteComment = canDelete("sorgular", "detail_comments");
   const canCreateOffer = canCreate("sorgular", "detail_offers");
@@ -775,9 +779,7 @@ export default function SorguDetailPage() {
                 existingDocs={documents.map((d) => ({
                   id: d.id,
                   name: d.name,
-                  url: d.url.startsWith("http")
-                    ? d.url
-                    : `http://localhost:5000${d.url}`,
+                  url: resolveUploadUrl(d.url),
                   size: d.size,
                   createdAt: d.createdAt,
                 }))}

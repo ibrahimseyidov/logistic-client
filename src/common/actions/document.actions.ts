@@ -268,7 +268,27 @@ export async function deleteOrderDocumentAction(id: number): Promise<void> {
 
 export function resolveUploadUrl(url: string): string {
   if (!url) return "";
-  if (url.startsWith("http") || url.startsWith("data:")) return url;
-  const apiBase = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
+  if (url.startsWith("data:")) return url;
+
+  const apiBase = (
+    import.meta.env.VITE_API_URL || "http://localhost:5000"
+  ).replace(/\/$/, "");
+
+  // Absolute URL — localhost / 127.0.0.1 production-da yanlış qalıbsa düzəlt
+  if (/^https?:\/\//i.test(url)) {
+    try {
+      const parsed = new URL(url);
+      if (
+        parsed.hostname === "localhost" ||
+        parsed.hostname === "127.0.0.1"
+      ) {
+        return `${apiBase}${parsed.pathname}${parsed.search}`;
+      }
+      return url;
+    } catch {
+      return url;
+    }
+  }
+
   return `${apiBase}${url.startsWith("/") ? url : `/${url}`}`;
 }

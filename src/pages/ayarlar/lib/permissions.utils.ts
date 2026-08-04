@@ -310,11 +310,15 @@ export function parseUserPermissions(raw: unknown): UserPermissions {
             "edit" in csrc ||
             "delete" in csrc);
         next.children[child.id] = {
-          // Köhnə qeydlərdə yoxdursa parent view-dan miras; create/edit/delete default false
+          // Köhnə qeydlərdə child yoxdursa parent CRUD-dan miras
           view: Boolean(hasExplicit ? csrc.view : (csrc.view ?? src.view)),
-          create: Boolean(csrc.create ?? false),
-          edit: Boolean(csrc.edit ?? false),
-          delete: Boolean(csrc.delete ?? false),
+          create: Boolean(
+            hasExplicit ? csrc.create : (csrc.create ?? src.create),
+          ),
+          edit: Boolean(hasExplicit ? csrc.edit : (csrc.edit ?? src.edit)),
+          delete: Boolean(
+            hasExplicit ? csrc.delete : (csrc.delete ?? src.delete),
+          ),
         };
       }
     }
