@@ -15,6 +15,7 @@ import { DocumentsSection } from "./components/DocumentsSection";
 import { LogsSection } from "./components/LogsSection";
 import { CashSettingsSection } from "./components/CashSettingsSection";
 import { NotificationSettingsSection } from "./components/NotificationSettingsSection";
+import { BackupSection } from "./components/BackupSection";
 import ayarlarStyles from "./ayarlar.module.css";
 
 const CARGO_SPECS_SEED = [
@@ -104,6 +105,10 @@ const AyarlarPage: React.FC = () => {
 
       {activeTab === "notifications" && (
         <NotificationSettingsSection canEdit={Boolean(user)} />
+      )}
+
+      {activeTab === "backup" && (
+        <BackupSection canView={canView("ayarlar", "backup")} />
       )}
 
       {activeTab === "logs" && <LogsSection />}

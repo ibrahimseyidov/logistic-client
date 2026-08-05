@@ -84,4 +84,7 @@ export const ENDPOINTS = {
     GENERATE: `${API}/documents/generate`,
     ORDER_DOCS: (orderId: number | string) => `${API}/documents/orders/${orderId}`,
   },
+  BACKUP: {
+    EXPORT: `${API}/backup/export`,
+  },
 } as const;

@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "serve -s dist -l 3000",
+    "pm2:start": "pm2 start ecosystem.config.cjs",
+    "pm2:restart": "pm2 restart logistic-client"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",
@@ -38,7 +41,8 @@
     "react-dom": "^19.0.0",
     "react-icons": "^5.5.0",
     "react-redux": "^9.2.0",
-    "react-router-dom": "^7.13.0"
+    "react-router-dom": "^7.13.0",
+    "serve": "^14.2.6"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

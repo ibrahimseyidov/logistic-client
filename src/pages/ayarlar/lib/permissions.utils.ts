@@ -249,7 +249,13 @@ export const PERMISSION_MODULES: PermissionModuleDef[] = [
         id: "notifications",
         label: "Bildiriş ayarları",
         group: "Parametrlər",
-        hint: "Gündəlik sorğu xülasəsi (şəxsi)",
+        hint: "Gündəlik sorğu xülasəsi",
+      },
+      {
+        id: "backup",
+        label: "Backup",
+        group: "Parametrlər",
+        hint: "Verilənlər bazası ZIP ehtiyat nüsxəsi",
       },
       { id: "logs", label: "Loglar", group: "Parametrlər" },
     ],
@@ -437,7 +443,8 @@ export function ayarlarTabToPermChild(tab: string): string {
     tab === "cash" ||
     tab === "documents" ||
     tab === "logs" ||
-    tab === "notifications"
+    tab === "notifications" ||
+    tab === "backup"
   ) {
     return tab;
   }
