@@ -168,7 +168,10 @@ export function applySifarisFilters(
 export function aggregateSifarisStats(rows: SifarisOrderRow[]) {
   const orders = rows.length;
   const loads = rows.reduce((s, r) => s + Math.ceil(r.weightKg / 5000), 0);
-  const voyages = new Set(rows.map((r) => r.voyageNumber)).size;
+  const voyages = rows.reduce((sum, r) => {
+    const list = Array.isArray((r as any).voyages) ? (r as any).voyages : [];
+    return sum + list.length;
+  }, 0);
   const weight = rows.reduce((s, r) => s + r.weightKg, 0);
   const volume = rows.reduce((s, r) => s + r.volumeM3, 0);
   const ldm = rows.reduce((s, r) => s + r.ldm, 0);

@@ -174,7 +174,16 @@ export default function SifarislerPage() {
               expeditor: o.expeditor || "",
               extraManagers: o.extraManagers || "",
               customerType: o.customerType || o.customer?.type || "",
-              voyageNumber: voyages.length > 0 ? voyages.map((v: any) => (v.id ? `R-${v.id}` : "—")).join(", ") : "—",
+              voyageNumber: (() => {
+                const containers = Array.from(
+                  new Set(
+                    (o.loads || [])
+                      .map((l: any) => String(l.containerNumber || "").trim())
+                      .filter((n: string) => n && n !== "—"),
+                  ),
+                );
+                return containers.length > 0 ? containers.join(", ") : "—";
+              })(),
               carriers: voyages.length > 0 ? voyages.map((v: any) => v.carrier || "—").join(", ") : "—",
               route: voyages.length > 0 ? voyages.map((v: any) => `${v.loading || "—"} → ${v.unloading || "—"}`).join(" | ") : "—",
               voyages,

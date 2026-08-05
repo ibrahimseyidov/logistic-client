@@ -173,7 +173,7 @@ export default function SifarisTable({
           </th>
           <th className={styles.headerCell}>Sifarişin nömrəsi</th>
           <th className={styles.headerCell}>Sorğunun nömrəsi</th>
-          <th className={styles.headerCell}>Reysin nömrəsi</th>
+          <th className={styles.headerCell}>Konteynerin nömrəsi</th>
           <th className={styles.headerCell}>Sorğunun tarixi</th>
           <th className={styles.headerCell}>Sifarişin tarixi</th>
           <th className={styles.headerCell}>Sifarişin statusu</th>

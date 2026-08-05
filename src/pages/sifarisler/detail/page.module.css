@@ -380,6 +380,13 @@
   white-space: nowrap !important;
 }
 
+.tdClamp {
+  max-width: 220px;
+  white-space: nowrap !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .cargoDetailsBox {
   background: #f8fafc;
   border-left: 3px solid #cbd5e1;

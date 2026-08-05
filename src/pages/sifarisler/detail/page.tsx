@@ -3642,16 +3642,28 @@ export default function SifarisDetailPage() {
                               {`Tip: ${load.packagingType || "—"}\nLDM: ${load.ldm ?? "—"}\nHəcm: ${load.volumeM3 ?? "—"} m³\nÇəki: ${load.weightKg ?? "—"} kq`}
                             </div>
                           </td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                          <td
+                            className={`${styles.td} ${styles.tdClamp}`}
+                            title={load.sender || undefined}
+                          >
                             {load.sender}
                           </td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                          <td
+                            className={`${styles.td} ${styles.tdClamp}`}
+                            title={load.loadPlace || undefined}
+                          >
                             {load.loadPlace}
                           </td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                          <td
+                            className={`${styles.td} ${styles.tdClamp}`}
+                            title={load.receiver || undefined}
+                          >
                             {load.receiver}
                           </td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                          <td
+                            className={`${styles.td} ${styles.tdClamp}`}
+                            title={load.unloadPlace || undefined}
+                          >
                             {load.unloadPlace}
                           </td>
                           <td className={`${styles.td} ${styles.tdNowrap}`}>
@@ -3894,16 +3906,28 @@ export default function SifarisDetailPage() {
                           <td className={`${styles.td} ${styles.tdNowrap}`}>
                             {v.tags || "—"}
                           </td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                          <td
+                            className={`${styles.td} ${styles.tdClamp}`}
+                            title={v.sender || undefined}
+                          >
                             {v.sender || "—"}
                           </td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                          <td
+                            className={`${styles.td} ${styles.tdClamp}`}
+                            title={v.loadPlace || undefined}
+                          >
                             {v.loadPlace || "—"}
                           </td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                          <td
+                            className={`${styles.td} ${styles.tdClamp}`}
+                            title={v.receiver || undefined}
+                          >
                             {v.receiver || "—"}
                           </td>
-                          <td className={`${styles.td} ${styles.tdNowrap}`}>
+                          <td
+                            className={`${styles.td} ${styles.tdClamp}`}
+                            title={v.unloadPlace || undefined}
+                          >
                             {v.unloadPlace || "—"}
                           </td>
                           <td className={`${styles.td} ${styles.tdNowrap}`}>
