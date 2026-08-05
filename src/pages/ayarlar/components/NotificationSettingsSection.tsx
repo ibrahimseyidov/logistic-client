@@ -97,8 +97,8 @@ export const NotificationSettingsSection: React.FC<Props> = ({
           <div>
             <h2 className={styles.title}>Bildiriş ayarları</h2>
             <p className={styles.subtitle}>
-              Hər gün Azərbaycan vaxtı ilə aktiv sorğularınızın status xülasəsi
-              bir bildiriş kimi göndərilir.
+              Hər gün Azərbaycan vaxtı ilə bütün aktiv istifadəçilərə öz
+              sorğularının status xülasəsi bildiriş kimi göndərilir.
             </p>
           </div>
           {canEdit ? (
@@ -130,8 +130,8 @@ export const NotificationSettingsSection: React.FC<Props> = ({
               <span>
                 <strong>Gündəlik sorğu bildirişi</strong>
                 <span className={styles.hint}>
-                  Aktiv olduqda seçdiyiniz saatda zəng ikonuna bir bildiriş
-                  düşür.
+                  Aktiv olduqda seçdiyiniz saatda bütün istifadəçilərin zəng
+                  ikonuna öz statistikaları düşür.
                 </span>
               </span>
             </label>
@@ -151,9 +151,9 @@ export const NotificationSettingsSection: React.FC<Props> = ({
 
             <div className={styles.infoBox}>
               <p>
-                Bildirişdə yalnız sizə menecer və ya logist kimi təyin olunmuş
-                aktiv sorğuların statusları göstərilir: Yeni sorğu, Təklif
-                Gözlənilir, Qiymətləndirildi, Təklif edildi.
+                Hər istifadəçi yalnız özünə menecer/logist kimi təyin olunmuş
+                sorğuların sayını görür: Yeni sorğu, Təklif Gözlənilir,
+                Qiymətləndirildi, Təklif edildi.
               </p>
               <p className={styles.muted}>Son göndərilmə: {lastSentLabel}</p>
             </div>
