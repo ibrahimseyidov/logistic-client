@@ -151,7 +151,8 @@ export const NotificationSettingsSection: React.FC<Props> = ({
 
             <div className={styles.infoBox}>
               <p>
-                Bildirişdə aktiv statuslar birlikdə göstərilir: Yeni sorğu, Təklif
+                Bildirişdə yalnız sizə menecer və ya logist kimi təyin olunmuş
+                aktiv sorğuların statusları göstərilir: Yeni sorğu, Təklif
                 Gözlənilir, Qiymətləndirildi, Təklif edildi.
               </p>
               <p className={styles.muted}>Son göndərilmə: {lastSentLabel}</p>
