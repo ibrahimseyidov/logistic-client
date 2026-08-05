@@ -228,6 +228,7 @@ export default function SorgularEditModal({
   const [cargoComposition, setCargoComposition] = useState("");
   const [cargoSpecs, setCargoSpecs] = useState("");
   const [incoterms, setIncoterms] = useState("");
+  const [documentNumber, setDocumentNumber] = useState("");
 
   // Yükləmə yeri
   const [loadPlaceCompany, setLoadPlaceCompany] = useState("");
@@ -292,6 +293,7 @@ export default function SorgularEditModal({
     setCargoComposition("");
     setCargoSpecs("");
     setIncoterms("");
+    setDocumentNumber("");
     setLoadPlaceCompany("");
     setLoadCity("");
     setLoadCountry("");
@@ -359,6 +361,7 @@ export default function SorgularEditModal({
     setCargoComposition(data.cargoComposition || "");
     setCargoSpecs(data.cargoSpecs || "");
     setIncoterms(data.incoterms || "");
+    setDocumentNumber(data.number || "");
     setLoadPlaceCompany(data.loadPlaceCompany || "");
     setLoadCity(data.loadCity || "");
     setLoadCountry(data.loadCountry || "");
@@ -735,6 +738,7 @@ export default function SorgularEditModal({
       cargoComposition: cargoComposition || undefined,
       cargoSpecs: cargoSpecs || undefined,
       incoterms: incoterms || undefined,
+      number: documentNumber.trim() || undefined,
 
       // Yükləmə yeri
       loadPlaceCompany: loadPlaceCompany || undefined,
@@ -1014,6 +1018,17 @@ export default function SorgularEditModal({
                           onClick={() => openLookupModal("incoterms", "Incoterms")}
                         />
                       </div>
+                    </div>
+                    <div className={styles.fieldStack}>
+                      <Label>Sənəd nömrəsi</Label>
+                      <input
+                        className={styles.input}
+                        value={documentNumber}
+                        onChange={(event) =>
+                          setDocumentNumber(event.target.value)
+                        }
+                        placeholder="Q-2026-0001"
+                      />
                     </div>
                   </div>
                 </div>

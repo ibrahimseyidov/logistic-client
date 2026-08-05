@@ -371,7 +371,7 @@ export const DocumentsSection: React.FC<DocumentsSectionProps> = ({
               Nömrələmə
             </h3>
             <div className={styles.formGrid}>
-              <label className={`${styles.field} ${styles.full}`}>
+              <label className={styles.field}>
                 <span>Sorğu nömrə prefiksi</span>
                 <input
                   value={design.queryNumberPrefix ?? ""}
@@ -380,15 +380,83 @@ export const DocumentsSection: React.FC<DocumentsSectionProps> = ({
                   }
                   placeholder={`Q-${new Date().getFullYear()}`}
                 />
-                <small style={{ color: "#6b7280", marginTop: 4 }}>
+              </label>
+              <label className={styles.field}>
+                <span>Sorğu başlanğıc nömrəsi</span>
+                <input
+                  value={design.queryNumberStart ?? ""}
+                  onChange={(e) =>
+                    setDesignField(
+                      "queryNumberStart",
+                      e.target.value.replace(/[^\d]/g, ""),
+                    )
+                  }
+                  placeholder="0001"
+                  inputMode="numeric"
+                />
+              </label>
+              <label className={`${styles.field} ${styles.full}`}>
+                <small style={{ color: "#6b7280" }}>
                   Yeni sorğular{" "}
                   <strong>
-                    {(design.queryNumberPrefix || `Q-${new Date().getFullYear()}`)
+                    {(
+                      design.queryNumberPrefix ||
+                      `Q-${new Date().getFullYear()}`
+                    )
                       .trim()
-                      .replace(/-+$/g, "") || `Q-${new Date().getFullYear()}`}
-                    -0001
+                      .replace(/-+$/g, "") ||
+                      `Q-${new Date().getFullYear()}`}
+                    -
+                    {(design.queryNumberStart || "0001")
+                      .replace(/\D/g, "")
+                      .padStart(4, "0") || "0001"}
                   </strong>{" "}
-                  formatında yaradılacaq. Nümunə: Q-2026 → Q-2026-0020
+                  formatından başlayıb artacaq. Nümunə: ZFR + 0736 → ZFR-0736,
+                  ZFR-0737…
+                </small>
+              </label>
+
+              <label className={styles.field}>
+                <span>Sifariş nömrə prefiksi</span>
+                <input
+                  value={design.orderNumberPrefix ?? ""}
+                  onChange={(e) =>
+                    setDesignField("orderNumberPrefix", e.target.value)
+                  }
+                  placeholder={`SF-${new Date().getFullYear()}`}
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Sifariş başlanğıc nömrəsi</span>
+                <input
+                  value={design.orderNumberStart ?? ""}
+                  onChange={(e) =>
+                    setDesignField(
+                      "orderNumberStart",
+                      e.target.value.replace(/[^\d]/g, ""),
+                    )
+                  }
+                  placeholder="0001"
+                  inputMode="numeric"
+                />
+              </label>
+              <label className={`${styles.field} ${styles.full}`}>
+                <small style={{ color: "#6b7280" }}>
+                  Yeni sifarişlər{" "}
+                  <strong>
+                    {(
+                      design.orderNumberPrefix ||
+                      `SF-${new Date().getFullYear()}`
+                    )
+                      .trim()
+                      .replace(/-+$/g, "") ||
+                      `SF-${new Date().getFullYear()}`}
+                    -
+                    {(design.orderNumberStart || "0001")
+                      .replace(/\D/g, "")
+                      .padStart(4, "0") || "0001"}
+                  </strong>{" "}
+                  formatından başlayıb artacaq.
                 </small>
               </label>
             </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { FiX, FiCalendar, FiSearch, FiPlus } from "react-icons/fi";
 import type { SifarisOrderRow } from "../types/sifaris.types";
 import styles from "../../sorgular/components/SorgularNewModal.module.css";
@@ -13,7 +13,8 @@ import {
   normalizeCarrierContacts,
   parseCarrierDocuments,
 } from "../../../common/utils/carrierDisplay.utils";
-import { formatDateOnly } from "../lib/formatDate";
+import { toDateIso } from "../lib/formatDate";
+import { resolveOfferSalesTotalSummary } from "../lib/offerExpense.utils";
 
 interface Props {
   isOpen: boolean;
@@ -202,6 +203,22 @@ export default function SifarisEditModal({
   const [paymentTerms, setPaymentTerms] = useState("");
   const [paymentDelayDays, setPaymentDelayDays] = useState("0");
   const [incoterms, setIncoterms] = useState("");
+  const orderDateRef = useRef<HTMLInputElement | null>(null);
+  const exchangeRateDateRef = useRef<HTMLInputElement | null>(null);
+
+  const openDatePicker = (input: HTMLInputElement | null) => {
+    if (!input) return;
+    try {
+      if (typeof input.showPicker === "function") {
+        input.showPicker();
+        return;
+      }
+    } catch {
+      // Some browsers throw if showPicker is called without a user gesture context
+    }
+    input.focus();
+    input.click();
+  };
 
   // Populate fields on open — wait for option lists so select values match
   useEffect(() => {
@@ -217,7 +234,7 @@ export default function SifarisEditModal({
     };
 
     setOrderNumber(pick(order.orderNumber));
-    setOrderDate(formatDateOnly(order.orderDate) === "—" ? "" : formatDateOnly(order.orderDate));
+    setOrderDate(toDateIso(order.orderDate));
     setCustomerOrderRef(
       pick(order.customerOrderRef, q.customerOrderRef),
     );
@@ -265,14 +282,27 @@ export default function SifarisEditModal({
     setCompany(pick(order.company, q.company) || "Ziyafreight");
     setExtraInfo(pick(order.extraInfo, q.additionalInfo));
 
-    // Pricing
-    const baslangicTx = financeTransactions.find(
-      (t) => String(t.name || "").trim() === "Başlanğıc tarif",
-    );
+    // Pricing — Başlanğıc tarif: order → maliyyə sətri → təklif satış qiyməti
+    const baslangicTx =
+      financeTransactions.find(
+        (t) => String(t.name || "").trim() === "Başlanğıc tarif",
+      ) ||
+      financeTransactions.find((t) =>
+        /^İrəli hesab #/i.test(String(t.name || "").trim()),
+      );
+    const offerSummary = resolveOfferSalesTotalSummary({
+      order,
+      financeTransactions,
+    });
     const freightAmount =
       extractMoneyAmount(order.freight) ||
+      extractMoneyAmount(order.freightWithVat) ||
       extractMoneyAmount(baslangicTx?.tarifPrice) ||
-      extractMoneyAmount(baslangicTx?.edvliTarifPrice);
+      extractMoneyAmount(baslangicTx?.edvliTarifPrice) ||
+      (offerSummary && offerSummary.sales > 0
+        ? String(offerSummary.sales)
+        : "") ||
+      (Number(order.freightAzn) > 0 ? String(order.freightAzn) : "");
     const freightVatAmount =
       extractMoneyAmount(order.freightWithVat) || freightAmount;
     const curr =
@@ -280,8 +310,9 @@ export default function SifarisEditModal({
       extractCurrency(
         baslangicTx?.tarifCurrency ||
           baslangicTx?.edvliTarifCurrency ||
-          order.freight,
-        "EUR",
+          order.freight ||
+          offerSummary?.currency,
+        offerSummary?.currency || "EUR",
       );
 
     setServiceName(pick(order.serviceName) || "Başlanğıc tarif");
@@ -289,13 +320,7 @@ export default function SifarisEditModal({
     setFreightWithVat(freightVatAmount);
     setVatRate(pick(order.vatRate) || "0%");
     setCurrency(curr);
-    setExchangeRateDate(
-      order.exchangeRateDate
-        ? formatDateOnly(String(order.exchangeRateDate)) === "—"
-          ? ""
-          : formatDateOnly(String(order.exchangeRateDate))
-        : "",
-    );
+    setExchangeRateDate(toDateIso(order.exchangeRateDate ? String(order.exchangeRateDate) : ""));
     setPaymentTerms(pick(order.paymentTerms, q.paymentTerms));
     setPaymentDelayDays(pick(order.paymentDelayDays) || "0");
     setIncoterms(pick(order.incoterms, q.incoterms));
@@ -557,8 +582,9 @@ export default function SifarisEditModal({
               </label>
               <div style={{ position: "relative" }}>
                 <input
-                  type="text"
-                  value={orderDate}
+                  ref={orderDateRef}
+                  type="date"
+                  value={toDateIso(orderDate)}
                   onChange={(e) => setOrderDate(e.target.value)}
                   style={{
                     border: "1px solid #cbd5e1",
@@ -572,16 +598,27 @@ export default function SifarisEditModal({
                     fontWeight: 500,
                   }}
                 />
-                <FiCalendar
+                <button
+                  type="button"
+                  onClick={() => openDatePicker(orderDateRef.current)}
+                  aria-label="Tarix seç"
                   style={{
                     position: "absolute",
-                    right: "0.85rem",
+                    right: "0.55rem",
                     top: "50%",
                     transform: "translateY(-50%)",
+                    border: 0,
+                    background: "transparent",
                     color: "#94a3b8",
-                    pointerEvents: "none",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0.25rem",
                   }}
-                />
+                >
+                  <FiCalendar size={16} />
+                </button>
               </div>
             </div>
 
@@ -1053,109 +1090,103 @@ export default function SifarisEditModal({
                   </label>
                   <div
                     style={{
-                      border: "1px solid #cbd5e1",
-                      borderRadius: "0.5rem",
-                      padding: "0.45rem 0.65rem",
                       display: "flex",
-                      flexWrap: "wrap",
-                      gap: "0.375rem",
-                      minHeight: "38px",
-                      boxSizing: "border-box",
-                      alignItems: "center",
+                      flexDirection: "column",
+                      gap: "0.5rem",
                     }}
                   >
-                    {extraManagers.map((m, idx) => (
+                    {extraManagers.length > 0 ? (
                       <div
-                        key={idx}
                         style={{
-                          background: "#e2e8f0",
-                          borderRadius: "0.25rem",
-                          padding: "2px 6px",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "0.5rem",
+                          padding: "0.45rem 0.65rem",
                           display: "flex",
-                          alignItems: "center",
+                          flexWrap: "wrap",
                           gap: "0.375rem",
-                          fontSize: "0.75rem",
-                          fontWeight: 500,
-                          color: "#334155",
+                          minHeight: "38px",
+                          boxSizing: "border-box",
+                          alignItems: "center",
                         }}
                       >
-                        <span
-                          style={{ cursor: "pointer", fontWeight: 700 }}
-                          onClick={() =>
-                            setExtraManagers(
-                              extraManagers.filter((_, i) => i !== idx),
-                            )
-                          }
-                        >
-                          ×
-                        </span>
-                        {m}
+                        {extraManagers.map((m, idx) => (
+                          <div
+                            key={`${m}-${idx}`}
+                            style={{
+                              background: "#e2e8f0",
+                              borderRadius: "0.25rem",
+                              padding: "2px 6px",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.375rem",
+                              fontSize: "0.75rem",
+                              fontWeight: 500,
+                              color: "#334155",
+                            }}
+                          >
+                            <span
+                              style={{ cursor: "pointer", fontWeight: 700 }}
+                              onClick={() =>
+                                setExtraManagers(
+                                  extraManagers.filter((_, i) => i !== idx),
+                                )
+                              }
+                            >
+                              ×
+                            </span>
+                            {m}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                    <input
-                      type="text"
-                      placeholder={
-                        extraManagers.length === 0 ? "Menecer əlavə edin" : ""
-                      }
-                      style={{
-                        border: 0,
-                        outline: "none",
-                        fontSize: "0.85rem",
-                        flex: 1,
-                        minWidth: "60px",
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && e.currentTarget.value.trim()) {
-                          setExtraManagers([
-                            ...extraManagers,
-                            e.currentTarget.value.trim(),
-                          ]);
-                          e.currentTarget.value = "";
+                    ) : null}
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        if (!id) return;
+                        const user = usersData.find(
+                          (u: any) => String(u.id) === String(id),
+                        );
+                        const name = String(user?.name || id).trim();
+                        if (!name) return;
+                        const exists = extraManagers.some(
+                          (m) =>
+                            m.toLowerCase() === name.toLowerCase() ||
+                            findUserId(usersData, m) === String(id),
+                        );
+                        if (!exists) {
+                          setExtraManagers([...extraManagers, name]);
                         }
                       }}
-                    />
+                      style={{
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "0.5rem",
+                        padding: "0.625rem 0.85rem",
+                        fontSize: "0.875rem",
+                        color: "#1e293b",
+                        outline: "none",
+                        background: "#ffffff",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <option value="">Menecer seçin</option>
+                      {usersData
+                        .filter((u: any) => {
+                          const name = String(u?.name || "").trim();
+                          const id = String(u?.id ?? "");
+                          return !extraManagers.some(
+                            (m) =>
+                              m.toLowerCase() === name.toLowerCase() ||
+                              findUserId(usersData, m) === id,
+                          );
+                        })
+                        .map((u: any) => (
+                          <option key={u.id} value={u.id?.toString()}>
+                            {u.name}
+                          </option>
+                        ))}
+                    </select>
                   </div>
-                </div>
-
-                {/* Şirkət */}
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.375rem",
-                  }}
-                >
-                  <label
-                    style={{
-                      fontSize: "0.75rem",
-                      fontWeight: 600,
-                      color: "#94a3b8",
-                    }}
-                  >
-                    Şirkət <span style={{ color: "#ef4444" }}>*</span>
-                  </label>
-                  <select
-                    value={company}
-                    onChange={(e) => setCompany(e.target.value)}
-                    style={{
-                      border: "1px solid #cbd5e1",
-                      borderRadius: "0.5rem",
-                      padding: "0.625rem 0.85rem",
-                      fontSize: "0.875rem",
-                      color: "#1e293b",
-                      outline: "none",
-                      background: "#ffffff",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <option value="Ziyafreight">Ziyafreight</option>
-                    <option value="Ziyalog LLC">Ziyalog LLC</option>
-                    {company &&
-                      company !== "Ziyafreight" &&
-                      company !== "Ziyalog LLC" && (
-                        <option value={company}>{company}</option>
-                      )}
-                  </select>
                 </div>
 
                 {/* Əlavə məlumat */}
@@ -1447,8 +1478,9 @@ export default function SifarisEditModal({
                   </label>
                   <div style={{ position: "relative" }}>
                     <input
-                      type="text"
-                      value={exchangeRateDate}
+                      ref={exchangeRateDateRef}
+                      type="date"
+                      value={toDateIso(exchangeRateDate)}
                       onChange={(e) => setExchangeRateDate(e.target.value)}
                       style={{
                         border: "1px solid #cbd5e1",
@@ -1461,16 +1493,27 @@ export default function SifarisEditModal({
                         boxSizing: "border-box",
                       }}
                     />
-                    <FiCalendar
+                    <button
+                      type="button"
+                      onClick={() => openDatePicker(exchangeRateDateRef.current)}
+                      aria-label="Məzənnə tarixi seç"
                       style={{
                         position: "absolute",
-                        right: "0.85rem",
+                        right: "0.55rem",
                         top: "50%",
                         transform: "translateY(-50%)",
+                        border: 0,
+                        background: "transparent",
                         color: "#94a3b8",
-                        pointerEvents: "none",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "0.25rem",
                       }}
-                    />
+                    >
+                      <FiCalendar size={16} />
+                    </button>
                   </div>
                 </div>
 

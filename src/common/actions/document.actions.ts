@@ -45,6 +45,12 @@ export type DocumentDesign = {
   bankIbanGbp: string;
   /** Sorğu nömrəsinin başlanğıcı, məs: Q-2026 → Q-2026-0001 */
   queryNumberPrefix: string;
+  /** Sorğu seriya başlanğıcı, məs: 0736 → ZFR-0736 */
+  queryNumberStart: string;
+  /** Sifariş nömrəsinin başlanğıcı, məs: SF-2026 → SF-2026-0001 */
+  orderNumberPrefix: string;
+  /** Sifariş seriya başlanğıcı, məs: 0736 → SF-0736 */
+  orderNumberStart: string;
 };
 
 export type DocumentTemplate = {

@@ -29,8 +29,15 @@ export function formatDateOnly(value: string | null | undefined): string {
 export function toDateIso(value: string | null | undefined): string {
   if (!value) return "";
   const raw = String(value).trim();
+  if (!raw || raw === "—") return "";
   if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
     return raw.slice(0, 10);
+  }
+  const dmy = raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if (dmy) {
+    const day = dmy[1].padStart(2, "0");
+    const month = dmy[2].padStart(2, "0");
+    return `${dmy[3]}-${month}-${day}`;
   }
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return "";
