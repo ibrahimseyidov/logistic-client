@@ -5,6 +5,7 @@ export type AyarlarTab =
   | "incoterms"
   | "transport-types"
   | "documents"
+  | "notifications"
   | "logs";
 
 export const AYARLAR_TITLE = "Parametrlər";
@@ -16,6 +17,7 @@ export const AYARLAR_TABS: { id: AyarlarTab; label: string }[] = [
   { id: "incoterms", label: "İnkoterms" },
   { id: "transport-types", label: "Nəqliyyat tipləri" },
   { id: "documents", label: "Sənədlər" },
+  { id: "notifications", label: "Bildiriş ayarları" },
   { id: "logs", label: "Loglar" },
 ];
 
@@ -30,6 +32,7 @@ export function parseAyarlarTab(tab: string | null): AyarlarTab {
     tab === "incoterms" ||
     tab === "transport-types" ||
     tab === "documents" ||
+    tab === "notifications" ||
     tab === "logs"
   ) {
     return tab;

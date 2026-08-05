@@ -1,10 +1,3 @@
-import { SorguStatus } from "../types/sorgu.types";
-const statusOptions: SelectOption[] = [
-  { value: SorguStatus.Pending, label: "Gözləmədə" },
-  { value: "completed", label: "Tamamlandı" },
-  { value: "cancelled", label: "Ləğv edildi" },
-  { value: SorguStatus.Approved, label: "Təsdiq edildi" },
-];
 import {
   useCallback,
   useEffect,
@@ -16,6 +9,13 @@ import {
 import { FaInfoCircle, FaMapMarkerAlt } from "react-icons/fa";
 import Select from "../../../common/components/select/Select";
 import type { SelectOption } from "../../../common/components/select/Select";
+import { SorguStatus } from "../types/sorgu.types";
+import { SORGU_STATUS_OPTIONS } from "../lib/sorguStatus";
+
+const statusOptions: SelectOption[] = SORGU_STATUS_OPTIONS.map((o) => ({
+  value: o.value,
+  label: o.label,
+}));
 import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
 import styles from "./SorgularEditModal.module.css";

@@ -61,3 +61,45 @@ export async function markAllNotificationsReadAction(): Promise<void> {
     headers: getHeaders(),
   });
 }
+
+export async function clearAllNotificationsAction(): Promise<void> {
+  await axios.delete(buildApiUrl("/api/notifications/clear"), {
+    headers: getHeaders(),
+  });
+}
+
+export type NotificationDigestSettings = {
+  enabled: boolean;
+  time: string;
+  timezone?: string;
+  lastSentAt?: string | null;
+};
+
+export async function fetchNotificationSettingsAction(): Promise<NotificationDigestSettings> {
+  const res = await axios.get(buildApiUrl("/api/notifications/settings"), {
+    headers: getHeaders(),
+  });
+  return {
+    enabled: Boolean(res.data?.enabled),
+    time: String(res.data?.time || "09:00"),
+    timezone: String(res.data?.timezone || "Asia/Baku"),
+    lastSentAt: res.data?.lastSentAt || null,
+  };
+}
+
+export async function updateNotificationSettingsAction(payload: {
+  enabled: boolean;
+  time: string;
+}): Promise<NotificationDigestSettings> {
+  const res = await axios.put(
+    buildApiUrl("/api/notifications/settings"),
+    payload,
+    { headers: getHeaders() },
+  );
+  return {
+    enabled: Boolean(res.data?.enabled),
+    time: String(res.data?.time || "09:00"),
+    timezone: String(res.data?.timezone || "Asia/Baku"),
+    lastSentAt: res.data?.lastSentAt || null,
+  };
+}

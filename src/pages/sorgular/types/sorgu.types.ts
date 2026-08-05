@@ -1,8 +1,10 @@
 export enum SorguStatus {
-  Pending = "pending",
-  Cancelled = "cancelled",
-  Completed = "completed",
+  NewQuery = "new_query",
+  WaitingOffer = "waiting_offer",
+  Evaluated = "evaluated",
+  Offered = "offered",
   Approved = "approved",
+  Cancelled = "cancelled",
 }
 export type SorguSubTab = "active" | "archive" | "offers";
 

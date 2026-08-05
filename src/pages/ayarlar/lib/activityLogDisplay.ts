@@ -178,6 +178,10 @@ function translateScalar(value: string, field?: string): string {
     lower === "cancelled" ||
     lower === "canceled" ||
     lower === "completed" ||
+    lower === "new_query" ||
+    lower === "waiting_offer" ||
+    lower === "evaluated" ||
+    lower === "offered" ||
     lower === "planned" ||
     lower === "progress" ||
     lower === "in_progress"

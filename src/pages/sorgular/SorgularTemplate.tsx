@@ -20,6 +20,7 @@ import {
 } from "../../common/actions/query.actions";
 import { useSorgularPagination } from "./hooks/useSorgularPagination";
 import { applyFilters, filterByTab } from "./lib/filterSorgular";
+import { countSorguStatuses, normalizeSorguStatus } from "./lib/sorguStatus";
 import styles from "./sorgular.module.css";
 import type {
   FilterFormState,
@@ -47,6 +48,9 @@ export default function SorgularTemplate({
     useState<FilterFormState>(emptyFilterForm);
   const [appliedFilter, setAppliedFilter] =
     useState<FilterFormState>(emptyFilterForm);
+  const [statusQuickFilter, setStatusQuickFilter] = useState<string | null>(
+    null,
+  );
   const [isNewOpen, setIsNewOpen] = useState(false);
   const [rows, setRows] = useState<LogisticQueryRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,14 +127,21 @@ export default function SorgularTemplate({
 
   const tabRows = useMemo(() => filterByTab(rows, subTab), [rows, subTab]);
 
-  const filteredRows = useMemo(
+  const baseFilteredRows = useMemo(
     () => applyFilters(tabRows, appliedFilter),
     [tabRows, appliedFilter],
   );
 
-  const confirmedCount = useMemo(
-    () => filteredRows.filter((row) => row.confirmed).length,
-    [filteredRows],
+  const filteredRows = useMemo(() => {
+    if (!statusQuickFilter) return baseFilteredRows;
+    return baseFilteredRows.filter(
+      (row) => normalizeSorguStatus(row.status) === statusQuickFilter,
+    );
+  }, [baseFilteredRows, statusQuickFilter]);
+
+  const statusCounts = useMemo(
+    () => countSorguStatuses(baseFilteredRows),
+    [baseFilteredRows],
   );
 
   const activeFilterCount = useMemo(
@@ -153,6 +164,7 @@ export default function SorgularTemplate({
   useEffect(() => {
     setCurrentPage(1);
     setIsFilterPanelOpen(false);
+    setStatusQuickFilter(null);
   }, [subTab, setCurrentPage]);
 
   const handleApplyFilter = () => {
@@ -236,13 +248,25 @@ export default function SorgularTemplate({
 
       <div className={styles.header}>
         <SorgularActionBar
-          total={filteredRows.length}
-          confirmedCount={confirmedCount}
+          total={baseFilteredRows.length}
+          statusCounts={statusCounts}
+          statusFilter={statusQuickFilter}
+          onStatusFilter={(status) => {
+            setStatusQuickFilter(status);
+            setCurrentPage(1);
+          }}
           onNew={() => setIsNewOpen(true)}
           onOpenFilters={() => setIsFilterPanelOpen(true)}
           onImportExcel={handleImportExcel}
           onExportExcel={handleExportExcel}
           activeFilterCount={activeFilterCount}
+          permChild={
+            subTab === "archive"
+              ? "archive"
+              : subTab === "offers"
+                ? "offers"
+                : "active"
+          }
         />
       </div>
 

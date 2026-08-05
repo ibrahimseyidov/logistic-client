@@ -28,6 +28,14 @@ export function usePermissions() {
     (moduleId: string, action: CrudAction = "view", childId?: string) => {
       if (!user) return false;
       if (isAdmin) return true;
+      // Şəxsi bildiriş ayarları — bütün aktiv istifadəçilər
+      if (
+        moduleId === "ayarlar" &&
+        childId === "notifications" &&
+        (action === "view" || action === "edit")
+      ) {
+        return true;
+      }
       return canPerm(perms, moduleId, action, childId);
     },
     [user, isAdmin, perms],

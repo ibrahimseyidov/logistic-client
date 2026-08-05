@@ -1,14 +1,16 @@
 import { FiInfo } from "react-icons/fi";
 import * as Popover from "@radix-ui/react-popover";
 
-// İngilizce status -> Azerice label çevirisi
+// İngilizce / kod status -> Azərbaycan label
 export function statusLabelAz(value: string): string {
-  const v = value.toLowerCase();
-  if (v === "pending") return "Gözləmədə";
-  if (v === "completed") return "Tamamlandı";
-  if (v === "approved") return "Təsdiq edildi";
+  const v = value.toLowerCase().trim();
+  if (v === "new_query" || v === "pending") return "Yeni sorğu";
+  if (v === "waiting_offer") return "Təklif Gözlənilir";
+  if (v === "evaluated" || v === "completed") return "Qiymətləndirildi";
+  if (v === "offered") return "Təklif edildi";
+  if (v === "approved") return "Təsdiq";
   if (v === "cancelled" || v === "canceled" || v.includes("cancel"))
-    return "Ləğv edildi";
+    return "Ləğv";
   return value;
 }
 export type StatusTone =
@@ -89,12 +91,37 @@ function normalizeStatus(value: string | undefined | null) {
 export function getStatusTone(value: string, kind?: string): StatusTone {
   const normalizedKind = kind ? normalizeStatus(kind) : "";
   const normalizedValue = normalizeStatus(value);
+  const raw = String(value || "")
+    .toLowerCase()
+    .trim();
+
+  // Sorğu statusları (xüsusi)
+  if (raw === "new_query" || raw === "pending" || normalizedValue === "yeni sorgu") {
+    return "rose";
+  }
+  if (
+    raw === "waiting_offer" ||
+    normalizedValue.includes("teklif gozlen")
+  ) {
+    return "amber";
+  }
+  if (
+    raw === "evaluated" ||
+    raw === "completed" ||
+    normalizedValue.includes("qiymetlendir")
+  ) {
+    return "emerald";
+  }
+  if (raw === "offered" || normalizedValue === "teklif edildi") {
+    return "sky";
+  }
 
   if (
     normalizedKind.includes("completed") ||
     normalizedValue.includes("tamam") ||
     normalizedValue.includes("tesdiq") ||
-    normalizedValue.includes("approved")
+    normalizedValue.includes("approved") ||
+    raw === "approved"
   ) {
     return "emerald";
   }
@@ -126,7 +153,9 @@ export function getStatusTone(value: string, kind?: string): StatusTone {
   if (
     normalizedValue.includes("legv") ||
     normalizedValue.includes("xeyr") ||
-    normalizedValue.includes("cancel")
+    normalizedValue.includes("cancel") ||
+    raw === "cancelled" ||
+    raw === "canceled"
   ) {
     return "rose";
   }

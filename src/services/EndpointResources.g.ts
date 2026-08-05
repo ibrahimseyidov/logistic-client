@@ -74,7 +74,9 @@ export const ENDPOINTS = {
     BASE: `${API}/notifications`,
     UNREAD_COUNT: `${API}/notifications/unread-count`,
     READ_ALL: `${API}/notifications/read-all`,
+    CLEAR: `${API}/notifications/clear`,
     READ: (id: number | string) => `${API}/notifications/${id}/read`,
+    SETTINGS: `${API}/notifications/settings`,
   },
   DOCUMENTS: {
     TEMPLATES: `${API}/documents/templates`,

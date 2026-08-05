@@ -275,7 +275,18 @@ export default function Sidebar() {
   const visibleSections = NAV_SECTIONS.map((section) => ({
     ...section,
     items: section.items
-      .filter((item) => canView(item.permModule, item.permChild))
+      .filter((item) => {
+        if (item.children?.length) {
+          const anyChild = item.children.some((child) =>
+            canView(
+              item.permModule,
+              child.permChild || child.matchTab || item.permChild,
+            ),
+          );
+          if (anyChild) return true;
+        }
+        return canView(item.permModule, item.permChild);
+      })
       .map((item) => {
         if (!item.children?.length) return item;
         const children = item.children.filter((child) =>

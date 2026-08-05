@@ -8,9 +8,16 @@ import {
   fetchUnreadNotificationCountAction,
   markAllNotificationsReadAction,
   markNotificationReadAction,
+  clearAllNotificationsAction,
   type AppNotification,
 } from "../../../actions/notification.actions";
 import { useAuth } from "../../../contexts/AuthContext";
+import {
+  DIGEST_STATUS_ROWS,
+  formatDigestBrowserBody,
+  parseDailyQueryDigest,
+  type DigestCounts,
+} from "../../../utils/dailyQueryDigest.utils";
 import styles from "./NotificationBell.module.css";
 
 const POLL_MS = 8000;
@@ -35,6 +42,14 @@ function ensureBrowserPermission() {
   }
 }
 
+function notificationBody(item: AppNotification): string {
+  if (item.type === "daily_query_digest") {
+    const digest = parseDailyQueryDigest(item.message);
+    if (digest) return formatDigestBrowserBody(digest);
+  }
+  return item.message;
+}
+
 function showBrowserToast(item: AppNotification) {
   if (typeof window === "undefined" || !("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
@@ -42,7 +57,7 @@ function showBrowserToast(item: AppNotification) {
 
   try {
     const n = new Notification(item.title || "Yeni bildiriş", {
-      body: item.message,
+      body: notificationBody(item),
       tag: `Ziyalog-n-${item.id}`,
     });
     n.onclick = () => {
@@ -53,6 +68,13 @@ function showBrowserToast(item: AppNotification) {
     /* ignore */
   }
 }
+
+const toneClass: Record<string, string> = {
+  rose: styles.digestToneRose,
+  amber: styles.digestToneAmber,
+  emerald: styles.digestToneEmerald,
+  sky: styles.digestToneSky,
+};
 
 export default function NotificationBell() {
   const { user } = useAuth();
@@ -121,23 +143,26 @@ export default function NotificationBell() {
 
   if (!user) return null;
 
+  const markReadLocal = async (item: AppNotification) => {
+    if (item.read) return;
+    try {
+      await markNotificationReadAction(item.id);
+      setItems((prev) =>
+        prev.map((n) => (n.id === item.id ? { ...n, read: true } : n)),
+      );
+      setUnread((c) => Math.max(0, c - 1));
+    } catch {
+      /* ignore */
+    }
+  };
+
   const handleOpen = () => {
     setOpen((prev) => !prev);
     if (!open) void refresh();
   };
 
   const handleClickItem = async (item: AppNotification) => {
-    if (!item.read) {
-      try {
-        await markNotificationReadAction(item.id);
-        setItems((prev) =>
-          prev.map((n) => (n.id === item.id ? { ...n, read: true } : n)),
-        );
-        setUnread((c) => Math.max(0, c - 1));
-      } catch {
-        /* ignore */
-      }
-    }
+    await markReadLocal(item);
     setOpen(false);
     if (item.link) {
       navigate(item.link);
@@ -146,10 +171,31 @@ export default function NotificationBell() {
     }
   };
 
+  const handleDigestNavigate = async (
+    item: AppNotification,
+    status: keyof DigestCounts | null,
+  ) => {
+    await markReadLocal(item);
+    setOpen(false);
+    const params = new URLSearchParams({ tab: "active" });
+    if (status) params.set("status", status);
+    navigate(`/sorgular?${params.toString()}`);
+  };
+
   const handleMarkAll = async () => {
     try {
       await markAllNotificationsReadAction();
       setItems((prev) => prev.map((n) => ({ ...n, read: true })));
+      setUnread(0);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handleClearAll = async () => {
+    try {
+      await clearAllNotificationsAction();
+      setItems([]);
       setUnread(0);
     } catch {
       /* ignore */
@@ -175,36 +221,99 @@ export default function NotificationBell() {
         <div className={styles.dropdown} role="menu">
           <div className={styles.dropdownHeader}>
             <strong>Bildirimlər</strong>
-            {unread > 0 ? (
-              <button
-                type="button"
-                className={styles.markAll}
-                onClick={handleMarkAll}
-              >
-                Hamısını oxu
-              </button>
-            ) : null}
+            <div className={styles.headerActions}>
+              {unread > 0 ? (
+                <button
+                  type="button"
+                  className={styles.markAll}
+                  onClick={handleMarkAll}
+                >
+                  Hamısını oxu
+                </button>
+              ) : null}
+              {items.length > 0 ? (
+                <button
+                  type="button"
+                  className={styles.clearAll}
+                  onClick={() => {
+                    void handleClearAll();
+                  }}
+                >
+                  Təmizlə
+                </button>
+              ) : null}
+            </div>
           </div>
           <div className={styles.list}>
             {items.length === 0 ? (
               <p className={styles.empty}>Bildirim yoxdur</p>
             ) : (
-              items.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`${styles.item} ${item.read ? "" : styles.itemUnread}`}
-                  onClick={() => {
-                    void handleClickItem(item);
-                  }}
-                >
-                  <span className={styles.itemTitle}>{item.title}</span>
-                  <span className={styles.itemMessage}>{item.message}</span>
-                  <span className={styles.itemTime}>
-                    {formatRelative(item.createdAt)}
-                  </span>
-                </button>
-              ))
+              items.map((item) => {
+                const digest =
+                  item.type === "daily_query_digest"
+                    ? parseDailyQueryDigest(item.message)
+                    : null;
+
+                if (digest) {
+                  return (
+                    <div
+                      key={item.id}
+                      className={`${styles.item} ${styles.digestItem} ${
+                        item.read ? "" : styles.itemUnread
+                      }`}
+                    >
+                      <span className={styles.itemTitle}>{item.title}</span>
+                      <div className={styles.digestList}>
+                        <button
+                          type="button"
+                          className={`${styles.digestRow} ${styles.digestToneAll}`}
+                          onClick={() => {
+                            void handleDigestNavigate(item, null);
+                          }}
+                        >
+                          <span>Hamısı</span>
+                          <strong>{digest.total}</strong>
+                        </button>
+                        {DIGEST_STATUS_ROWS.map((row) => (
+                          <button
+                            key={row.key}
+                            type="button"
+                            className={`${styles.digestRow} ${
+                              toneClass[row.tone] || ""
+                            }`}
+                            onClick={() => {
+                              void handleDigestNavigate(item, row.key);
+                            }}
+                          >
+                            <span>{row.label}</span>
+                            <strong>{digest.counts[row.key] ?? 0}</strong>
+                          </button>
+                        ))}
+                      </div>
+                      <span className={styles.itemTime}>
+                        {formatRelative(item.createdAt)}
+                      </span>
+                    </div>
+                  );
+                }
+
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`${styles.item} ${item.read ? "" : styles.itemUnread}`}
+                    onClick={() => {
+                      void handleClickItem(item);
+                    }}
+                  >
+                    <span className={styles.itemTitle}>{item.title}</span>
+                    <span className={styles.itemMessage}>{item.message}</span>
+                    <span className={styles.itemTime}>
+                      {formatRelative(item.createdAt)}
+                    </span>
+                  </button>
+                );
+              })
             )}
           </div>
         </div>

@@ -1,11 +1,16 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { FiFilePlus, FiFilter, FiUpload, FiDownload, FiChevronDown } from "react-icons/fi";
 import { usePermissions } from "../../../common/hooks/usePermissions";
+import { SORGU_STATUS_OPTIONS } from "../lib/sorguStatus";
+import { SorguStatus } from "../types/sorgu.types";
 import styles from "./SorgularActionBar.module.css";
 
 interface Props {
   total: number;
-  confirmedCount: number;
+  statusCounts: Record<string, number>;
+  /** null / "" = Hamısı */
+  statusFilter?: string | null;
+  onStatusFilter?: (status: string | null) => void;
   onNew: () => void;
   onOpenFilters: () => void;
   onImportExcel: () => void;
@@ -15,9 +20,18 @@ interface Props {
   permChild?: string;
 }
 
+const pillToneClass: Record<string, string> = {
+  amber: styles.statPillAmber,
+  emerald: styles.statPillEmerald,
+  rose: styles.statPillRose,
+  sky: styles.statPillSky,
+};
+
 export default function SorgularActionBar({
   total,
-  confirmedCount,
+  statusCounts,
+  statusFilter = null,
+  onStatusFilter,
   onNew,
   onOpenFilters,
   onImportExcel,
@@ -30,6 +44,24 @@ export default function SorgularActionBar({
   const [isExcelOpen, setIsExcelOpen] = useState(false);
   const excelRef = useRef<HTMLDivElement>(null);
 
+  const visibleStatusOptions = useMemo(() => {
+    if (permChild === "offers") return [];
+    if (permChild === "archive") {
+      return SORGU_STATUS_OPTIONS.filter(
+        (o) =>
+          o.value === SorguStatus.Approved ||
+          o.value === SorguStatus.Cancelled,
+      );
+    }
+    return SORGU_STATUS_OPTIONS.filter(
+      (o) =>
+        o.value === SorguStatus.NewQuery ||
+        o.value === SorguStatus.WaitingOffer ||
+        o.value === SorguStatus.Evaluated ||
+        o.value === SorguStatus.Offered,
+    );
+  }, [permChild]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (excelRef.current && !excelRef.current.contains(event.target as Node)) {
@@ -39,6 +71,8 @@ export default function SorgularActionBar({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const isAllActive = !statusFilter;
 
   return (
     <div className={styles.wrapper}>
@@ -66,10 +100,38 @@ export default function SorgularActionBar({
         </button>
       </div>
 
-      <div className={styles.statsGroup}>
-        <span className={styles.statPill}>Cəmi: {total}</span>
-        <span className={styles.statPill}>Təsdiq edilib: {confirmedCount}</span>
-      </div>
+      {permChild !== "offers" ? (
+        <div className={styles.statsGroup}>
+          <button
+            type="button"
+            className={`${styles.statPill} ${styles.statPillClickable} ${
+              isAllActive ? styles.statPillActive : ""
+            }`}
+            onClick={() => onStatusFilter?.(null)}
+            title="Bütün statuslar"
+          >
+            Hamısı: {total}
+          </button>
+          {visibleStatusOptions.map((opt) => {
+            const selected = statusFilter === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                className={`${styles.statPill} ${styles.statPillClickable} ${
+                  pillToneClass[opt.tone] || ""
+                } ${selected ? styles.statPillActive : ""}`}
+                title={`${opt.label} — filtrə tətbiq et`}
+                onClick={() => onStatusFilter?.(opt.value)}
+              >
+                {opt.label}: {statusCounts[opt.value] ?? 0}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className={styles.statsGroup} />
+      )}
 
       <div className={styles.group}>
         <div className={styles.dropdownContainer} ref={excelRef}>
@@ -82,19 +144,25 @@ export default function SorgularActionBar({
             Excel
             <FiChevronDown style={{ marginLeft: "0.25rem", opacity: 0.5 }} />
           </button>
-          
+
           {isExcelOpen && (
             <div className={styles.dropdownMenu}>
-              <button 
-                className={styles.dropdownItem} 
-                onClick={() => { onExportExcel(); setIsExcelOpen(false); }}
+              <button
+                className={styles.dropdownItem}
+                onClick={() => {
+                  onExportExcel();
+                  setIsExcelOpen(false);
+                }}
               >
                 <FiDownload />
                 Excel-ə ixrac et
               </button>
-              <button 
-                className={styles.dropdownItem} 
-                onClick={() => { onImportExcel(); setIsExcelOpen(false); }}
+              <button
+                className={styles.dropdownItem}
+                onClick={() => {
+                  onImportExcel();
+                  setIsExcelOpen(false);
+                }}
               >
                 <FiUpload />
                 Excel-dən idxal et

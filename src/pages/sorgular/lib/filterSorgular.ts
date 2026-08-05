@@ -3,6 +3,10 @@ import type {
   LogisticQueryRow,
   SorguSubTab,
 } from "../types/sorgu.types";
+import {
+  isSorguActiveStatus,
+  isSorguArchiveStatus,
+} from "./sorguStatus";
 
 /** Local YYYY-MM-DD — UTC ilə gün sürüşməsinin qarşısını alır */
 function dayOnly(iso: string | null | undefined): string {
@@ -42,15 +46,10 @@ export function filterByTab(
   tab: SorguSubTab,
 ): LogisticQueryRow[] {
   if (tab === "active") {
-    return rows.filter((r) => r.status === "pending");
+    return rows.filter((r) => isSorguActiveStatus(r.status));
   }
   if (tab === "archive") {
-    return rows.filter(
-      (r) =>
-        r.status === "cancelled" ||
-        r.status === "completed" ||
-        r.status === "approved",
-    );
+    return rows.filter((r) => isSorguArchiveStatus(r.status));
   }
   if (tab === "offers") {
     const offerRows: LogisticQueryRow[] = [];

@@ -245,6 +245,12 @@ export const PERMISSION_MODULES: PermissionModuleDef[] = [
       { id: "cash", label: "Kassa / Bank", group: "Parametrlər" },
       { id: "lookups", label: "Lookup parametrləri", group: "Parametrlər" },
       { id: "documents", label: "Sənəd şablonları", group: "Parametrlər" },
+      {
+        id: "notifications",
+        label: "Bildiriş ayarları",
+        group: "Parametrlər",
+        hint: "Gündəlik sorğu xülasəsi (şəxsi)",
+      },
       { id: "logs", label: "Loglar", group: "Parametrlər" },
     ],
   },
@@ -426,7 +432,13 @@ export function can(
 
 /** Ayarlar tab → icazə child id */
 export function ayarlarTabToPermChild(tab: string): string {
-  if (tab === "users" || tab === "cash" || tab === "documents" || tab === "logs") {
+  if (
+    tab === "users" ||
+    tab === "cash" ||
+    tab === "documents" ||
+    tab === "logs" ||
+    tab === "notifications"
+  ) {
     return tab;
   }
   // cargo-specs / incoterms / transport-types → lookups

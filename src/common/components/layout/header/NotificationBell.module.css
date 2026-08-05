@@ -76,6 +76,13 @@
   color: #0f172a;
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
 .markAll {
   border: 0;
   background: transparent;
@@ -87,6 +94,20 @@
 }
 
 .markAll:hover {
+  text-decoration: underline;
+}
+
+.clearAll {
+  border: 0;
+  background: transparent;
+  color: #dc2626;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.clearAll:hover {
   text-decoration: underline;
 }
 
@@ -145,4 +166,76 @@
   font-size: 0.7rem;
   color: #94a3b8;
   margin-top: 0.15rem;
+}
+
+.digestItem {
+  cursor: default;
+}
+
+.digestList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  margin-top: 0.35rem;
+}
+
+.digestRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    filter 0.12s ease;
+}
+
+.digestRow strong {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.digestRow:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+  filter: brightness(0.98);
+}
+
+.digestToneAll {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  color: #334155;
+}
+
+.digestToneRose {
+  border-color: #fecdd3;
+  background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%);
+  color: #9f1239;
+}
+
+.digestToneAmber {
+  border-color: #fde68a;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  color: #92400e;
+}
+
+.digestToneEmerald {
+  border-color: #a7f3d0;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  color: #065f46;
+}
+
+.digestToneSky {
+  border-color: #bae6fd;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  color: #075985;
 }

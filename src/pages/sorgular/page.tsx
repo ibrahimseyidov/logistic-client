@@ -27,6 +27,8 @@ import PriceOfferSelectionModal from "./components/PriceOfferSelectionModal";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { useSorgularPagination } from "./hooks/useSorgularPagination";
 import { applyFilters, filterByTab } from "./lib/filterSorgular";
+import { countSorguStatuses, normalizeSorguStatus } from "./lib/sorguStatus";
+import { isValidDigestStatusParam } from "../../common/utils/dailyQueryDigest.utils";
 import { exportSorgularToExcel } from "./lib/exportExcel";
 import styles from "./sorgular.module.css";
 import type {
@@ -39,8 +41,9 @@ import { emptyFilterForm } from "./types/sorgu.types";
 
 export default function SorgularPage() {
   const dispatch = useAppDispatch();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
+  const requestedStatus = searchParams.get("status");
   const initialTab: SorguSubTab =
     requestedTab === "archive" || requestedTab === "offers"
       ? requestedTab
@@ -55,6 +58,10 @@ export default function SorgularPage() {
     useState<FilterFormState>(emptyFilterForm);
   const [appliedFilter, setAppliedFilter] =
     useState<FilterFormState>(emptyFilterForm);
+  const [statusQuickFilter, setStatusQuickFilter] = useState<string | null>(
+    () =>
+      isValidDigestStatusParam(requestedStatus) ? requestedStatus : null,
+  );
   const [isNewOpen, setIsNewOpen] = useState(false);
   const [rows, setRows] = useState<LogisticQueryRow[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -79,6 +86,12 @@ export default function SorgularPage() {
 
     setSubTab((prev) => (prev === nextTab ? prev : nextTab));
   }, [requestedTab]);
+
+  useEffect(() => {
+    setStatusQuickFilter(
+      isValidDigestStatusParam(requestedStatus) ? requestedStatus : null,
+    );
+  }, [requestedStatus]);
 
   useEffect(() => {
     if (!isFilterPanelOpen) return undefined;
@@ -160,14 +173,21 @@ export default function SorgularPage() {
 
   const tabRows = useMemo(() => filterByTab(rows, subTab), [rows, subTab]);
 
-  const filteredRows = useMemo(
+  const baseFilteredRows = useMemo(
     () => applyFilters(tabRows, appliedFilter),
     [tabRows, appliedFilter],
   );
 
-  const confirmedCount = useMemo(
-    () => filteredRows.filter((row) => row.confirmed).length,
-    [filteredRows],
+  const filteredRows = useMemo(() => {
+    if (!statusQuickFilter) return baseFilteredRows;
+    return baseFilteredRows.filter(
+      (row) => normalizeSorguStatus(row.status) === statusQuickFilter,
+    );
+  }, [baseFilteredRows, statusQuickFilter]);
+
+  const statusCounts = useMemo(
+    () => countSorguStatuses(baseFilteredRows),
+    [baseFilteredRows],
   );
 
   const activeFilterCount = useMemo(
@@ -415,8 +435,18 @@ export default function SorgularPage() {
 
       <div className={styles.header}>
         <SorgularActionBar
-          total={filteredRows.length}
-          confirmedCount={confirmedCount}
+          total={baseFilteredRows.length}
+          statusCounts={statusCounts}
+          statusFilter={statusQuickFilter}
+          onStatusFilter={(status) => {
+            setStatusQuickFilter(status);
+            setCurrentPage(1);
+            const next = new URLSearchParams(searchParams);
+            if (status) next.set("status", status);
+            else next.delete("status");
+            if (!next.get("tab")) next.set("tab", subTab);
+            setSearchParams(next, { replace: true });
+          }}
           onNew={() => setIsNewOpen(true)}
           onOpenFilters={() => setIsFilterPanelOpen(true)}
           onImportExcel={handleImportExcel}

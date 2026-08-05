@@ -316,7 +316,7 @@ export default function SorgularNewModal({
 
   const [createdAt, setCreatedAt] = useState(initialValues?.createdAt ?? "");
   const [status, setStatus] = useState(
-    initialValues?.status ?? SorguStatus.Pending,
+    initialValues?.status ?? SorguStatus.NewQuery,
   );
   const [transportType, setTransportType] = useState(
     initialValues?.transportType ?? "",

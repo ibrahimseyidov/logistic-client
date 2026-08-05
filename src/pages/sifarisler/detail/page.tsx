@@ -28,6 +28,7 @@ import {
 } from "react-icons/fi";
 import axios from "axios";
 import { ENDPOINTS } from "../../../services/EndpointResources.g";
+import Loading from "../../../common/components/loading/Loading";
 import type { SifarisOrderRow, OrderStatusKind } from "../types/sifaris.types";
 import {
   buildLoadApiPayload,
@@ -276,6 +277,7 @@ export default function SifarisDetailPage() {
   const navigate = useNavigate();
 
   const [orders, setOrders] = useState<SifarisOrderRow[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isOrderSaving, setIsOrderSaving] = useState(false);
   const [isYukModalOpen, setIsYukModalOpen] = useState(false);
@@ -1196,39 +1198,64 @@ export default function SifarisDetailPage() {
   }, []);
 
   useEffect(() => {
-    const fetchOrders = async () => {
+    if (!orderId) {
+      setOrders([]);
+      setOrdersLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const mapOrder = (o: any): SifarisOrderRow => {
+      const voyages = Array.isArray(o.voyages) ? o.voyages : [];
+      const voyageCarriers = voyages
+        .map((v: any) => String(v?.carrier || "").trim())
+        .filter(
+          (name: string) => name && name !== "—" && name !== "Daşıyıcı",
+        );
+      const carriersFromVoyages = Array.from(new Set(voyageCarriers)).join(
+        ", ",
+      );
+      return {
+        ...o,
+        queryNumber: o.query?.number || "—",
+        queryDate: o.query?.createdAt
+          ? new Date(o.query.createdAt).toLocaleDateString("az-AZ")
+          : "—",
+        customer: o.customerName || o.query?.customer || "—",
+        customerId: o.customerName || o.query?.customer || "",
+        carriers: o.carriers || carriersFromVoyages || "",
+      } as SifarisOrderRow;
+    };
+
+    const fetchOrder = async () => {
+      setOrdersLoading(true);
+      setOrders([]);
       try {
-        const res = await axios.get(ENDPOINTS.ORDERS.BASE, {
-          headers: { Authorization: "Bearer " + localStorage.getItem("token") },
+        const res = await axios.get(ENDPOINTS.ORDERS.BY_ID(orderId), {
+          headers: {
+            Authorization: "Bearer " + localStorage.getItem("token"),
+          },
         });
-        const mapped = (res.data || []).map((o: any) => {
-          const voyages = Array.isArray(o.voyages) ? o.voyages : [];
-          const voyageCarriers = voyages
-            .map((v: any) => String(v?.carrier || "").trim())
-            .filter(
-              (name: string) => name && name !== "—" && name !== "Daşıyıcı",
-            );
-          const carriersFromVoyages = Array.from(new Set(voyageCarriers)).join(
-            ", ",
-          );
-          return {
-            ...o,
-            queryNumber: o.query?.number || "—",
-            queryDate: o.query?.createdAt
-              ? new Date(o.query.createdAt).toLocaleDateString("az-AZ")
-              : "—",
-            customer: o.customerName || o.query?.customer || "—",
-            customerId: o.customerName || o.query?.customer || "",
-            carriers: o.carriers || carriersFromVoyages || "",
-          };
-        });
-        setOrders(mapped);
+        if (cancelled) return;
+        if (res.data) {
+          setOrders([mapOrder(res.data)]);
+        } else {
+          setOrders([]);
+        }
       } catch (e) {
         console.error("Order load error:", e);
+        if (!cancelled) setOrders([]);
+      } finally {
+        if (!cancelled) setOrdersLoading(false);
       }
     };
-    fetchOrders();
-  }, []);
+
+    void fetchOrder();
+    return () => {
+      cancelled = true;
+    };
+  }, [orderId]);
 
   const order = useMemo(() => {
     return (
@@ -3074,6 +3101,26 @@ export default function SifarisDetailPage() {
       setActiveTab(tabItems[0].id);
     }
   }, [tabItems, activeTab]);
+
+  if (ordersLoading) {
+    return (
+      <div style={{ position: "relative", minHeight: 320 }}>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 10,
+            background: "rgba(255,255,255,0.85)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Loading />
+        </div>
+      </div>
+    );
+  }
 
   if (!order) {
     return (

@@ -55,9 +55,11 @@ export default function SorguStatusDropdown({ status, onStatusChange }: Props) {
   };
 
   const statusOptions = [
-    SorguStatus.Pending,
+    SorguStatus.NewQuery,
+    SorguStatus.WaitingOffer,
+    SorguStatus.Evaluated,
+    SorguStatus.Offered,
     SorguStatus.Approved,
-    SorguStatus.Completed,
     SorguStatus.Cancelled,
   ];
 

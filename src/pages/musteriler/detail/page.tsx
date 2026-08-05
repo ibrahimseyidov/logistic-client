@@ -19,6 +19,7 @@ import {
 import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
 import Loading from "../../../common/components/loading/Loading";
+import { statusLabelAz } from "../../../common/components/StatusBadge";
 import {
   normalizeCarrierContacts,
   formatEntityContactNames,
@@ -799,7 +800,7 @@ export default function MusteriDetailPage() {
                               color: q.status === "approved" ? "#047857" : q.status === "cancelled" ? "#b91c1c" : "#b45309",
                               border: `1px solid ${q.status === "approved" ? "#a7f3d0" : q.status === "cancelled" ? "#fecaca" : "#fde68a"}`
                             }}>
-                              {q.status === "pending" ? "Gözləmədə" : q.status === "approved" ? "Təsdiq edildi" : q.status === "cancelled" ? "Ləğv edildi" : q.status}
+                              {statusLabelAz(String(q.status || ""))}
                             </span>
                           </td>
                           <td style={{ padding: "10px", color: "#334155", maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getQueryCargoSummary(q)}>

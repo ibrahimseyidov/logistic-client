@@ -38,9 +38,10 @@ export async function fetchQueriesAction(
 
   let url = "/api/query";
   if (tab === "active") {
-    url = "/api/query?status=pending";
+    url =
+      "/api/query?status=new_query,waiting_offer,evaluated,offered,pending,completed";
   } else if (tab === "archive") {
-    url = "/api/query?status=cancelled,completed,approved";
+    url = "/api/query?status=cancelled,approved";
   } else if (tab === "offers") {
     url = "/api/query";
   }

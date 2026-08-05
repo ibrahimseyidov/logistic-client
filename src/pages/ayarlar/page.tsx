@@ -14,6 +14,7 @@ import { UsersSection } from "./components/UsersSection";
 import { DocumentsSection } from "./components/DocumentsSection";
 import { LogsSection } from "./components/LogsSection";
 import { CashSettingsSection } from "./components/CashSettingsSection";
+import { NotificationSettingsSection } from "./components/NotificationSettingsSection";
 import ayarlarStyles from "./ayarlar.module.css";
 
 const CARGO_SPECS_SEED = [
@@ -40,7 +41,11 @@ const AyarlarPage: React.FC = () => {
   }
 
   const tabChild = ayarlarTabToPermChild(activeTab);
-  if (!canView("ayarlar", tabChild)) {
+  const canOpenTab =
+    activeTab === "notifications"
+      ? Boolean(user)
+      : canView("ayarlar", tabChild);
+  if (!canOpenTab) {
     return <Navigate to="/no-access" replace />;
   }
 
@@ -96,6 +101,10 @@ const AyarlarPage: React.FC = () => {
       )}
 
       {activeTab === "documents" && <DocumentsSection {...documentsCrud} />}
+
+      {activeTab === "notifications" && (
+        <NotificationSettingsSection canEdit={Boolean(user)} />
+      )}
 
       {activeTab === "logs" && <LogsSection />}
     </div>
