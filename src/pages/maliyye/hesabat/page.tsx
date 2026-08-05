@@ -28,6 +28,10 @@ import StatusBadge, {
   statusLabelAz,
 } from "../../../common/components/StatusBadge";
 import SorgularPagination from "../../sorgular/components/SorgularPagination";
+import {
+  DEFAULT_PAGE_SIZE,
+  getVisiblePages as buildVisiblePages,
+} from "../../../common/components/pagination";
 import FinanceModal from "../FinanceModal";
 import { findCustomerForName } from "../lib/financePartner.utils";
 import { getQueryDetailPath } from "../../sorgular/lib/queryDisplay.utils";
@@ -44,8 +48,6 @@ import {
   type ReportFilter,
   type ReportId,
 } from "../lib/hesabatReports";
-
-const PAGE_SIZE = 10;
 
 const REPORT_CARDS: {
   id: ReportId;
@@ -116,6 +118,7 @@ export default function MaliyyeHesabatPage() {
   const [queries, setQueries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentSeed, setPaymentSeed] = useState<any>(null);
   const [filter, setFilter] = useState<ReportFilter>(emptyReportFilter);
@@ -226,7 +229,7 @@ export default function MaliyyeHesabatPage() {
     }, 0);
   }, [activeReport, transactions, filter]);
 
-  const totalPages = Math.max(1, Math.ceil(displayCount / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(displayCount / pageSize));
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -237,35 +240,16 @@ export default function MaliyyeHesabatPage() {
   }, [filter]);
 
   const pagedPartner = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return partnerRows.slice(start, start + PAGE_SIZE);
-  }, [partnerRows, currentPage]);
+    const start = (currentPage - 1) * pageSize;
+    return partnerRows.slice(start, start + pageSize);
+  }, [partnerRows, currentPage, pageSize]);
 
   const pagedGeneric = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return genericRows.slice(start, start + PAGE_SIZE);
-  }, [genericRows, currentPage]);
+    const start = (currentPage - 1) * pageSize;
+    return genericRows.slice(start, start + pageSize);
+  }, [genericRows, currentPage, pageSize]);
 
-  const getVisiblePages = () => {
-    if (totalPages <= 7) {
-      return Array.from({ length: totalPages }, (_, i) => i + 1);
-    }
-    if (currentPage <= 4) {
-      return [1, 2, 3, 4, 5, -1, totalPages];
-    }
-    if (currentPage >= totalPages - 3) {
-      return [
-        1,
-        -1,
-        totalPages - 4,
-        totalPages - 3,
-        totalPages - 2,
-        totalPages - 1,
-        totalPages,
-      ];
-    }
-    return [1, -1, currentPage - 1, currentPage, currentPage + 1, -1, totalPages];
-  };
+  const getVisiblePages = () => buildVisiblePages(currentPage, totalPages);
 
   const statusOptions = useMemo(() => {
     if (activeReport === "queries") {
@@ -828,6 +812,11 @@ export default function MaliyyeHesabatPage() {
             totalPages={totalPages}
             getVisiblePages={getVisiblePages}
             onPageChange={setCurrentPage}
+            pageSize={pageSize}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setCurrentPage(1);
+            }}
           />
         </div>
       </aside>

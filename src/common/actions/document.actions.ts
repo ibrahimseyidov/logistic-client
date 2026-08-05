@@ -43,6 +43,8 @@ export type DocumentDesign = {
   bankIbanUsd: string;
   bankIbanEur: string;
   bankIbanGbp: string;
+  /** Sorğu nömrəsinin başlanğıcı, məs: Q-2026 → Q-2026-0001 */
+  queryNumberPrefix: string;
 };
 
 export type DocumentTemplate = {

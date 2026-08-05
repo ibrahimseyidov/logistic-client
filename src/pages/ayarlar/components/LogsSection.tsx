@@ -6,6 +6,9 @@ import {
 import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
 import SorgularPagination from "../../sorgular/components/SorgularPagination";
+import {
+  getVisiblePages as buildVisiblePages,
+} from "../../../common/components/pagination";
 import actionStyles from "../../sorgular/components/SorgularActionBar.module.css";
 import tableStyles from "../../sorgular/components/SorgularTable.module.css";
 import ayarlarStyles from "../ayarlar.module.css";
@@ -21,7 +24,7 @@ import {
 } from "./ActivityLogDetailModal";
 import { AyarlarToolbar } from "./AyarlarToolbar";
 
-const PAGE_SIZE = 50;
+const DEFAULT_LOG_PAGE_SIZE = 50;
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
@@ -77,16 +80,17 @@ export const LogsSection: React.FC = () => {
   const [q, setQ] = useState("");
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_LOG_PAGE_SIZE);
   const [selected, setSelected] = useState<ActivityLogRow | null>(null);
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       const data = await fetchActivityLogsAction({
-        limit: PAGE_SIZE,
-        offset: (currentPage - 1) * PAGE_SIZE,
+        limit: pageSize,
+        offset: (currentPage - 1) * pageSize,
         q: search || undefined,
       });
       setRows(Array.isArray(data.items) ? data.items : []);
@@ -101,7 +105,7 @@ export const LogsSection: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [dispatch, search, currentPage]);
+  }, [dispatch, search, currentPage, pageSize]);
 
   useEffect(() => {
     load();
@@ -111,26 +115,7 @@ export const LogsSection: React.FC = () => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
-  const getVisiblePages = () => {
-    if (totalPages <= 7) {
-      return Array.from({ length: totalPages }, (_, i) => i + 1);
-    }
-    if (currentPage <= 4) {
-      return [1, 2, 3, 4, 5, -1, totalPages];
-    }
-    if (currentPage >= totalPages - 3) {
-      return [
-        1,
-        -1,
-        totalPages - 4,
-        totalPages - 3,
-        totalPages - 2,
-        totalPages - 1,
-        totalPages,
-      ];
-    }
-    return [1, -1, currentPage - 1, currentPage, currentPage + 1, -1, totalPages];
-  };
+  const getVisiblePages = () => buildVisiblePages(currentPage, totalPages);
 
   const applySearch = () => {
     setCurrentPage(1);
@@ -271,6 +256,11 @@ export const LogsSection: React.FC = () => {
           totalPages={totalPages}
           getVisiblePages={getVisiblePages}
           onPageChange={setCurrentPage}
+          pageSize={pageSize}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setCurrentPage(1);
+          }}
         />
       </div>
 

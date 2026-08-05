@@ -21,6 +21,11 @@ import {
   FilterSelectField,
   FilterTextField,
 } from "../../common/components/filters";
+import SorgularPagination from "../sorgular/components/SorgularPagination";
+import {
+  DEFAULT_PAGE_SIZE,
+  getVisiblePages as buildVisiblePages,
+} from "../../common/components/pagination";
 import {
   fetchCustomersAction,
   createCustomerAction,
@@ -115,7 +120,7 @@ export default function MusterilerPage() {
   const allowCreate = canCreate("musteriler", "list");
   const allowEdit = canEdit("musteriler", "list");
   const allowDelete = canDelete("musteriler", "list");
-  const PAGE_SIZE = 12;
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [rows, setRows] = useState<CustomerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activePanel, setActivePanel] = useState<"filter" | "new" | "edit" | null>(null);
@@ -508,12 +513,17 @@ export default function MusterilerPage() {
     () => filteredRows.filter((row) => row.salesGroup !== "Xəta").length,
     [filteredRows],
   );
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
   const paginatedRows = useMemo(
     () =>
-      filteredRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
-    [filteredRows, currentPage],
+      filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [filteredRows, currentPage, pageSize],
   );
+  const getVisiblePages = () => buildVisiblePages(currentPage, totalPages);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   useEffect(() => {
     loadCustomers();
@@ -1047,28 +1057,18 @@ export default function MusterilerPage() {
       </div>
 
       <div className={sorguLayoutStyles.footer}>
-        <div className={styles.paginationBar}>
-          <span>Cəmi sətir: {filteredRows.length}</span>
-          <div className={styles.paginationActions}>
-            <button
-              type="button"
-              className={styles.paginationButton}
-              disabled={currentPage <= 1}
-              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-            >
-              Əvvəlki
-            </button>
-            <span className={styles.paginationCurrent}>{currentPage}</span>
-            <button
-              type="button"
-              className={styles.paginationButton}
-              disabled={currentPage >= totalPages}
-              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-            >
-              Sonrakı
-            </button>
-          </div>
-        </div>
+        <SorgularPagination
+          totalRows={filteredRows.length}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          getVisiblePages={getVisiblePages}
+          onPageChange={setCurrentPage}
+          pageSize={pageSize}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setCurrentPage(1);
+          }}
+        />
       </div>
 
       <FilterDrawer

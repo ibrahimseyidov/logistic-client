@@ -143,6 +143,8 @@ export default function SorgularTemplate({
   const {
     currentPage,
     setCurrentPage,
+    pageSize,
+    setPageSize,
     totalPages,
     paginatedRows,
     getVisiblePages,
@@ -267,6 +269,8 @@ export default function SorgularTemplate({
             totalPages={totalPages}
             getVisiblePages={getVisiblePages}
             onPageChange={setCurrentPage}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
           />
         </div>
       ) : null}

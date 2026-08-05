@@ -581,6 +581,8 @@ export default function SifarislerPage() {
     totalPages,
     paginatedRows,
     getVisiblePages,
+    pageSize,
+    setPageSize,
   } = useSifarisPagination(filteredRows);
 
   const yukFilteredRows = useMemo(
@@ -606,6 +608,8 @@ export default function SifarislerPage() {
     totalPages: yukTotalPages,
     paginatedRows: yukPaginated,
     getVisiblePages: yukGetVisiblePages,
+    pageSize: yukPageSize,
+    setPageSize: setYukPageSize,
   } = useYukPagination(yukFilteredRows);
 
   const reysFilteredRows = useMemo(() => {
@@ -631,6 +635,8 @@ export default function SifarislerPage() {
     totalPages: reysTotalPages,
     paginatedRows: reysPaginated,
     getVisiblePages: reysGetVisiblePages,
+    pageSize: reysPageSize,
+    setPageSize: setReysPageSize,
   } = useReysPagination(reysFilteredRows);
 
   const emekFilteredRows = useMemo(
@@ -656,6 +662,8 @@ export default function SifarislerPage() {
     totalPages: emekTotalPages,
     paginatedRows: emekPaginated,
     getVisiblePages: emekGetVisiblePages,
+    pageSize: emekPageSize,
+    setPageSize: setEmekPageSize,
   } = useEmekPagination(emekFilteredRows);
 
   useEffect(() => {
@@ -1223,6 +1231,8 @@ export default function SifarislerPage() {
               totalPages={totalPages}
               getVisiblePages={getVisiblePages}
               onPageChange={setCurrentPage}
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
             />
           )}
           {subTab === "voyages" && (
@@ -1232,6 +1242,8 @@ export default function SifarislerPage() {
               totalPages={reysTotalPages}
               getVisiblePages={reysGetVisiblePages}
               onPageChange={setReysPage}
+              pageSize={reysPageSize}
+              onPageSizeChange={setReysPageSize}
             />
           )}
           {subTab === "loads" && (
@@ -1241,6 +1253,8 @@ export default function SifarislerPage() {
               totalPages={yukTotalPages}
               getVisiblePages={yukGetVisiblePages}
               onPageChange={setYukPage}
+              pageSize={yukPageSize}
+              onPageSizeChange={setYukPageSize}
             />
           )}
           {subTab === "payroll" && (
@@ -1250,6 +1264,8 @@ export default function SifarislerPage() {
               totalPages={emekTotalPages}
               getVisiblePages={emekGetVisiblePages}
               onPageChange={setEmekPage}
+              pageSize={emekPageSize}
+              onPageSizeChange={setEmekPageSize}
             />
           )}
         </div>

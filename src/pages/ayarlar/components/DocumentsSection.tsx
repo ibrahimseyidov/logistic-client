@@ -368,6 +368,32 @@ export const DocumentsSection: React.FC<DocumentsSectionProps> = ({
             </div>
 
             <h3 className={styles.cardTitle} style={{ marginTop: 18 }}>
+              Nömrələmə
+            </h3>
+            <div className={styles.formGrid}>
+              <label className={`${styles.field} ${styles.full}`}>
+                <span>Sorğu nömrə prefiksi</span>
+                <input
+                  value={design.queryNumberPrefix ?? ""}
+                  onChange={(e) =>
+                    setDesignField("queryNumberPrefix", e.target.value)
+                  }
+                  placeholder={`Q-${new Date().getFullYear()}`}
+                />
+                <small style={{ color: "#6b7280", marginTop: 4 }}>
+                  Yeni sorğular{" "}
+                  <strong>
+                    {(design.queryNumberPrefix || `Q-${new Date().getFullYear()}`)
+                      .trim()
+                      .replace(/-+$/g, "") || `Q-${new Date().getFullYear()}`}
+                    -0001
+                  </strong>{" "}
+                  formatında yaradılacaq. Nümunə: Q-2026 → Q-2026-0020
+                </small>
+              </label>
+            </div>
+
+            <h3 className={styles.cardTitle} style={{ marginTop: 18 }}>
               Bank rekvizitləri
             </h3>
             <div className={styles.formGrid}>

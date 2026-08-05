@@ -15,6 +15,7 @@ import FinanceModal from "./FinanceModal";
 import SimpleExpenseModal from "./SimpleExpenseModal";
 import MaliyyeFiltersDrawer from "./MaliyyeFiltersDrawer";
 import SorgularPagination from "../sorgular/components/SorgularPagination";
+import { useClientPagination } from "../../common/components/pagination";
 import {
   type CashWallet,
   type WalletTab,
@@ -71,7 +72,7 @@ function docTypeBadgeClass(docType: string, isIncome: boolean): string {
   return "docTypeDefault";
 }
 
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 10;
 
 export default function MaliyyePage() {
   const { canView, canCreate, canEdit, canDelete } = usePermissions();
@@ -95,7 +96,6 @@ export default function MaliyyePage() {
   const [walletTab, setWalletTab] = useState<WalletTab>(firstAllowedWallet);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
@@ -140,41 +140,19 @@ export default function MaliyyePage() {
     [walletTxs, appliedFilter, currencyRates],
   );
 
+  const {
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+    paginatedRows: pagedTxs,
+    getVisiblePages,
+  } = useClientPagination(filteredTxs, DEFAULT_PAGE_SIZE);
+
   useEffect(() => {
     setCurrentPage(1);
-  }, [walletTab, appliedFilter]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredTxs.length / PAGE_SIZE));
-
-  useEffect(() => {
-    if (currentPage > totalPages) setCurrentPage(totalPages);
-  }, [currentPage, totalPages]);
-
-  const pagedTxs = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredTxs.slice(start, start + PAGE_SIZE);
-  }, [filteredTxs, currentPage]);
-
-  const getVisiblePages = () => {
-    if (totalPages <= 7) {
-      return Array.from({ length: totalPages }, (_, i) => i + 1);
-    }
-    if (currentPage <= 4) {
-      return [1, 2, 3, 4, 5, -1, totalPages];
-    }
-    if (currentPage >= totalPages - 3) {
-      return [
-        1,
-        -1,
-        totalPages - 4,
-        totalPages - 3,
-        totalPages - 2,
-        totalPages - 1,
-        totalPages,
-      ];
-    }
-    return [1, -1, currentPage - 1, currentPage, currentPage + 1, -1, totalPages];
-  };
+  }, [walletTab, appliedFilter, setCurrentPage]);
 
   const stats = useMemo(() => {
     let totalIn = 0;
@@ -656,6 +634,8 @@ export default function MaliyyePage() {
           totalPages={totalPages}
           getVisiblePages={getVisiblePages}
           onPageChange={setCurrentPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
         />
       </div>
 
