@@ -85,6 +85,10 @@ export const ENDPOINTS = {
     ORDER_DOCS: (orderId: number | string) => `${API}/documents/orders/${orderId}`,
   },
   BACKUP: {
+    BASE: `${API}/backup`,
+    CREATE: `${API}/backup/create`,
     EXPORT: `${API}/backup/export`,
+    DOWNLOAD: (fileName: string) =>
+      `${API}/backup/download/${encodeURIComponent(fileName)}`,
   },
 } as const;
