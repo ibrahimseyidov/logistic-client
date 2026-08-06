@@ -48,7 +48,7 @@ import { COUNTRY_OPTIONS } from "../../sorgular/constants/options.constants";
 
 const PLACEHOLDER: SelectOption[] = [{ value: "", label: "Dəyəri seçin" }];
 
-type LookupModalType = "customer-types" | "activity-types" | "countries";
+type LookupModalType = "customer-types" | "customer-activity-types" | "countries";
 
 const EMPTY_FORM = {
   company: "",
@@ -161,7 +161,7 @@ export function CustomerCreateDrawer({
     void Promise.all([
       fetchUsersAction().then(setUsersData).catch(() => {}),
       fetchLookupAction("customer-types").then(setCustomerTypesData).catch(() => setCustomerTypesData([])),
-      fetchLookupAction("activity-types").then(setActivityTypesData).catch(() => setActivityTypesData([])),
+      fetchLookupAction("customer-activity-types").then(setActivityTypesData).catch(() => setActivityTypesData([])),
       fetchLookupAction("countries")
         .then(setCountriesData)
         .catch(() =>
@@ -190,7 +190,7 @@ export function CustomerCreateDrawer({
 
   const handleLookupDataChanged = (data: LookupRow[]) => {
     if (activeLookupModal === "customer-types") setCustomerTypesData(data);
-    else if (activeLookupModal === "activity-types") setActivityTypesData(data);
+    else if (activeLookupModal === "customer-activity-types") setActivityTypesData(data);
     else if (activeLookupModal === "countries") setCountriesData(data);
   };
 
@@ -546,7 +546,7 @@ export function CustomerCreateDrawer({
                       title="Fəaliyyət növü əlavə et"
                       className={panelStyles.plusButton}
                       onMouseDown={armLookupOpenFromPlus}
-                      onClick={(e) => openLookupModal(e, "activity-types")}
+                      onClick={(e) => openLookupModal(e, "customer-activity-types")}
                     >
                       +
                     </button>
@@ -733,8 +733,8 @@ export function CustomerCreateDrawer({
           onClose={() => setActiveLookupModal(null)}
           lookupType={activeLookupModal}
           title={
-            activeLookupModal === "activity-types"
-              ? "Fəaliyyət növləri"
+            activeLookupModal === "customer-activity-types"
+              ? "Müştəri fəaliyyət növləri"
               : activeLookupModal === "countries"
                 ? "Ölkələr"
                 : "Müştəri tipləri"

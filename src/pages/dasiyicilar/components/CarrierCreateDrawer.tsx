@@ -47,7 +47,7 @@ import { COUNTRY_OPTIONS } from "../../sorgular/constants/options.constants";
 
 const PLACEHOLDER: SelectOption[] = [{ value: "", label: "Dəyəri seçin" }];
 
-type LookupModalType = "carrier-types" | "activity-types" | "countries";
+type LookupModalType = "carrier-types" | "carrier-activity-types" | "countries";
 
 const EMPTY_FORM = {
   company: "",
@@ -154,7 +154,7 @@ export function CarrierCreateDrawer({
     setAvailableContacts([]);
     void Promise.all([
       fetchLookupAction("carrier-types").then(setCarrierTypesData).catch(() => setCarrierTypesData([])),
-      fetchLookupAction("activity-types").then(setActivityTypesData).catch(() => setActivityTypesData([])),
+      fetchLookupAction("carrier-activity-types").then(setActivityTypesData).catch(() => setActivityTypesData([])),
       fetchLookupAction("countries")
         .then(setCountriesData)
         .catch(() =>
@@ -183,7 +183,7 @@ export function CarrierCreateDrawer({
 
   const handleLookupDataChanged = (data: LookupRow[]) => {
     if (activeLookupModal === "carrier-types") setCarrierTypesData(data);
-    else if (activeLookupModal === "activity-types") setActivityTypesData(data);
+    else if (activeLookupModal === "carrier-activity-types") setActivityTypesData(data);
     else if (activeLookupModal === "countries") setCountriesData(data);
   };
 
@@ -540,7 +540,7 @@ export function CarrierCreateDrawer({
                       title="Fəaliyyət növü əlavə et"
                       className={panelStyles.plusButton}
                       onMouseDown={armLookupOpenFromPlus}
-                      onClick={(e) => openLookupModal(e, "activity-types")}
+                      onClick={(e) => openLookupModal(e, "carrier-activity-types")}
                     >
                       +
                     </button>
@@ -719,8 +719,8 @@ export function CarrierCreateDrawer({
           onClose={() => setActiveLookupModal(null)}
           lookupType={activeLookupModal}
           title={
-            activeLookupModal === "activity-types"
-              ? "Fəaliyyət növləri"
+            activeLookupModal === "carrier-activity-types"
+              ? "Daşıyıcı fəaliyyət növləri"
               : activeLookupModal === "countries"
                 ? "Ölkələr"
                 : "Daşıyıcı tipləri"

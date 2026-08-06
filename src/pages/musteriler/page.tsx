@@ -66,7 +66,7 @@ import { COUNTRY_OPTIONS } from "../sorgular/constants/options.constants";
 
 const PLACEHOLDER: SelectOption[] = [{ value: "", label: "Dəyəri seçin" }];
 
-type LookupModalType = "customer-types" | "activity-types" | "countries";
+type LookupModalType = "customer-types" | "customer-activity-types" | "countries";
 
 const STATUS_OPTIONS: SelectOption[] = [
   ...PLACEHOLDER,
@@ -200,7 +200,7 @@ export default function MusterilerPage() {
 
   const loadActivityTypes = async () => {
     try {
-      const data = await fetchLookupAction("activity-types");
+      const data = await fetchLookupAction("customer-activity-types");
       setActivityTypesData(data);
     } catch {
       setActivityTypesData([]);
@@ -231,7 +231,7 @@ export default function MusterilerPage() {
   const handleLookupDataChanged = (data: LookupRow[]) => {
     if (activeLookupModal === "customer-types") {
       setCustomerTypesData(data);
-    } else if (activeLookupModal === "activity-types") {
+    } else if (activeLookupModal === "customer-activity-types") {
       setActivityTypesData(data);
     } else if (activeLookupModal === "countries") {
       setCountriesData(data);
@@ -1286,7 +1286,7 @@ export default function MusterilerPage() {
                           title="Fəaliyyət növü əlavə et"
                           className={styles.plusButton}
                           onMouseDown={armLookupOpenFromPlus}
-                          onClick={(e) => openLookupModal(e, "activity-types")}
+                          onClick={(e) => openLookupModal(e, "customer-activity-types")}
                         >
                           +
                         </button>
@@ -1573,8 +1573,8 @@ export default function MusterilerPage() {
           onClose={() => setActiveLookupModal(null)}
           lookupType={activeLookupModal}
           title={
-            activeLookupModal === "activity-types"
-              ? "Fəaliyyət növləri"
+            activeLookupModal === "customer-activity-types"
+              ? "Müştəri fəaliyyət növləri"
               : activeLookupModal === "countries"
                 ? "Ölkələr"
                 : "Müştəri tipləri"
