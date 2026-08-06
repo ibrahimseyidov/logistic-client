@@ -515,7 +515,13 @@ export default function SorgularNewModal({
       setCargoItems((prev) =>
         prev.map((cargo) =>
           cargo.id === cargoId
-            ? applyCargoMetrics({ ...cargo, ...patch })
+            ? applyCargoMetrics(
+                { ...cargo, ...patch },
+                {
+                  preserveVolume: "volumeM3" in patch,
+                  preserveLdm: "ldm" in patch,
+                },
+              )
             : cargo,
         ),
       );
@@ -1200,10 +1206,14 @@ export default function SorgularNewModal({
                         >
                           <Label>Həcm (m³)</Label>
                           <input
-                            className={`${styles.input} ${styles.inputReadOnly}`}
+                            className={styles.input}
                             value={cargo.volumeM3 ?? ""}
-                            readOnly
-                            title="Qablaşdırmalardan avtomatik hesablanır"
+                            onChange={(event) =>
+                              patchCargo(cargo.id, {
+                                volumeM3: event.target.value,
+                              })
+                            }
+                            title="Qablaşdırmalardan avtomatik hesablanır; əl ilə dəyişdirilə bilər"
                           />
                         </div>
                         <div
@@ -1211,10 +1221,14 @@ export default function SorgularNewModal({
                         >
                           <Label>LDM (m)</Label>
                           <input
-                            className={`${styles.input} ${styles.inputReadOnly}`}
+                            className={styles.input}
                             value={cargo.ldm}
-                            readOnly
-                            title="max(yuvarlaq çəki, həcm × 167) — avtomatik"
+                            onChange={(event) =>
+                              patchCargo(cargo.id, {
+                                ldm: event.target.value,
+                              })
+                            }
+                            title="max(yuvarlaq çəki, həcm × 167) — avtomatik; əl ilə dəyişdirilə bilər"
                           />
                         </div>
                         <div

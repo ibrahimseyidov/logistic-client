@@ -94,7 +94,10 @@ export function normalizePackagingRow(
   };
 }
 
-export function applyCargoMetrics(cargo: CargoItemForm): CargoItemForm {
+export function applyCargoMetrics(
+  cargo: CargoItemForm,
+  options?: { preserveVolume?: boolean; preserveLdm?: boolean },
+): CargoItemForm {
   const metrics = calcCargoMetrics({
     weight: cargo.weight,
     packagingRows: cargo.packagingRows.map(normalizePackagingRow),
@@ -102,8 +105,8 @@ export function applyCargoMetrics(cargo: CargoItemForm): CargoItemForm {
   return {
     ...cargo,
     packagingRows: metrics.packagingRows as CargoPackagingRow[],
-    volumeM3: metrics.totalVolumeM3,
-    ldm: metrics.ldm,
+    volumeM3: options?.preserveVolume ? cargo.volumeM3 : metrics.totalVolumeM3,
+    ldm: options?.preserveLdm ? cargo.ldm : metrics.ldm,
   };
 }
 
