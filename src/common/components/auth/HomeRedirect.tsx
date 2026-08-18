@@ -3,6 +3,7 @@ import { usePermissions } from "../../hooks/usePermissions";
 import { useAuth } from "../../contexts/AuthContext";
 
 const CANDIDATES: { to: string; mod: string; child?: string }[] = [
+  { to: "/dashboard", mod: "dashboard", child: "overview" },
   { to: "/sorgular", mod: "sorgular", child: "active" },
   { to: "/sifarisler", mod: "sifarisler", child: "orders" },
   { to: "/tapshiriqlar", mod: "tapshiriqlar", child: "board" },

@@ -27,7 +27,7 @@ export function usePermissions() {
   const can = useCallback(
     (moduleId: string, action: CrudAction = "view", childId?: string) => {
       if (!user) return false;
-      if (isAdmin) return true;
+      if (isAdmin && moduleId !== "dashboard") return true;
       // Şəxsi bildiriş ayarları — bütün aktiv istifadəçilər
       if (
         moduleId === "ayarlar" &&

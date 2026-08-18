@@ -9,6 +9,7 @@ import {
   FaClipboardList,
   FaCog,
   FaShoppingCart,
+  FaTachometerAlt,
   FaTasks,
   FaTruck,
   FaUsers,
@@ -56,6 +57,14 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: "Ümumi",
     items: [
+      {
+        id: "dashboard",
+        label: "Dashboard",
+        icon: <FaTachometerAlt />,
+        to: "/dashboard",
+        permModule: "dashboard",
+        permChild: "overview",
+      },
       {
         id: "sorgular",
         label: "Sorğular",

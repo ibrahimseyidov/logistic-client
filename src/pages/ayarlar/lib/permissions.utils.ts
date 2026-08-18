@@ -36,6 +36,19 @@ export type PermissionModuleDef = {
  */
 export const PERMISSION_MODULES: PermissionModuleDef[] = [
   {
+    id: "dashboard",
+    label: "Dashboard",
+    description: "Ümumi icmal və bütün əməliyyat məlumatları",
+    children: [
+      {
+        id: "overview",
+        label: "İcmal",
+        group: "Səhifə",
+        hint: "Bağlıdır — yalnız icazə verilən istifadəçilər görür",
+      },
+    ],
+  },
+  {
     id: "sorgular",
     label: "Sorğular",
     description: "Siyahı, detallar və modal əməliyyatları",
@@ -336,6 +349,7 @@ export function parseUserPermissions(raw: unknown): UserPermissions {
     }
     base[mod.id] = next;
   }
+
   return base;
 }
 
@@ -459,6 +473,9 @@ export function routeToPermission(
 ): { moduleId: string; childId?: string } | null {
   const tab = new URLSearchParams(search).get("tab") || undefined;
 
+  if (pathname.startsWith("/dashboard")) {
+    return { moduleId: "dashboard", childId: "overview" };
+  }
   if (pathname.startsWith("/sorgular/")) {
     return { moduleId: "sorgular", childId: "detail" };
   }

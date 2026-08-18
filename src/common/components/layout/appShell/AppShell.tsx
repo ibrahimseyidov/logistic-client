@@ -13,6 +13,7 @@ import {
 import styles from "./appShell.module.css";
 
 const headerTitles: Record<string, string> = {
+  "/dashboard": "Dashboard",
   "/sorgular": "Sorğular",
   "/sifarisler": "Sifarişlər",
   "/tapshiriqlar": "Tapşırıqlar",

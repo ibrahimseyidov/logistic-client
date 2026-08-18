@@ -5,6 +5,7 @@ import LoginPage from "./pages/login/page";
 import AppShell from "./common/components/layout/appShell/AppShell";
 // import RequireAuth from "./common/components/auth/RequireAuth";
 import SorgularPage from "./pages/sorgular/page";
+import DashboardPage from "./pages/dashboard/page";
 import SorguDetailPage from "./pages/sorgular/detail/page";
 import SifarislerPage from "./pages/sifarisler/page";
 import SifarisDetailPage from "./pages/sifarisler/detail/page";
@@ -32,6 +33,14 @@ function App() {
               element={
                 <RequireAuth skipPermission>
                   <NoAccessPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/dashboard"
+              element={
+                <RequireAuth>
+                  <DashboardPage />
                 </RequireAuth>
               }
             />

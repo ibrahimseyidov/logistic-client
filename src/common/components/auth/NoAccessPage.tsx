@@ -7,6 +7,7 @@ export default function NoAccessPage() {
 
   const fallbacks: { to: string; label: string; mod: string; child?: string }[] =
     [
+      { to: "/dashboard", label: "Dashboard", mod: "dashboard", child: "overview" },
       { to: "/sorgular", label: "Sorğular", mod: "sorgular", child: "active" },
       { to: "/sifarisler", label: "Sifarişlər", mod: "sifarisler", child: "orders" },
       { to: "/tapshiriqlar", label: "Tapşırıqlar", mod: "tapshiriqlar", child: "board" },
