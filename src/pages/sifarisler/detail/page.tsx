@@ -525,7 +525,7 @@ export default function SifarisDetailPage() {
       {
         id: String(Date.now() + Math.random()),
         text: "",
-        unit: "MarÅŸrut",
+        unit: "Marşrut",
         qty: 1,
         price: 0,
         vatRate: "0%",
@@ -775,6 +775,35 @@ export default function SifarisDetailPage() {
             Array.isArray(finRefresh.data) ? finRefresh.data : [],
           );
           try {
+            const voyRefresh = await axios.get(
+              ENDPOINTS.VOYAGES.BASE + "?orderId=" + order.id,
+              { headers },
+            );
+            const mappedVoyages = (voyRefresh.data || [])
+              .filter((v: any) => String(v.orderId) === String(order.id))
+              .map((v: any) => ({
+                ...v,
+                number: v.id ? `R-${v.id}` : "—",
+                loadPlace: v.loading || "—",
+                unloadPlace: v.unloading || "—",
+                status: v.tripStatus || "—",
+                price: v.tripPrice || "—",
+                tripPrice: v.tripPrice || "",
+                valueAzn:
+                  typeof v.valueAzn === "number" ? v.valueAzn : undefined,
+                loads: v.cargoInfo || v.loads || "—",
+                cargoInfo: v.cargoInfo || "",
+              }));
+            setVoyagesList((prev) =>
+              mappedVoyages.map((v: any) => {
+                const old = prev.find((p) => String(p.id) === String(v.id));
+                return old ? { ...old, ...v } : v;
+              }),
+            );
+          } catch {
+            /* ignore */
+          }
+          try {
             const orderRefresh = await axios.get(
               ENDPOINTS.ORDERS.BY_ID(order.id),
               { headers },
@@ -890,7 +919,7 @@ export default function SifarisDetailPage() {
         inv.rows.map((r: any, idx: number) => ({
           id: String(r.id ?? idx + 1),
           text: String(r.text ?? ""),
-          unit: String(r.unit || "MarÅŸrut"),
+          unit: String(r.unit || "Marşrut"),
           qty: Number(r.qty) || 1,
           price: Number(r.price) || 0,
           vatRate: String(r.vatRate || "0%"),
@@ -901,7 +930,7 @@ export default function SifarisDetailPage() {
         {
           id: "1",
           text: "",
-          unit: "MarÅŸrut",
+          unit: "Marşrut",
           qty: 1,
           price: expected || 0,
           vatRate: "0%",
@@ -1101,7 +1130,7 @@ export default function SifarisDetailPage() {
           );
           return found?.id != null ? Number(found.id) : null;
         })(),
-        paymentMethod: "SifariÅŸ",
+        paymentMethod: "Sifariş",
         category: "ORDER_BOOK",
         tarifPrice: txRevTarif,
         tarifCurrency: txRevCurrency,
@@ -2129,7 +2158,7 @@ export default function SifarisDetailPage() {
     {
       id: "1",
       text: "",
-      unit: "MarÅŸrut",
+      unit: "Marşrut",
       qty: 1,
       price: 0,
       vatRate: "0%",
@@ -2470,7 +2499,7 @@ export default function SifarisDetailPage() {
 
   // Combined Comments & Tasks States
   const [isNewCommentModalOpen, setIsNewCommentModalOpen] = useState(false);
-  const [commentCategory, setCommentCategory] = useState("SifariÅŸ");
+  const [commentCategory, setCommentCategory] = useState("Sifariş");
   const [commentProvideAccessCustomer, setCommentProvideAccessCustomer] =
     useState(false);
   const [commentProvideAccessCarrier, setCommentProvideAccessCarrier] =
@@ -3145,7 +3174,7 @@ export default function SifarisDetailPage() {
       },
       {
         id: "finance",
-        label: `MaliyyÉ™ (${financeTableRows.length})`,
+        label: `Maliyyə (${financeTableRows.length})`,
         icon: <FiDollarSign />,
         permChild: "finance",
       },
@@ -3324,7 +3353,7 @@ export default function SifarisDetailPage() {
               className={styles.editBtn}
               onClick={() => setIsEditModalOpen(true)}
               disabled={isOrderSaving}
-              title="SifariÅŸi redaktÉ™ et"
+              title="Sifarişi redaktə et"
             >
               <FiEdit2 size={15} />
               {isOrderSaving ? "Saxlanılır..." : "Redaktə et"}
@@ -3591,7 +3620,7 @@ export default function SifarisDetailPage() {
             {/* Fields List */}
             <div className={styles.dlList}>
               <DlRow
-                label="SorÄŸu"
+                label="Sorğu"
                 value={`${order.queryNumber}, ${order.queryDate || "20.05.2026"}\nTəsdiq edilmişdir: Vaxtında`}
               />
               <DlRow
@@ -3636,7 +3665,7 @@ export default function SifarisDetailPage() {
                 }
               />
               <DlRow
-                label="SifariÅŸin tarixi"
+                label="Sifarişin tarixi"
                 value={formatDateOnly(order.orderDate)}
               />
               <DlRow label="Teqlər" value={order.tags || "—"} />
@@ -3740,7 +3769,7 @@ export default function SifarisDetailPage() {
                           Alıcı
                         </th>
                         <th className={`${styles.th} ${styles.thNowrap}`}>
-                          BoÅŸaltma
+                          Boşaltma
                         </th>
                         <th className={`${styles.th} ${styles.thNowrap}`}>
                           Reyslər
@@ -3841,7 +3870,7 @@ export default function SifarisDetailPage() {
                                 <button
                                   type="button"
                                   className={styles.iconBtn}
-                                  title="RedaktÉ™ et"
+                                  title="Redaktə et"
                                   onClick={() => {
                                     setSelectedLoadForEdit(load);
                                     setIsYukEditModalOpen(true);
@@ -4006,7 +4035,7 @@ export default function SifarisDetailPage() {
                           Alıcı
                         </th>
                         <th className={`${styles.th} ${styles.thNowrap}`}>
-                          BoÅŸaltma yeri
+                          Boşaltma yeri
                         </th>
                         <th className={`${styles.th} ${styles.thNowrap}`}>
                           Status
@@ -4197,7 +4226,7 @@ export default function SifarisDetailPage() {
                                 <button
                                   type="button"
                                   className={styles.iconBtn}
-                                  title="RedaktÉ™ et"
+                                  title="Redaktə et"
                                   onClick={() => {
                                     setSelectedVoyageForEdit(v);
                                     setIsVoyageEditOpen(true);
@@ -4259,7 +4288,7 @@ export default function SifarisDetailPage() {
                   }}
                 >
                   <h3 className={styles.contentCardTitle} style={{ margin: 0 }}>
-                    MaliyyÉ™
+                    Maliyyə
                   </h3>
 {canCreateFinance ? (
                   <button
@@ -4657,7 +4686,7 @@ export default function SifarisDetailPage() {
                                       type="button"
                                       className={styles.iconBtn}
                                       onClick={() => handleEditTransaction(tx)}
-                                      title="RedaktÉ™ et"
+                                      title="Redaktə et"
                                     >
                                       <svg
                                         width="12"
@@ -4732,7 +4761,7 @@ export default function SifarisDetailPage() {
                           <th className={styles.th}>ƏDV ilə qiymət</th>
                           <th className={styles.th}>Ekspeditor</th>
                           <th className={styles.th}>Alınmış hesab</th>
-                          <th className={styles.th}>MarÅŸrut</th>
+                          <th className={styles.th}>Marşrut</th>
                           <th
                             className={styles.th}
                             style={{ width: "100px" }}
@@ -4828,7 +4857,7 @@ export default function SifarisDetailPage() {
                                     setSelectedVoyageForEdit(v);
                                     setIsVoyageEditOpen(true);
                                   }}
-                                  title="RedaktÉ™ et"
+                                  title="Redaktə et"
                                 >
                                   <svg
                                     width="12"
@@ -5040,7 +5069,7 @@ export default function SifarisDetailPage() {
                             {
                               id: "1",
                               text: "",
-                              unit: "MarÅŸrut",
+                              unit: "Marşrut",
                               qty: 1,
                               price,
                               vatRate: "0%",
@@ -5053,7 +5082,7 @@ export default function SifarisDetailPage() {
                             {
                               id: "1",
                               text: "",
-                              unit: "MarÅŸrut",
+                              unit: "Marşrut",
                               qty: 1,
                               price: 0,
                               vatRate: "0%",
@@ -5122,7 +5151,7 @@ export default function SifarisDetailPage() {
                         {
                           id: "1",
                           text: buildInvoiceFreightText(),
-                          unit: "MarÅŸrut",
+                          unit: "Marşrut",
                           qty: 1,
                           price: salesPrice,
                           vatRate: "0%",
@@ -5204,7 +5233,7 @@ export default function SifarisDetailPage() {
                       fontSize: "0.9rem",
                     }}
                   >
-                    Hesablar əlavə edilmeyib...
+                    Hesablar əlavə edilməyib...
                   </div>
                 ) : (
                   <div className={styles.tableWrapper}>
@@ -5219,7 +5248,7 @@ export default function SifarisDetailPage() {
                     <table className={styles.table}>
                       <thead>
                         <tr>
-                          <th className={styles.th}>Hesab â"–</th>
+                          <th className={styles.th}>Hesab №</th>
                           <th className={styles.th}>Tarix</th>
                           <th className={styles.th}>Ödəyici</th>
                           <th className={styles.th}>Məbləğ</th>
@@ -5329,7 +5358,7 @@ export default function SifarisDetailPage() {
 {canEditInvoice ? (
 <button
                                     type="button"
-                                    title="RedaktÉ™ et"
+                                    title="Redaktə et"
                                     onClick={() => openEditInvoice(inv)}
                                     style={{
                                       display: "inline-flex",
@@ -5751,7 +5780,7 @@ export default function SifarisDetailPage() {
                   transition: "background-color 0.2s ease",
                 }}
               >
-                BaÄŸla
+                Bağla
               </button>
             </div>
           </div>
@@ -5970,7 +5999,7 @@ export default function SifarisDetailPage() {
                   gap: "1.25rem",
                 }}
               >
-                {/* Åžablon */}
+                {/* Şablon */}
                 <div>
                   <div
                     style={{
@@ -5987,7 +6016,7 @@ export default function SifarisDetailPage() {
                         fontWeight: 600,
                       }}
                     >
-                      Åžablon
+                      Şablon
                     </span>
                     <button
                       type="button"
@@ -6670,7 +6699,7 @@ export default function SifarisDetailPage() {
                   (e.currentTarget.style.background = "#22c55e")
                 }
               >
-                YaddaÅŸda saxlamaq
+                Yaddaşda saxlamaq
               </button>
             </div>
           </div>
@@ -7271,7 +7300,7 @@ export default function SifarisDetailPage() {
                   transition: "background 0.2s",
                 }}
               >
-                YaddaÅŸda saxlamaq
+                Yaddaşda saxlamaq
               </button>
             </div>
           </div>
@@ -7501,7 +7530,7 @@ export default function SifarisDetailPage() {
                   transition: "background 0.2s",
                 }}
               >
-                YaddaÅŸda saxlamaq
+                Yaddaşda saxlamaq
               </button>
             </div>
           </div>
@@ -9178,7 +9207,7 @@ export default function SifarisDetailPage() {
                   (e.currentTarget.style.backgroundColor = "#22c55e")
                 }
               >
-                YaddaÅŸda saxlamaq
+                Yaddaşda saxlamaq
               </button>
             </div>
           </div>
@@ -11140,7 +11169,7 @@ export default function SifarisDetailPage() {
                       : "#22c55e";
                 }}
               >
-                YaddaÅŸda saxlamaq
+                Yaddaşda saxlamaq
               </button>
             </div>
           </div>
@@ -11264,7 +11293,7 @@ export default function SifarisDetailPage() {
                       backgroundColor: "#ffffff",
                     }}
                   >
-                    <option value="SifariÅŸ">SifariÅŸ</option>
+                    <option value="Sifariş">Sifariş</option>
                     <option value="Reys">Reys</option>
                   </select>
                 </div>
@@ -11431,7 +11460,7 @@ export default function SifarisDetailPage() {
                   (e.currentTarget.style.backgroundColor = "#22c55e")
                 }
               >
-                YaddaÅŸda saxlamaq
+                Yaddaşda saxlamaq
               </button>
             </div>
           </div>
@@ -12605,7 +12634,7 @@ export default function SifarisDetailPage() {
                   </div>
                 </div>
 
-                {/* Åžablon */}
+                {/* Şablon */}
                 <div
                   style={{
                     display: "flex",
@@ -12614,7 +12643,7 @@ export default function SifarisDetailPage() {
                   }}
                 >
                   <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>
-                    Åžablon <span style={{ color: "#ef4444" }}>*</span>
+                    Şablon <span style={{ color: "#ef4444" }}>*</span>
                   </label>
                   <div style={{ position: "relative", width: "100%" }}>
                     <select
@@ -12920,7 +12949,7 @@ export default function SifarisDetailPage() {
                   cursor: "pointer",
                 }}
               >
-                YaddaÅŸda saxlamaq
+                Yaddaşda saxlamaq
               </button>
 
               <button
