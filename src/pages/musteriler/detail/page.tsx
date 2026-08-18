@@ -262,13 +262,30 @@ export default function MusteriDetailPage() {
       profit += parseMoney(o.profitAzn) || parseMoney(o.profit);
     });
 
+    const ireliAzn = transactions.reduce((sum, tx) => {
+      const name = String(tx.name || "");
+      if (
+        !(
+          name.startsWith("İrəli hesab") ||
+          name.trim() === "Başlanğıc tarif"
+        )
+      ) {
+        return sum;
+      }
+      return sum + resolveCustomerReceivableAmount(tx);
+    }, 0);
+    if (ireliAzn > 0) {
+      sales = ireliAzn;
+      profit = sales - expenses;
+    }
+
     return {
       count: orders.length,
       sales,
       expenses,
       profit,
     };
-  }, [orders]);
+  }, [orders, transactions]);
 
   // Dynamic Finance Info — müştəri YALNIZ "İrəli hesab" / tarif ilə borclanır
   const financeStats = useMemo(() => {

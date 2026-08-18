@@ -66,6 +66,11 @@ import {
   buildFinancePreviewRows,
   resolveOfferExpenseFallbackAzn,
   resolveOfferSalesTotalSummary,
+  isAlinmisInvoiceFinanceName,
+  isIreliInvoiceFinanceName,
+  isEstimatePurchaseFinanceName,
+  isEstimateSalesFinanceName,
+  sumInvoiceFinanceByKind,
 } from "../lib/offerExpense.utils";
 import {
   formatVolumeLabel,
@@ -520,7 +525,7 @@ export default function SifarisDetailPage() {
       {
         id: String(Date.now() + Math.random()),
         text: "",
-        unit: "Marşrut",
+        unit: "MarÅŸrut",
         qty: 1,
         price: 0,
         vatRate: "0%",
@@ -581,17 +586,18 @@ export default function SifarisDetailPage() {
     const rowsTotal = invoiceRows.reduce((sum, row) => {
       const qty = Number(row.qty) || 0;
       const price = Number(row.price) || 0;
-      return sum + qty * price;
+      const vat =
+        Number.parseFloat(String(row.vatRate || "0").replace("%", "")) || 0;
+      return sum + qty * price * (1 + vat / 100);
     }, 0);
-    const invoiceTotal =
-      Number.parseFloat(String(invoiceFreightPrice).replace(",", ".")) ||
-      rowsTotal;
+    const headerPrice =
+      Number.parseFloat(String(invoiceFreightPrice).replace(",", ".")) || 0;
+    // Sətirlər mənbədir — Daşıma qiyməti useEffect-dən gec qala bilər
+    const invoiceTotal = rowsTotal > 0 ? rowsTotal : headerPrice;
 
     const resolvedNumber =
       invoiceNumber.trim() ||
-      (invoicesSubTab === "alinmis"
-        ? `AL-${order?.orderNumber || order?.id}-${Date.now()}`
-        : "");
+      (invoicesSubTab === "alinmis" ? `AL-${Date.now()}` : "");
 
     const existingInvoice = editingInvoiceId
       ? invoicesList.find((i) => String(i.id) === String(editingInvoiceId))
@@ -768,6 +774,31 @@ export default function SifarisDetailPage() {
           setFinanceTransactions(
             Array.isArray(finRefresh.data) ? finRefresh.data : [],
           );
+          try {
+            const orderRefresh = await axios.get(
+              ENDPOINTS.ORDERS.BY_ID(order.id),
+              { headers },
+            );
+            const fresh = orderRefresh.data;
+            if (fresh) {
+              setOrders((prev) =>
+                prev.map((o) =>
+                  String(o.id) === String(order.id)
+                    ? {
+                        ...o,
+                        extraCosts: fresh.extraCosts ?? o.extraCosts,
+                        freight: fresh.freight ?? o.freight,
+                        freightAzn: fresh.freightAzn ?? o.freightAzn,
+                        profit: fresh.profit ?? o.profit,
+                        profitAzn: fresh.profitAzn ?? o.profitAzn,
+                      }
+                    : o,
+                ),
+              );
+            }
+          } catch {
+            /* ignore */
+          }
         }
       } catch {
         /* ignore */
@@ -859,7 +890,7 @@ export default function SifarisDetailPage() {
         inv.rows.map((r: any, idx: number) => ({
           id: String(r.id ?? idx + 1),
           text: String(r.text ?? ""),
-          unit: String(r.unit || "Marşrut"),
+          unit: String(r.unit || "MarÅŸrut"),
           qty: Number(r.qty) || 1,
           price: Number(r.price) || 0,
           vatRate: String(r.vatRate || "0%"),
@@ -870,7 +901,7 @@ export default function SifarisDetailPage() {
         {
           id: "1",
           text: "",
-          unit: "Marşrut",
+          unit: "MarÅŸrut",
           qty: 1,
           price: expected || 0,
           vatRate: "0%",
@@ -1070,7 +1101,7 @@ export default function SifarisDetailPage() {
           );
           return found?.id != null ? Number(found.id) : null;
         })(),
-        paymentMethod: "Sifariş",
+        paymentMethod: "SifariÅŸ",
         category: "ORDER_BOOK",
         tarifPrice: txRevTarif,
         tarifCurrency: txRevCurrency,
@@ -1516,9 +1547,7 @@ export default function SifarisDetailPage() {
       financeTransactions.find(
         (t) => String(t.name || "").trim() === "Başlanğıc tarif",
       ) ||
-      financeTransactions.find((t) =>
-        /^İrəli hesab #/i.test(String(t.name || "").trim()),
-      );
+      financeTransactions.find((t) => isIreliInvoiceFinanceName(t.name));
     if (tx) {
       const price =
         Number.parseFloat(
@@ -1645,29 +1674,41 @@ export default function SifarisDetailPage() {
     let baslangicRevAzn = 0;
     let otherFinanceRevAzn = 0;
     let otherFinanceExpAzn = 0;
+    let alinmisExpAzn = 0;
+    const hasAlinmisInvoice = financeTransactions.some((t) =>
+      isAlinmisInvoiceFinanceName(t.name),
+    );
+    const hasIreliInvoice = financeTransactions.some((t) =>
+      isIreliInvoiceFinanceName(t.name),
+    );
 
     financeTransactions.forEach((t) => {
       const name = String(t.name || "").trim();
-      const isBaslangic =
-        name === "Başlanğıc tarif" || /^İrəli hesab #/i.test(name);
+      const isBaslangic = isIreliInvoiceFinanceName(name);
       const revAzn = resolveFinanceRevenueAzn(t, rates);
 
       if (isBaslangic) {
         baslangicRevAzn += revAzn;
-      } else {
+      } else if (!(hasIreliInvoice && isEstimateSalesFinanceName(name))) {
         otherFinanceRevAzn += revAzn;
       }
 
       if (isVoyageFinanceName(name)) return;
       if (isBaslangic) return;
+      if (hasAlinmisInvoice && isEstimatePurchaseFinanceName(name)) return;
+      if (isAlinmisInvoiceFinanceName(name)) {
+        alinmisExpAzn += resolveFinanceExpenseAzn(t, rates);
+      }
 
       otherFinanceExpAzn += resolveFinanceExpenseAzn(t, rates);
     });
 
     let voyageExpAzn = 0;
-    voyagesList.forEach((v) => {
-      voyageExpAzn += resolveVoyageParts(v).azn;
-    });
+    if (!hasAlinmisInvoice) {
+      voyagesList.forEach((v) => {
+        voyageExpAzn += resolveVoyageParts(v).azn;
+      });
+    }
 
     // Fraxt = satış / başlanğıc tarif — əlavə edilən adi sətirlər fraxtı əvəz etməsin
     const freightAzn =
@@ -1678,20 +1719,22 @@ export default function SifarisDetailPage() {
     // Gəlir: sabit fraxt + digər tarif sətirləri (əlavə gəlir)
     const totalRevAzn = freightAzn + otherFinanceRevAzn;
 
-    // Xərclər: reys (alış) + təklif xərci + digər maliyyə məsarifi
+    // Xərclər: hesab saxlanıbsa hesab məbləği; yoxdursa reys/təklif
     let totalExpAzn = otherFinanceExpAzn;
-    if (voyageExpAzn > 0) {
-      totalExpAzn += voyageExpAzn + (offerSalesTotal?.expenseAzn || 0);
-    } else if (offerSalesTotal?.purchaseAzn && offerSalesTotal.purchaseAzn > 0) {
-      totalExpAzn +=
-        offerSalesTotal.purchaseAzn + (offerSalesTotal.expenseAzn || 0);
-    } else {
-      totalExpAzn += resolveOfferExpenseFallbackAzn({
-        order,
-        voyages: voyagesList,
-        financeTransactions,
-        currencyRates: rates,
-      });
+    if (!hasAlinmisInvoice) {
+      if (voyageExpAzn > 0) {
+        totalExpAzn += voyageExpAzn + (offerSalesTotal?.expenseAzn || 0);
+      } else if (offerSalesTotal?.purchaseAzn && offerSalesTotal.purchaseAzn > 0) {
+        totalExpAzn +=
+          offerSalesTotal.purchaseAzn + (offerSalesTotal.expenseAzn || 0);
+      } else {
+        totalExpAzn += resolveOfferExpenseFallbackAzn({
+          order,
+          voyages: voyagesList,
+          financeTransactions,
+          currencyRates: rates,
+        });
+      }
     }
 
     return {
@@ -1702,6 +1745,9 @@ export default function SifarisDetailPage() {
       voyageExpAzn,
       otherFinanceExpAzn,
       otherFinanceRevAzn,
+      alinmisExpAzn,
+      hasAlinmisInvoice,
+      hasIreliInvoice,
       resolveVoyageParts,
       toAznAmount,
       hasFinanceRevenue: freightAzn > 0 || otherFinanceRevAzn > 0,
@@ -1721,6 +1767,7 @@ export default function SifarisDetailPage() {
     };
 
     voyagesList.forEach((v) => {
+      if (financeTotals.hasAlinmisInvoice) return;
       const parts = financeTotals.resolveVoyageParts(v);
       if (parts.azn > 0 || parts.amount > 0) {
         addPart(parts.amount, parts.currency, parts.azn);
@@ -1730,7 +1777,13 @@ export default function SifarisDetailPage() {
     financeTransactions.forEach((t) => {
       const name = String(t.name || "").trim();
       if (/^Reys R-\d+$/i.test(name)) return;
-      if (name === "Başlanğıc tarif") return;
+      if (isIreliInvoiceFinanceName(name)) return;
+      if (
+        financeTotals.hasAlinmisInvoice &&
+        isEstimatePurchaseFinanceName(name)
+      ) {
+        return;
+      }
       const azn = resolveFinanceExpenseAzn(t, currencyRates);
       if (!(azn > 0)) return;
       const amount =
@@ -1748,10 +1801,11 @@ export default function SifarisDetailPage() {
       return `${g.amount.toFixed(2)} ${curr} (${g.azn.toFixed(2)} AZN)`;
     });
 
-    // Sol Xərclər — əvvəl reys (və digər məsarif) hissəsindən
+    // Sol Xərclər — hesab saxlanıbsa hesab məbləği, yoxdursa reys
     if (parts.length > 0) return parts.join(" + ");
 
     if (
+      !financeTotals.hasAlinmisInvoice &&
       offerSalesTotal?.purchaseFromVoyages &&
       offerSalesTotal.labelPurchase &&
       offerSalesTotal.labelPurchase !== "—"
@@ -1767,14 +1821,27 @@ export default function SifarisDetailPage() {
 
   /** Sistem önbaxış sətirləri + əlavə edilən real əməliyyatlar birlikdə */
   const financeTableRows = useMemo(() => {
-    const previewWithoutProfit = financePreviewRows.filter(
-      (r) => String(r.id) !== "preview-profit",
-    );
+    const hasAlinmis = financeTotals.hasAlinmisInvoice;
+    const hasIreli = financeTotals.hasIreliInvoice;
+    const previewWithoutProfit = financePreviewRows.filter((r) => {
+      const name = r.name;
+      if (String(r.id) === "preview-profit") return false;
+      if (hasAlinmis && isEstimatePurchaseFinanceName(name)) return false;
+      if (hasIreli && isEstimateSalesFinanceName(name)) return false;
+      return true;
+    });
     const profitPreview = financePreviewRows.find(
       (r) => String(r.id) === "preview-profit",
     );
 
-    let rows: any[] = [...previewWithoutProfit, ...financeTransactions];
+    const realTxs = financeTransactions.filter((t) => {
+      const name = t.name;
+      if (hasAlinmis && isEstimatePurchaseFinanceName(name)) return false;
+      if (hasIreli && isEstimateSalesFinanceName(name)) return false;
+      return true;
+    });
+
+    let rows: any[] = [...previewWithoutProfit, ...realTxs];
 
     if (profitPreview) {
       rows.push({
@@ -1784,6 +1851,7 @@ export default function SifarisDetailPage() {
     }
 
     if (
+      !financeTotals.hasAlinmisInvoice &&
       offerSalesTotal?.purchaseFromVoyages &&
       offerSalesTotal.purchase > 0
     ) {
@@ -1805,27 +1873,56 @@ export default function SifarisDetailPage() {
     financePreviewRows,
     financeTransactions,
     financeTotals.profitAzn,
+    financeTotals.hasAlinmisInvoice,
+    financeTotals.hasIreliInvoice,
     offerSalesTotal,
   ]);
 
-  /** Maliyyə tabının üst kartları — reys + təklif + əlavə edilən əməliyyatlar */
+  /** Maliyyə tabının üst kartları — hesab saxlanıbsa hesab, yoxdursa reys/təklif */
   const maliyyeHeaderCards = useMemo(() => {
-    if (!offerSalesTotal && !(financeTotals.totalRevAzn > 0)) return null;
+    const alinmisSum = sumInvoiceFinanceByKind(financeTransactions, "alinmis");
+    const ireliSum = sumInvoiceFinanceByKind(financeTransactions, "ireli");
+    const hasAlinmis = Boolean(
+      financeTotals.hasAlinmisInvoice || alinmisSum.azn > 0,
+    );
+    const hasIreli = Boolean(
+      financeTotals.hasIreliInvoice || ireliSum.azn > 0,
+    );
 
-    const salesAzn =
-      (financeTotals.freightAzn || 0) > 0
+    if (
+      !offerSalesTotal &&
+      !(financeTotals.totalRevAzn > 0) &&
+      !hasAlinmis &&
+      !hasIreli
+    ) {
+      return null;
+    }
+
+    const salesAzn = hasIreli
+      ? ireliSum.azn
+      : (financeTotals.freightAzn || 0) > 0
         ? financeTotals.freightAzn + (financeTotals.otherFinanceRevAzn || 0)
         : financeTotals.totalRevAzn > 0
           ? financeTotals.totalRevAzn
           : offerSalesTotal?.salesAzn || 0;
-    const purchaseAzn =
-      offerSalesTotal?.purchaseAzn || financeTotals.voyageExpAzn || 0;
-    const offerExpenseAzn = offerSalesTotal?.expenseAzn || 0;
-    const otherExpAzn = financeTotals.otherFinanceExpAzn || 0;
-    const totalAzn = purchaseAzn + offerExpenseAzn + otherExpAzn;
+    const purchaseAzn = hasAlinmis
+      ? alinmisSum.azn
+      : offerSalesTotal?.purchaseAzn || financeTotals.voyageExpAzn || 0;
+    const offerExpenseAzn = hasAlinmis ? 0 : offerSalesTotal?.expenseAzn || 0;
+    const otherExpAzn = hasAlinmis
+      ? Math.max(0, (financeTotals.otherFinanceExpAzn || 0) - alinmisSum.azn)
+      : financeTotals.otherFinanceExpAzn || 0;
+    const totalAzn = hasAlinmis
+      ? financeTotals.totalExpAzn
+      : purchaseAzn + offerExpenseAzn + otherExpAzn;
     const profitAzn = salesAzn - totalAzn;
 
     const formatTotalLabel = () => {
+      if (hasAlinmis) {
+        return financeExpenseLabel && financeExpenseLabel !== "—"
+          ? financeExpenseLabel
+          : alinmisSum.label;
+      }
       if (!(totalAzn > 0)) return "—";
 
       const purchase = offerSalesTotal?.purchase || 0;
@@ -1834,12 +1931,10 @@ export default function SifarisDetailPage() {
       const expense = offerSalesTotal?.expense || 0;
       const offerCurr = offerSalesTotal?.currency || purchaseCurr;
 
-      // Əlavə maliyyə sətri yoxdursa — alış+xərc eyni valyutada
       if (!(otherExpAzn > 0.001) && offerSalesTotal?.labelTotal) {
         return offerSalesTotal.labelTotal;
       }
 
-      // Eyni valyutada alış+xərc + digər AZN
       if (
         purchase > 0 &&
         purchaseCurr.toUpperCase() !== "AZN" &&
@@ -1856,14 +1951,16 @@ export default function SifarisDetailPage() {
     };
 
     return {
-      labelSales:
-        offerSalesTotal?.labelSales && offerSalesTotal.labelSales !== "—"
+      labelSales: hasIreli
+        ? ireliSum.label
+        : offerSalesTotal?.labelSales && offerSalesTotal.labelSales !== "—"
           ? offerSalesTotal.labelSales
           : salesAzn > 0
             ? `${salesAzn.toFixed(2)} AZN`
             : "—",
-      labelPurchase:
-        offerSalesTotal?.labelPurchase && offerSalesTotal.labelPurchase !== "—"
+      labelPurchase: hasAlinmis
+        ? alinmisSum.label
+        : offerSalesTotal?.labelPurchase && offerSalesTotal.labelPurchase !== "—"
           ? offerSalesTotal.labelPurchase
           : purchaseAzn > 0
             ? `${purchaseAzn.toFixed(2)} AZN`
@@ -1871,11 +1968,7 @@ export default function SifarisDetailPage() {
       labelTotal: formatTotalLabel(),
       profitAzn,
     };
-  }, [offerSalesTotal, financeTotals]);
-
-  // Removed previous unused useEffects
-
-  // Removed previous unused useEffects
+  }, [offerSalesTotal, financeTotals, financeTransactions, financeExpenseLabel]);
 
   // Tab State
   type SifarisTabId =
@@ -2036,19 +2129,21 @@ export default function SifarisDetailPage() {
     {
       id: "1",
       text: "",
-      unit: "Marşrut",
+      unit: "MarÅŸrut",
       qty: 1,
       price: 0,
       vatRate: "0%",
     },
   ]);
 
-  // Daşıma qiyməti = sətirlərin (miqdar × qiymət) cəmi
+  // Daşıma qiyməti = sətirlərin (miqdar × qiymət × ƏDV) cəmi
   useEffect(() => {
     const total = invoiceRows.reduce((sum, row) => {
       const qty = Number(row.qty) || 0;
       const price = Number(row.price) || 0;
-      return sum + qty * price;
+      const vat =
+        Number.parseFloat(String(row.vatRate || "0").replace("%", "")) || 0;
+      return sum + qty * price * (1 + vat / 100);
     }, 0);
     const next =
       Math.abs(total) < 0.0000001
@@ -2375,7 +2470,7 @@ export default function SifarisDetailPage() {
 
   // Combined Comments & Tasks States
   const [isNewCommentModalOpen, setIsNewCommentModalOpen] = useState(false);
-  const [commentCategory, setCommentCategory] = useState("Sifariş");
+  const [commentCategory, setCommentCategory] = useState("SifariÅŸ");
   const [commentProvideAccessCustomer, setCommentProvideAccessCustomer] =
     useState(false);
   const [commentProvideAccessCarrier, setCommentProvideAccessCarrier] =
@@ -3050,7 +3145,7 @@ export default function SifarisDetailPage() {
       },
       {
         id: "finance",
-        label: `Maliyyə (${financeTableRows.length})`,
+        label: `MaliyyÉ™ (${financeTableRows.length})`,
         icon: <FiDollarSign />,
         permChild: "finance",
       },
@@ -3229,7 +3324,7 @@ export default function SifarisDetailPage() {
               className={styles.editBtn}
               onClick={() => setIsEditModalOpen(true)}
               disabled={isOrderSaving}
-              title="Sifarişi redaktə et"
+              title="SifariÅŸi redaktÉ™ et"
             >
               <FiEdit2 size={15} />
               {isOrderSaving ? "Saxlanılır..." : "Redaktə et"}
@@ -3496,7 +3591,7 @@ export default function SifarisDetailPage() {
             {/* Fields List */}
             <div className={styles.dlList}>
               <DlRow
-                label="Sorğu"
+                label="SorÄŸu"
                 value={`${order.queryNumber}, ${order.queryDate || "20.05.2026"}\nTəsdiq edilmişdir: Vaxtında`}
               />
               <DlRow
@@ -3541,7 +3636,7 @@ export default function SifarisDetailPage() {
                 }
               />
               <DlRow
-                label="Sifarişin tarixi"
+                label="SifariÅŸin tarixi"
                 value={formatDateOnly(order.orderDate)}
               />
               <DlRow label="Teqlər" value={order.tags || "—"} />
@@ -3645,7 +3740,7 @@ export default function SifarisDetailPage() {
                           Alıcı
                         </th>
                         <th className={`${styles.th} ${styles.thNowrap}`}>
-                          Boşaltma
+                          BoÅŸaltma
                         </th>
                         <th className={`${styles.th} ${styles.thNowrap}`}>
                           Reyslər
@@ -3746,7 +3841,7 @@ export default function SifarisDetailPage() {
                                 <button
                                   type="button"
                                   className={styles.iconBtn}
-                                  title="Redaktə et"
+                                  title="RedaktÉ™ et"
                                   onClick={() => {
                                     setSelectedLoadForEdit(load);
                                     setIsYukEditModalOpen(true);
@@ -3911,7 +4006,7 @@ export default function SifarisDetailPage() {
                           Alıcı
                         </th>
                         <th className={`${styles.th} ${styles.thNowrap}`}>
-                          Boşaltma yeri
+                          BoÅŸaltma yeri
                         </th>
                         <th className={`${styles.th} ${styles.thNowrap}`}>
                           Status
@@ -4102,7 +4197,7 @@ export default function SifarisDetailPage() {
                                 <button
                                   type="button"
                                   className={styles.iconBtn}
-                                  title="Redaktə et"
+                                  title="RedaktÉ™ et"
                                   onClick={() => {
                                     setSelectedVoyageForEdit(v);
                                     setIsVoyageEditOpen(true);
@@ -4164,7 +4259,7 @@ export default function SifarisDetailPage() {
                   }}
                 >
                   <h3 className={styles.contentCardTitle} style={{ margin: 0 }}>
-                    Maliyyə
+                    MaliyyÉ™
                   </h3>
 {canCreateFinance ? (
                   <button
@@ -4562,7 +4657,7 @@ export default function SifarisDetailPage() {
                                       type="button"
                                       className={styles.iconBtn}
                                       onClick={() => handleEditTransaction(tx)}
-                                      title="Redaktə et"
+                                      title="RedaktÉ™ et"
                                     >
                                       <svg
                                         width="12"
@@ -4637,7 +4732,7 @@ export default function SifarisDetailPage() {
                           <th className={styles.th}>ƏDV ilə qiymət</th>
                           <th className={styles.th}>Ekspeditor</th>
                           <th className={styles.th}>Alınmış hesab</th>
-                          <th className={styles.th}>Marşrut</th>
+                          <th className={styles.th}>MarÅŸrut</th>
                           <th
                             className={styles.th}
                             style={{ width: "100px" }}
@@ -4733,7 +4828,7 @@ export default function SifarisDetailPage() {
                                     setSelectedVoyageForEdit(v);
                                     setIsVoyageEditOpen(true);
                                   }}
-                                  title="Redaktə et"
+                                  title="RedaktÉ™ et"
                                 >
                                   <svg
                                     width="12"
@@ -4945,7 +5040,7 @@ export default function SifarisDetailPage() {
                             {
                               id: "1",
                               text: "",
-                              unit: "Marşrut",
+                              unit: "MarÅŸrut",
                               qty: 1,
                               price,
                               vatRate: "0%",
@@ -4958,7 +5053,7 @@ export default function SifarisDetailPage() {
                             {
                               id: "1",
                               text: "",
-                              unit: "Marşrut",
+                              unit: "MarÅŸrut",
                               qty: 1,
                               price: 0,
                               vatRate: "0%",
@@ -5027,7 +5122,7 @@ export default function SifarisDetailPage() {
                         {
                           id: "1",
                           text: buildInvoiceFreightText(),
-                          unit: "Marşrut",
+                          unit: "MarÅŸrut",
                           qty: 1,
                           price: salesPrice,
                           vatRate: "0%",
@@ -5124,7 +5219,7 @@ export default function SifarisDetailPage() {
                     <table className={styles.table}>
                       <thead>
                         <tr>
-                          <th className={styles.th}>Hesab №</th>
+                          <th className={styles.th}>Hesab â"–</th>
                           <th className={styles.th}>Tarix</th>
                           <th className={styles.th}>Ödəyici</th>
                           <th className={styles.th}>Məbləğ</th>
@@ -5234,7 +5329,7 @@ export default function SifarisDetailPage() {
 {canEditInvoice ? (
 <button
                                     type="button"
-                                    title="Redaktə et"
+                                    title="RedaktÉ™ et"
                                     onClick={() => openEditInvoice(inv)}
                                     style={{
                                       display: "inline-flex",
@@ -5656,7 +5751,7 @@ export default function SifarisDetailPage() {
                   transition: "background-color 0.2s ease",
                 }}
               >
-                Bağla
+                BaÄŸla
               </button>
             </div>
           </div>
@@ -5875,7 +5970,7 @@ export default function SifarisDetailPage() {
                   gap: "1.25rem",
                 }}
               >
-                {/* Şablon */}
+                {/* Åžablon */}
                 <div>
                   <div
                     style={{
@@ -5892,7 +5987,7 @@ export default function SifarisDetailPage() {
                         fontWeight: 600,
                       }}
                     >
-                      Şablon
+                      Åžablon
                     </span>
                     <button
                       type="button"
@@ -6575,7 +6670,7 @@ export default function SifarisDetailPage() {
                   (e.currentTarget.style.background = "#22c55e")
                 }
               >
-                Yaddaşda saxlamaq
+                YaddaÅŸda saxlamaq
               </button>
             </div>
           </div>
@@ -7176,7 +7271,7 @@ export default function SifarisDetailPage() {
                   transition: "background 0.2s",
                 }}
               >
-                Yaddaşda saxlamaq
+                YaddaÅŸda saxlamaq
               </button>
             </div>
           </div>
@@ -7406,7 +7501,7 @@ export default function SifarisDetailPage() {
                   transition: "background 0.2s",
                 }}
               >
-                Yaddaşda saxlamaq
+                YaddaÅŸda saxlamaq
               </button>
             </div>
           </div>
@@ -9083,7 +9178,7 @@ export default function SifarisDetailPage() {
                   (e.currentTarget.style.backgroundColor = "#22c55e")
                 }
               >
-                Yaddaşda saxlamaq
+                YaddaÅŸda saxlamaq
               </button>
             </div>
           </div>
@@ -9743,7 +9838,8 @@ export default function SifarisDetailPage() {
                     gap: "1.5rem",
                   }}
                 >
-                  {/* Sifarişin nömrəsi */}
+                  {/* Sifarişin nömrəsi — alınmış hesabda göstərilmir */}
+                  {invoicesSubTab !== "alinmis" && (
                   <div
                     style={{
                       display: "flex",
@@ -9776,6 +9872,7 @@ export default function SifarisDetailPage() {
                       }}
                     />
                   </div>
+                  )}
 
                   {/* Alınmış: Daşıyıcı → Reys | İrəli/İlkin: Müştəri (+ müqavilə), reys yoxdur */}
                   {invoicesSubTab === "alinmis" ? (
@@ -10273,8 +10370,26 @@ export default function SifarisDetailPage() {
                     <input
                       type="text"
                       value={invoiceFreightPrice}
-                      readOnly
-                      title="Hesab sətirlərinin cəmi (miqdar × qiymət)"
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setInvoiceFreightPrice(raw);
+                        const num =
+                          Number.parseFloat(String(raw).replace(",", ".")) || 0;
+                        setInvoiceRows((rows) => {
+                          if (!rows.length) return rows;
+                          const qty = Number(rows[0].qty) || 1;
+                          const vat =
+                            Number.parseFloat(
+                              String(rows[0].vatRate || "0").replace("%", ""),
+                            ) || 0;
+                          const net = vat > 0 ? num / (1 + vat / 100) : num;
+                          const price = qty > 0 ? net / qty : net;
+                          return rows.map((r, i) =>
+                            i === 0 ? { ...r, price } : r,
+                          );
+                        });
+                      }}
+                      title="Hesab məbləği — saxlananda maliyyə, müştəri və daşıyıcı bu rəqəmə görə yenilənir"
                       placeholder="0.00"
                       style={{
                         border: "1px solid #cbd5e1",
@@ -10282,8 +10397,8 @@ export default function SifarisDetailPage() {
                         padding: "0.5rem 0.75rem",
                         outline: "none",
                         fontSize: "0.875rem",
-                        backgroundColor: "#f1f5f9",
-                        color: "#64748b",
+                        backgroundColor: "#ffffff",
+                        color: "#0f172a",
                       }}
                     />
                   </div>
@@ -11025,7 +11140,7 @@ export default function SifarisDetailPage() {
                       : "#22c55e";
                 }}
               >
-                Yaddaşda saxlamaq
+                YaddaÅŸda saxlamaq
               </button>
             </div>
           </div>
@@ -11149,7 +11264,7 @@ export default function SifarisDetailPage() {
                       backgroundColor: "#ffffff",
                     }}
                   >
-                    <option value="Sifariş">Sifariş</option>
+                    <option value="SifariÅŸ">SifariÅŸ</option>
                     <option value="Reys">Reys</option>
                   </select>
                 </div>
@@ -11316,7 +11431,7 @@ export default function SifarisDetailPage() {
                   (e.currentTarget.style.backgroundColor = "#22c55e")
                 }
               >
-                Yaddaşda saxlamaq
+                YaddaÅŸda saxlamaq
               </button>
             </div>
           </div>
@@ -12235,7 +12350,7 @@ export default function SifarisDetailPage() {
                         ×
                       </span>
                       <span style={{ color: "#94a3b8", fontSize: "0.55rem" }}>
-                        ▼
+                        â–¼
                       </span>
                     </div>
                   </div>
@@ -12483,14 +12598,14 @@ export default function SifarisDetailPage() {
                         }}
                       >
                         <span style={{ color: "#cbd5e1", fontSize: "0.55rem" }}>
-                          ▼
+                          â–¼
                         </span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Şablon */}
+                {/* Åžablon */}
                 <div
                   style={{
                     display: "flex",
@@ -12499,7 +12614,7 @@ export default function SifarisDetailPage() {
                   }}
                 >
                   <label style={{ fontSize: "0.85rem", color: "#8a99ad" }}>
-                    Şablon <span style={{ color: "#ef4444" }}>*</span>
+                    Åžablon <span style={{ color: "#ef4444" }}>*</span>
                   </label>
                   <div style={{ position: "relative", width: "100%" }}>
                     <select
@@ -12539,7 +12654,7 @@ export default function SifarisDetailPage() {
                       }}
                     >
                       <span style={{ color: "#94a3b8", fontSize: "0.55rem" }}>
-                        ▼
+                        â–¼
                       </span>
                     </div>
                   </div>
@@ -12805,7 +12920,7 @@ export default function SifarisDetailPage() {
                   cursor: "pointer",
                 }}
               >
-                Yaddaşda saxlamaq
+                YaddaÅŸda saxlamaq
               </button>
 
               <button

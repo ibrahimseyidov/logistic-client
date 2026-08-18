@@ -1,5 +1,8 @@
 import { SorguStatus } from "../types/sorgu.types";
-import type { StatusTone } from "../../../common/components/StatusBadge";
+import {
+  getStatusTone,
+  type StatusTone,
+} from "../../../common/components/StatusBadge";
 
 /** Aktiv tab — arxivə düşməyənlər */
 export const SORGU_ACTIVE_STATUSES: string[] = [
@@ -75,4 +78,18 @@ export function countSorguStatuses(
     if (key in counts) counts[key] += 1;
   }
   return counts;
+}
+
+const HISTORY_TONE_COLORS: Record<StatusTone, string> = {
+  amber: "#d97706",
+  cyan: "#0891b2",
+  emerald: "#047857",
+  rose: "#b91c1c",
+  slate: "#475569",
+  sky: "#0369a1",
+  violet: "#6d28d9",
+};
+
+export function getSorguStatusHistoryColor(status: string): string {
+  return HISTORY_TONE_COLORS[getStatusTone(status)] || "#1d4ed8";
 }

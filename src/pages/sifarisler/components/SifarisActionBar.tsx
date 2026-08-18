@@ -1,5 +1,7 @@
 import { FiFilePlus, FiFilter } from "react-icons/fi";
 import { usePermissions } from "../../../common/hooks/usePermissions";
+import { SIFARIS_STATUS_PILLS } from "../constants/sifaris.constants";
+import type { OrderStatusKind } from "../types/sifaris.types";
 import styles from "./ToolbarCommon.module.css";
 
 interface Stats {
@@ -15,6 +17,10 @@ interface Stats {
 
 interface Props {
   stats: Stats;
+  statusCounts: Record<OrderStatusKind, number>;
+  statusTotal: number;
+  statusFilter?: string | null;
+  onStatusFilter?: (status: string | null) => void;
   onNew: () => void;
   onToggleFilters: () => void;
   onExportExcel: () => void;
@@ -25,8 +31,20 @@ function fmt(n: number) {
   return new Intl.NumberFormat("az-AZ", { maximumFractionDigits: 1 }).format(n);
 }
 
+const pillToneClass: Record<string, string> = {
+  amber: styles.statPillAmber,
+  emerald: styles.statPillEmerald,
+  rose: styles.statPillRose,
+  sky: styles.statPillSky,
+  violet: styles.statPillViolet,
+};
+
 export default function SifarisActionBar({
   stats,
+  statusCounts,
+  statusTotal,
+  statusFilter = null,
+  onStatusFilter,
   onNew,
   onToggleFilters,
   onExportExcel,
@@ -34,6 +52,7 @@ export default function SifarisActionBar({
 }: Props) {
   const { canCreate } = usePermissions();
   const allowCreate = canCreate("sifarisler", "orders");
+  const isAllActive = !statusFilter;
 
   return (
     <div className={styles.wrapper}>
@@ -60,6 +79,35 @@ export default function SifarisActionBar({
               <span className={styles.badge}>{activeFilterCount}</span>
             ) : null}
           </button>
+        </div>
+
+        <div className={styles.centerActions}>
+          <button
+            type="button"
+            className={`${styles.statPill} ${styles.statPillClickable} ${
+              isAllActive ? styles.statPillActive : ""
+            }`}
+            onClick={() => onStatusFilter?.(null)}
+            title="Bütün statuslar"
+          >
+            Hamısı: {statusTotal}
+          </button>
+          {SIFARIS_STATUS_PILLS.map((opt) => {
+            const selected = statusFilter === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                className={`${styles.statPill} ${styles.statPillClickable} ${
+                  pillToneClass[opt.tone] || ""
+                } ${selected ? styles.statPillActive : ""}`}
+                title={`${opt.label} — filtrə tətbiq et`}
+                onClick={() => onStatusFilter?.(opt.value)}
+              >
+                {opt.label}: {statusCounts[opt.value] ?? 0}
+              </button>
+            );
+          })}
         </div>
 
         <div className={styles.rightActions}>

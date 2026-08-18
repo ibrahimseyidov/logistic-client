@@ -8,4 +8,5 @@ export { default as SorgularEditModal } from "./SorgularEditModal";
 export { default as SorgularOfferModal } from "./SorgularOfferModal";
 export { default as SorgularOffersTable } from "./SorgularOffersTable";
 export { default as SorguStatusDropdown } from "./SorguStatusDropdown";
+export { default as SorguStatusHistoryModal } from "./SorguStatusHistoryModal";
 export type { NewSorguFormPayload } from "./SorgularNewModal";

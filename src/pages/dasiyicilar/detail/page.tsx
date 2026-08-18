@@ -198,13 +198,29 @@ export default function DasiyiciDetailPage() {
       profit += parseMoney(o.profit);
     });
 
+    const alinmisAzn = financeTransactions.reduce((sum, tx) => {
+      const name = String(tx.name || "");
+      if (!name.startsWith("Alınmış hesab")) return sum;
+      return (
+        sum +
+        (parseMoney(tx.mesarifAzn) ||
+          parseMoney(tx.edvliMesarifAzn) ||
+          parseMoney(String(tx.amount ?? 0)) ||
+          0)
+      );
+    }, 0);
+    if (alinmisAzn > 0) {
+      expenses = alinmisAzn;
+      profit = sales - expenses;
+    }
+
     return {
       count: orders.length,
       sales,
       expenses,
       profit,
     };
-  }, [orders]);
+  }, [orders, financeTransactions]);
 
   // Dynamic Finance Info — daşıyıcı YALNIZ "Alınmış hesab" ilə borclanır
   const financeStats = useMemo(() => {
@@ -239,22 +255,25 @@ export default function DasiyiciDetailPage() {
         return;
       }
 
-      const amount =
+      const azn =
         parseMoney(tx.mesarifAzn) ||
         parseMoney(tx.edvliMesarifAzn) ||
-        parseMoney(String(tx.amount ?? 0)) ||
-        parseMoney(tx.mesarifPrice);
-      if (!(amount > 0)) return;
+        parseMoney(String(tx.amount ?? 0));
+      const orig =
+        parseMoney(tx.mesarifPrice) ||
+        parseMoney(tx.edvliMesarifPrice) ||
+        azn;
+      if (!(azn > 0) && !(orig > 0)) return;
 
       payments.push({
         date: tx.date || tx.costDate || new Date().toISOString(),
         purpose: name || "Alınmış hesab",
-        amount,
+        amount: orig > 0 ? orig : azn,
         currency: tx.mesarifCurrency || tx.currency || "AZN",
         status: "Ödənilməyib",
         type: "EXPENSE",
       });
-      outstandingDebt += amount;
+      outstandingDebt += azn > 0 ? azn : orig;
     });
 
     return {

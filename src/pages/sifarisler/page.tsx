@@ -62,6 +62,7 @@ import { ENDPOINTS } from "../../services/EndpointResources.g";
 import {
   aggregateSifarisStats,
   applySifarisFilters,
+  countSifarisStatuses,
 } from "./lib/filterSifarisler";
 import { formatDateOnly, toDateIso } from "./lib/formatDate";
 import { aggregateYukStats, applyYukFilters } from "./lib/filterYukler";
@@ -83,6 +84,7 @@ import type {
   OrderStatusKind,
 } from "./types/sifaris.types";
 import { emptySifarisFilter } from "./types/sifaris.types";
+import { SIFARIS_STATUS_PILLS } from "./constants/sifaris.constants";
 import type { YukFilterFormState, YukFilterSectionId } from "./types/yuk.types";
 import { emptyYukFilter } from "./types/yuk.types";
 import type {
@@ -105,6 +107,7 @@ import {
 } from "./lib/orderCargoDisplay";
 import { resolveOfferExpenseFallbackAzn, resolveOfferSalesTotalSummary } from "./lib/offerExpense.utils";
 import { resolveOrderDocFlags } from "./lib/orderDocFlags";
+import { exportSifarislerToExcel } from "./lib/exportExcel";
 
 const YUK_ACCOUNT_OPTIONS: SelectOption[] = [
   { value: "", label: "Təfərrüatlı hesab irəli sür" },
@@ -121,8 +124,9 @@ export default function SifarislerPage() {
   // Data yükleniyor state'i
   const [loading, setLoading] = useState(true);
   const dispatch = useAppDispatch();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
+  const requestedStatus = searchParams.get("status");
   const initialTab: SifarisSubTab =
     requestedTab === "loads" ||
     requestedTab === "voyages" ||
@@ -194,6 +198,7 @@ export default function SifarislerPage() {
               ldm: totals.ldm || Number(o.ldm) || 0,
               freight: o.freight ? o.freight.split(" + ")[0] : "—",
               extraCosts: (() => {
+                if (o.extraCosts) return o.extraCosts;
                 const summary = resolveOfferSalesTotalSummary({
                   order: o,
                   voyages,
@@ -202,7 +207,6 @@ export default function SifarislerPage() {
                 if (summary?.labelTotal && summary.labelTotal !== "—") {
                   return summary.labelTotal;
                 }
-                if (o.extraCosts) return o.extraCosts;
                 const azn = resolveOfferExpenseFallbackAzn({
                   order: o,
                   voyages: voyages,
@@ -335,6 +339,12 @@ export default function SifarislerPage() {
     useState<SifarisFilterFormState>(emptySifarisFilter);
   const [appliedFilter, setAppliedFilter] =
     useState<SifarisFilterFormState>(emptySifarisFilter);
+  const [statusQuickFilter, setStatusQuickFilter] = useState<string | null>(
+    () =>
+      SIFARIS_STATUS_PILLS.some((o) => o.value === requestedStatus)
+        ? requestedStatus
+        : null,
+  );
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
   const [templates, setTemplates] = useState<Array<{ name: string; filter: SifarisFilterFormState; activeSections: SifarisFilterSectionId[] }>>(() => {
@@ -414,6 +424,14 @@ export default function SifarislerPage() {
 
     setSubTab((prev) => (prev === nextTab ? prev : nextTab));
   }, [requestedTab]);
+
+  useEffect(() => {
+    setStatusQuickFilter(
+      SIFARIS_STATUS_PILLS.some((o) => o.value === requestedStatus)
+        ? requestedStatus
+        : null,
+    );
+  }, [requestedStatus]);
 
   useEffect(() => {
     if (!openFilterPanel) return undefined;
@@ -566,9 +584,19 @@ export default function SifarislerPage() {
     ];
   }, [emekler]);
 
-  const filteredRows = useMemo(
+  const baseFilteredRows = useMemo(
     () => applySifarisFilters(orders, appliedFilter),
     [orders, appliedFilter],
+  );
+
+  const filteredRows = useMemo(() => {
+    if (!statusQuickFilter) return baseFilteredRows;
+    return baseFilteredRows.filter((row) => row.statusKind === statusQuickFilter);
+  }, [baseFilteredRows, statusQuickFilter]);
+
+  const statusCounts = useMemo(
+    () => countSifarisStatuses(baseFilteredRows),
+    [baseFilteredRows],
   );
 
   const stats = useMemo(
@@ -854,14 +882,44 @@ export default function SifarislerPage() {
     );
   };
 
-  const handleExportExcel = () => {
-    dispatch(
-      showNotification({
-        message: "Excel ixrac tezliklə əlavə olunacaq.",
-        type: "info",
-        autoCloseDuration: 3500,
-      }),
-    );
+  const handleExportExcel = async () => {
+    const selectedRows =
+      selectedIds.size > 0
+        ? filteredRows.filter((row) => selectedIds.has(row.id))
+        : filteredRows;
+
+    if (selectedRows.length === 0) {
+      dispatch(
+        showNotification({
+          message: "İxrac etmək üçün məlumat yoxdur.",
+          type: "error",
+          autoCloseDuration: 3000,
+        }),
+      );
+      return;
+    }
+
+    try {
+      await exportSifarislerToExcel(selectedRows, customers);
+      dispatch(
+        showNotification({
+          message:
+            selectedIds.size > 0
+              ? `${selectedRows.length} seçilmiş sifariş Excel-ə çıxarıldı.`
+              : "Excel faylı hazırlandı və endirilir.",
+          type: "success",
+          autoCloseDuration: 3000,
+        }),
+      );
+    } catch {
+      dispatch(
+        showNotification({
+          message: "Excel faylı hazırlanarkən xəta baş verdi.",
+          type: "error",
+          autoCloseDuration: 3000,
+        }),
+      );
+    }
   };
 
   const handleNewOrder = () => {
@@ -1158,6 +1216,18 @@ export default function SifarislerPage() {
         {subTab === "orders" && (
           <SifarisActionBar
             stats={stats}
+            statusCounts={statusCounts}
+            statusTotal={baseFilteredRows.length}
+            statusFilter={statusQuickFilter}
+            onStatusFilter={(status) => {
+              setStatusQuickFilter(status);
+              setCurrentPage(1);
+              const next = new URLSearchParams(searchParams);
+              if (status) next.set("status", status);
+              else next.delete("status");
+              if (!next.get("tab")) next.set("tab", subTab);
+              setSearchParams(next, { replace: true });
+            }}
             onNew={handleNewOrder}
             onToggleFilters={() => setOpenFilterPanel("orders")}
             onExportExcel={handleExportExcel}

@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Loading from "../../../common/components/loading/Loading";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { FaArrowLeft, FaEdit } from "react-icons/fa";
+import { FiClock } from "react-icons/fi";
 import { usePermissions } from "../../../common/hooks/usePermissions";
 import {
   buildSorguDetailView,
@@ -35,7 +36,9 @@ import {
   SorgularEditModal,
   type NewSorguFormPayload,
   SorgularOfferModal,
+  SorguStatusHistoryModal,
 } from "../components";
+import { statusLabelAz } from "../../../common/components/StatusBadge";
 
 function SectionCard({
   title,
@@ -129,6 +132,7 @@ export default function SorguDetailPage() {
     null,
   );
   const [isDeletingOffer, setIsDeletingOffer] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   // Detay verisini backend'den çek
   const loadDetail = async () => {
@@ -430,8 +434,31 @@ export default function SorguDetailPage() {
               <FaEdit /> Redaktə et
             </button>
             ) : null}
-            <div style={{ marginBottom: 20 }}>
-              <span className={styles.status}>{r.status}</span>
+            <div
+              style={{
+                marginBottom: 20,
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+              }}
+            >
+              <span className={styles.status}>{statusLabelAz(r.status)}</span>
+              <button
+                type="button"
+                className={styles.iconBtn}
+                title="Status Tarixçəsi"
+                aria-label="Status tarixçəsi"
+                onClick={() => setIsHistoryOpen(true)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "0.35rem",
+                  borderRadius: "999px",
+                }}
+              >
+                <FiClock />
+              </button>
             </div>
             <div className={styles.dlList}>
               <DlRow label="Satıcı" value={detail.seller} />
@@ -776,6 +803,7 @@ export default function SorguDetailPage() {
                 queryId={row.id}
                 permModule="sorgular"
                 permChild="detail_documents"
+                priceOffers={detail.priceOfferItems || []}
                 existingDocs={documents.map((d) => ({
                   id: d.id,
                   name: d.name,
@@ -878,6 +906,11 @@ export default function SorguDetailPage() {
             : []
         }
         queryNumber={r.number}
+      />
+      <SorguStatusHistoryModal
+        open={isHistoryOpen}
+        history={r.statusHistory}
+        onClose={() => setIsHistoryOpen(false)}
       />
     </div>
   );

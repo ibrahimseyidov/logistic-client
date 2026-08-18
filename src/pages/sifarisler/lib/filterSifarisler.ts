@@ -1,4 +1,5 @@
-import type { SifarisFilterFormState, SifarisOrderRow } from "../types/sifaris.types";
+import type { OrderStatusKind, SifarisFilterFormState, SifarisOrderRow } from "../types/sifaris.types";
+import { SIFARIS_STATUS_PILLS } from "../constants/sifaris.constants";
 import { includesText, inDateRange, toDateIso } from "./formatDate";
 
 function yesNoMatch(
@@ -178,4 +179,25 @@ export function aggregateSifarisStats(rows: SifarisOrderRow[]) {
   const freightAzn = rows.reduce((s, r) => s + r.freightAzn, 0);
   const profitAzn = rows.reduce((s, r) => s + r.profitAzn, 0);
   return { orders, loads, voyages, weight, volume, ldm, freightAzn, profitAzn };
+}
+
+export function countSifarisStatuses(
+  rows: SifarisOrderRow[],
+): Record<OrderStatusKind, number> {
+  const counts = {
+    planned: 0,
+    progress: 0,
+    completed: 0,
+    finance_closed: 0,
+    cancelled: 0,
+  } as Record<OrderStatusKind, number>;
+
+  for (const opt of SIFARIS_STATUS_PILLS) {
+    counts[opt.value] = 0;
+  }
+  for (const row of rows) {
+    const key = row.statusKind;
+    if (key && key in counts) counts[key] += 1;
+  }
+  return counts;
 }

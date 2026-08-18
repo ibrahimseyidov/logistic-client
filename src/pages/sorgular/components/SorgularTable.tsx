@@ -1,11 +1,13 @@
 import { Link } from "react-router-dom";
 import { FaCheck, FaClipboard, FaMinus, FaEdit, FaTrash, FaHandHoldingUsd, FaCheckCircle } from "react-icons/fa";
+import { FiClock } from "react-icons/fi";
 import { statusLabelAz } from "../../../common/components/StatusBadge";
 import { type LogisticQueryRow, SorguStatus } from "../types/sorgu.types";
 import styles from "./SorgularTable.module.css";
 
 import React, { useState, useEffect } from "react";
 import { SorgularEditModal, SorgularOfferModal, SorguStatusDropdown } from "./index";
+import SorguStatusHistoryModal from "./SorguStatusHistoryModal";
 import { useAppDispatch } from "../../../common/store/hooks";
 import { usePermissions } from "../../../common/hooks/usePermissions";
 import { showNotification } from "../../../common/store/modalSlice";
@@ -173,6 +175,7 @@ export default function SorgularTable({
   const [rowToDelete, setRowToDelete] = useState<LogisticQueryRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [localRows, setLocalRows] = useState<LogisticQueryRow[]>([]);
+  const [historyQuery, setHistoryQuery] = useState<LogisticQueryRow | null>(null);
   // Sync localRows with props.rows
   useEffect(() => {
     setLocalRows(rows);
@@ -267,14 +270,14 @@ export default function SorgularTable({
   return (
     <>
       <div className={styles.tableWrapper}>
-        <div className={styles.tableContainer} style={{ minWidth: "1650px" }}>
+        <div className={styles.tableContainer} style={{ minWidth: "1720px" }}>
           <table className={styles.table}>
         <thead className={styles.head}>
           <tr>
             <th className={`${styles.headerCell} ${styles.min150}`}>
               Sorğunun nömrəsi
             </th>
-            <th className={`${styles.headerCell} ${styles.min140}`}>
+            <th className={`${styles.headerCell} ${styles.min200}`}>
               Sorğunun statusu
             </th>
             <th className={`${styles.headerCell} ${styles.min160}`}>
@@ -332,42 +335,93 @@ export default function SorgularTable({
                   )}
                 </td>
                 <td
-                  className={`${styles.cell} ${styles.nowrap} ${styles.min140} ${styles.center}`}
+                  className={`${styles.cell} ${styles.nowrap} ${styles.min200} ${styles.center}`}
                 >
                   {row.status ? (
-                    <SorguStatusDropdown
-                      status={row.status}
-                      onStatusChange={async (newStatus) => {
-                        if (newStatus === SorguStatus.Approved) {
-                          if (onApproveStatus) {
-                            onApproveStatus(row, { status: "approved" });
-                          }
-                          return;
-                        }
-                        try {
-                          const updated = await updateQueryAction(row.id, { status: newStatus });
-                          setLocalRows((prev) =>
-                            prev.map((r) => (r.id === updated.id ? updated : r)),
-                          );
-                          if (onUpdate) onUpdate(updated);
-                          dispatch(
-                            showNotification({
-                              message: `Sorğunun statusu "${statusLabelAz(newStatus)}" olaraq dəyişdirildi.`,
-                              type: "success",
-                              autoCloseDuration: 2500,
-                            }),
-                          );
-                        } catch (e) {
-                          dispatch(
-                            showNotification({
-                              message: "Status dəyişdirilərkən xəta baş verdi.",
-                              type: "error",
-                              autoCloseDuration: 3000,
-                            }),
-                          );
-                        }
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.375rem",
                       }}
-                    />
+                    >
+                      <SorguStatusDropdown
+                        status={row.status}
+                        onStatusChange={async (newStatus) => {
+                          if (newStatus === SorguStatus.Approved) {
+                            if (onApproveStatus) {
+                              onApproveStatus(row, { status: "approved" });
+                            }
+                            return;
+                          }
+                          try {
+                            const updated = await updateQueryAction(row.id, { status: newStatus });
+                            setLocalRows((prev) =>
+                              prev.map((r) => (r.id === updated.id ? updated : r)),
+                            );
+                            if (onUpdate) onUpdate(updated);
+                            dispatch(
+                              showNotification({
+                                message: `Sorğunun statusu "${statusLabelAz(newStatus)}" olaraq dəyişdirildi.`,
+                                type: "success",
+                                autoCloseDuration: 2500,
+                              }),
+                            );
+                          } catch (e) {
+                            dispatch(
+                              showNotification({
+                                message: "Status dəyişdirilərkən xəta baş verdi.",
+                                type: "error",
+                                autoCloseDuration: 3000,
+                              }),
+                            );
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          setHistoryQuery(row);
+                          if (!row.statusHistory) {
+                            try {
+                              const actualId = (row as any).originalId || row.id;
+                              const detail = await fetchQueryDetailAction(actualId);
+                              setHistoryQuery({
+                                ...row,
+                                statusHistory: detail.statusHistory || [],
+                              });
+                            } catch {
+                              /* keep row as-is */
+                            }
+                          }
+                        }}
+                        style={{
+                          background: "transparent",
+                          border: 0,
+                          cursor: "pointer",
+                          color: "#64748b",
+                          padding: "0.25rem",
+                          borderRadius: "999px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          transition: "all 0.2s ease",
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.background = "#e2e8f0";
+                          e.currentTarget.style.color = "#0f172a";
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.background = "transparent";
+                          e.currentTarget.style.color = "#64748b";
+                        }}
+                        title="Status Tarixçəsi"
+                        aria-label="Status tarixçəsi"
+                      >
+                        <FiClock style={{ fontSize: "0.95rem" }} />
+                      </button>
+                    </div>
                   ) : (
                     <FaMinus className={styles.mutedText} />
                   )}
@@ -604,6 +658,11 @@ export default function SorgularTable({
           setRowToDelete(null);
         }}
         isLoading={isDeleting}
+      />
+      <SorguStatusHistoryModal
+        open={Boolean(historyQuery)}
+        history={historyQuery?.statusHistory}
+        onClose={() => setHistoryQuery(null)}
       />
     </>
   );

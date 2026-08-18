@@ -14,7 +14,7 @@ import {
   parseCarrierDocuments,
 } from "../../../common/utils/carrierDisplay.utils";
 import { toDateIso } from "../lib/formatDate";
-import { resolveOfferSalesTotalSummary } from "../lib/offerExpense.utils";
+import { resolveOfferSalesTotalSummary, isIreliInvoiceFinanceName } from "../lib/offerExpense.utils";
 
 interface Props {
   isOpen: boolean;
@@ -287,9 +287,7 @@ export default function SifarisEditModal({
       financeTransactions.find(
         (t) => String(t.name || "").trim() === "Başlanğıc tarif",
       ) ||
-      financeTransactions.find((t) =>
-        /^İrəli hesab #/i.test(String(t.name || "").trim()),
-      );
+      financeTransactions.find((t) => isIreliInvoiceFinanceName(t.name));
     const offerSummary = resolveOfferSalesTotalSummary({
       order,
       financeTransactions,

@@ -6,6 +6,13 @@ export enum SorguStatus {
   Approved = "approved",
   Cancelled = "cancelled",
 }
+
+export interface StatusHistoryItem {
+  id?: number;
+  status: string;
+  date: string;
+  changedBy?: string | null;
+}
 export type SorguSubTab = "active" | "archive" | "offers";
 
 export type FilterSectionId =
@@ -60,6 +67,7 @@ export interface LogisticQueryRow {
   cargoItems?: any[];
   comments?: any[];
   documents?: any[];
+  statusHistory?: StatusHistoryItem[];
   loadPlaceCompany?: string;
   unloadPlaceCompany?: string;
   incoterms?: string;

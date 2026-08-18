@@ -51,6 +51,10 @@
   min-width: 180px;
 }
 
+.min200 {
+  min-width: 200px;
+}
+
 .min240 {
   min-width: 240px;
 }

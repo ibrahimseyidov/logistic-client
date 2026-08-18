@@ -431,9 +431,13 @@ export function buildFinancePreviewRows(params: {
     String(params.order?.customer || "").trim() ||
     "Müştəri";
 
+  const txs = params.financeTransactions || [];
+  const hasAlinmis = txs.some((t) => isAlinmisInvoiceFinanceName(t?.name));
+  const hasIreli = txs.some((t) => isIreliInvoiceFinanceName(t?.name));
+
   const rows: FinancePreviewRow[] = [];
 
-  if (summary.sales > 0) {
+  if (summary.sales > 0 && !hasIreli) {
     rows.push({
       id: "preview-sales",
       name: "Satış qiyməti",
@@ -451,7 +455,7 @@ export function buildFinancePreviewRows(params: {
     });
   }
 
-  if (summary.purchase > 0) {
+  if (summary.purchase > 0 && !hasAlinmis) {
     const purchaseCurr = summary.purchaseCurrency || currency;
     rows.push({
       id: "preview-purchase",
@@ -470,7 +474,7 @@ export function buildFinancePreviewRows(params: {
     });
   }
 
-  if (summary.expense > 0) {
+  if (summary.expense > 0 && !hasAlinmis) {
     rows.push({
       id: "preview-expense",
       name: "Xərc",
@@ -490,6 +494,7 @@ export function buildFinancePreviewRows(params: {
 
   // Alış/xərc yoxdursa, yalnız total varsa — onu göstər
   if (
+    !hasAlinmis &&
     !(summary.purchase > 0) &&
     !(summary.expense > 0) &&
     summary.total > 0
@@ -531,6 +536,112 @@ export function buildFinancePreviewRows(params: {
   }
 
   return rows;
+}
+
+function normFinanceName(name: unknown): string {
+  return String(name || "")
+    .trim()
+    .toLocaleLowerCase("az-AZ")
+    .replace(/ı/g, "i")
+    .replace(/ə/g, "e")
+    .replace(/ö/g, "o")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ç/g, "c")
+    .replace(/ğ/g, "g");
+}
+
+export function isAlinmisInvoiceFinanceName(name: unknown): boolean {
+  return normFinanceName(name).startsWith("alinmis hesab");
+}
+
+export function isIreliInvoiceFinanceName(name: unknown): boolean {
+  const n = normFinanceName(name);
+  return n === "baslangic tarif" || n.startsWith("ireli hesab");
+}
+
+export function isEstimatePurchaseFinanceName(name: unknown): boolean {
+  const n = normFinanceName(name);
+  return n === "alis qiymeti" || n === "xerc" || n === "total qiymet";
+}
+
+export function isEstimateSalesFinanceName(name: unknown): boolean {
+  return normFinanceName(name) === "satis qiymeti";
+}
+
+export function formatFinanceAmountLabel(
+  amount: number,
+  currency: string,
+  azn: number,
+): string {
+  if (!(amount > 0) && !(azn > 0)) return "—";
+  const curr = (currency || "AZN").toUpperCase() || "AZN";
+  const fmt = (n: number) =>
+    Math.abs(n - Math.round(n)) < 0.001 ? String(Math.round(n)) : n.toFixed(2);
+  if (curr === "AZN") return `${fmt(amount > 0 ? amount : azn)} AZN`;
+  if (!(azn > 0)) return `${fmt(amount)} ${curr}`;
+  return `${fmt(amount)} ${curr} (${azn.toFixed(2)} AZN)`;
+}
+
+export function sumInvoiceFinanceByKind(
+  financeTransactions: any[] | undefined,
+  kind: "alinmis" | "ireli",
+): { amount: number; currency: string; azn: number; label: string } {
+  const txs = financeTransactions || [];
+  const byCurr: Record<string, { amount: number; azn: number }> = {};
+  let aznTotal = 0;
+
+  for (const t of txs) {
+    const name = t?.name;
+    const match =
+      kind === "alinmis"
+        ? isAlinmisInvoiceFinanceName(name)
+        : isIreliInvoiceFinanceName(name);
+    if (!match) continue;
+
+    const amount =
+      kind === "alinmis"
+        ? toNumber(t.mesarifPrice || t.edvliMesarifPrice)
+        : toNumber(t.tarifPrice || t.edvliTarifPrice);
+    const currency = String(
+      kind === "alinmis"
+        ? t.mesarifCurrency || t.edvliMesarifCurrency || "AZN"
+        : t.tarifCurrency || t.edvliTarifCurrency || "AZN",
+    )
+      .trim()
+      .toUpperCase() || "AZN";
+    const azn =
+      kind === "alinmis"
+        ? resolveFinanceExpenseAzn(t)
+        : resolveFinanceRevenueAzn(t);
+
+    if (!(amount > 0) && !(azn > 0)) continue;
+    if (!byCurr[currency]) byCurr[currency] = { amount: 0, azn: 0 };
+    byCurr[currency].amount += amount > 0 ? amount : azn;
+    byCurr[currency].azn += azn > 0 ? azn : amount;
+    aznTotal += azn > 0 ? azn : amount;
+  }
+
+  const currencies = Object.keys(byCurr);
+  if (currencies.length === 0) {
+    return { amount: 0, currency: "AZN", azn: 0, label: "—" };
+  }
+  if (currencies.length === 1) {
+    const curr = currencies[0];
+    const g = byCurr[curr];
+    return {
+      amount: g.amount,
+      currency: curr,
+      azn: g.azn,
+      label: formatFinanceAmountLabel(g.amount, curr, g.azn),
+    };
+  }
+  return {
+    amount: aznTotal,
+    currency: "AZN",
+    azn: aznTotal,
+    label: `${aznTotal.toFixed(2)} AZN`,
+  };
 }
 
 export function hasFinanceRevenue(financeTransactions: any[]): boolean {

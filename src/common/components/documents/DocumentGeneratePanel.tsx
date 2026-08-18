@@ -27,10 +27,13 @@ import { useAppDispatch } from "../../store/hooks";
 import { showNotification } from "../../store/modalSlice";
 import { usePermissions } from "../../hooks/usePermissions";
 import DocumentEditModal from "./DocumentEditModal";
+import DocumentOfferPickerModal, {
+  type DocumentPriceOffer,
+} from "./DocumentOfferPickerModal";
 
 type Props = {
   scope: "query" | "order";
-  queryId?: number | null;
+  queryId?: number | string | null;
   orderId?: number | null;
   /** İcazə: modul + child (məs. sifarisler/documents) */
   permModule?: string;
@@ -50,6 +53,8 @@ type Props = {
   onUpload?: (file: File) => void;
   /** Called after query document HTML edit so parent can refresh list */
   onExistingDocsChanged?: () => void;
+  /** Sorğu qiymət təklifləri — Request sənədi üçün seçim */
+  priceOffers?: DocumentPriceOffer[];
 };
 
 export default function DocumentGeneratePanel({
@@ -63,6 +68,7 @@ export default function DocumentGeneratePanel({
   onDeleteExisting,
   onUpload,
   onExistingDocsChanged,
+  priceOffers = [],
 }: Props) {
   const dispatch = useAppDispatch();
   const { canCreate, canDelete, canEdit } = usePermissions();
@@ -83,6 +89,10 @@ export default function DocumentGeneratePanel({
   const [editHtml, setEditHtml] = useState("");
   const [editDocId, setEditDocId] = useState<number | null>(null);
   const [editScope, setEditScope] = useState<"order" | "query">("order");
+  const [offerPickerOpen, setOfferPickerOpen] = useState(false);
+  const [pendingTemplate, setPendingTemplate] = useState<DocumentTemplate | null>(
+    null,
+  );
 
   const load = async () => {
     setLoading(true);
@@ -130,7 +140,10 @@ export default function DocumentGeneratePanel({
     );
   }, [templates, scope]);
 
-  const handleGenerate = async (template: DocumentTemplate) => {
+  const handleGenerate = async (
+    template: DocumentTemplate,
+    offer?: { priceOfferId?: string | number | null; priceOfferIndex?: number | null },
+  ) => {
     if (scope === "query" && !queryId) {
       dispatch(
         showNotification({
@@ -157,9 +170,11 @@ export default function DocumentGeneratePanel({
     try {
       const meta = await generateDocumentAction({
         templateCode: template.code,
-        queryId: queryId ?? null,
+        queryId: queryId != null && queryId !== "" ? Number(queryId) : null,
         orderId: orderId ?? null,
         save: true,
+        priceOfferId: offer?.priceOfferId ?? null,
+        priceOfferIndex: offer?.priceOfferIndex ?? null,
       });
 
       const fullUrl = resolveUploadUrl(meta.url);
@@ -193,6 +208,27 @@ export default function DocumentGeneratePanel({
     } finally {
       setBusyCode(null);
     }
+  };
+
+  const handleTemplateClick = (template: DocumentTemplate) => {
+    if (scope === "query" && template.code === "request") {
+      if (!priceOffers.length) {
+        setMenuOpen(false);
+        dispatch(
+          showNotification({
+            message: "Request sənədi üçün əvvəlcə qiymət təklifi əlavə edin.",
+            type: "error",
+            autoCloseDuration: 3500,
+          }),
+        );
+        return;
+      }
+      setPendingTemplate(template);
+      setOfferPickerOpen(true);
+      setMenuOpen(false);
+      return;
+    }
+    void handleGenerate(template);
   };
 
   const handleDeleteOrderDoc = async (id: number) => {
@@ -395,7 +431,7 @@ export default function DocumentGeneratePanel({
                     type="button"
                     role="menuitem"
                     disabled={isBusy}
-                    onClick={() => void handleGenerate(tpl)}
+                    onClick={() => handleTemplateClick(tpl)}
                     style={{
                       width: "100%",
                       display: "flex",
@@ -650,6 +686,27 @@ export default function DocumentGeneratePanel({
           setEditHtml("");
         }}
         onSave={(html) => void handleSaveEdit(html)}
+      />
+      <DocumentOfferPickerModal
+        isOpen={offerPickerOpen}
+        offers={priceOffers}
+        isLoading={Boolean(busyCode)}
+        onClose={() => {
+          if (busyCode) return;
+          setOfferPickerOpen(false);
+          setPendingTemplate(null);
+        }}
+        onConfirm={(offer, index) => {
+          const tpl = pendingTemplate;
+          setOfferPickerOpen(false);
+          setPendingTemplate(null);
+          if (tpl) {
+            void handleGenerate(tpl, {
+              priceOfferId: offer.id ?? null,
+              priceOfferIndex: index,
+            });
+          }
+        }}
       />
     </div>
   );

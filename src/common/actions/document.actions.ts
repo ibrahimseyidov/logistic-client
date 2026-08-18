@@ -231,6 +231,8 @@ export async function generateDocumentAction(payload: {
   orderId?: number | null;
   overrides?: Record<string, string>;
   save?: boolean;
+  priceOfferId?: string | number | null;
+  priceOfferIndex?: number | null;
 }): Promise<GeneratedDocumentMeta> {
   const res = await axios.post(buildApiUrl("/api/documents/generate"), payload, {
     headers: getHeaders(),
