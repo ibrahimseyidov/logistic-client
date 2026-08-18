@@ -1,4 +1,52 @@
-import { CARGO_TRANSPORT_OPTIONS } from "../constants/options.constants";
+import {
+  CARGO_TRANSPORT_OPTIONS,
+  COUNTRY_OPTIONS,
+} from "../constants/options.constants";
+
+type CountryOption = { value: string; label?: string };
+
+export function resolveCountryLabel(
+  raw: unknown,
+  extra: CountryOption[] = [],
+): string {
+  const text = String(raw ?? "").trim();
+  if (!text) return "";
+  const all = [...COUNTRY_OPTIONS, ...extra];
+  const lower = text.toLowerCase();
+  const hit = all.find(
+    (o) =>
+      String(o.value || "").toLowerCase() === lower ||
+      String(o.label || "").toLowerCase() === lower,
+  );
+  return String(hit?.label || hit?.value || text).trim();
+}
+
+function formatCountryCitySide(
+  query: any,
+  type: "load" | "unload",
+  extra: CountryOption[] = [],
+): string {
+  const prefix = type === "load" ? "load" : "unload";
+  const city = String(query?.[`${prefix}City`] ?? "").trim();
+  const country = resolveCountryLabel(
+    query?.[`${prefix}Country`],
+    extra,
+  );
+  if (city && country) return `${city}, ${country}`;
+  if (city) return city;
+  if (country) return country;
+  return String(query?.[`${prefix}Place`] ?? "").trim();
+}
+
+export function getQueryCountryCityLabel(
+  query: any,
+  extra: CountryOption[] = [],
+): string {
+  const load = formatCountryCitySide(query, "load", extra);
+  const unload = formatCountryCitySide(query, "unload", extra);
+  if (load && unload) return `${load} → ${unload}`;
+  return load || unload || "";
+}
 
 function parseCargoItems(query: any): any[] {
   if (Array.isArray(query?.cargoItems) && query.cargoItems.length > 0) {

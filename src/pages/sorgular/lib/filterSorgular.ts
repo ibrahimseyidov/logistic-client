@@ -72,9 +72,37 @@ export function filterByTab(
   return rows;
 }
 
+function rowMatchesCountry(
+  r: LogisticQueryRow,
+  selected: string,
+  countryOptions: Array<{ value: string; label?: string }>,
+): boolean {
+  const sel = String(selected || "").trim();
+  if (!sel) return true;
+  const opt = countryOptions.find(
+    (o) =>
+      String(o.value || "").toLowerCase() === sel.toLowerCase() ||
+      String(o.label || "").toLowerCase() === sel.toLowerCase(),
+  );
+  const aliases = [sel, opt?.value, opt?.label]
+    .map((v) => String(v || "").trim().toLowerCase())
+    .filter(Boolean);
+  const fields = [
+    r.loadCountry,
+    r.unloadCountry,
+    r.loadPlace,
+    r.unloadPlace,
+  ].map((v) => String(v || "").trim().toLowerCase());
+  return fields.some(
+    (field) =>
+      field && aliases.some((alias) => field === alias || field.includes(alias)),
+  );
+}
+
 export function applyFilters(
   rows: LogisticQueryRow[],
   f: FilterFormState,
+  countryOptions: Array<{ value: string; label?: string }> = [],
 ): LogisticQueryRow[] {
   return rows.filter((r) => {
     // Nömrə axtarışı — bütün əsas mətn sahələrində də işləsin
@@ -87,6 +115,8 @@ export function applyFilters(
         r.customer,
         r.loadPlace,
         r.unloadPlace,
+        r.loadCountry,
+        r.unloadCountry,
         r.status,
         (r as any).manager,
         (r as any).logist,
@@ -101,6 +131,7 @@ export function applyFilters(
     if (!includesText(r.customerOrderRef, f.customerOrderRef)) return false;
     if (f.company && String(r.company || "") !== f.company) return false;
     if (!includesText(r.customer, f.customerName)) return false;
+    if (!rowMatchesCountry(r, f.country || "", countryOptions)) return false;
     if (!includesText(r.loadPlace, f.loadPlace)) return false;
     if (!includesText(r.unloadPlace, f.unloadPlace)) return false;
 

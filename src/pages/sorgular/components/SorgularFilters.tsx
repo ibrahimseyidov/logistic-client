@@ -20,6 +20,7 @@ interface Props {
   filter: FilterFormState;
   onFilterChange: (field: keyof FilterFormState, value: string) => void;
   companyOptions: SelectOption[];
+  countryOptions?: SelectOption[];
   onClose: () => void;
   onClear: () => void;
   onApplyFilter: () => void;
@@ -33,6 +34,7 @@ export default function SorgularFilters({
   filter,
   onFilterChange,
   companyOptions,
+  countryOptions = [{ value: "", label: "Hamısı" }],
   onClose,
   onClear,
   onApplyFilter,
@@ -104,6 +106,14 @@ export default function SorgularFilters({
               value={filter.company}
               options={companyOptions}
               onChange={(value) => onFilterChange("company", value)}
+              placeholder="Hamısı"
+              fullWidth
+            />
+            <FilterSelectField
+              label="Ölkə"
+              value={filter.country || ""}
+              options={countryOptions}
+              onChange={(value) => onFilterChange("country", value)}
               placeholder="Hamısı"
               fullWidth
             />

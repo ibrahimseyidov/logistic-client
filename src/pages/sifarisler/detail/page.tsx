@@ -562,6 +562,16 @@ export default function SifarisDetailPage() {
       );
       return;
     }
+    if (invoicesSubTab !== "alinmis" && !invoiceOrderNumber.trim()) {
+      dispatch(
+        showNotification({
+          message: "Lütfən sifariş nömrəsini daxil edin!",
+          type: "error",
+          autoCloseDuration: 3500,
+        }),
+      );
+      return;
+    }
     if (invoicesSubTab === "alinmis" && invoicePendingDocs.length === 0) {
       dispatch(
         showNotification({
@@ -669,6 +679,52 @@ export default function SifarisDetailPage() {
             ? displayCustomerName
             : invoiceCarrier;
 
+      const nextOrderNo = invoiceOrderNumber.trim();
+      if (
+        invoicesSubTab !== "alinmis" &&
+        nextOrderNo &&
+        order?.id &&
+        nextOrderNo !== String(order.orderNumber || "").trim()
+      ) {
+        try {
+          await axios.put(
+            ENDPOINTS.ORDERS.BY_ID(order.id),
+            { orderNumber: nextOrderNo },
+            { headers },
+          );
+          setOrders((prev) =>
+            prev.map((o) =>
+              String(o.id) === String(order.id)
+                ? { ...o, orderNumber: nextOrderNo }
+                : o,
+            ),
+          );
+          if (String(orderId) === String(order.orderNumber || "").trim()) {
+            navigate(`/sifarisler/${order.id}`, { replace: true });
+          }
+        } catch (err: any) {
+          const apiMsg =
+            err?.response?.data?.error ||
+            err?.response?.data?.message ||
+            String(err?.message || "");
+          if (
+            err?.response?.status === 409 ||
+            /unique|orderNumber|P2002/i.test(apiMsg)
+          ) {
+            dispatch(
+              showNotification({
+                message:
+                  "Bu sifariş nömrəsi artıq mövcuddur. Başqa nömrə yazın.",
+                type: "error",
+                autoCloseDuration: 4500,
+              }),
+            );
+            return;
+          }
+          throw err;
+        }
+      }
+
       const payload = {
         orderId: order?.id ? Number(order.id) : undefined,
         number: resolvedNumber,
@@ -710,7 +766,7 @@ export default function SifarisDetailPage() {
           `${invoiceTotal} ${invoiceCurrency}`,
         status: saved.status ?? existingInvoice?.status ?? "Gözlənilir",
         type: saved.type ?? invoicesSubTab,
-        orderNumber: order?.orderNumber || "",
+        orderNumber: invoiceOrderNumber.trim() || order?.orderNumber || "",
         carrier: invoiceCarrier,
         payer: saved.payer ?? invoiceCarrier,
         voyageNumber: invoiceVoyageNumber,
@@ -815,6 +871,7 @@ export default function SifarisDetailPage() {
                   String(o.id) === String(order.id)
                     ? {
                         ...o,
+                        orderNumber: fresh.orderNumber ?? o.orderNumber,
                         extraCosts: fresh.extraCosts ?? o.extraCosts,
                         freight: fresh.freight ?? o.freight,
                         freightAzn: fresh.freightAzn ?? o.freightAzn,
@@ -836,6 +893,7 @@ export default function SifarisDetailPage() {
       setIsNewInvoiceModalOpen(false);
       setEditingInvoiceId(null);
       setInvoiceNumber("");
+      setInvoiceOrderNumber("");
       setInvoiceFreightPrice("");
       setInvoiceExpectedPrice(null);
       setInvoicePendingDocs([]);
@@ -883,6 +941,9 @@ export default function SifarisDetailPage() {
       setInvoicesSubTab(inv.type);
     }
     setInvoiceNumber(String(inv.number || ""));
+    setInvoiceOrderNumber(
+      String(inv.orderNumber || order?.orderNumber || "").trim(),
+    );
     setInvoiceDate(String(inv.date || ""));
     setInvoiceDelayDays(String(inv.delayDays ?? "0"));
     setInvoicePayUntilDate(String(inv.payUntil || inv.date || ""));
@@ -2121,6 +2182,7 @@ export default function SifarisDetailPage() {
   const [invoiceCreator, setInvoiceCreator] = useState("");
   const [invoiceLang] = useState("Azərbaycan");
   const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [invoiceOrderNumber, setInvoiceOrderNumber] = useState("");
   const [invoiceDate, setInvoiceDate] = useState("");
   const [invoiceDelayDays, setInvoiceDelayDays] = useState("0");
   const [invoicePayUntilDate, setInvoicePayUntilDate] = useState("");
@@ -2283,6 +2345,18 @@ export default function SifarisDetailPage() {
     return opts;
   }, [invoiceCarrier, invoiceCarriersList, customers, invoiceContract]);
 
+  const voyageInvoiceLabel = (voyage: any) => {
+    const clean = (v: unknown) => {
+      const t = String(v ?? "").trim();
+      return !t || t === "—" ? "" : t;
+    };
+    return (
+      (voyage?.id ? `R-${voyage.id}` : "") ||
+      clean(voyage?.number) ||
+      clean(formatVoyageLabel(voyage))
+    );
+  };
+
   const resolveInvoiceVoyageNumber = (carrierName?: string) => {
     const clean = (v: unknown) => {
       const t = String(v ?? "").trim();
@@ -2296,39 +2370,113 @@ export default function SifarisDetailPage() {
       : null;
     const voyage = byCarrier || voyagesList[0];
     if (!voyage) return "";
-    return (
-      clean(voyage.number) ||
-      clean(formatVoyageLabel(voyage)) ||
-      (voyage.id ? `R-${voyage.id}` : "")
-    );
+    return voyageInvoiceLabel(voyage);
   };
 
-  const applyCarrierOfferPricing = (carrierName: string) => {
-    if (!carrierName) {
-      setInvoiceFreightPrice("");
-      setInvoiceExpectedPrice(null);
-      return;
+  const findVoyageForInvoice = (voyageLabel?: string, carrierName?: string) => {
+    const label = String(voyageLabel || "")
+      .trim()
+      .toLowerCase();
+    if (label) {
+      const found = voyagesList.find((v) => {
+        const opt = voyageInvoiceLabel(v).toLowerCase();
+        const num = String(v?.number || "")
+          .trim()
+          .toLowerCase();
+        const idLabel = v?.id != null ? `r-${v.id}` : "";
+        return opt === label || num === label || idLabel === label;
+      });
+      if (found) return found;
     }
+    const carrier = String(carrierName || "")
+      .trim()
+      .toLowerCase();
+    if (carrier) {
+      return (
+        voyagesList.find(
+          (v) =>
+            String(v?.carrier || "")
+              .trim()
+              .toLowerCase() === carrier,
+        ) || null
+      );
+    }
+    return voyagesList[0] || null;
+  };
+
+  const parseVoyageInvoicePrice = (voyage: any) => {
+    const text = String(voyage?.price || voyage?.tripPrice || "").trim();
+    const withCurr = text.match(/^([0-9]+(?:[.,][0-9]+)?)\s*([A-Za-z]{3})/);
+    if (withCurr) {
+      return {
+        amount: Number.parseFloat(withCurr[1].replace(",", ".")) || 0,
+        currency: withCurr[2].toUpperCase(),
+      };
+    }
+    const onlyNum = text.match(/^([0-9]+(?:[.,][0-9]+)?)/);
+    if (onlyNum) {
+      return {
+        amount: Number.parseFloat(onlyNum[1].replace(",", ".")) || 0,
+        currency: "",
+      };
+    }
+    return { amount: 0, currency: "" };
+  };
+
+  /** Alınmış hesab: əvvəl reys qiyməti, yoxdursa təklif alış qiyməti */
+  const resolveAlinmisInvoicePricing = (
+    carrierName: string,
+    voyageLabel?: string,
+  ) => {
+    const voyage = findVoyageForInvoice(voyageLabel, carrierName);
+    const fromVoyage = voyage
+      ? parseVoyageInvoicePrice(voyage)
+      : { amount: 0, currency: "" };
+
     const offer = orderPriceOffers.find(
       (o: any) =>
         String(o?.carrierName || "")
           .trim()
-          .toLowerCase() === carrierName.trim().toLowerCase(),
+          .toLowerCase() === String(carrierName || "").trim().toLowerCase(),
     );
-    // Təklifdəki xərcsiz alış qiyməti (price) + valyuta
-    const raw = String(offer?.price ?? "")
+    const offerRaw = String(offer?.price ?? "")
       .replace(",", ".")
       .trim();
-    const num = Number.parseFloat(raw);
-    const price = Number.isFinite(num) ? num : 0;
+    const offerNum = Number.parseFloat(offerRaw);
+    const offerPrice = Number.isFinite(offerNum) ? offerNum : 0;
+    const offerCurr = String(offer?.currency || "")
+      .trim()
+      .toUpperCase();
+
+    const price = fromVoyage.amount > 0 ? fromVoyage.amount : offerPrice;
     const currency =
-      String(offer?.currency || resolveOrderCurrency()).trim() || "EUR";
-    setInvoiceFreightPrice(price > 0 ? String(price) : raw || "");
+      (fromVoyage.amount > 0 && fromVoyage.currency) ||
+      offerCurr ||
+      resolveOrderCurrency() ||
+      "USD";
+    return { price, currency };
+  };
+
+  const applyAlinmisInvoicePricing = (
+    carrierName: string,
+    voyageLabel?: string,
+  ) => {
+    if (!carrierName && !voyageLabel) {
+      setInvoiceFreightPrice("");
+      setInvoiceExpectedPrice(null);
+      return { price: 0, currency: resolveOrderCurrency() };
+    }
+    const { price, currency } = resolveAlinmisInvoicePricing(
+      carrierName,
+      voyageLabel,
+    );
+    setInvoiceFreightPrice(price > 0 ? String(price) : "");
     setInvoiceExpectedPrice(price > 0 ? price : null);
     setInvoiceCurrency(currency);
     setInvoiceRows((rows) =>
       rows.map((r, idx) => (idx === 0 ? { ...r, price } : r)),
     );
+    return { price, currency };
   };
 
   const resolveOrderCurrency = () => {
@@ -5035,6 +5183,7 @@ export default function SifarisDetailPage() {
                         nextNumber = "";
                       }
                       setInvoiceNumber(nextNumber);
+                      setInvoiceOrderNumber(baseNum);
                       setInvoicePendingDocs([]);
                       setInvoiceCreator(
                         String(user?.name || "").trim() || "",
@@ -5046,49 +5195,30 @@ export default function SifarisDetailPage() {
 
                       if (isReceived) {
                         const firstCarrier = orderCarrierNames[0] || "";
+                        const voyageLabel =
+                          resolveInvoiceVoyageNumber(firstCarrier);
                         setInvoiceCarrier(firstCarrier);
                         setInvoiceContract("");
-                        setInvoiceVoyageNumber(
-                          resolveInvoiceVoyageNumber(firstCarrier),
+                        setInvoiceVoyageNumber(voyageLabel);
+                        const { price, currency } = resolveAlinmisInvoicePricing(
+                          firstCarrier,
+                          voyageLabel,
                         );
-                        if (firstCarrier) {
-                          applyCarrierOfferPricing(firstCarrier);
-                          const offer = orderPriceOffers.find(
-                            (o: any) =>
-                              String(o?.carrierName || "")
-                                .trim()
-                                .toLowerCase() ===
-                              firstCarrier.trim().toLowerCase(),
-                          );
-                          const raw = String(offer?.price ?? "")
-                            .replace(",", ".")
-                            .trim();
-                          const num = Number.parseFloat(raw);
-                          const price = Number.isFinite(num) ? num : 0;
-                          setInvoiceRows([
-                            {
-                              id: "1",
-                              text: "",
-                              unit: "Marşrut",
-                              qty: 1,
-                              price,
-                              vatRate: "0%",
-                            },
-                          ]);
-                        } else {
-                          setInvoiceFreightPrice("");
-                          setInvoiceExpectedPrice(null);
-                          setInvoiceRows([
-                            {
-                              id: "1",
-                              text: "",
-                              unit: "Marşrut",
-                              qty: 1,
-                              price: 0,
-                              vatRate: "0%",
-                            },
-                          ]);
-                        }
+                        setInvoiceFreightPrice(
+                          price > 0 ? String(price) : "",
+                        );
+                        setInvoiceExpectedPrice(price > 0 ? price : null);
+                        setInvoiceCurrency(currency);
+                        setInvoiceRows([
+                          {
+                            id: "1",
+                            text: "",
+                            unit: "Marşrut",
+                            qty: 1,
+                            price,
+                            vatRate: "0%",
+                          },
+                        ]);
                         setInvoiceCarriersList([]);
                         setIsNewInvoiceModalOpen(true);
                         return;
@@ -9888,15 +10018,15 @@ export default function SifarisDetailPage() {
                     </label>
                     <input
                       type="text"
-                      value={order?.orderNumber || ""}
-                      readOnly
+                      value={invoiceOrderNumber}
+                      onChange={(e) => setInvoiceOrderNumber(e.target.value)}
                       style={{
                         border: "1px solid #cbd5e1",
                         borderRadius: "0.375rem",
                         padding: "0.5rem 0.75rem",
                         outline: "none",
                         fontSize: "0.875rem",
-                        backgroundColor: "#f8fafc",
+                        backgroundColor: "#ffffff",
                         color: "#334155",
                       }}
                     />
@@ -9926,28 +10056,11 @@ export default function SifarisDetailPage() {
                           value={invoiceCarrier}
                           onChange={(e) => {
                             const name = e.target.value;
+                            const voyageLabel =
+                              resolveInvoiceVoyageNumber(name);
                             setInvoiceCarrier(name);
-                            setInvoiceVoyageNumber(
-                              resolveInvoiceVoyageNumber(name),
-                            );
-                            applyCarrierOfferPricing(name);
-                            const offer = orderPriceOffers.find(
-                              (o: any) =>
-                                String(o?.carrierName || "")
-                                  .trim()
-                                  .toLowerCase() ===
-                                name.trim().toLowerCase(),
-                            );
-                            const raw = String(offer?.price ?? "")
-                              .replace(",", ".")
-                              .trim();
-                            const num = Number.parseFloat(raw);
-                            const price = Number.isFinite(num) ? num : 0;
-                            setInvoiceRows((rows) =>
-                              rows.map((r, idx) =>
-                                idx === 0 ? { ...r, price } : r,
-                              ),
-                            );
+                            setInvoiceVoyageNumber(voyageLabel);
+                            applyAlinmisInvoicePricing(name, voyageLabel);
                           }}
                           style={{
                             border: "1px solid #cbd5e1",
@@ -9985,9 +10098,11 @@ export default function SifarisDetailPage() {
                         </label>
                         <select
                           value={invoiceVoyageNumber}
-                          onChange={(e) =>
-                            setInvoiceVoyageNumber(e.target.value)
-                          }
+                          onChange={(e) => {
+                            const label = e.target.value;
+                            setInvoiceVoyageNumber(label);
+                            applyAlinmisInvoicePricing(invoiceCarrier, label);
+                          }}
                           style={{
                             border: "1px solid #cbd5e1",
                             borderRadius: "0.375rem",

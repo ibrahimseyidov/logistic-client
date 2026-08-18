@@ -95,6 +95,7 @@ export interface FilterFormState {
   statusDateFrom: string;
   statusDateTo: string;
   customerName: string;
+  country: string;
   loadPlace: string;
   unloadPlace: string;
 }
@@ -112,6 +113,7 @@ export const emptyFilterForm = (): FilterFormState => ({
   statusDateFrom: "",
   statusDateTo: "",
   customerName: "",
+  country: "",
   loadPlace: "",
   unloadPlace: "",
 });

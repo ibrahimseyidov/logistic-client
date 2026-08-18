@@ -23,6 +23,7 @@ import {
   CUSTOMER_OPTIONS,
   PERSON_OPTIONS,
 } from "../constants/options.constants";
+import { getQueryCountryCityLabel } from "../lib/queryDisplay.utils";
 
 interface Props {
   rows: LogisticQueryRow[];
@@ -32,6 +33,7 @@ interface Props {
   onApproveStatus?: (row: LogisticQueryRow, payload: any) => void;
   /** İcazə child: active | archive */
   permChild?: string;
+  countryOptions?: Array<{ value: string; label?: string }>;
 }
 
 const COLUMN_COUNT = 11;
@@ -150,6 +152,7 @@ export default function SorgularTable({
   onDelete,
   onApproveStatus,
   permChild = "active",
+  countryOptions = [],
 }: Props) {
   const dispatch = useAppDispatch();
   const { canEdit, canDelete, canCreate } = usePermissions();
@@ -296,7 +299,7 @@ export default function SorgularTable({
               Qiymət təklifləri
             </th>
             <th className={`${styles.headerCell} ${styles.min170}`}>
-              Əlaqədar şəxs
+              {permChild === "archive" ? "Ölkə və şəhər" : "Əlaqədar şəxs"}
             </th>
             <th className={`${styles.headerCell} ${styles.min120}`}>
               Əməliyyatlar
@@ -569,7 +572,13 @@ export default function SorgularTable({
                 <td
                   className={`${styles.cell} ${styles.bodyText} ${styles.min170} ${styles.center}`}
                 >
-                  {row.contactPerson || (
+                  {permChild === "archive" ? (
+                    getQueryCountryCityLabel(row, countryOptions) || (
+                      <FaMinus className={styles.mutedText} />
+                    )
+                  ) : row.contactPerson ? (
+                    row.contactPerson
+                  ) : (
                     <FaMinus className={styles.mutedText} />
                   )}
                 </td>

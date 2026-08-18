@@ -23,6 +23,8 @@ import {
   approveQueryAction,
 } from "../../common/actions/query.actions";
 import { fetchCustomersAction } from "../../common/actions/customer.actions";
+import { fetchLookupAction } from "../../common/actions/lookup.actions";
+import { COUNTRY_OPTIONS } from "./constants/options.constants";
 import PriceOfferSelectionModal from "./components/PriceOfferSelectionModal";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { useSorgularPagination } from "./hooks/useSorgularPagination";
@@ -65,6 +67,9 @@ export default function SorgularPage() {
   const [isNewOpen, setIsNewOpen] = useState(false);
   const [rows, setRows] = useState<LogisticQueryRow[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [countriesData, setCountriesData] = useState<
+    Array<{ value: string; label?: string }>
+  >([]);
   const [loading, setLoading] = useState(true);
   const [editRow, setEditRow] = useState<LogisticQueryRow | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -142,6 +147,18 @@ export default function SorgularPage() {
         console.error("Customers fetch failed", err);
       });
 
+    fetchLookupAction("countries")
+      .then((data) => {
+        if (!ignore) {
+          setCountriesData(Array.isArray(data) ? data : []);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setCountriesData([]);
+        }
+      });
+
     return () => {
       ignore = true;
     };
@@ -171,11 +188,31 @@ export default function SorgularPage() {
     ];
   }, [rows]);
 
+  const countryFilterOptions: SelectOption[] = useMemo(() => {
+    const source =
+      countriesData.length > 0 ? countriesData : COUNTRY_OPTIONS;
+    const seen = new Set<string>();
+    const opts = source
+      .map((c) => ({
+        value: String(c.value || "").trim(),
+        label: String(c.label || c.value || "").trim(),
+      }))
+      .filter((o) => {
+        if (!o.value) return false;
+        const key = o.value.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => a.label.localeCompare(b.label, "az"));
+    return [{ value: "", label: "Hamısı" }, ...opts];
+  }, [countriesData]);
+
   const tabRows = useMemo(() => filterByTab(rows, subTab), [rows, subTab]);
 
   const baseFilteredRows = useMemo(
-    () => applyFilters(tabRows, appliedFilter),
-    [tabRows, appliedFilter],
+    () => applyFilters(tabRows, appliedFilter, countryFilterOptions),
+    [tabRows, appliedFilter, countryFilterOptions],
   );
 
   const filteredRows = useMemo(() => {
@@ -473,6 +510,7 @@ export default function SorgularPage() {
               onDelete={handleRowDelete}
               onApproveStatus={handleApproveRequest}
               permChild={subTab === "archive" ? "archive" : "active"}
+              countryOptions={countryFilterOptions}
             />
           )
         )}
@@ -540,6 +578,7 @@ export default function SorgularPage() {
         filter={filterDraft}
         onFilterChange={onFilterChange}
         companyOptions={companyOptions}
+        countryOptions={countryFilterOptions}
         onClose={() => {
           setFilterDraft({ ...appliedFilter });
           setIsFilterPanelOpen(false);
