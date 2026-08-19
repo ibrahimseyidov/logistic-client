@@ -552,10 +552,13 @@ export default function SifarisDetailPage() {
   };
 
   const handleSaveInvoice = async () => {
-    if (invoicesSubTab !== "alinmis" && !invoiceNumber.trim()) {
+    if (!invoiceNumber.trim()) {
       dispatch(
         showNotification({
-          message: "Lütfən hesab nömrəsini daxil edin!",
+          message:
+            invoicesSubTab === "alinmis"
+              ? "Lütfən INV no daxil edin!"
+              : "Lütfən hesab nömrəsini daxil edin!",
           type: "error",
           autoCloseDuration: 3500,
         }),
@@ -605,9 +608,7 @@ export default function SifarisDetailPage() {
     // Sətirlər mənbədir — Daşıma qiyməti useEffect-dən gec qala bilər
     const invoiceTotal = rowsTotal > 0 ? rowsTotal : headerPrice;
 
-    const resolvedNumber =
-      invoiceNumber.trim() ||
-      (invoicesSubTab === "alinmis" ? `AL-${Date.now()}` : "");
+    const resolvedNumber = invoiceNumber.trim();
 
     const existingInvoice = editingInvoiceId
       ? invoicesList.find((i) => String(i.id) === String(editingInvoiceId))
@@ -10036,6 +10037,39 @@ export default function SifarisDetailPage() {
                   {/* Alınmış: Daşıyıcı → Reys | İrəli/İlkin: Müştəri (+ müqavilə), reys yoxdur */}
                   {invoicesSubTab === "alinmis" ? (
                     <>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.375rem",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#64748b",
+                          }}
+                        >
+                          INV no{" "}
+                          <span style={{ color: "#ef4444" }}>*</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="INV nömrəsini daxil edin"
+                          value={invoiceNumber}
+                          onChange={(e) => setInvoiceNumber(e.target.value)}
+                          style={{
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "0.375rem",
+                            padding: "0.5rem 0.75rem",
+                            outline: "none",
+                            fontSize: "0.875rem",
+                            backgroundColor: "#ffffff",
+                            color: "#334155",
+                          }}
+                        />
+                      </div>
                       <div
                         style={{
                           display: "flex",
