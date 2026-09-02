@@ -815,3 +815,30 @@
 .reportFilterClear:hover {
   background: #f1f5f9;
 }
+
+.reportFilterExcel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: 1px solid #16a34a;
+  background: #16a34a;
+  color: #fff;
+  border-radius: 0.5rem;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  height: fit-content;
+  white-space: nowrap;
+}
+
+.reportFilterExcel:hover {
+  background: #15803d;
+  border-color: #15803d;
+}
+
+.reportFilterExcel:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

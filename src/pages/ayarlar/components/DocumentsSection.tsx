@@ -84,11 +84,11 @@ export const DocumentsSection: React.FC<DocumentsSectionProps> = ({
       if (selected) {
         const fresh = tpls.find((t) => t.id === selected.id);
         if (fresh) {
-          setSelected(fresh);
-          if (editing) {
-            setHtmlTemplate(fresh.htmlTemplate || "");
-            setCssStyles(fresh.cssStyles || "");
-          }
+          setSelected((prev) =>
+            prev && prev.id === fresh.id
+              ? { ...fresh, name: prev.name, description: prev.description }
+              : fresh,
+          );
         }
       }
     } catch {

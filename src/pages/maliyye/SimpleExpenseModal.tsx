@@ -12,6 +12,30 @@ import { normalizeWallet } from "./lib/financeWallet.utils";
 const EXPENSE_CATEGORY_LOOKUP = "expense-categories";
 const DEFAULT_CATEGORY = "Ümumi xərc";
 
+function todayInputDate(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function toInputDate(raw?: string | Date | null): string {
+  if (!raw) return todayInputDate();
+  const s = String(raw).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const dmY = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
+  if (dmY) {
+    return `${dmY[3]}-${dmY[2].padStart(2, "0")}-${dmY[1].padStart(2, "0")}`;
+  }
+  const d = raw instanceof Date ? raw : new Date(s);
+  if (Number.isNaN(d.getTime())) return todayInputDate();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 type Props = {
   isOpen: boolean;
   onClose: () => void;
@@ -36,6 +60,7 @@ export default function SimpleExpenseModal({
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("AZN");
   const [paymentMethod, setPaymentMethod] = useState<string>(defaultWallet);
+  const [date, setDate] = useState(todayInputDate());
   const [note, setNote] = useState("");
   const [categories, setCategories] = useState<string[]>([DEFAULT_CATEGORY]);
   const [addOpen, setAddOpen] = useState(false);
@@ -80,6 +105,7 @@ export default function SimpleExpenseModal({
       );
       setCurrency(String(initialData.currency || "AZN").toUpperCase());
       setPaymentMethod(wallet);
+      setDate(toInputDate(initialData.date || initialData.costDate));
       const partner = String(initialData.partner || "").trim();
       setNote(
         partner && partner !== DEFAULT_CATEGORY && partner !== "__SYSTEM__"
@@ -93,6 +119,7 @@ export default function SimpleExpenseModal({
     setAmount("");
     setCurrency("AZN");
     setPaymentMethod(defaultWallet);
+    setDate(todayInputDate());
     setNote("");
     setAddOpen(false);
     setNewCategory("");
@@ -161,6 +188,8 @@ export default function SimpleExpenseModal({
       customerId: null,
       carrierId: null,
       orderId: null,
+      costDate: date || todayInputDate(),
+      date: date ? new Date(`${date}T12:00:00`) : new Date(),
     });
   };
 
@@ -259,6 +288,15 @@ export default function SimpleExpenseModal({
           </div>
 
           <div className={modalStyles.row2}>
+            <label className={modalStyles.fieldStack}>
+              <span className={modalStyles.label}>Tarix</span>
+              <input
+                className={modalStyles.input}
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </label>
             <label className={modalStyles.fieldStack}>
               <span className={modalStyles.label}>Məbləğ *</span>
               <input

@@ -136,3 +136,42 @@
 .applyBtn:not(:disabled):hover {
   background: #163a5f;
 }
+
+.btnRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.increaseBtn,
+.decreaseBtn {
+  border: none;
+  border-radius: 0.6rem;
+  padding: 0.7rem 0.75rem;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.increaseBtn {
+  background: #15803d;
+}
+
+.increaseBtn:not(:disabled):hover {
+  background: #166534;
+}
+
+.decreaseBtn {
+  background: #b91c1c;
+}
+
+.decreaseBtn:not(:disabled):hover {
+  background: #991b1b;
+}
+
+.increaseBtn:disabled,
+.decreaseBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

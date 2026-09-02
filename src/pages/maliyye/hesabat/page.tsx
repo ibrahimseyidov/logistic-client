@@ -6,6 +6,7 @@ import {
   FiArrowLeft,
   FiClipboard,
   FiDollarSign,
+  FiDownload,
   FiFileText,
   FiPackage,
   FiTruck,
@@ -38,6 +39,7 @@ import { getQueryDetailPath } from "../../sorgular/lib/queryDisplay.utils";
 import {
   buildExpenseRows,
   buildOrderRows,
+  buildPartnerOrderLines,
   buildPartnerRows,
   buildQueryRows,
   emptyReportFilter,
@@ -48,6 +50,12 @@ import {
   type ReportFilter,
   type ReportId,
 } from "../lib/hesabatReports";
+import {
+  exportGenericReportToExcel,
+  exportPartnerDetailedReportToExcel,
+  exportPartnerReportToExcel,
+  reportExcelFileTitle,
+} from "../lib/exportHesabatExcel";
 
 const REPORT_CARDS: {
   id: ReportId;
@@ -122,6 +130,10 @@ export default function MaliyyeHesabatPage() {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentSeed, setPaymentSeed] = useState<any>(null);
   const [filter, setFilter] = useState<ReportFilter>(emptyReportFilter);
+  const [exporting, setExporting] = useState(false);
+  const [partnerExportType, setPartnerExportType] = useState<"summary" | "detailed">(
+    "summary",
+  );
 
   const loadData = useCallback(() => {
     setLoading(true);
@@ -150,6 +162,7 @@ export default function MaliyyeHesabatPage() {
   useEffect(() => {
     setCurrentPage(1);
     setFilter(emptyReportFilter());
+    setPartnerExportType("summary");
   }, [activeReport]);
 
   useEffect(() => {
@@ -351,6 +364,77 @@ export default function MaliyyeHesabatPage() {
     setFilter((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleExportExcel = async () => {
+    if (!activeReport) return;
+    setExporting(true);
+    try {
+      const title = reportExcelFileTitle(activeReport);
+      if (isPartnerReport) {
+        const partnerLabel =
+          activeReport === "customers" ? "Müştəri" : "Daşıyıcı";
+        if (partnerExportType === "detailed") {
+          const orderLines = buildPartnerOrderLines(
+            activeReport === "carriers" ? "carriers" : "customers",
+            partnerRows,
+            { orders, transactions, customers, carriers },
+          );
+          await exportPartnerDetailedReportToExcel({
+            title,
+            partnerLabel,
+            partners: partnerRows,
+            orderLines,
+          });
+          return;
+        }
+        await exportPartnerReportToExcel({
+          title,
+          partnerLabel,
+          rows: partnerRows,
+        });
+        return;
+      }
+      if (activeReport === "queries") {
+        await exportGenericReportToExcel({
+          title,
+          headers: ["№", "Müştəri", "Marşrut", "Yüklər", "Status", "Tarix"],
+          rows: genericRows,
+        });
+        return;
+      }
+      if (activeReport === "orders") {
+        await exportGenericReportToExcel({
+          title,
+          headers: [
+            "Sifariş",
+            "Müştəri",
+            "Qiymət",
+            "Xərclər",
+            "Ödəniş",
+            "Qalıq",
+            "Qazanc",
+            "Status",
+            "Tarix",
+          ],
+          rows: genericRows,
+        });
+        return;
+      }
+      await exportGenericReportToExcel({
+        title,
+        headers: ["ID", "Ad", "Kateqoriya", "Metod", "Məbləğ", "Tarix"],
+        rows: genericRows,
+        totalLabel: "Ümumi xərc",
+        totalValue: expenseTotal,
+        totalColumnIndex: 4,
+      });
+    } catch (err) {
+      console.error(err);
+      alert("Excel faylı hazırlanarkən xəta baş verdi");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (loading && transactions.length === 0 && orders.length === 0) {
     return <Loading />;
   }
@@ -486,6 +570,30 @@ export default function MaliyyeHesabatPage() {
               placeholder="Ad, №, status..."
             />
           </label>
+          {isPartnerReport ? (
+            <label className={styles.reportFilterField}>
+              <span>Excel tipi</span>
+              <select
+                value={partnerExportType}
+                onChange={(e) =>
+                  setPartnerExportType(
+                    e.target.value === "detailed" ? "detailed" : "summary",
+                  )
+                }
+              >
+                <option value="summary">
+                  {activeReport === "carriers"
+                    ? "Adi — daşıyıcı borcları"
+                    : "Adi — müştəri borcları"}
+                </option>
+                <option value="detailed">
+                  {activeReport === "carriers"
+                    ? "Detallı — daşıyıcı + sifarişlər"
+                    : "Detallı — müştəri + sifarişlər"}
+                </option>
+              </select>
+            </label>
+          ) : null}
           {!isPartnerReport ? (
             <>
               <label className={styles.reportFilterField}>
@@ -559,6 +667,16 @@ export default function MaliyyeHesabatPage() {
             onClick={() => setFilter(emptyReportFilter())}
           >
             Təmizlə
+          </button>
+          <button
+            type="button"
+            className={styles.reportFilterExcel}
+            onClick={() => void handleExportExcel()}
+            disabled={exporting || displayCount === 0}
+            title="Cədvəli Excel-ə çıxar"
+          >
+            <FiDownload size={14} />
+            {exporting ? "Hazırlanır..." : "Excel-ə çıxar"}
           </button>
         </div>
 

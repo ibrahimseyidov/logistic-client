@@ -244,6 +244,7 @@ export default function DocumentVisualEditor({
     if (value === lastEmitted.current) return;
     const visual = templateToVisualHtml(value || "", placeholders, logoSrc);
     editor.commands.setContent(visual, { emitUpdate: false });
+    lastEmitted.current = value || "";
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, editor]);
 

@@ -1051,6 +1051,14 @@ export default function SifarisDetailPage() {
           setInvoicesList((prev) =>
             prev.filter((i) => String(i.id) !== String(inv.id)),
           );
+          setFinanceTransactions((prev) =>
+            prev.filter((t) => {
+              const n = String(t.name || "");
+              if (!/hesab/i.test(n)) return true;
+              const suffix = `#${inv.id}`;
+              return !n.endsWith(suffix);
+            }),
+          );
           if (order?.id) {
             try {
               const finRefresh = await axios.get(
@@ -3129,15 +3137,41 @@ export default function SifarisDetailPage() {
       }
     };
 
-    /** Reys qiyməti artıq daşıyıcı borcu yaratmır — borc yalnız alınmış hesabda yaranır */
-    const syncVoyageFinanceExpense = async (_opts: {
-      voyageId: string | number;
-      carrier: string;
-      priceNum: number;
-      currency: string;
-      priceAzn: number;
-    }) => {
-      return;
+    /** Reys daşıyıcısı və qiyməti saxlananda borc həmin daşıyıcıya yazılır */
+    const syncVoyageFinanceExpense = async () => {
+      if (!order?.id) return;
+      try {
+        const finRefresh = await axios.get(
+          ENDPOINTS.FINANCE.BASE + "?orderId=" + order.id,
+          { headers: authHeaders },
+        );
+        setFinanceTransactions(
+          Array.isArray(finRefresh.data) ? finRefresh.data : [],
+        );
+        const orderRefresh = await axios.get(
+          ENDPOINTS.ORDERS.BY_ID(order.id),
+          { headers: authHeaders },
+        );
+        const fresh = orderRefresh.data;
+        if (fresh) {
+          setOrders((prev) =>
+            prev.map((o) =>
+              String(o.id) === String(order.id)
+                ? {
+                    ...o,
+                    carriers: fresh.carriers ?? o.carriers,
+                    tags: fresh.tags ?? o.tags,
+                    extraCosts: fresh.extraCosts ?? o.extraCosts,
+                    profit: fresh.profit ?? o.profit,
+                    profitAzn: fresh.profitAzn ?? o.profitAzn,
+                  }
+                : o,
+            ),
+          );
+        }
+      } catch {
+        /* ignore */
+      }
     };
 
     const priceNum =
@@ -3212,13 +3246,7 @@ export default function SifarisDetailPage() {
           ),
         );
         await syncLoadVoyageLinks(voyageId);
-        await syncVoyageFinanceExpense({
-          voyageId,
-          carrier: payload.carrier || "",
-          priceNum,
-          currency: priceCurrency,
-          priceAzn,
-        });
+        await syncVoyageFinanceExpense();
         setIsVoyageEditOpen(false);
         setSelectedVoyageForEdit(null);
       } catch (e) {
@@ -3276,13 +3304,7 @@ export default function SifarisDetailPage() {
         setVoyagesList((prev) => [...prev, saved]);
         if (newId) {
           await syncLoadVoyageLinks(newId);
-          await syncVoyageFinanceExpense({
-            voyageId: newId,
-            carrier: payload.carrier || "",
-            priceNum,
-            currency: priceCurrency,
-            priceAzn,
-          });
+          await syncVoyageFinanceExpense();
         }
         setIsVoyageEditOpen(false);
       } catch (e) {

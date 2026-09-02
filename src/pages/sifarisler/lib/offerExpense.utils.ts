@@ -107,14 +107,28 @@ function resolveAznRate(
 
 function collectCarrierNames(order: any, voyages: any[]): Set<string> {
   const names = new Set<string>();
-  for (const v of voyages || []) {
-    const carrier = String(v?.carrier || "").trim();
-    if (carrier && carrier !== "—") names.add(carrier);
-  }
+  const add = (raw: unknown) => {
+    const carrier = String(raw || "").trim();
+    if (carrier && carrier !== "—" && carrier.toLowerCase() !== "daşıyıcı") {
+      names.add(carrier);
+    }
+  };
+  for (const v of voyages || []) add(v?.carrier);
   const tags = String(order?.tags || "");
   const tagMatch = tags.match(/Daşıyıcı:\s*(.+)/i);
-  if (tagMatch?.[1]) names.add(tagMatch[1].trim());
+  if (tagMatch?.[1]) {
+    tagMatch[1].split(/[,;|/]+/).forEach(add);
+  }
+  String(order?.carriers || "")
+    .split(/[,;|/]+/)
+    .forEach(add);
   return names;
+}
+
+function foldCarrier(s: string): string {
+  return String(s || "")
+    .trim()
+    .toLocaleLowerCase("az-AZ");
 }
 
 /**
@@ -154,13 +168,14 @@ export function resolveOfferExpenseFallbackAzn(params: {
   if (offers.length === 0) return 0;
 
   const carriers = collectCarrierNames(order, voyages);
+  const folded = new Set([...carriers].map(foldCarrier));
   const matched = offers.filter((o) => {
     const name = String(o?.carrierName || "").trim();
     if (!name) return false;
-    if (carriers.size === 0) return true;
-    return carriers.has(name);
+    if (folded.size === 0) return false;
+    return folded.has(foldCarrier(name));
   });
-  const useOffers = matched.length > 0 ? matched : [offers[0]];
+  const useOffers = matched.length > 0 ? matched : [];
 
   return useOffers.reduce((sum, offer) => {
     const purchase = toNumber(offer?.price);
@@ -182,7 +197,7 @@ export function resolveOfferExpenseFallbackAzn(params: {
   }, 0);
 }
 
-/** Selected carrier offer for the order (by voyage/tag carrier, else first). */
+/** Selected carrier offer for the order — yalnız sifariş/reys daşıyıcıları, sorğunun birinci təklifi yox. */
 export function resolveSelectedPriceOffer(params: {
   order: any;
   voyages?: any[];
@@ -191,13 +206,16 @@ export function resolveSelectedPriceOffer(params: {
   const offers = parsePriceOffers(order?.query);
   if (offers.length === 0) return null;
   const carriers = collectCarrierNames(order, voyages);
+  const folded = new Set([...carriers].map(foldCarrier));
   const matched = offers.filter((o) => {
     const name = String(o?.carrierName || "").trim();
     if (!name) return false;
-    if (carriers.size === 0) return true;
-    return carriers.has(name);
+    if (folded.size === 0) return false;
+    return folded.has(foldCarrier(name));
   });
-  return (matched.length > 0 ? matched[0] : offers[0]) || null;
+  if (matched.length > 0) return matched[0];
+  if (folded.size > 0) return null;
+  return offers.find((o) => toNumber(o?.salesPrice) > 0) || null;
 }
 
 /** Reys qiymətlərinin cəmi — Alış qiymətinin mənbəyi. */
@@ -360,7 +378,9 @@ export function resolveOfferSalesTotalSummary(params: {
     return `${amount} ${curr} (${azn.toFixed(2)} AZN)`;
   };
 
-  const carrierFromVoyage = String(params.voyages?.[0]?.carrier || "").trim();
+  const carrierFromVoyage = [...collectCarrierNames(params.order, params.voyages || [])]
+    .join(", ")
+    .trim();
 
   return {
     sales,
@@ -382,8 +402,7 @@ export function resolveOfferSalesTotalSummary(params: {
     ),
     labelPurchase: formatLabel(purchase, purchaseCurrency, purchaseAzn),
     labelExpense: formatLabel(expense, currency, expenseAzn),
-    carrierName:
-      String(offer?.carrierName || "").trim() || carrierFromVoyage,
+    carrierName: carrierFromVoyage,
     purchaseFromVoyages,
   };
 }
@@ -424,7 +443,7 @@ export function buildFinancePreviewRows(params: {
   const fmtProfit = (n: number) => `${n.toFixed(2)} AZN`;
   const carrier =
     summary.carrierName ||
-    String(params.voyages?.[0]?.carrier || "").trim() ||
+    [...collectCarrierNames(params.order, params.voyages || [])].join(", ") ||
     "Daşıyıcı";
   const customer =
     String(params.customerName || "").trim() ||
@@ -456,22 +475,28 @@ export function buildFinancePreviewRows(params: {
   }
 
   if (summary.purchase > 0 && !hasAlinmis) {
-    const purchaseCurr = summary.purchaseCurrency || currency;
-    rows.push({
-      id: "preview-purchase",
-      name: "Alış qiyməti",
-      partner: carrier,
-      tarifPrice: "",
-      tarifCurrency: "",
-      tarifAzn: "",
-      mesarifPrice: fmtAmt(summary.purchase),
-      mesarifCurrency: purchaseCurr,
-      mesarifAzn: fmtAzn(summary.purchaseAzn),
-      profit: fmtProfit(-summary.purchaseAzn),
-      isPreview: true,
-      costDate: "",
-      user: "Sistem",
+    const voyagePriced = (params.voyages || []).some((v) => {
+      const text = String(v?.price || v?.tripPrice || "");
+      return Number(v?.valueAzn) > 0 || /^[0-9]/.test(text.trim());
     });
+    if (!voyagePriced) {
+      const purchaseCurr = summary.purchaseCurrency || currency;
+      rows.push({
+        id: "preview-purchase",
+        name: "Alış qiyməti",
+        partner: carrier,
+        tarifPrice: "",
+        tarifCurrency: "",
+        tarifAzn: "",
+        mesarifPrice: fmtAmt(summary.purchase),
+        mesarifCurrency: purchaseCurr,
+        mesarifAzn: fmtAzn(summary.purchaseAzn),
+        profit: fmtProfit(-summary.purchaseAzn),
+        isPreview: true,
+        costDate: "",
+        user: "Sistem",
+      });
+    }
   }
 
   if (summary.expense > 0 && !hasAlinmis) {

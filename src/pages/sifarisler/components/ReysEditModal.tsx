@@ -46,13 +46,18 @@ function offerPurchaseFields(offer: any | null | undefined): {
   };
 }
 
-/** Prefer offer matching order carrier tag, else first offer with alış price. */
-function resolveOfferForOrder(order: any, priceOffers: any[]): any | null {
+/** Sifariş/reys daşıyıcısına uyğun təklif; tapılmasa birinciyə düşmə. */
+function resolveOfferForOrder(
+  order: any,
+  priceOffers: any[],
+  carrierName?: string,
+): any | null {
   if (!Array.isArray(priceOffers) || priceOffers.length === 0) return null;
   const tagMatch = String(order?.tags || "").match(/Daşıyıcı:\s*(.+)/i);
   const carrierHint = String(
-    tagMatch?.[1] || order?.carriers || "",
+    carrierName || tagMatch?.[1] || order?.carriers || "",
   )
+    .split(/[,;|/]+/)[0]
     .trim()
     .toLowerCase();
   if (carrierHint) {
@@ -62,11 +67,7 @@ function resolveOfferForOrder(order: any, priceOffers: any[]): any | null {
     );
     if (matched) return matched;
   }
-  return (
-    priceOffers.find((o) => Number.parseFloat(String(o?.price ?? "").replace(",", ".")) > 0) ||
-    priceOffers[0] ||
-    null
-  );
+  return null;
 }
 
 function formatCarrierDocumentLabel(doc: {
@@ -583,14 +584,11 @@ export default function ReysEditModal({
         linked.length > 0 ? linked : fromPayloadForThisVoyage;
       setSelectedLoadIds(initialSelected);
     } else if (isOpen && !editVoyage) {
-      const primaryOffer =
-        priceOffers.length === 1
-          ? priceOffers[0]
-          : resolveOfferForOrder(order, priceOffers);
+      const primaryOffer = resolveOfferForOrder(order, priceOffers);
       const fields = offerPurchaseFields(primaryOffer);
 
       setExpeditor(defaultExpeditor || "");
-      setCarrierCompany(fields.carrierName || "");
+      setCarrierCompany(fields.carrierName || String(order?.carriers || "").split(/[,;|/]+/)[0]?.trim() || "");
       setContactPerson("");
       setCarrierContract("");
       setVoyageNumber("Avtomatik");

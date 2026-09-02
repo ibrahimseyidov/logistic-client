@@ -59,75 +59,61 @@ const WalletCard: React.FC<WalletCardProps> = ({
   const dispatch = useAppDispatch();
   const { user } = useAuth();
   const stats = useMemo(() => calcWalletBalance(txs, wallet), [txs, wallet]);
-  const [target, setTarget] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [saving, setSaving] = useState<"in" | "out" | null>(null);
 
-  useEffect(() => {
-    setTarget(stats.balance.toFixed(2));
-  }, [stats.balance]);
+  const amountNum = Number.parseFloat(String(amount).replace(",", "."));
 
-  const targetNum = Number.parseFloat(String(target).replace(",", "."));
-  const delta =
-    Number.isFinite(targetNum) ? targetNum - stats.balance : NaN;
-  const absDelta = Number.isFinite(delta) ? Math.abs(delta) : 0;
-
-  const handleApply = async () => {
-    if (!Number.isFinite(targetNum)) {
+  const handleAdjust = async (isIn: boolean) => {
+    if (!Number.isFinite(amountNum) || !(amountNum > 0)) {
       dispatch(
         showNotification({
-          message: "Düzgün məbləğ daxil edin",
+          message: "Məbləğ daxil edin",
           type: "error",
           autoCloseDuration: 3000,
         }),
       );
       return;
     }
-    if (!(absDelta > 0.009)) {
-      dispatch(
-        showNotification({
-          message: "Balans artıq bu məbləğdədir — dəyişiklik yoxdur",
-          type: "info",
-          autoCloseDuration: 3000,
-        }),
-      );
-      return;
-    }
 
-    const isIn = delta > 0;
-    const amount = Number(absDelta.toFixed(2));
+    const value = Number(amountNum.toFixed(2));
     const place = wallet === "Kasa" ? "Kassaya" : "Bank hesabına";
     const placeOut = wallet === "Kasa" ? "Kassadan" : "Bank hesabından";
 
     const name = isIn
-      ? `${place} ${fmtAzn(amount)} AZN daxil edildi (balans düzəlişi)`
-      : `${placeOut} ${fmtAzn(amount)} AZN çıxış edildi (balans düzəlişi)`;
+      ? `${place} ${fmtAzn(value)} AZN daxil edildi (balans düzəlişi)`
+      : `${placeOut} ${fmtAzn(value)} AZN çıxış edildi (balans düzəlişi)`;
 
-    const category = isIn ? "Kassa düzəlişi — mədaxil" : "Kassa düzəlişi — məxaric";
+    const category = isIn
+      ? "Kassa düzəlişi — mədaxil"
+      : "Kassa düzəlişi — məxaric";
 
-    setSaving(true);
+    setSaving(isIn ? "in" : "out");
     try {
       await createFinanceTransactionAction({
         type: isIn ? "INCOME" : "EXPENSE",
         paymentMethod: wallet,
-        amount,
+        amount: value,
         currency: "AZN",
         name,
         category,
         partner: SYSTEM_PARTNER_MARKER,
         user: user?.name || "Admin",
-        costDate: new Date().toLocaleDateString("az-AZ"),
+        costDate: new Date().toISOString().slice(0, 10),
+        date: new Date(),
         invoiceWritten: false,
         invoiceReceived: false,
       });
       dispatch(
         showNotification({
           message: isIn
-            ? `${place} ${fmtAzn(amount)} AZN daxil edildi`
-            : `${placeOut} ${fmtAzn(amount)} AZN çıxış edildi`,
+            ? `${place} ${fmtAzn(value)} AZN əlavə olundu`
+            : `${placeOut} ${fmtAzn(value)} AZN çıxıldı`,
           type: "success",
           autoCloseDuration: 3500,
         }),
       );
+      setAmount("");
       onAdjusted();
     } catch {
       dispatch(
@@ -138,7 +124,7 @@ const WalletCard: React.FC<WalletCardProps> = ({
         }),
       );
     } finally {
-      setSaving(false);
+      setSaving(null);
     }
   };
 
@@ -172,37 +158,40 @@ const WalletCard: React.FC<WalletCardProps> = ({
       {canEdit ? (
         <>
           <label className={styles.field}>
-            <span className={styles.fieldLabel}>Yeni balans (AZN)</span>
+            <span className={styles.fieldLabel}>Məbləğ (AZN)</span>
             <input
               type="number"
               step="0.01"
+              min="0"
               className={styles.input}
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              placeholder="məs. 100"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
             />
           </label>
 
-          {Number.isFinite(delta) && absDelta > 0.009 ? (
-            <p className={styles.hint}>
-              {delta > 0
-                ? `Tətbiq ediləndə: ${wallet === "Kasa" ? "Kassaya" : "Bank hesabına"} ${fmtAzn(absDelta)} AZN daxil ediləcək.`
-                : `Tətbiq ediləndə: ${wallet === "Kasa" ? "Kassadan" : "Bank hesabından"} ${fmtAzn(absDelta)} AZN çıxış yazılacaq.`}
-            </p>
-          ) : (
-            <p className={styles.hintMuted}>
-              İstədiyiniz balansı yazın — sistem fərqi avtomatik gəlir/xərc kimi qeyd edəcək.
-            </p>
-          )}
+          <p className={styles.hintMuted}>
+            Məbləği yazın, sonra artırın və ya azaldın. Cari balans avtomatik yenilənir.
+          </p>
 
-          <button
-            type="button"
-            className={styles.applyBtn}
-            onClick={() => void handleApply()}
-            disabled={saving || !Number.isFinite(targetNum)}
-          >
-            {saving ? "Saxlanılır..." : "Balansı tətbiq et"}
-          </button>
+          <div className={styles.btnRow}>
+            <button
+              type="button"
+              className={styles.increaseBtn}
+              onClick={() => void handleAdjust(true)}
+              disabled={saving !== null}
+            >
+              {saving === "in" ? "Saxlanılır..." : "Balansı artır"}
+            </button>
+            <button
+              type="button"
+              className={styles.decreaseBtn}
+              onClick={() => void handleAdjust(false)}
+              disabled={saving !== null}
+            >
+              {saving === "out" ? "Saxlanılır..." : "Balansı azalt"}
+            </button>
+          </div>
         </>
       ) : (
         <p className={styles.hintMuted}>Yalnız baxış — balans dəyişdirmə icazəsi yoxdur.</p>

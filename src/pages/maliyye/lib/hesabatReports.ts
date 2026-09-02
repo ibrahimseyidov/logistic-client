@@ -8,8 +8,8 @@ import {
   entityLabel,
   findCarrierForName,
   findCustomerForName,
+  fold,
   isCarrierBookkeepingTx,
-  namesMatch,
   orderMatchesCarrier,
   orderMatchesCustomer,
   resolveCarrierGroup,
@@ -250,6 +250,127 @@ export function filterPartnerRows(
     if (!matchesSearch(`${r.name} ${r.key}`, filter.search)) return false;
     return true;
   });
+}
+
+export type PartnerOrderLine = {
+  partnerKey: string;
+  partnerName: string;
+  orderId: string;
+  orderNumber: string;
+  orderDate: string;
+  status: string;
+  owedAzn: number;
+  paidAzn: number;
+  balanceAzn: number;
+};
+
+function parsePartnerEntityId(key: string): string | null {
+  const m = String(key || "").match(/^[cr]:(.+)$/);
+  return m ? m[1] : null;
+}
+
+function summarizeCarrierOrderFinance(
+  order: any,
+  partnerKey: string,
+  transactions: any[],
+  carriers: any[],
+): { owedAzn: number; paidAzn: number; balanceAzn: number } {
+  const oid = String(order?.id ?? "");
+  let owedAzn = 0;
+  let paidAzn = 0;
+
+  (transactions || []).forEach((tx) => {
+    if (String(tx.orderId) !== oid) return;
+    const group = resolveCarrierGroup(tx, carriers, { allowNameFallback: true });
+    if (!group || group.key !== partnerKey) return;
+    if (isOrderBookkeepingTx(tx) && isCarrierBookkeepingTx(tx)) {
+      owedAzn += resolveFinanceExpenseAzn(tx);
+      return;
+    }
+    if (isCashMovementTx(tx) && !isIncomeTx(tx)) {
+      const azn = resolveTxCashAzn(tx);
+      if (azn > 0) paidAzn += azn;
+    }
+  });
+
+  if (!(owedAzn > 0)) {
+    const voyages = Array.isArray(order?.voyages) ? order.voyages : [];
+    voyages.forEach((v: any) => {
+      owedAzn += resolveVoyageExpenseAzn(v);
+    });
+  }
+
+  return {
+    owedAzn,
+    paidAzn,
+    balanceAzn: owedAzn - paidAzn,
+  };
+}
+
+export function buildPartnerOrderLines(
+  tab: "customers" | "carriers",
+  partners: PartnerRow[],
+  params: {
+    orders: any[];
+    transactions: any[];
+    customers: any[];
+    carriers: any[];
+  },
+): PartnerOrderLine[] {
+  const { orders, transactions, customers, carriers } = params;
+  const lines: PartnerOrderLine[] = [];
+
+  partners.forEach((partner) => {
+    const entityId = parsePartnerEntityId(partner.key);
+    const matchedOrders = (orders || []).filter((o) => {
+      if (tab === "customers") {
+        const customer =
+          customers.find((c) => String(c.id) === String(entityId)) || null;
+        if (customer) return orderMatchesCustomer(o, customer, transactions);
+        return fold(o.customerName || o.customer) === fold(partner.name);
+      }
+      const carrier =
+        carriers.find((c) => String(c.id) === String(entityId)) || null;
+      if (carrier) return orderMatchesCarrier(o, carrier, transactions);
+      return false;
+    });
+
+    matchedOrders
+      .slice()
+      .sort((a, b) =>
+        String(a.orderNumber || "").localeCompare(
+          String(b.orderNumber || ""),
+          "az",
+        ),
+      )
+      .forEach((order) => {
+        const fin =
+          tab === "customers"
+            ? summarizeOrderReportFinance(order, transactions)
+            : summarizeCarrierOrderFinance(
+                order,
+                partner.key,
+                transactions,
+                carriers,
+              );
+        const owedAzn = tab === "customers" ? fin.priceAzn : fin.owedAzn;
+        const paidAzn = fin.paidAzn;
+        const balanceAzn = fin.balanceAzn;
+        lines.push({
+          partnerKey: partner.key,
+          partnerName: partner.name,
+          orderId: String(order.id ?? ""),
+          orderNumber: order.orderNumber || `Sifariş #${order.id}`,
+          orderDate: formatShortDate(order.orderDate || order.createdAt),
+          status: String(order.statusLabel || order.statusKind || "—"),
+          owedAzn,
+          paidAzn,
+          balanceAzn,
+        });
+      });
+  });
+
+  return lines;
 }
 
 export function buildQueryRows(
