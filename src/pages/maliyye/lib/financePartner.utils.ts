@@ -104,39 +104,32 @@ export function orderMatchesCarrier(
   if (!order || !carrier) return false;
   const rid = String(carrier.id);
   const aliases = entityAliases(carrier);
-  if (aliases.length === 0) {
-    return financeTxs.some((tx) => {
-      if (String(tx.orderId) !== String(order.id)) return false;
-      return (
-        (tx.carrierId != null && String(tx.carrierId) === rid) ||
-        (tx.carrier?.id != null && String(tx.carrier.id) === rid)
-      );
-    });
-  }
 
-  // carriers sahəsi: dəqiq tokenlər
+  const tokenMatches = (raw: unknown) => {
+    const t = fold(raw);
+    if (!t || t === "dasiyici") return false;
+    return aliases.includes(t);
+  };
+
   const carrierTokens = String(order.carriers || "")
     .split(/[,;|/]+/)
     .map((x) => fold(x))
     .filter(Boolean);
   if (carrierTokens.some((t) => aliases.includes(t))) return true;
 
-  // Teq: "Daşıyıcı: Name" — dəqiq
   const tagRaw = String(order.tags || "");
   const tagMatch = tagRaw.match(/Daşıyıcı:\s*([^,;|]+)/i);
-  if (tagMatch) {
-    const tagName = fold(tagMatch[1]);
-    if (aliases.some((n) => n === tagName)) return true;
-  }
+  if (tagMatch && tokenMatches(tagMatch[1])) return true;
+
+  const voyages = Array.isArray(order.voyages) ? order.voyages : [];
+  if (voyages.some((v: any) => tokenMatches(v?.carrier))) return true;
 
   return financeTxs.some((tx) => {
     if (String(tx.orderId) !== String(order.id)) return false;
     if (tx.carrierId != null && String(tx.carrierId) === rid) return true;
     if (tx.carrier?.id != null && String(tx.carrier.id) === rid) return true;
-    if (/^Reys R-/i.test(String(tx.name || ""))) {
-      const p = fold(tx.partner || tx.carrier?.name || entityLabel(tx.carrier));
-      return aliases.some((n) => n === p);
-    }
+    const p = fold(tx.partner || tx.carrier?.name || entityLabel(tx.carrier));
+    if (aliases.length > 0 && aliases.includes(p)) return true;
     return false;
   });
 }
@@ -144,7 +137,10 @@ export function orderMatchesCarrier(
 export function isCarrierBookkeepingTx(tx: any): boolean {
   if (!tx) return false;
   if (tx.carrierId != null || tx.carrier?.id != null) return true;
-  return /^Reys R-\d+/i.test(String(tx.name || "").trim());
+  const name = String(tx.name || "").trim();
+  if (/^Reys R-\d+/i.test(name)) return true;
+  if (/^Alınmış hesab/i.test(name)) return true;
+  return false;
 }
 
 export function resolveCustomerGroup(

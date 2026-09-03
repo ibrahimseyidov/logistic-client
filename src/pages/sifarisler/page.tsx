@@ -188,7 +188,30 @@ export default function SifarislerPage() {
                 );
                 return containers.length > 0 ? containers.join(", ") : "—";
               })(),
-              carriers: voyages.length > 0 ? voyages.map((v: any) => v.carrier || "—").join(", ") : "—",
+              carriers: (() => {
+                const fromOrder = String(o.carriers || "")
+                  .split(/[,;|/]+/)
+                  .map((s: string) => s.trim())
+                  .filter(
+                    (s: string) =>
+                      s && s !== "—" && s.toLowerCase() !== "daşıyıcı",
+                  );
+                const extras = voyages
+                  .map((v: any) => String(v.carrier || "").trim())
+                  .filter(
+                    (s: string) =>
+                      s &&
+                      s !== "—" &&
+                      s.toLowerCase() !== "daşıyıcı" &&
+                      !fromOrder.some(
+                        (x: string) =>
+                          x.toLocaleLowerCase("az-AZ") ===
+                          s.toLocaleLowerCase("az-AZ"),
+                      ),
+                  );
+                const all = [...fromOrder, ...extras];
+                return all.length > 0 ? all.join(", ") : "—";
+              })(),
               route: voyages.length > 0 ? voyages.map((v: any) => `${v.loading || "—"} → ${v.unloading || "—"}`).join(" | ") : "—",
               voyages,
               cargoItems,

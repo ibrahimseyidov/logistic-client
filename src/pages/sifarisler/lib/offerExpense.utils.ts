@@ -105,23 +105,30 @@ function resolveAznRate(
   return getAznRate(curr, null);
 }
 
-function collectCarrierNames(order: any, voyages: any[]): Set<string> {
+function addCarrierName(names: Set<string>, raw: unknown) {
+  const carrier = String(raw || "").trim();
+  if (carrier && carrier !== "—" && carrier.toLowerCase() !== "daşıyıcı") {
+    names.add(carrier);
+  }
+}
+
+/** Sifariş kartındakı daşıyıcı — sorğunun birinci təklifi yox. */
+function collectOrderCarrierNames(order: any): Set<string> {
   const names = new Set<string>();
-  const add = (raw: unknown) => {
-    const carrier = String(raw || "").trim();
-    if (carrier && carrier !== "—" && carrier.toLowerCase() !== "daşıyıcı") {
-      names.add(carrier);
-    }
-  };
-  for (const v of voyages || []) add(v?.carrier);
   const tags = String(order?.tags || "");
   const tagMatch = tags.match(/Daşıyıcı:\s*(.+)/i);
   if (tagMatch?.[1]) {
-    tagMatch[1].split(/[,;|/]+/).forEach(add);
+    tagMatch[1].split(/[,;|/]+/).forEach((s) => addCarrierName(names, s));
   }
   String(order?.carriers || "")
     .split(/[,;|/]+/)
-    .forEach(add);
+    .forEach((s) => addCarrierName(names, s));
+  return names;
+}
+
+function collectCarrierNames(order: any, voyages: any[]): Set<string> {
+  const names = collectOrderCarrierNames(order);
+  for (const v of voyages || []) addCarrierName(names, v?.carrier);
   return names;
 }
 
@@ -197,7 +204,16 @@ export function resolveOfferExpenseFallbackAzn(params: {
   }, 0);
 }
 
-/** Selected carrier offer for the order — yalnız sifariş/reys daşıyıcıları, sorğunun birinci təklifi yox. */
+function matchOffersForCarriers(offers: any[], carriers: Set<string>) {
+  const folded = new Set([...carriers].map(foldCarrier));
+  if (folded.size === 0) return [];
+  return offers.filter((o) => {
+    const name = String(o?.carrierName || "").trim();
+    return name ? folded.has(foldCarrier(name)) : false;
+  });
+}
+
+/** Təklif = sifariş daşıyıcısı; yoxdursa reysdəki əlavə daşıyıcı. Sorğunun 1-ci sətri fallback deyil. */
 export function resolveSelectedPriceOffer(params: {
   order: any;
   voyages?: any[];
@@ -205,16 +221,14 @@ export function resolveSelectedPriceOffer(params: {
   const { order, voyages = [] } = params;
   const offers = parsePriceOffers(order?.query);
   if (offers.length === 0) return null;
-  const carriers = collectCarrierNames(order, voyages);
-  const folded = new Set([...carriers].map(foldCarrier));
-  const matched = offers.filter((o) => {
-    const name = String(o?.carrierName || "").trim();
-    if (!name) return false;
-    if (folded.size === 0) return false;
-    return folded.has(foldCarrier(name));
-  });
-  if (matched.length > 0) return matched[0];
-  if (folded.size > 0) return null;
+  const fromOrder = matchOffersForCarriers(offers, collectOrderCarrierNames(order));
+  if (fromOrder.length > 0) return fromOrder[0];
+  const fromVoyage = matchOffersForCarriers(
+    offers,
+    collectCarrierNames(order, voyages),
+  );
+  if (fromVoyage.length > 0) return fromVoyage[0];
+  if (collectCarrierNames(order, voyages).size > 0) return null;
   return offers.find((o) => toNumber(o?.salesPrice) > 0) || null;
 }
 
@@ -378,9 +392,12 @@ export function resolveOfferSalesTotalSummary(params: {
     return `${amount} ${curr} (${azn.toFixed(2)} AZN)`;
   };
 
-  const carrierFromVoyage = [...collectCarrierNames(params.order, params.voyages || [])]
-    .join(", ")
-    .trim();
+  const orderCarriers = [...collectOrderCarrierNames(params.order)];
+  const carrierFromVoyage =
+    (orderCarriers[0] ||
+      [...collectCarrierNames(params.order, params.voyages || [])][0] ||
+      "")
+      .trim();
 
   return {
     sales,
@@ -443,7 +460,8 @@ export function buildFinancePreviewRows(params: {
   const fmtProfit = (n: number) => `${n.toFixed(2)} AZN`;
   const carrier =
     summary.carrierName ||
-    [...collectCarrierNames(params.order, params.voyages || [])].join(", ") ||
+    [...collectOrderCarrierNames(params.order)][0] ||
+    [...collectCarrierNames(params.order, params.voyages || [])][0] ||
     "Daşıyıcı";
   const customer =
     String(params.customerName || "").trim() ||

@@ -84,6 +84,20 @@ function asList(data: unknown): any[] {
   return [];
 }
 
+function isCustomerDebtFinanceName(name: unknown): boolean {
+  const n = fold(name);
+  return (
+    n === "baslangic tarif" ||
+    n === "satis qiymeti" ||
+    n.startsWith("ireli hesab")
+  );
+}
+
+function isPlaceholderCarrierName(raw: unknown): boolean {
+  const s = String(raw || "").trim();
+  return !s || s === "—" || fold(s) === "dasiyici";
+}
+
 function calcOrderDebt(
   order: any,
   kind: PartnerKind,
@@ -105,17 +119,27 @@ function calcOrderDebt(
         if (pid && tx.customerId != null && String(tx.customerId) !== pid) {
           return;
         }
+        if (
+          pname &&
+          tx.customerId == null &&
+          tx.partner &&
+          !namesMatch(tx.partner, pname) &&
+          !isCustomerDebtFinanceName(tx.name)
+        ) {
+          return;
+        }
         owedAzn += resolveFinanceRevenueAzn(tx);
         return;
       }
 
-      // --- Daşıyıcı borcu (məsarif) ---
+      const txName = String(tx.name || "").trim();
+      if (isCustomerDebtFinanceName(txName) && !(resolveFinanceExpenseAzn(tx) > 0)) {
+        return;
+      }
+
       const exp = resolveFinanceExpenseAzn(tx);
       if (!(exp > 0)) return;
 
-      const txName = String(tx.name || "").trim();
-      const isReys = /^Reys R-/i.test(txName);
-      const isBaslangic = fold(txName) === fold("Başlanğıc tarif");
       const txCarrierId =
         tx.carrierId != null
           ? String(tx.carrierId)
@@ -123,10 +147,8 @@ function calcOrderDebt(
             ? String(tx.carrier.id)
             : null;
 
-      // Başqa daşıyıcıya bağlı sətir
       if (pid && txCarrierId && txCarrierId !== pid) return;
 
-      // Birbaşa bu daşıyıcıya bağlı
       if (pid && txCarrierId === pid) {
         owedAzn += exp;
         return;
@@ -138,15 +160,12 @@ function calcOrderDebt(
           namesMatch(tx.carrier?.name, pname) ||
           namesMatch(entityLabel(tx.carrier), pname));
 
-      // Reys / partner adı bu daşıyıcıya uyğun
       if (partnerOk) {
         owedAzn += exp;
         return;
       }
 
-      // carrierId yoxdur: sifariş artıq bu daşıyıcıya filter olunub —
-      // Başlanğıc tarif alış və ya adsız reys məsarifi = daşıyıcı borcu
-      if (!txCarrierId && (isBaslangic || isReys)) {
+      if (!txCarrierId && !isCustomerDebtFinanceName(txName)) {
         owedAzn += exp;
       }
       return;
@@ -167,7 +186,6 @@ function calcOrderDebt(
 
     if (kind === "carrier" && !isIncomeTx(tx)) {
       if (pid) {
-        // carrierId varsa uyğun olmalı; yoxdursa partner adı ilə
         if (tx.carrierId != null) {
           if (String(tx.carrierId) !== pid) return;
         } else if (pname) {
@@ -184,13 +202,24 @@ function calcOrderDebt(
     }
   });
 
-  // Maliyyədə məsarif yoxdursa — reys qiymətindən borc (valueAzn / tripPrice)
   if (kind === "carrier" && !(owedAzn > 0) && Array.isArray(order?.voyages)) {
+    const orderTokens = String(order?.carriers || "")
+      .split(/[,;|/]+/)
+      .map((s: string) => s.trim())
+      .filter(Boolean);
+    const orderIsThisCarrier =
+      Boolean(pname) &&
+      orderTokens.some((t) => namesMatch(t, pname));
+
     for (const v of order.voyages) {
-      if (pname) {
-        const vc = String(v?.carrier || "").trim();
-        if (vc && vc !== "—" && !namesMatch(vc, pname)) continue;
+      const vc = String(v?.carrier || "").trim();
+      if (isPlaceholderCarrierName(vc)) {
+        if (orderIsThisCarrier || !orderTokens.length) {
+          owedAzn += resolveVoyageExpenseAzn(v);
+        }
+        continue;
       }
+      if (pname && !namesMatch(vc, pname)) continue;
       owedAzn += resolveVoyageExpenseAzn(v);
     }
   }
@@ -256,7 +285,7 @@ function PartnerOrdersModal({
           <div>
             <h3 className={modalStyles.ordersHeaderTitle}>{title}</h3>
             <p className={modalStyles.ordersHeaderHint}>
-              Bütün sifarişlər, ödəniş və qalıq borc
+              Bu tərəfdaşın sifarişləri, ödəniş və qalıq borc
             </p>
           </div>
           <button
@@ -501,22 +530,14 @@ export default function FinanceModal({
 
   const carriersForSelectedOrder = useMemo(() => {
     if (partnerKind !== "carrier") return carriers;
-    if (!selectedOrder) {
-      if (formData.carrierId) {
-        return carriers.filter((c) => String(c.id) === formData.carrierId);
-      }
-      return [];
+    if (selectedOrder) {
+      const onOrder = carriers.filter((c) =>
+        orderMatchesCarrier(selectedOrder, c, financeTxs),
+      );
+      if (onOrder.length > 0) return onOrder;
     }
-    return carriers.filter((c) =>
-      orderMatchesCarrier(selectedOrder, c, financeTxs),
-    );
-  }, [
-    partnerKind,
-    selectedOrder,
-    carriers,
-    financeTxs,
-    formData.carrierId,
-  ]);
+    return carriers;
+  }, [partnerKind, selectedOrder, carriers, financeTxs]);
 
   const partnerOrders = useMemo(() => {
     if (partnerKind === "customer") {
@@ -538,37 +559,6 @@ export default function FinanceModal({
     orders,
     financeTxs,
   ]);
-
-  const carrierOrderPickRows: OrderDebtInfo[] = useMemo(() => {
-    if (partnerKind !== "carrier") return [];
-    return orders
-      .slice()
-      .sort((a, b) =>
-        String(b.orderNumber || "").localeCompare(
-          String(a.orderNumber || ""),
-          "az",
-        ),
-      )
-      .map((o) => {
-        const debt = selectedCarrier
-          ? calcOrderDebt(
-              o,
-              "carrier",
-              financeTxs,
-              selectedCarrier.id,
-              entityLabel(selectedCarrier),
-            )
-          : { owedAzn: 0, paidAzn: 0, remainingAzn: 0 };
-        return {
-          orderId: Number(o.id),
-          orderNumber: o.orderNumber || `SF-${o.id}`,
-          orderDate: formatOrderDate(
-            o.orderDate || o.orderDateIso || o.createdAt,
-          ),
-          ...debt,
-        };
-      });
-  }, [partnerKind, orders, selectedCarrier, financeTxs]);
 
   const orderDebtRows: OrderDebtInfo[] = useMemo(() => {
     const partnerId =
@@ -647,24 +637,14 @@ export default function FinanceModal({
     selectedCarrier,
   ]);
 
-  // Sifarişin daşıyıcısı təkdirsə avtomatik seç; siyahıda yoxdursa təmizlə
+  // Sifarişin daşıyıcısı təkdirsə avtomatik seç
   useEffect(() => {
     if (!isOpen || partnerKind !== "carrier") return;
-    if (!formData.orderId) return;
+    if (!formData.orderId || formData.carrierId) return;
     const ids = carriersForSelectedOrder.map((c) => String(c.id));
-    if (formData.carrierId && ids.includes(formData.carrierId)) return;
     if (ids.length === 1) {
       setAmountTouched(false);
       setFormData((prev) => ({ ...prev, carrierId: ids[0] }));
-      return;
-    }
-    if (formData.carrierId && ids.length > 0 && !ids.includes(formData.carrierId)) {
-      setFormData((prev) => ({
-        ...prev,
-        carrierId: "",
-        amount: "",
-        name: "",
-      }));
     }
   }, [
     isOpen,
@@ -920,6 +900,40 @@ export default function FinanceModal({
             </label>
           ) : null}
 
+          {partnerKind === "carrier" ? (
+            <label className={modalStyles.fieldStack}>
+              <span className={modalStyles.label}>Daşıyıcı</span>
+              <select
+                className={modalStyles.select}
+                value={formData.carrierId}
+                onChange={(e) => {
+                  setAmountTouched(false);
+                  setFormData({
+                    ...formData,
+                    carrierId: e.target.value,
+                    customerId: "",
+                    orderId: "",
+                    amount: "",
+                    name: "",
+                    type: "EXPENSE",
+                  });
+                }}
+              >
+                <option value="">Daşıyıcı seçin</option>
+                {carriers.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {entityLabel(c)}
+                  </option>
+                ))}
+              </select>
+              {carriers.length === 0 ? (
+                <span className={modalStyles.fieldHint}>
+                  Daşıyıcı siyahısı boşdur — Kontragentlər → Daşıyıcılar
+                </span>
+              ) : null}
+            </label>
+          ) : null}
+
           <div className={modalStyles.fieldStack}>
             <div className={modalStyles.sectionTitle}>
               <span className={modalStyles.label}>Sifariş *</span>
@@ -929,7 +943,7 @@ export default function FinanceModal({
                 disabled={
                   partnerKind === "customer"
                     ? !formData.customerId
-                    : orders.length === 0
+                    : !formData.carrierId
                 }
                 onClick={() => setOrdersModalOpen(true)}
               >
@@ -941,7 +955,9 @@ export default function FinanceModal({
               className={modalStyles.select}
               value={formData.orderId}
               disabled={
-                partnerKind === "customer" ? !formData.customerId : false
+                partnerKind === "customer"
+                  ? !formData.customerId
+                  : !formData.carrierId
               }
               onChange={(e) => {
                 const nextOrderId = e.target.value;
@@ -950,82 +966,33 @@ export default function FinanceModal({
                 setFormData({
                   ...formData,
                   orderId: nextOrderId,
-                  ...(partnerKind === "carrier"
-                    ? nextOrderId
-                      ? { amount: "", name: "" }
-                      : { carrierId: "", amount: "", name: "" }
-                    : nextOrderId
-                      ? {}
-                      : { amount: "", name: "" }),
+                  ...(nextOrderId ? { amount: "", name: "" } : { amount: "", name: "" }),
                 });
               }}
             >
               <option value="">Sifariş seçin</option>
-              {(partnerKind === "carrier"
-                ? carrierOrderPickRows
-                : orderDebtRows
-              ).map((r) => (
+              {orderDebtRows.map((r) => (
                 <option key={r.orderId} value={String(r.orderId)}>
                   {r.orderNumber}
-                  {partnerKind === "customer" || formData.carrierId
-                    ? orderDebtStatusLabel(r)
-                    : ""}
+                  {orderDebtStatusLabel(r)}
                 </option>
               ))}
             </select>
             {!formData.orderId ? (
               <span className={modalStyles.fieldHintWarn}>
-                {partnerKind === "carrier"
-                  ? "Əvvəl sifariş seçin — daşıyıcı yalnız bu sifarişdən gələcək"
+                {partnerKind === "carrier" && !formData.carrierId
+                  ? "Əvvəl daşıyıcı seçin — yalnız onun sifarişləri görünəcək"
                   : "Ödəniş üçün sifariş seçilməlidir — məbləğ sifariş qalığına görə dolacaq"}
               </span>
             ) : null}
-            {partnerKind === "customer" &&
-            formData.customerId &&
+            {((partnerKind === "customer" && formData.customerId) ||
+              (partnerKind === "carrier" && formData.carrierId)) &&
             orderDebtRows.length === 0 ? (
               <span className={modalStyles.fieldHint}>
                 Bu tərəfdaşa bağlı sifariş tapılmadı
               </span>
             ) : null}
           </div>
-
-          {partnerKind === "carrier" ? (
-            <label className={modalStyles.fieldStack}>
-              <span className={modalStyles.label}>Daşıyıcı</span>
-              <select
-                className={modalStyles.select}
-                value={formData.carrierId}
-                disabled={!formData.orderId}
-                onChange={(e) => {
-                  setAmountTouched(false);
-                  setFormData({
-                    ...formData,
-                    carrierId: e.target.value,
-                    customerId: "",
-                    amount: "",
-                    name: "",
-                    type: "EXPENSE",
-                  });
-                }}
-              >
-                <option value="">
-                  {formData.orderId
-                    ? "Daşıyıcı seçin"
-                    : "Əvvəl sifariş seçin"}
-                </option>
-                {carriersForSelectedOrder.map((c) => (
-                  <option key={c.id} value={String(c.id)}>
-                    {entityLabel(c)}
-                  </option>
-                ))}
-              </select>
-              {formData.orderId && carriersForSelectedOrder.length === 0 ? (
-                <span className={modalStyles.fieldHint}>
-                  Bu sifarişdə daşıyıcı tapılmadı
-                </span>
-              ) : null}
-            </label>
-          ) : null}
 
           {selectedOrderDebt &&
           (partnerKind !== "carrier" || formData.carrierId) ? (
@@ -1178,11 +1145,9 @@ export default function FinanceModal({
         title={
           partnerKind === "customer"
             ? `Müştəri sifarişləri — ${entityLabel(selectedCustomer)}`
-            : "Sifarişlər"
+            : `Daşıyıcı sifarişləri — ${entityLabel(selectedCarrier)}`
         }
-        rows={
-          partnerKind === "carrier" ? carrierOrderPickRows : orderDebtRows
-        }
+        rows={orderDebtRows}
         onPickOrder={(orderId) => {
           setAmountTouched(false);
           setFormError("");

@@ -1338,14 +1338,6 @@ export default function SifarisDetailPage() {
 
     const mapOrder = (o: any): SifarisOrderRow => {
       const voyages = Array.isArray(o.voyages) ? o.voyages : [];
-      const voyageCarriers = voyages
-        .map((v: any) => String(v?.carrier || "").trim())
-        .filter(
-          (name: string) => name && name !== "—" && name !== "Daşıyıcı",
-        );
-      const carriersFromVoyages = Array.from(new Set(voyageCarriers)).join(
-        ", ",
-      );
       return {
         ...o,
         queryNumber: o.query?.number || "—",
@@ -1354,7 +1346,7 @@ export default function SifarisDetailPage() {
           : "—",
         customer: o.customerName || o.query?.customer || "—",
         customerId: o.customerName || o.query?.customer || "",
-        carriers: o.carriers || carriersFromVoyages || "",
+        carriers: o.carriers || "",
       } as SifarisOrderRow;
     };
 
@@ -3137,7 +3129,7 @@ export default function SifarisDetailPage() {
       }
     };
 
-    /** Reys daşıyıcısı və qiyməti saxlananda borc həmin daşıyıcıya yazılır */
+    /** Reys saxlananda borc yenilənir: sifariş daşıyıcısı və ya reysdəki fərqli daşıyıcı */
     const syncVoyageFinanceExpense = async () => {
       if (!order?.id) return;
       try {
