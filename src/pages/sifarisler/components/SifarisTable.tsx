@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { FaFileAlt } from "react-icons/fa";
 import { FiEye, FiCopy, FiTrash2, FiInfo, FiClock, FiCheck, FiFileText, FiFile, FiTruck, FiCheckSquare } from "react-icons/fi";
 import { Link, useNavigate } from "react-router-dom";
@@ -143,9 +143,34 @@ export default function SifarisTable({
   const allowEditStatus = canEdit("sifarisler", "orders");
   const allowDelete = canDelete("sifarisler", "orders");
   const [historyOrder, setHistoryOrder] = useState<SifarisOrderRow | null>(null);
+  const tableRef = useRef<HTMLTableElement | null>(null);
   const pageIds = rows.map((r) => r.id);
   const allSelected =
     pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+
+  useLayoutEffect(() => {
+    const table = tableRef.current;
+    if (!table) return;
+
+    const syncOffsets = () => {
+      const headRow = table.tHead?.rows[0];
+      if (!headRow || headRow.cells.length < 5) return;
+      const cells = headRow.cells;
+      const actions = cells[cells.length - 1];
+      const docs = cells[cells.length - 2];
+      const profit = cells[cells.length - 3];
+      const extra = cells[cells.length - 4];
+      table.style.setProperty("--sticky-actions", `${actions.offsetWidth}px`);
+      table.style.setProperty("--sticky-docs", `${docs.offsetWidth}px`);
+      table.style.setProperty("--sticky-profit", `${profit.offsetWidth}px`);
+      table.style.setProperty("--sticky-extra", `${extra.offsetWidth}px`);
+    };
+
+    syncOffsets();
+    const observer = new ResizeObserver(syncOffsets);
+    observer.observe(table);
+    return () => observer.disconnect();
+  }, [rows, allowDuplicate, allowDelete]);
 
 
 
@@ -159,7 +184,7 @@ export default function SifarisTable({
 
   return (
     <>
-    <table className={styles.table}>
+    <table className={styles.table} ref={tableRef}>
       <thead className={styles.head}>
         <tr>
           <th className={`${styles.headerCell} ${styles.checkboxHeader}`}>
@@ -188,11 +213,13 @@ export default function SifarisTable({
           <th className={`${styles.headerCell} ${styles.min180}`}>
             Yükün parametrləri
           </th>
-          <th className={styles.headerCell}>Fraxt</th>
-          <th className={styles.headerCell}>Əlavə xərclər</th>
-          <th className={styles.headerCell}>Mənfəət</th>
-          <th className={styles.headerCell}>Sənədlər</th>
-          <th className={styles.headerCell} style={{ width: "6rem" }}>
+          <th className={`${styles.headerCell} ${styles.stickyEnd} ${styles.stickyFreight}`}>Fraxt</th>
+          <th className={`${styles.headerCell} ${styles.stickyEnd} ${styles.stickyExtra}`}>Əlavə xərclər</th>
+          <th className={`${styles.headerCell} ${styles.stickyEnd} ${styles.stickyProfit}`}>Mənfəət</th>
+          <th className={`${styles.headerCell} ${styles.stickyEnd} ${styles.stickyDocs}`}>Sənədlər</th>
+          <th
+            className={`${styles.headerCell} ${styles.stickyEnd} ${styles.stickyActions}`}
+          >
             Hərəkətlər
           </th>
         </tr>
@@ -479,21 +506,21 @@ export default function SifarisTable({
               )}
             </td>
             <td
-              className={`${styles.cell} ${styles.bodyText} ${styles.nowrap}`}
+              className={`${styles.cell} ${styles.bodyText} ${styles.nowrap} ${styles.stickyEnd} ${styles.stickyFreight}`}
             >
               {row.freight}
             </td>
             <td
-              className={`${styles.cell} ${styles.mutedText} ${styles.nowrap}`}
+              className={`${styles.cell} ${styles.mutedText} ${styles.nowrap} ${styles.stickyEnd} ${styles.stickyExtra}`}
             >
               {row.extraCosts}
             </td>
             <td
-              className={`${styles.cell} ${styles.profitText} ${styles.nowrap}`}
+              className={`${styles.cell} ${styles.profitText} ${styles.nowrap} ${styles.stickyEnd} ${styles.stickyProfit}`}
             >
               {row.profit}
             </td>
-            <td className={styles.cell}>
+            <td className={`${styles.cell} ${styles.stickyEnd} ${styles.stickyDocs}`}>
               <div style={{ display: "flex", gap: "0.4rem", alignItems: "center", justifyContent: "center" }}>
                 <DocBadge present={!!row.hasSentInvoice} tooltip="Göndərilən hesab-faktura" icon={<FiFileText />} />
                 <DocBadge present={!!row.hasReceivedInvoice} tooltip="Bizə gələn hesab-faktura" icon={<FiFile />} />
@@ -502,7 +529,7 @@ export default function SifarisTable({
               </div>
             </td>
             <td
-              className={styles.cell}
+              className={`${styles.cell} ${styles.stickyEnd} ${styles.stickyActions}`}
               style={{ 
                 textAlign: "center", 
                 verticalAlign: "middle",

@@ -950,51 +950,58 @@ export default function SifarislerPage() {
   };
 
   const handleNewOrderSubmit = async (_payload: NewSifarisFormPayload) => {
-    // Tüm alanları string'e çevir, boş/undefined ise "" gönder
     const fields = _payload.fields || {};
     const fixedFields = toStringFields(fields);
-    setIsSifarisNewOpen(false);
+    const statusKind = (fixedFields.status || "planned").trim() || "planned";
+    const statusLabel =
+      statusKind === "progress"
+        ? "Davam edir"
+        : statusKind === "completed"
+          ? "Tamamlandı"
+          : statusKind === "finance_closed"
+            ? "Maliyyə cəhətdən bağlandı"
+            : statusKind === "cancelled"
+              ? "Sifariş ləğv edildi"
+              : "Planlaşdırılıb";
+    const loadPlace = String(fixedFields.loadPlace || "").trim();
+    const unloadPlace = String(fixedFields.unloadPlace || "").trim();
+    const route =
+      loadPlace || unloadPlace
+        ? `${loadPlace || "—"} → ${unloadPlace || "—"}`
+        : "";
 
-    const newOrder: SifarisOrderRow = {
-      id: `order_${Date.now()}`,
-      orderNumber: fixedFields.number || `SF-${Math.floor(1000 + Math.random() * 9000)}`,
-      queryNumber: `SQ-${Math.floor(100 + Math.random() * 900)}`,
-      queryDate: new Date().toLocaleDateString("az-AZ").split("T")[0],
-      orderDate: new Date().toLocaleDateString("az-AZ").split("T")[0],
-      actCreatedAt: "",
-      actDate: "",
-      cmrUnloadDate: "",
-      invoicedDate: "",
-      statusKind: (fixedFields.status as any) || "planned",
-      statusLabel: fixedFields.status === "progress" ? "Davam edir" : fixedFields.status === "completed" ? "Tamamlanıb" : "Planlaşdırılır",
-      customer: fixedFields.recipient || "Demo Müştəri",
-      customerRefs: fixedFields.customerOrderRef || "",
-      customerOrderRef: fixedFields.customerOrderRef || "",
-      carriers: "Daşıyıcı A",
-      voyageNumber: `VOY-${Math.floor(100 + Math.random() * 900)}`,
-      route: `${fixedFields.loadPlace || "Bakı"} → ${fixedFields.unloadPlace || "Sumqayıt"}`,
-      cargoParams: fixedFields.cargoInfo || "1 x 20ft Container",
-      freight: "2,500 AZN",
-      extraCosts: "100 AZN",
-      profit: "2,400 AZN",
-      documents: "1 sənəd",
-      company: fixedFields.seller || "Ziyafreight",
-      weightKg: 1000,
-      volumeM3: 10,
-      ldm: 0.5,
-      freightAzn: 2500,
-      profitAzn: 2400,
-      hasSentInvoice: false,
-      hasReceivedInvoice: false,
-      hasTransportDoc: false,
-      hasHandoverAct: false,
+    const payload = {
+      orderDate: new Date().toISOString(),
+      statusKind,
+      statusLabel,
+      customerName: String(
+        fixedFields.recipient || fixedFields.customer || "",
+      ).trim(),
+      customerOrderRef: String(fixedFields.customerOrderRef || "").trim(),
+      company: String(fixedFields.seller || "").trim(),
+      route,
+      cargoParams: String(fixedFields.cargoInfo || "").trim(),
+      incoterms: String(fixedFields.incoterms || "").trim(),
+      manager: String(fixedFields.manager || "").trim(),
+      tags: String(fixedFields.tags || "").trim(),
     };
 
     try {
-      const res = await axios.post(ENDPOINTS.ORDERS.BASE, newOrder, {
-        headers: { Authorization: "Bearer " + localStorage.getItem("token") }
+      const res = await axios.post(ENDPOINTS.ORDERS.BASE, payload, {
+        headers: { Authorization: "Bearer " + localStorage.getItem("token") },
       });
-      setOrders((prev) => [res.data, ...prev]);
+      setIsSifarisNewOpen(false);
+      setOrders((prev) => [
+        {
+          ...res.data,
+          customer: res.data?.customerName || payload.customerName || "—",
+          queryNumber: "—",
+          queryDate: "—",
+          orderDateIso: toDateIso(res.data?.orderDate),
+          orderDate: formatDateOnly(res.data?.orderDate),
+        },
+        ...prev,
+      ]);
       dispatch(
         showNotification({
           message: "Yeni sifariş uğurla yaradıldı.",
@@ -1041,35 +1048,36 @@ export default function SifarislerPage() {
 
   const handleDuplicateOrder = useCallback(async (newNumber: string, checkedOptions: Record<string, boolean>) => {
     if (!duplicateTargetId || !duplicateTargetOrder) return;
-    
-    const newOrderPayload: any = {
-      ...duplicateTargetOrder,
-      orderNumber: newNumber,
-      customerOrderRef: checkedOptions.customerOrderRef ? duplicateTargetOrder.customerOrderRef : "",
-      statusKind: checkedOptions.status ? duplicateTargetOrder.statusKind : "planned",
-      statusLabel: checkedOptions.status ? duplicateTargetOrder.statusLabel : "Planlaşdırılır",
-      carriers: checkedOptions.expeditor ? duplicateTargetOrder.carriers : "",
-      voyageNumber: checkedOptions.voyages ? duplicateTargetOrder.voyageNumber : "",
-      cargoParams: checkedOptions.loads ? duplicateTargetOrder.cargoParams : "",
-      extraCosts: checkedOptions.expenses ? duplicateTargetOrder.extraCosts : "",
-      profit: checkedOptions.expenses ? duplicateTargetOrder.profit : duplicateTargetOrder.freight,
-      profitAzn: checkedOptions.expenses ? duplicateTargetOrder.profitAzn : duplicateTargetOrder.freightAzn,
-    };
-    
-    // Remove the original ID before sending to the backend so it creates a new one
-    delete newOrderPayload.id;
 
     try {
-      const res = await axios.post(ENDPOINTS.ORDERS.BASE, newOrderPayload, {
-        headers: { Authorization: "Bearer " + localStorage.getItem("token") }
-      });
+      const res = await axios.post(
+        ENDPOINTS.ORDERS.BASE,
+        {
+          cloneFromId: duplicateTargetOrder.id,
+          cloneOptions: checkedOptions,
+          orderNumber: newNumber || undefined,
+        },
+        {
+          headers: { Authorization: "Bearer " + localStorage.getItem("token") },
+        },
+      );
 
-      setOrders((prev) => [res.data, ...prev]);
+      setOrders((prev) => [
+        {
+          ...res.data,
+          customer: res.data?.customerName || duplicateTargetOrder.customer || "—",
+          queryNumber: duplicateTargetOrder.queryNumber || "—",
+          queryDate: duplicateTargetOrder.queryDate || "—",
+          orderDateIso: toDateIso(res.data?.orderDate),
+          orderDate: formatDateOnly(res.data?.orderDate),
+        },
+        ...prev,
+      ]);
       setDuplicateTargetId(null);
 
       dispatch(
         showNotification({
-          message: `Sifarişin surəti "${newNumber}" adı ilə yaradıldı.`,
+          message: `Sifarişin surəti "${res.data?.orderNumber || newNumber}" adı ilə yaradıldı.`,
           type: "success",
           autoCloseDuration: 3000,
         }),

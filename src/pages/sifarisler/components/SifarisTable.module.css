@@ -1,7 +1,8 @@
 .table {
   width: 100%;
   min-width: max-content;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.875rem;
 }
 
@@ -57,6 +58,7 @@
 .cell {
   padding: 0.5rem;
   vertical-align: top;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .center {
@@ -127,4 +129,48 @@
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.stickyEnd {
+  position: sticky;
+  z-index: 8;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.head .stickyEnd {
+  z-index: 14;
+  background: #f3f4f6;
+}
+
+.stickyActions {
+  right: 0;
+  min-width: 7.25rem;
+}
+
+.stickyDocs {
+  right: var(--sticky-actions, 7.25rem);
+  min-width: 8.5rem;
+}
+
+.stickyProfit {
+  right: calc(var(--sticky-actions, 7.25rem) + var(--sticky-docs, 8.5rem));
+  min-width: 7rem;
+}
+
+.stickyExtra {
+  right: calc(
+    var(--sticky-actions, 7.25rem) + var(--sticky-docs, 8.5rem) +
+      var(--sticky-profit, 7rem)
+  );
+  min-width: 8rem;
+}
+
+.stickyFreight {
+  right: calc(
+    var(--sticky-actions, 7.25rem) + var(--sticky-docs, 8.5rem) +
+      var(--sticky-profit, 7rem) + var(--sticky-extra, 9rem)
+  );
+  min-width: 8rem;
+  box-shadow: -8px 0 10px -8px rgba(15, 23, 42, 0.22);
 }

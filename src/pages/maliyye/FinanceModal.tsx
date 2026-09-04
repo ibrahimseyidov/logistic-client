@@ -20,6 +20,8 @@ import {
 } from "./lib/financeWallet.utils";
 import {
   entityLabel,
+  findCarrierForName,
+  findCustomerForName,
   fold,
   namesMatch,
   orderMatchesCarrier,
@@ -637,6 +639,19 @@ export default function FinanceModal({
     selectedCarrier,
   ]);
 
+  const orderSelectRows = useMemo(() => {
+    if (!formData.orderId) return orderDebtRows;
+    if (
+      orderDebtRows.some(
+        (r) => String(r.orderId) === String(formData.orderId),
+      )
+    ) {
+      return orderDebtRows;
+    }
+    if (selectedOrderDebt) return [selectedOrderDebt, ...orderDebtRows];
+    return orderDebtRows;
+  }, [formData.orderId, orderDebtRows, selectedOrderDebt]);
+
   // Sifarişin daşıyıcısı təkdirsə avtomatik seç
   useEffect(() => {
     if (!isOpen || partnerKind !== "carrier") return;
@@ -736,19 +751,51 @@ export default function FinanceModal({
     selectedCarrier,
   ]);
 
+  const resolveCustomerIdForOrder = (order: any): string => {
+    if (!order) return "";
+    const direct = order.customerId != null ? String(order.customerId) : "";
+    if (direct && customers.some((c) => String(c.id) === direct)) return direct;
+    const found = findCustomerForName(
+      customers,
+      order.customerName || order.customer || order._customerName,
+    );
+    return found?.id != null ? String(found.id) : "";
+  };
+
+  const resolveCarrierIdForOrder = (order: any): string => {
+    if (!order) return "";
+    const matched = carriers.filter((c) =>
+      orderMatchesCarrier(order, c, financeTxs),
+    );
+    if (matched.length >= 1) return String(matched[0].id);
+    const firstName = String(order.carriers || "")
+      .split(/[,;|/]+/)
+      .map((s: string) => s.trim())
+      .find((s: string) => s && s !== "—" && s.toLowerCase() !== "daşıyıcı");
+    const found = findCarrierForName(carriers, firstName);
+    return found?.id != null ? String(found.id) : "";
+  };
+
   const setPartnerKindAndReset = (kind: PartnerKind) => {
     setPartnerKind(kind);
     setAmountTouched(false);
-    setFormData((prev) => ({
-      ...prev,
-      type: kind === "customer" ? "INCOME" : "EXPENSE",
-      category: kind === "customer" ? "Müştəri ödənişi" : "Daşıyıcı ödənişi",
-      customerId: "",
-      carrierId: "",
-      orderId: "",
-      amount: "",
-      name: "",
-    }));
+    setFormError("");
+    setFormData((prev) => {
+      const keepOrder = String(prev.orderId || "").trim();
+      const order = orders.find((o) => String(o.id) === keepOrder);
+      return {
+        ...prev,
+        type: kind === "customer" ? "INCOME" : "EXPENSE",
+        category:
+          kind === "customer" ? "Müştəri ödənişi" : "Daşıyıcı ödənişi",
+        customerId:
+          kind === "customer" ? resolveCustomerIdForOrder(order) : "",
+        carrierId: kind === "carrier" ? resolveCarrierIdForOrder(order) : "",
+        orderId: keepOrder,
+        amount: "",
+        name: "",
+      };
+    });
   };
 
   const canSave = useMemo(() => {
@@ -878,7 +925,7 @@ export default function FinanceModal({
                     ...formData,
                     customerId: e.target.value,
                     carrierId: "",
-                    orderId: "",
+                    orderId: formData.orderId,
                     amount: "",
                     name: "",
                     type: "INCOME",
@@ -912,7 +959,7 @@ export default function FinanceModal({
                     ...formData,
                     carrierId: e.target.value,
                     customerId: "",
-                    orderId: "",
+                    orderId: formData.orderId,
                     amount: "",
                     name: "",
                     type: "EXPENSE",
@@ -942,8 +989,8 @@ export default function FinanceModal({
                 className={modalStyles.ghostBtn}
                 disabled={
                   partnerKind === "customer"
-                    ? !formData.customerId
-                    : !formData.carrierId
+                    ? !formData.customerId && !formData.orderId
+                    : !formData.carrierId && !formData.orderId
                 }
                 onClick={() => setOrdersModalOpen(true)}
               >
@@ -956,8 +1003,8 @@ export default function FinanceModal({
               value={formData.orderId}
               disabled={
                 partnerKind === "customer"
-                  ? !formData.customerId
-                  : !formData.carrierId
+                  ? !formData.customerId && !formData.orderId
+                  : !formData.carrierId && !formData.orderId
               }
               onChange={(e) => {
                 const nextOrderId = e.target.value;
@@ -971,7 +1018,7 @@ export default function FinanceModal({
               }}
             >
               <option value="">Sifariş seçin</option>
-              {orderDebtRows.map((r) => (
+              {orderSelectRows.map((r) => (
                 <option key={r.orderId} value={String(r.orderId)}>
                   {r.orderNumber}
                   {orderDebtStatusLabel(r)}
@@ -980,7 +1027,9 @@ export default function FinanceModal({
             </select>
             {!formData.orderId ? (
               <span className={modalStyles.fieldHintWarn}>
-                {partnerKind === "carrier" && !formData.carrierId
+                {partnerKind === "carrier" &&
+                !formData.carrierId &&
+                !formData.orderId
                   ? "Əvvəl daşıyıcı seçin — yalnız onun sifarişləri görünəcək"
                   : "Ödəniş üçün sifariş seçilməlidir — məbləğ sifariş qalığına görə dolacaq"}
               </span>

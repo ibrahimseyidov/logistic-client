@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import axios from "axios";
 import { Link } from "react-router-dom";
 import {
   FiArrowLeft,
@@ -34,6 +35,12 @@ import {
   getVisiblePages as buildVisiblePages,
 } from "../../../common/components/pagination";
 import FinanceModal from "../FinanceModal";
+import { useAppDispatch } from "../../../common/store/hooks";
+import { showNotification } from "../../../common/store/modalSlice";
+import { usePermissions } from "../../../common/hooks/usePermissions";
+import { ENDPOINTS } from "../../../services/EndpointResources.g";
+import OrderStatusPicker from "../../sifarisler/components/OrderStatusPicker";
+import type { OrderStatusKind } from "../../sifarisler/types/sifaris.types";
 import { findCustomerForName } from "../lib/financePartner.utils";
 import { getQueryDetailPath } from "../../sorgular/lib/queryDisplay.utils";
 import {
@@ -118,6 +125,9 @@ function parsePartnerId(key: string): string | null {
 }
 
 export default function MaliyyeHesabatPage() {
+  const dispatch = useAppDispatch();
+  const { canEdit } = usePermissions();
+  const allowEditOrderStatus = canEdit("sifarisler", "orders");
   const [activeReport, setActiveReport] = useState<ReportId | null>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -263,6 +273,49 @@ export default function MaliyyeHesabatPage() {
   }, [genericRows, currentPage, pageSize]);
 
   const getVisiblePages = () => buildVisiblePages(currentPage, totalPages);
+
+  const handleOrderStatusChange = useCallback(
+    async (orderId: string | number, nextStatus: OrderStatusKind, label: string) => {
+      try {
+        const res = await axios.put(
+          ENDPOINTS.ORDERS.BY_ID(orderId),
+          { statusKind: nextStatus, statusLabel: label },
+          {
+            headers: {
+              Authorization: "Bearer " + localStorage.getItem("token"),
+            },
+          },
+        );
+        setOrders((prev) =>
+          prev.map((o) =>
+            String(o.id) === String(orderId)
+              ? {
+                  ...o,
+                  statusKind: res.data?.statusKind || nextStatus,
+                  statusLabel: res.data?.statusLabel || label,
+                }
+              : o,
+          ),
+        );
+        dispatch(
+          showNotification({
+            message: "Sifarişin statusu yeniləndi.",
+            type: "success",
+            autoCloseDuration: 2500,
+          }),
+        );
+      } catch {
+        dispatch(
+          showNotification({
+            message: "Status yenilənərkən xəta baş verdi.",
+            type: "error",
+            autoCloseDuration: 3000,
+          }),
+        );
+      }
+    },
+    [dispatch],
+  );
 
   const statusOptions = useMemo(() => {
     if (activeReport === "queries") {
@@ -870,14 +923,22 @@ export default function MaliyyeHesabatPage() {
                             className={styles.td}
                             style={cellStyle}
                           >
-                            {isStatusBadge ? (
+                            {activeReport === "orders" && idx === 7 ? (
+                              <OrderStatusPicker
+                                value={String(r.raw?.statusKind || "")}
+                                disabled={!allowEditOrderStatus}
+                                onChange={(kind, label) =>
+                                  handleOrderStatusChange(
+                                    r.raw?.id ?? r.key,
+                                    kind,
+                                    label,
+                                  )
+                                }
+                              />
+                            ) : isStatusBadge ? (
                               <StatusBadge
                                 label={String(cell || "—")}
-                                kind={
-                                  activeReport === "orders"
-                                    ? String(r.raw?.statusKind || "")
-                                    : undefined
-                                }
+                                kind={undefined}
                               />
                             ) : isOrderLink ? (
                               <Link
