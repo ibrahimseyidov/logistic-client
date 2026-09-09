@@ -8,7 +8,12 @@ import {
   fetchCustomerDetailAction,
   updateCustomerAction,
 } from "../../../common/actions/customer.actions";
-import { fetchFinanceTransactionsAction } from "../../../common/actions/finance.actions";
+import { fetchFinanceTransactionsAction, fetchInvoicesAction } from "../../../common/actions/finance.actions";
+import {
+  invoiceTypeOf,
+  namesMatch,
+  parseInvoiceAmountAzn,
+} from "../../maliyye/lib/financePartner.utils";
 import { fetchQueriesAction } from "../../../common/actions/query.actions";
 import { fetchOrdersAction } from "../../../common/actions/order.actions";
 import styles from "./musteriDetail.module.css";
@@ -113,6 +118,7 @@ export default function MusteriDetailPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [contactPersons, setContactPersons] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
   const [usersData, setUsersData] = useState<UserRow[]>([]);
 
   // Contact modal state
@@ -187,12 +193,13 @@ export default function MusteriDetailPage() {
     if (!customerId) return;
     setLoading(true);
     try {
-      const [custData, allQueries, contactList, users, allOrders] = await Promise.all([
+      const [custData, allQueries, contactList, users, allOrders, allInvoices] = await Promise.all([
         fetchCustomerDetailAction(customerId),
         fetchQueriesAction(),
         fetchContactPersonsAction({ entityType: "customer", entityId: customerId }),
         fetchUsersAction().catch(() => []),
         fetchOrdersAction(),
+        fetchInvoicesAction(),
       ]);
 
       const mappedCustomer = mapCustomerFromApi(custData);
@@ -233,6 +240,14 @@ export default function MusteriDetailPage() {
       setQueries(customerQueries);
       setOrders(customerOrders);
       setTransactions([...txMap.values()]);
+      const customerName = entity.company || entity.name;
+      setInvoices(
+        (allInvoices || []).filter((inv: any) => {
+          if (invoiceTypeOf(inv) !== "ireli") return false;
+          if (inv.orderId != null && orderIds.has(String(inv.orderId))) return true;
+          return namesMatch(inv.payer, customerName);
+        }),
+      );
     } catch (err) {
       console.error("Customer details load failed", err);
       dispatch(
@@ -262,18 +277,10 @@ export default function MusteriDetailPage() {
       profit += parseMoney(o.profitAzn) || parseMoney(o.profit);
     });
 
-    const ireliAzn = transactions.reduce((sum, tx) => {
-      const name = String(tx.name || "");
-      if (
-        !(
-          name.startsWith("İrəli hesab") ||
-          name.trim() === "Başlanğıc tarif"
-        )
-      ) {
-        return sum;
-      }
-      return sum + resolveCustomerReceivableAmount(tx);
-    }, 0);
+    const ireliAzn = invoices.reduce(
+      (sum, inv) => sum + parseInvoiceAmountAzn(inv),
+      0,
+    );
     if (ireliAzn > 0) {
       sales = ireliAzn;
       profit = sales - expenses;
@@ -285,7 +292,7 @@ export default function MusteriDetailPage() {
       expenses,
       profit,
     };
-  }, [orders, transactions]);
+  }, [orders, invoices]);
 
   // Dynamic Finance Info — müştəri YALNIZ "İrəli hesab" / tarif ilə borclanır
   const financeStats = useMemo(() => {
@@ -296,22 +303,16 @@ export default function MusteriDetailPage() {
 
     transactions.forEach((tx) => {
       const name = String(tx.name || "");
-      // Alınmış hesab / daşıyıcı məsarifi müştəri borcuna düşməsin
       if (
         name.startsWith("Alınmış hesab") ||
-        (parseMoney(tx.mesarifAzn) > 0 &&
-          !(resolveCustomerReceivableAmount(tx) > 0))
+        name.startsWith("İrəli hesab") ||
+        tx.category === "ORDER_BOOK"
       ) {
-        return;
+        if (tx.type !== "INCOME") return;
       }
 
-      const receivable = resolveCustomerReceivableAmount(tx);
-      const isIreli =
-        name.startsWith("İrəli hesab") ||
-        (tx.category === "ORDER_BOOK" && receivable > 0);
-
       if (tx.type === "INCOME") {
-        const paid = parseMoney(String(tx.amount ?? "")) || receivable;
+        const paid = parseMoney(String(tx.amount ?? ""));
         if (!(paid > 0)) return;
         totalPaid += paid;
         payments.push({
@@ -322,20 +323,20 @@ export default function MusteriDetailPage() {
           currency: tx.currency || tx.tarifCurrency || "AZN",
           status: "Mədaxil",
         });
-        return;
       }
+    });
 
-      // Borc yalnız irəli hesab / müştəri tarifi
-      if (!isIreli || !(receivable > 0)) return;
-
+    invoices.forEach((inv) => {
+      const receivable = parseInvoiceAmountAzn(inv);
+      if (!(receivable > 0)) return;
       outstandingDebt += receivable;
       payments.push({
-        id: `tx-${tx.id}`,
-        date: tx.date || tx.costDate || tx.createdAt,
-        purpose: name || "İrəli hesab",
+        id: `inv-${inv.id}`,
+        date: inv.date || inv.createdAt,
+        purpose: `İrəli hesab ${inv.number || ""}`.trim(),
         amount: -receivable,
-        currency: tx.currency || tx.tarifCurrency || "AZN",
-        status: resolveCustomerTransactionStatus(tx),
+        currency: inv.currency || "AZN",
+        status: String(inv.status || "Gözlənilir"),
       });
     });
 
@@ -358,7 +359,7 @@ export default function MusteriDetailPage() {
       totalSales: orderStats.sales,
       totalProfit: orderStats.profit,
     };
-  }, [orderStats, transactions]);
+  }, [orderStats, transactions, invoices]);
 
   const openEditModal = () => {
     if (!customer) return;

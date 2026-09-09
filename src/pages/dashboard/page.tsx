@@ -40,19 +40,15 @@ import { formatDateOnly } from "../sifarisler/lib/formatDate";
 import { SIFARIS_STATUS_PILLS, STATUS_OPTIONS } from "../sifarisler/constants/sifaris.constants";
 import { countSifarisStatuses } from "../sifarisler/lib/filterSifarisler";
 import {
-  isAlinmisInvoiceFinanceName,
-  isIreliInvoiceFinanceName,
-} from "../sifarisler/lib/offerExpense.utils";
+  invoiceTypeOf,
+  parseInvoiceAmountAzn,
+} from "../maliyye/lib/financePartner.utils";
 import {
   isCashMovementTx,
   isIncomeTx,
   resolveTxCashAzn,
 } from "../maliyye/lib/financeWallet.utils";
-import {
-  FALLBACK_AZN_RATES,
-  resolveFinanceExpenseAzn,
-  resolveFinanceRevenueAzn,
-} from "../../common/utils/currency.utils";
+import { FALLBACK_AZN_RATES } from "../../common/utils/currency.utils";
 import {
   asArray,
   dash,
@@ -412,21 +408,21 @@ export default function DashboardPage() {
 
     let cashIn = 0;
     let cashOut = 0;
-    let customerDebt = 0;
-    let carrierDebt = 0;
     finance.forEach((tx) => {
       if (isCashMovementTx(tx)) {
         const azn = resolveTxCashAzn(tx, rates);
         if (isIncomeTx(tx)) cashIn += azn;
         else cashOut += azn;
       }
-      const name = tx.name;
-      if (isIreliInvoiceFinanceName(name)) {
-        customerDebt += resolveFinanceRevenueAzn(tx, rates);
-      }
-      if (isAlinmisInvoiceFinanceName(name)) {
-        carrierDebt += resolveFinanceExpenseAzn(tx, rates);
-      }
+    });
+    let customerDebt = 0;
+    let carrierDebt = 0;
+    invoices.forEach((inv) => {
+      const azn = parseInvoiceAmountAzn(inv);
+      if (!(azn > 0)) return;
+      const t = invoiceTypeOf(inv);
+      if (t === "ireli") customerDebt += azn;
+      if (t === "alinmis") carrierDebt += azn;
     });
 
     const openTasks = tasks.filter((t) => {

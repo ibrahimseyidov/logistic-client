@@ -20,6 +20,7 @@ import styles from "../maliyye.module.css";
 import {
   createFinanceTransactionAction,
   fetchFinanceTransactionsAction,
+  fetchInvoicesAction,
 } from "../../../common/actions/finance.actions";
 import { fetchCustomersAction } from "../../../common/actions/customer.actions";
 import { fetchCarriersAction } from "../../../common/actions/carrier.actions";
@@ -134,6 +135,7 @@ export default function MaliyyeHesabatPage() {
   const [carriers, setCarriers] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [queries, setQueries] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -153,13 +155,15 @@ export default function MaliyyeHesabatPage() {
       fetchCarriersAction(),
       fetchOrdersAction(),
       fetchQueriesAction(),
+      fetchInvoicesAction(),
     ])
-      .then(([txs, cust, carr, ords, qrs]) => {
+      .then(([txs, cust, carr, ords, qrs, inv]) => {
         setTransactions(asList(txs));
         setCustomers(asList(cust));
         setCarriers(asList(carr));
         setOrders(asList(ords));
         setQueries(asList(qrs));
+        setInvoices(asList(inv));
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -192,6 +196,7 @@ export default function MaliyyeHesabatPage() {
     return filterPartnerRows(
       buildPartnerRows(activeReport, {
         transactions,
+        invoices,
         customers,
         carriers,
         orders,
@@ -202,6 +207,7 @@ export default function MaliyyeHesabatPage() {
     isPartnerReport,
     activeReport,
     transactions,
+    invoices,
     customers,
     carriers,
     orders,
@@ -429,7 +435,7 @@ export default function MaliyyeHesabatPage() {
           const orderLines = buildPartnerOrderLines(
             activeReport === "carriers" ? "carriers" : "customers",
             partnerRows,
-            { orders, transactions, customers, carriers },
+            { orders, transactions, invoices, customers, carriers },
           );
           await exportPartnerDetailedReportToExcel({
             title,

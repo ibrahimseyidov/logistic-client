@@ -15,7 +15,12 @@ import {
   fetchContactPersonsAction,
   createContactPersonAction,
 } from "../../../common/actions/contact.actions";
-import { fetchFinanceTransactionsAction } from "../../../common/actions/finance.actions";
+import { fetchFinanceTransactionsAction, fetchInvoicesAction } from "../../../common/actions/finance.actions";
+import {
+  invoiceTypeOf,
+  namesMatch,
+  parseInvoiceAmountAzn,
+} from "../../maliyye/lib/financePartner.utils";
 import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
 import Loading from "../../../common/components/loading/Loading";
@@ -95,6 +100,7 @@ export default function DasiyiciDetailPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [contactPersons, setContactPersons] = useState<any[]>([]);
   const [financeTransactions, setFinanceTransactions] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
 
   // Contact modal state
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
@@ -131,12 +137,13 @@ export default function DasiyiciDetailPage() {
     if (!carrierId) return;
     setLoading(true);
     try {
-      const [custData, allQueries, carrierContacts, financeData, allOrders] = await Promise.all([
+      const [custData, allQueries, carrierContacts, financeData, allOrders, allInvoices] = await Promise.all([
         fetchCarrierDetailAction(carrierId),
         fetchQueriesAction(),
         fetchContactPersonsAction({ entityType: "carrier", entityId: carrierId }),
         fetchFinanceTransactionsAction({ carrierId }),
         fetchOrdersAction(),
+        fetchInvoicesAction(),
       ]);
 
       const mappedCarrier = mapCarrierFromApi(custData);
@@ -159,6 +166,15 @@ export default function DasiyiciDetailPage() {
         matchesCarrierEntity(order, entity),
       );
       setOrders(carrierOrders);
+      const orderIds = new Set(carrierOrders.map((o: any) => String(o.id)));
+      const carrierName = mappedCarrier.company || mappedCarrier.name || "";
+      setInvoices(
+        (allInvoices || []).filter((inv: any) => {
+          if (invoiceTypeOf(inv) !== "alinmis") return false;
+          if (inv.orderId != null && orderIds.has(String(inv.orderId))) return true;
+          return namesMatch(inv.payer, carrierName);
+        }),
+      );
     } catch (err) {
       console.error("Carrier details load failed", err);
       dispatch(
@@ -198,17 +214,10 @@ export default function DasiyiciDetailPage() {
       profit += parseMoney(o.profit);
     });
 
-    const alinmisAzn = financeTransactions.reduce((sum, tx) => {
-      const name = String(tx.name || "");
-      if (!name.startsWith("Alınmış hesab")) return sum;
-      return (
-        sum +
-        (parseMoney(tx.mesarifAzn) ||
-          parseMoney(tx.edvliMesarifAzn) ||
-          parseMoney(String(tx.amount ?? 0)) ||
-          0)
-      );
-    }, 0);
+    const alinmisAzn = invoices.reduce(
+      (sum, inv) => sum + parseInvoiceAmountAzn(inv),
+      0,
+    );
     if (alinmisAzn > 0) {
       expenses = alinmisAzn;
       profit = sales - expenses;
@@ -220,57 +229,65 @@ export default function DasiyiciDetailPage() {
       expenses,
       profit,
     };
-  }, [orders, financeTransactions]);
+  }, [orders, invoices]);
 
   // Dynamic Finance Info — daşıyıcı YALNIZ "Alınmış hesab" ilə borclanır
   const financeStats = useMemo(() => {
     const payments: any[] = [];
     let totalPaid = 0;
-    let outstandingDebt = 0;
+    let outstandingDebt = invoices.reduce(
+      (sum, inv) => sum + parseInvoiceAmountAzn(inv),
+      0,
+    );
 
-    financeTransactions.forEach((tx) => {
-      const name = String(tx.name || "");
-      const isAlinmis = name.startsWith("Alınmış hesab");
-
-      // Maliyyə əlavə xərcləri / irəli hesab daşıyıcı borcuna düşməsin
-      if (!isAlinmis) {
-        if (tx.type === "INCOME") {
-          const paid = parseMoney(String(tx.amount ?? 0));
-          if (paid > 0) {
-            totalPaid += paid;
-            payments.push({
-              date: tx.date || tx.costDate || new Date().toISOString(),
-              purpose: name || "Ödəniş",
-              amount: paid,
-              currency: tx.currency || "AZN",
-              status: "Mədaxil",
-              type: "INCOME",
-            });
-          }
-        }
-        return;
-      }
-
-      const azn =
-        parseMoney(tx.mesarifAzn) ||
-        parseMoney(tx.edvliMesarifAzn) ||
-        parseMoney(String(tx.amount ?? 0));
-      const orig =
-        parseMoney(tx.mesarifPrice) ||
-        parseMoney(tx.edvliMesarifPrice) ||
-        azn;
-      if (!(azn > 0) && !(orig > 0)) return;
-
+    invoices.forEach((inv) => {
+      const azn = parseInvoiceAmountAzn(inv);
+      if (!(azn > 0)) return;
       payments.push({
-        date: tx.date || tx.costDate || new Date().toISOString(),
-        purpose: name || "Alınmış hesab",
-        amount: orig > 0 ? orig : azn,
-        currency: tx.mesarifCurrency || tx.currency || "AZN",
+        date: inv.date || new Date().toISOString(),
+        purpose: `Alınmış hesab ${inv.number || ""}`.trim(),
+        amount: azn,
+        currency: inv.currency || "AZN",
         status: "Ödənilməyib",
         type: "EXPENSE",
       });
-      outstandingDebt += azn > 0 ? azn : orig;
     });
+
+    financeTransactions.forEach((tx) => {
+      const name = String(tx.name || "");
+      if (name.startsWith("Alınmış hesab") || tx.category === "ORDER_BOOK") {
+        return;
+      }
+      if (tx.type === "INCOME") {
+        const paid = parseMoney(String(tx.amount ?? 0));
+        if (paid > 0) {
+          totalPaid += paid;
+          payments.push({
+            date: tx.date || tx.costDate || new Date().toISOString(),
+            purpose: name || "Ödəniş",
+            amount: paid,
+            currency: tx.currency || "AZN",
+            status: "Mədaxil",
+            type: "INCOME",
+          });
+        }
+      } else {
+        const paid = parseMoney(String(tx.amount ?? 0));
+        if (paid > 0) {
+          totalPaid += paid;
+          payments.push({
+            date: tx.date || tx.costDate || new Date().toISOString(),
+            purpose: name || "Ödəniş",
+            amount: paid,
+            currency: tx.currency || "AZN",
+            status: "Məxaric",
+            type: "EXPENSE",
+          });
+        }
+      }
+    });
+
+    outstandingDebt = Math.max(0, outstandingDebt - totalPaid);
 
     return {
       totalPaid,
@@ -278,7 +295,7 @@ export default function DasiyiciDetailPage() {
       overpayment: 0,
       payments,
     };
-  }, [financeTransactions]);
+  }, [financeTransactions, invoices]);
 
   const openEditModal = () => {
     if (!carrier) return;

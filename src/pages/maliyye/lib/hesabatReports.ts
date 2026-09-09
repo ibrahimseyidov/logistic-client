@@ -9,14 +9,13 @@ import {
   findCarrierForName,
   findCustomerForName,
   fold,
-  isCarrierBookkeepingTx,
-  isCustomerBookkeepingDebtTx,
-  orderHasAlinmisDebt,
-  orderHasIreliDebt,
+  invoiceTypeOf,
   orderMatchesCarrier,
   orderMatchesCustomer,
+  parseInvoiceAmountAzn,
   resolveCarrierGroup,
   resolveCustomerGroup,
+  sumPartnerInvoicesAzn,
 } from "./financePartner.utils";
 import {
   resolveFinanceExpenseAzn,
@@ -112,12 +111,13 @@ export function buildPartnerRows(
   tab: "customers" | "carriers",
   params: {
     transactions: any[];
+    invoices?: any[];
     customers: any[];
     carriers: any[];
     orders: any[];
   },
 ): PartnerRow[] {
-  const { transactions, customers, carriers, orders } = params;
+  const { transactions, invoices = [], customers, carriers, orders } = params;
   const map = new Map<string, PartnerRow>();
 
   const ensure = (key: string, name: string) => {
@@ -169,14 +169,24 @@ export function buildPartnerRows(
       ensure(`c:${c.id}`, name);
     });
 
-    transactions.filter(isOrderBookkeepingTx).forEach((tx) => {
-      const hasIreli = orderHasIreliDebt(transactions, tx.orderId);
-      if (!isCustomerBookkeepingDebtTx(tx, { orderHasIreli: hasIreli })) return;
-      const rev = resolveFinanceRevenueAzn(tx);
-      if (!(rev > 0)) return;
-      const group = toCustomerRow(resolveCustomerGroup(tx, customers, orders));
+    (invoices || []).forEach((inv) => {
+      if (invoiceTypeOf(inv) !== "ireli") return;
+      const azn = parseInvoiceAmountAzn(inv);
+      if (!(azn > 0)) return;
+      const order = orders.find((o) => String(o.id) === String(inv.orderId));
+      const group = toCustomerRow(
+        resolveCustomerGroup(
+          {
+            customerId: order?.customerId,
+            partner: inv.payer || order?.customerName,
+            orderId: inv.orderId,
+          },
+          customers,
+          orders,
+        ),
+      );
       if (!group) return;
-      ensure(group.key, group.name).owedAzn += rev;
+      ensure(group.key, group.name).owedAzn += azn;
     });
 
     transactions.filter(isCashMovementTx).forEach((tx) => {
@@ -202,16 +212,19 @@ export function buildPartnerRows(
       ensure(`r:${c.id}`, name);
     });
 
-    transactions.filter(isOrderBookkeepingTx).forEach((tx) => {
-      const hasAlinmis = orderHasAlinmisDebt(transactions, tx.orderId);
-      if (!isCarrierBookkeepingTx(tx, { orderHasAlinmis: hasAlinmis })) return;
-      const exp = resolveFinanceExpenseAzn(tx);
-      if (!(exp > 0)) return;
+    (invoices || []).forEach((inv) => {
+      if (invoiceTypeOf(inv) !== "alinmis") return;
+      const azn = parseInvoiceAmountAzn(inv);
+      if (!(azn > 0)) return;
       const group = toCarrierRow(
-        resolveCarrierGroup(tx, carriers, { allowNameFallback: true }),
+        resolveCarrierGroup(
+          { partner: inv.payer, carrierId: null, name: inv.payer },
+          carriers,
+          { allowNameFallback: true },
+        ),
       );
       if (!group) return;
-      ensure(group.key, group.name).owedAzn += exp;
+      ensure(group.key, group.name).owedAzn += azn;
     });
 
     transactions.filter(isCashMovementTx).forEach((tx) => {
@@ -280,36 +293,23 @@ function summarizeCarrierOrderFinance(
   partnerKey: string,
   transactions: any[],
   carriers: any[],
+  invoices?: any[],
 ): { owedAzn: number; paidAzn: number; balanceAzn: number } {
   const oid = String(order?.id ?? "");
-  let owedAzn = 0;
+  const partner = carriers.find((c) => `r:${c.id}` === partnerKey);
+  const partnerName = partner ? entityLabel(partner) : "";
+  let owedAzn = sumPartnerInvoicesAzn(invoices, oid, "alinmis", partnerName);
   let paidAzn = 0;
-
-  const hasAlinmis = orderHasAlinmisDebt(transactions, oid);
 
   (transactions || []).forEach((tx) => {
     if (String(tx.orderId) !== oid) return;
     const group = resolveCarrierGroup(tx, carriers, { allowNameFallback: true });
     if (!group || group.key !== partnerKey) return;
-    if (
-      isOrderBookkeepingTx(tx) &&
-      isCarrierBookkeepingTx(tx, { orderHasAlinmis: hasAlinmis })
-    ) {
-      owedAzn += resolveFinanceExpenseAzn(tx);
-      return;
-    }
     if (isCashMovementTx(tx) && !isIncomeTx(tx)) {
       const azn = resolveTxCashAzn(tx);
       if (azn > 0) paidAzn += azn;
     }
   });
-
-  if (!hasAlinmis && !(owedAzn > 0)) {
-    const voyages = Array.isArray(order?.voyages) ? order.voyages : [];
-    voyages.forEach((v: any) => {
-      owedAzn += resolveVoyageExpenseAzn(v);
-    });
-  }
 
   return {
     owedAzn,
@@ -324,11 +324,12 @@ export function buildPartnerOrderLines(
   params: {
     orders: any[];
     transactions: any[];
+    invoices?: any[];
     customers: any[];
     carriers: any[];
   },
 ): PartnerOrderLine[] {
-  const { orders, transactions, customers, carriers } = params;
+  const { orders, transactions, invoices = [], customers, carriers } = params;
   const lines: PartnerOrderLine[] = [];
 
   partners.forEach((partner) => {
@@ -355,18 +356,24 @@ export function buildPartnerOrderLines(
         ),
       )
       .forEach((order) => {
-        const fin =
-          tab === "customers"
-            ? summarizeOrderReportFinance(order, transactions)
-            : summarizeCarrierOrderFinance(
+        const paidFromTx = summarizeOrderReportFinance(order, transactions).paidAzn;
+        const carrierFin =
+          tab === "carriers"
+            ? summarizeCarrierOrderFinance(
                 order,
                 partner.key,
                 transactions,
                 carriers,
-              );
-        const owedAzn = tab === "customers" ? fin.priceAzn : fin.owedAzn;
-        const paidAzn = fin.paidAzn;
-        const balanceAzn = fin.balanceAzn;
+                invoices,
+              )
+            : null;
+        const owedAzn =
+          tab === "customers"
+            ? sumPartnerInvoicesAzn(invoices, order.id, "ireli", partner.name)
+            : carrierFin!.owedAzn;
+        const paidAzn =
+          tab === "customers" ? paidFromTx : carrierFin!.paidAzn;
+        const balanceAzn = owedAzn - paidAzn;
         lines.push({
           partnerKey: partner.key,
           partnerName: partner.name,
