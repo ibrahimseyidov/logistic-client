@@ -10,6 +10,9 @@ import {
   findCustomerForName,
   fold,
   isCarrierBookkeepingTx,
+  isCustomerBookkeepingDebtTx,
+  orderHasAlinmisDebt,
+  orderHasIreliDebt,
   orderMatchesCarrier,
   orderMatchesCustomer,
   resolveCarrierGroup,
@@ -167,6 +170,8 @@ export function buildPartnerRows(
     });
 
     transactions.filter(isOrderBookkeepingTx).forEach((tx) => {
+      const hasIreli = orderHasIreliDebt(transactions, tx.orderId);
+      if (!isCustomerBookkeepingDebtTx(tx, { orderHasIreli: hasIreli })) return;
       const rev = resolveFinanceRevenueAzn(tx);
       if (!(rev > 0)) return;
       const group = toCustomerRow(resolveCustomerGroup(tx, customers, orders));
@@ -198,7 +203,8 @@ export function buildPartnerRows(
     });
 
     transactions.filter(isOrderBookkeepingTx).forEach((tx) => {
-      if (!isCarrierBookkeepingTx(tx)) return;
+      const hasAlinmis = orderHasAlinmisDebt(transactions, tx.orderId);
+      if (!isCarrierBookkeepingTx(tx, { orderHasAlinmis: hasAlinmis })) return;
       const exp = resolveFinanceExpenseAzn(tx);
       if (!(exp > 0)) return;
       const group = toCarrierRow(
@@ -279,11 +285,16 @@ function summarizeCarrierOrderFinance(
   let owedAzn = 0;
   let paidAzn = 0;
 
+  const hasAlinmis = orderHasAlinmisDebt(transactions, oid);
+
   (transactions || []).forEach((tx) => {
     if (String(tx.orderId) !== oid) return;
     const group = resolveCarrierGroup(tx, carriers, { allowNameFallback: true });
     if (!group || group.key !== partnerKey) return;
-    if (isOrderBookkeepingTx(tx) && isCarrierBookkeepingTx(tx)) {
+    if (
+      isOrderBookkeepingTx(tx) &&
+      isCarrierBookkeepingTx(tx, { orderHasAlinmis: hasAlinmis })
+    ) {
       owedAzn += resolveFinanceExpenseAzn(tx);
       return;
     }
@@ -293,7 +304,7 @@ function summarizeCarrierOrderFinance(
     }
   });
 
-  if (!(owedAzn > 0)) {
+  if (!hasAlinmis && !(owedAzn > 0)) {
     const voyages = Array.isArray(order?.voyages) ? order.voyages : [];
     voyages.forEach((v: any) => {
       owedAzn += resolveVoyageExpenseAzn(v);

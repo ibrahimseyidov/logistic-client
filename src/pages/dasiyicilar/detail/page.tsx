@@ -230,14 +230,10 @@ export default function DasiyiciDetailPage() {
 
     financeTransactions.forEach((tx) => {
       const name = String(tx.name || "");
-      const isAlinmis =
-        name.startsWith("Alınmış hesab") ||
-        (tx.category === "ORDER_BOOK" &&
-          (parseMoney(tx.mesarifAzn) > 0 || parseMoney(tx.mesarifPrice) > 0) &&
-          !(parseMoney(tx.tarifAzn) > 0 || parseMoney(tx.tarifPrice) > 0));
+      const isAlinmis = name.startsWith("Alınmış hesab");
 
-      // İrəli hesab / müştəri tarifi daşıyıcıya düşməsin
-      if (name.startsWith("İrəli hesab") || !isAlinmis) {
+      // Maliyyə əlavə xərcləri / irəli hesab daşıyıcı borcuna düşməsin
+      if (!isAlinmis) {
         if (tx.type === "INCOME") {
           const paid = parseMoney(String(tx.amount ?? 0));
           if (paid > 0) {

@@ -134,13 +134,70 @@ export function orderMatchesCarrier(
   });
 }
 
-export function isCarrierBookkeepingTx(tx: any): boolean {
+function foldAzFinanceName(value: unknown): string {
+  return String(value || "")
+    .trim()
+    .toLocaleLowerCase("az-AZ")
+    .replace(/ı/g, "i")
+    .replace(/ə/g, "e")
+    .replace(/ö/g, "o")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ç/g, "c")
+    .replace(/ğ/g, "g");
+}
+
+/** Daşıyıcı borcu: yalnız alınmış hesab (yoxdursa reys qiyməti). Əlavə xərc borc deyil. */
+export function isAlinmisDebtName(name: unknown): boolean {
+  return foldAzFinanceName(name).startsWith("alinmis hesab");
+}
+
+export function isVoyageDebtName(name: unknown): boolean {
+  return /^reys r-\d+/i.test(foldAzFinanceName(name));
+}
+
+/** Müştəri borcu: yalnız irəli hesab (yoxdursa başlanğıc tarif). */
+export function isIreliDebtName(name: unknown): boolean {
+  return foldAzFinanceName(name).startsWith("ireli hesab");
+}
+
+export function isEstimateCustomerDebtName(name: unknown): boolean {
+  const n = foldAzFinanceName(name);
+  return n === "baslangic tarif" || n === "satis qiymeti";
+}
+
+export function orderHasAlinmisDebt(txs: any[], orderId: unknown): boolean {
+  const oid = String(orderId ?? "");
+  return (txs || []).some(
+    (tx) => String(tx.orderId) === oid && isAlinmisDebtName(tx.name),
+  );
+}
+
+export function orderHasIreliDebt(txs: any[], orderId: unknown): boolean {
+  const oid = String(orderId ?? "");
+  return (txs || []).some(
+    (tx) => String(tx.orderId) === oid && isIreliDebtName(tx.name),
+  );
+}
+
+export function isCarrierBookkeepingTx(
+  tx: any,
+  opts?: { orderHasAlinmis?: boolean },
+): boolean {
   if (!tx) return false;
-  if (tx.carrierId != null || tx.carrier?.id != null) return true;
-  const name = String(tx.name || "").trim();
-  if (/^Reys R-\d+/i.test(name)) return true;
-  if (/^Alınmış hesab/i.test(name)) return true;
-  return false;
+  if (isAlinmisDebtName(tx.name)) return true;
+  if (opts?.orderHasAlinmis) return false;
+  return isVoyageDebtName(tx.name);
+}
+
+export function isCustomerBookkeepingDebtTx(
+  tx: any,
+  opts?: { orderHasIreli?: boolean },
+): boolean {
+  if (!tx) return false;
+  if (isIreliDebtName(tx.name)) return true;
+  if (opts?.orderHasIreli) return false;
+  return isEstimateCustomerDebtName(tx.name);
 }
 
 export function resolveCustomerGroup(

@@ -371,13 +371,17 @@ export default function SorgularPage() {
 
   const handleApproveSubmit = async (selectedOffer: any) => {
     if (!queryToApprove) return;
+    const queryId =
+      (queryToApprove as any).originalId || queryToApprove.id;
     try {
-      // If there were other changes in the edit form, save them first
       if (pendingPayloadFields) {
-         await updateQueryAction(queryToApprove.id, { ...pendingPayloadFields, status: "approved" });
+        const { status: _status, ...otherFields } = pendingPayloadFields;
+        if (Object.keys(otherFields).length > 0) {
+          await updateQueryAction(queryId, otherFields);
+        }
       }
-      
-      const res = await approveQueryAction(queryToApprove.id, selectedOffer);
+
+      const res = await approveQueryAction(queryId, selectedOffer);
       
       handleRowUpdate(res.query);
       setIsPriceOfferModalOpen(false);
@@ -391,12 +395,19 @@ export default function SorgularPage() {
           autoCloseDuration: 4000,
         }),
       );
-    } catch {
+    } catch (err: any) {
+      const detail =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "";
       dispatch(
         showNotification({
-          message: "Sorğunu təsdiqləyərkən xəta baş verdi.",
+          message: detail
+            ? `Sorğunu təsdiqləyərkən xəta baş verdi: ${detail}`
+            : "Sorğunu təsdiqləyərkən xəta baş verdi.",
           type: "error",
-          autoCloseDuration: 3000,
+          autoCloseDuration: 5000,
         }),
       );
     }

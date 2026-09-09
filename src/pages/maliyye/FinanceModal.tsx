@@ -23,7 +23,11 @@ import {
   findCarrierForName,
   findCustomerForName,
   fold,
+  isCarrierBookkeepingTx,
+  isCustomerBookkeepingDebtTx,
   namesMatch,
+  orderHasAlinmisDebt,
+  orderHasIreliDebt,
   orderMatchesCarrier,
   orderMatchesCustomer,
 } from "./lib/financePartner.utils";
@@ -86,15 +90,6 @@ function asList(data: unknown): any[] {
   return [];
 }
 
-function isCustomerDebtFinanceName(name: unknown): boolean {
-  const n = fold(name);
-  return (
-    n === "baslangic tarif" ||
-    n === "satis qiymeti" ||
-    n.startsWith("ireli hesab")
-  );
-}
-
 function isPlaceholderCarrierName(raw: unknown): boolean {
   const s = String(raw || "").trim();
   return !s || s === "—" || fold(s) === "dasiyici";
@@ -110,6 +105,8 @@ function calcOrderDebt(
   const oid = String(order?.id ?? "");
   const pid = partnerId != null && partnerId !== "" ? String(partnerId) : null;
   const pname = String(partnerName || "").trim();
+  const hasAlinmis = orderHasAlinmisDebt(financeTxs, oid);
+  const hasIreli = orderHasIreliDebt(financeTxs, oid);
   let owedAzn = 0;
   let paidAzn = 0;
 
@@ -118,6 +115,9 @@ function calcOrderDebt(
 
     if (isOrderBookkeepingTx(tx)) {
       if (kind === "customer") {
+        if (!isCustomerBookkeepingDebtTx(tx, { orderHasIreli: hasIreli })) {
+          return;
+        }
         if (pid && tx.customerId != null && String(tx.customerId) !== pid) {
           return;
         }
@@ -125,8 +125,7 @@ function calcOrderDebt(
           pname &&
           tx.customerId == null &&
           tx.partner &&
-          !namesMatch(tx.partner, pname) &&
-          !isCustomerDebtFinanceName(tx.name)
+          !namesMatch(tx.partner, pname)
         ) {
           return;
         }
@@ -134,8 +133,7 @@ function calcOrderDebt(
         return;
       }
 
-      const txName = String(tx.name || "").trim();
-      if (isCustomerDebtFinanceName(txName) && !(resolveFinanceExpenseAzn(tx) > 0)) {
+      if (!isCarrierBookkeepingTx(tx, { orderHasAlinmis: hasAlinmis })) {
         return;
       }
 
@@ -167,7 +165,7 @@ function calcOrderDebt(
         return;
       }
 
-      if (!txCarrierId && !isCustomerDebtFinanceName(txName)) {
+      if (!txCarrierId) {
         owedAzn += exp;
       }
       return;
@@ -204,7 +202,12 @@ function calcOrderDebt(
     }
   });
 
-  if (kind === "carrier" && !(owedAzn > 0) && Array.isArray(order?.voyages)) {
+  if (
+    kind === "carrier" &&
+    !hasAlinmis &&
+    !(owedAzn > 0) &&
+    Array.isArray(order?.voyages)
+  ) {
     const orderTokens = String(order?.carriers || "")
       .split(/[,;|/]+/)
       .map((s: string) => s.trim())

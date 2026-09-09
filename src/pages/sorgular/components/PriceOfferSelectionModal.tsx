@@ -29,7 +29,8 @@ export default function PriceOfferSelectionModal({ isOpen, onClose, query, onApp
       alert("Zəhmət olmasa bir qiymət təklifi seçin!");
       return;
     }
-    const selectedOffer = offers.find((o: any) => o.id === selectedOfferId) || {};
+    const selectedOffer =
+      offers.find((o: any) => String(o.id) === String(selectedOfferId)) || {};
     onApprove(selectedOffer);
   };
 
