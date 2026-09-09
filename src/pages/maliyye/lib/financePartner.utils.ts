@@ -200,6 +200,92 @@ export function isCustomerBookkeepingDebtTx(
   return isEstimateCustomerDebtName(tx.name);
 }
 
+function parseInvoiceRowGross(r: any): number {
+  const qty = Number.parseFloat(String(r?.qty ?? 1).replace(",", ".")) || 0;
+  const price = Number.parseFloat(String(r?.price ?? 0).replace(",", ".")) || 0;
+  const vat =
+    Number.parseFloat(
+      String(r?.vatRate ?? "0").replace("%", "").replace(",", "."),
+    ) || 0;
+  return qty * price * (1 + vat / 100);
+}
+
+export function parseInvoiceAmountAzn(inv: any): number {
+  if (!inv) return 0;
+  let fromRows = 0;
+  const list = Array.isArray(inv.rows) ? inv.rows : null;
+  if (list) {
+    fromRows = list.reduce((s: number, r: any) => s + parseInvoiceRowGross(r), 0);
+  } else if (inv.rowsJson) {
+    try {
+      const parsed = JSON.parse(String(inv.rowsJson));
+      if (Array.isArray(parsed)) {
+        fromRows = parsed.reduce(
+          (s: number, r: any) => s + parseInvoiceRowGross(r),
+          0,
+        );
+      }
+    } catch {
+      fromRows = 0;
+    }
+  }
+  const text = String(inv.amount || "").trim();
+  const m = text.match(/([\d]+(?:[.,][\d]+)?)/);
+  const fromAmount = m
+    ? Number.parseFloat(String(m[1]).replace(",", ".")) || 0
+    : 0;
+  return fromRows > 0 ? fromRows : fromAmount;
+}
+
+export function invoiceTypeOf(inv: any): string {
+  const n = foldAzFinanceName(inv?.type);
+  if (n.includes("alinmis") || n.includes("received")) return "alinmis";
+  if (n.startsWith("ireli") || n.includes("forward")) return "ireli";
+  return String(inv?.type || "")
+    .trim()
+    .toLowerCase();
+}
+
+export function orderInvoicesOfType(
+  invoices: any[] | undefined,
+  orderId: unknown,
+  type: "alinmis" | "ireli",
+): any[] {
+  const oid = String(orderId ?? "");
+  const seen = new Set<string>();
+  return (invoices || []).filter((inv) => {
+    const invOrder = inv.orderId != null ? String(inv.orderId) : oid;
+    if (invOrder !== oid) return false;
+    if (invoiceTypeOf(inv) !== type) return false;
+    const key =
+      inv.id != null ? `id:${inv.id}` : `n:${inv.number}:${inv.amount}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export function sumPartnerInvoicesAzn(
+  invoices: any[] | undefined,
+  orderId: unknown,
+  type: "alinmis" | "ireli",
+  partnerName?: string | null,
+): number {
+  const rows = orderInvoicesOfType(invoices, orderId, type);
+  if (rows.length === 0) return 0;
+  const pname = String(partnerName || "").trim();
+  const matched = pname
+    ? rows.filter(
+        (inv) =>
+          namesMatch(inv.payer, pname) ||
+          namesMatch(inv.customerName, pname) ||
+          namesMatch(inv.partner, pname),
+      )
+    : rows;
+  const use = matched.length > 0 ? matched : rows;
+  return use.reduce((s, inv) => s + parseInvoiceAmountAzn(inv), 0);
+}
+
 export function resolveCustomerGroup(
   tx: any,
   customers: any[],

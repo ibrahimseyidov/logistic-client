@@ -5,7 +5,7 @@ import modalStyles from "./FinanceModal.module.css";
 import { fetchCustomersAction } from "../../common/actions/customer.actions";
 import { fetchCarriersAction } from "../../common/actions/carrier.actions";
 import { fetchOrdersAction } from "../../common/actions/order.actions";
-import { fetchFinanceTransactionsAction } from "../../common/actions/finance.actions";
+import { fetchFinanceTransactionsAction, fetchInvoicesAction } from "../../common/actions/finance.actions";
 import {
   resolveFinanceExpenseAzn,
   resolveFinanceRevenueAzn,
@@ -30,6 +30,7 @@ import {
   orderHasIreliDebt,
   orderMatchesCarrier,
   orderMatchesCustomer,
+  sumPartnerInvoicesAzn,
 } from "./lib/financePartner.utils";
 
 type PartnerKind = "customer" | "carrier";
@@ -101,19 +102,31 @@ function calcOrderDebt(
   financeTxs: any[],
   partnerId?: string | number | null,
   partnerName?: string | null,
+  invoices?: any[],
 ): { owedAzn: number; paidAzn: number; remainingAzn: number } {
   const oid = String(order?.id ?? "");
   const pid = partnerId != null && partnerId !== "" ? String(partnerId) : null;
   const pname = String(partnerName || "").trim();
-  const hasAlinmis = orderHasAlinmisDebt(financeTxs, oid);
-  const hasIreli = orderHasIreliDebt(financeTxs, oid);
-  let owedAzn = 0;
+  const mergedInvoices = [
+    ...(invoices || []),
+    ...(Array.isArray(order?.invoices) ? order.invoices : []),
+  ];
+  const invoiceOwed =
+    kind === "carrier"
+      ? sumPartnerInvoicesAzn(mergedInvoices, oid, "alinmis", pname)
+      : sumPartnerInvoicesAzn(mergedInvoices, oid, "ireli", pname);
+  const hasAlinmis =
+    invoiceOwed > 0 || orderHasAlinmisDebt(financeTxs, oid);
+  const hasIreli = invoiceOwed > 0 || orderHasIreliDebt(financeTxs, oid);
+  let owedAzn = invoiceOwed > 0 ? invoiceOwed : 0;
   let paidAzn = 0;
 
   financeTxs.forEach((tx) => {
     if (String(tx.orderId) !== oid) return;
 
     if (isOrderBookkeepingTx(tx)) {
+      if (invoiceOwed > 0) return;
+
       if (kind === "customer") {
         if (!isCustomerBookkeepingDebtTx(tx, { orderHasIreli: hasIreli })) {
           return;
@@ -161,11 +174,6 @@ function calcOrderDebt(
           namesMatch(entityLabel(tx.carrier), pname));
 
       if (partnerOk) {
-        owedAzn += exp;
-        return;
-      }
-
-      if (!txCarrierId) {
         owedAzn += exp;
       }
       return;
@@ -434,6 +442,7 @@ export default function FinanceModal({
   const [carriers, setCarriers] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [financeTxs, setFinanceTxs] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
   const [ordersModalOpen, setOrdersModalOpen] = useState(false);
   const [amountTouched, setAmountTouched] = useState(false);
   /** Tərəfdaş üçün sifariş avtomatik seçilibsə — təkrar yazmamaq üçün */
@@ -446,7 +455,8 @@ export default function FinanceModal({
       fetchCarriersAction(),
       fetchOrdersAction(),
       fetchFinanceTransactionsAction(),
-    ]).then(([c, r, o, f]) => {
+      fetchInvoicesAction(),
+    ]).then(([c, r, o, f, inv]) => {
       const cust = asList(c)
         .filter((x) => x?.id != null && entityLabel(x))
         .sort((a, b) => entityLabel(a).localeCompare(entityLabel(b), "az"));
@@ -457,6 +467,7 @@ export default function FinanceModal({
       setCarriers(carr);
       setOrders(asList(o));
       setFinanceTxs(asList(f));
+      setInvoices(asList(inv));
     });
   }, [isOpen]);
 
@@ -582,6 +593,7 @@ export default function FinanceModal({
           financeTxs,
           partnerId,
           partnerName,
+          invoices,
         );
         return {
           orderId: Number(o.id),
@@ -597,6 +609,7 @@ export default function FinanceModal({
     partnerOrders,
     partnerKind,
     financeTxs,
+    invoices,
     selectedCustomer,
     selectedCarrier,
   ]);
@@ -621,6 +634,7 @@ export default function FinanceModal({
           financeTxs,
           partnerId,
           partnerName,
+          invoices,
         );
         return {
           orderId: Number(formData.orderId),
@@ -637,6 +651,7 @@ export default function FinanceModal({
     orderDebtRows,
     partnerKind,
     financeTxs,
+    invoices,
     orders,
     selectedCustomer,
     selectedCarrier,
