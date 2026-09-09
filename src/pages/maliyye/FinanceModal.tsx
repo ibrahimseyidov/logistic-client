@@ -6,11 +6,6 @@ import { fetchCustomersAction } from "../../common/actions/customer.actions";
 import { fetchCarriersAction } from "../../common/actions/carrier.actions";
 import { fetchOrdersAction } from "../../common/actions/order.actions";
 import { fetchFinanceTransactionsAction, fetchInvoicesAction } from "../../common/actions/finance.actions";
-import {
-  resolveFinanceExpenseAzn,
-  resolveFinanceRevenueAzn,
-  resolveVoyageExpenseAzn,
-} from "../../common/utils/currency.utils";
 import type { CashWallet } from "./lib/financeWallet.utils";
 import {
   isCashMovementTx,
@@ -22,12 +17,7 @@ import {
   entityLabel,
   findCarrierForName,
   findCustomerForName,
-  fold,
-  isCarrierBookkeepingTx,
-  isCustomerBookkeepingDebtTx,
   namesMatch,
-  orderHasAlinmisDebt,
-  orderHasIreliDebt,
   orderMatchesCarrier,
   orderMatchesCustomer,
   sumPartnerInvoicesAzn,
@@ -91,11 +81,6 @@ function asList(data: unknown): any[] {
   return [];
 }
 
-function isPlaceholderCarrierName(raw: unknown): boolean {
-  const s = String(raw || "").trim();
-  return !s || s === "—" || fold(s) === "dasiyici";
-}
-
 function calcOrderDebt(
   order: any,
   kind: PartnerKind,
@@ -115,67 +100,13 @@ function calcOrderDebt(
     kind === "carrier"
       ? sumPartnerInvoicesAzn(mergedInvoices, oid, "alinmis", pname)
       : sumPartnerInvoicesAzn(mergedInvoices, oid, "ireli", pname);
-  const hasAlinmis =
-    invoiceOwed > 0 || orderHasAlinmisDebt(financeTxs, oid);
-  const hasIreli = invoiceOwed > 0 || orderHasIreliDebt(financeTxs, oid);
-  let owedAzn = invoiceOwed > 0 ? invoiceOwed : 0;
+  let owedAzn = invoiceOwed;
   let paidAzn = 0;
 
   financeTxs.forEach((tx) => {
     if (String(tx.orderId) !== oid) return;
 
     if (isOrderBookkeepingTx(tx)) {
-      if (invoiceOwed > 0) return;
-
-      if (kind === "customer") {
-        if (!isCustomerBookkeepingDebtTx(tx, { orderHasIreli: hasIreli })) {
-          return;
-        }
-        if (pid && tx.customerId != null && String(tx.customerId) !== pid) {
-          return;
-        }
-        if (
-          pname &&
-          tx.customerId == null &&
-          tx.partner &&
-          !namesMatch(tx.partner, pname)
-        ) {
-          return;
-        }
-        owedAzn += resolveFinanceRevenueAzn(tx);
-        return;
-      }
-
-      if (!isCarrierBookkeepingTx(tx, { orderHasAlinmis: hasAlinmis })) {
-        return;
-      }
-
-      const exp = resolveFinanceExpenseAzn(tx);
-      if (!(exp > 0)) return;
-
-      const txCarrierId =
-        tx.carrierId != null
-          ? String(tx.carrierId)
-          : tx.carrier?.id != null
-            ? String(tx.carrier.id)
-            : null;
-
-      if (pid && txCarrierId && txCarrierId !== pid) return;
-
-      if (pid && txCarrierId === pid) {
-        owedAzn += exp;
-        return;
-      }
-
-      const partnerOk =
-        Boolean(pname) &&
-        (namesMatch(tx.partner, pname) ||
-          namesMatch(tx.carrier?.name, pname) ||
-          namesMatch(entityLabel(tx.carrier), pname));
-
-      if (partnerOk) {
-        owedAzn += exp;
-      }
       return;
     }
 
@@ -209,33 +140,6 @@ function calcOrderDebt(
       paidAzn += azn;
     }
   });
-
-  if (
-    kind === "carrier" &&
-    !hasAlinmis &&
-    !(owedAzn > 0) &&
-    Array.isArray(order?.voyages)
-  ) {
-    const orderTokens = String(order?.carriers || "")
-      .split(/[,;|/]+/)
-      .map((s: string) => s.trim())
-      .filter(Boolean);
-    const orderIsThisCarrier =
-      Boolean(pname) &&
-      orderTokens.some((t) => namesMatch(t, pname));
-
-    for (const v of order.voyages) {
-      const vc = String(v?.carrier || "").trim();
-      if (isPlaceholderCarrierName(vc)) {
-        if (orderIsThisCarrier || !orderTokens.length) {
-          owedAzn += resolveVoyageExpenseAzn(v);
-        }
-        continue;
-      }
-      if (pname && !namesMatch(vc, pname)) continue;
-      owedAzn += resolveVoyageExpenseAzn(v);
-    }
-  }
 
   return {
     owedAzn,
