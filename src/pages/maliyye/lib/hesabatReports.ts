@@ -115,9 +115,10 @@ export function buildPartnerRows(
     customers: any[];
     carriers: any[];
     orders: any[];
+    rates?: Record<string, number> | null;
   },
 ): PartnerRow[] {
-  const { transactions, invoices = [], customers, carriers, orders } = params;
+  const { transactions, invoices = [], customers, carriers, orders, rates } = params;
   const map = new Map<string, PartnerRow>();
 
   const ensure = (key: string, name: string) => {
@@ -171,7 +172,7 @@ export function buildPartnerRows(
 
     (invoices || []).forEach((inv) => {
       if (invoiceTypeOf(inv) !== "ireli") return;
-      const azn = parseInvoiceAmountAzn(inv);
+      const azn = parseInvoiceAmountAzn(inv, rates);
       if (!(azn > 0)) return;
       const order = orders.find((o) => String(o.id) === String(inv.orderId));
       const group = toCustomerRow(
@@ -214,7 +215,7 @@ export function buildPartnerRows(
 
     (invoices || []).forEach((inv) => {
       if (invoiceTypeOf(inv) !== "alinmis") return;
-      const azn = parseInvoiceAmountAzn(inv);
+      const azn = parseInvoiceAmountAzn(inv, rates);
       if (!(azn > 0)) return;
       const group = toCarrierRow(
         resolveCarrierGroup(
@@ -294,11 +295,12 @@ function summarizeCarrierOrderFinance(
   transactions: any[],
   carriers: any[],
   invoices?: any[],
+  rates?: Record<string, number> | null,
 ): { owedAzn: number; paidAzn: number; balanceAzn: number } {
   const oid = String(order?.id ?? "");
   const partner = carriers.find((c) => `r:${c.id}` === partnerKey);
   const partnerName = partner ? entityLabel(partner) : "";
-  let owedAzn = sumPartnerInvoicesAzn(invoices, oid, "alinmis", partnerName);
+  let owedAzn = sumPartnerInvoicesAzn(invoices, oid, "alinmis", partnerName, rates);
   let paidAzn = 0;
 
   (transactions || []).forEach((tx) => {
@@ -327,9 +329,10 @@ export function buildPartnerOrderLines(
     invoices?: any[];
     customers: any[];
     carriers: any[];
+    rates?: Record<string, number> | null;
   },
 ): PartnerOrderLine[] {
-  const { orders, transactions, invoices = [], customers, carriers } = params;
+  const { orders, transactions, invoices = [], customers, carriers, rates } = params;
   const lines: PartnerOrderLine[] = [];
 
   partners.forEach((partner) => {
@@ -365,11 +368,12 @@ export function buildPartnerOrderLines(
                 transactions,
                 carriers,
                 invoices,
+                rates,
               )
             : null;
         const owedAzn =
           tab === "customers"
-            ? sumPartnerInvoicesAzn(invoices, order.id, "ireli", partner.name)
+            ? sumPartnerInvoicesAzn(invoices, order.id, "ireli", partner.name, rates)
             : carrierFin!.owedAzn;
         const paidAzn =
           tab === "customers" ? paidFromTx : carrierFin!.paidAzn;

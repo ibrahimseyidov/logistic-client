@@ -6,6 +6,8 @@ import { fetchCustomersAction } from "../../common/actions/customer.actions";
 import { fetchCarriersAction } from "../../common/actions/carrier.actions";
 import { fetchOrdersAction } from "../../common/actions/order.actions";
 import { fetchFinanceTransactionsAction, fetchInvoicesAction } from "../../common/actions/finance.actions";
+import { useCurrencyRates } from "../../common/hooks/useCurrencyRates";
+import { FALLBACK_AZN_RATES } from "../../common/utils/currency.utils";
 import type { CashWallet } from "./lib/financeWallet.utils";
 import {
   isCashMovementTx,
@@ -88,6 +90,7 @@ function calcOrderDebt(
   partnerId?: string | number | null,
   partnerName?: string | null,
   invoices?: any[],
+  rates?: Record<string, number> | null,
 ): { owedAzn: number; paidAzn: number; remainingAzn: number } {
   const oid = String(order?.id ?? "");
   const pid = partnerId != null && partnerId !== "" ? String(partnerId) : null;
@@ -98,8 +101,8 @@ function calcOrderDebt(
   ];
   const invoiceOwed =
     kind === "carrier"
-      ? sumPartnerInvoicesAzn(mergedInvoices, oid, "alinmis", pname)
-      : sumPartnerInvoicesAzn(mergedInvoices, oid, "ireli", pname);
+      ? sumPartnerInvoicesAzn(mergedInvoices, oid, "alinmis", pname, rates)
+      : sumPartnerInvoicesAzn(mergedInvoices, oid, "ireli", pname, rates);
   let owedAzn = invoiceOwed;
   let paidAzn = 0;
 
@@ -327,6 +330,8 @@ export default function FinanceModal({
   initialData?: any;
   defaultWallet?: CashWallet;
 }) {
+  const { ratesData } = useCurrencyRates();
+  const currencyRates = ratesData?.rates || FALLBACK_AZN_RATES;
   const [partnerKind, setPartnerKind] = useState<PartnerKind>("customer");
   const [formError, setFormError] = useState("");
   const [formData, setFormData] = useState({
@@ -498,6 +503,7 @@ export default function FinanceModal({
           partnerId,
           partnerName,
           invoices,
+          currencyRates,
         );
         return {
           orderId: Number(o.id),
@@ -516,6 +522,7 @@ export default function FinanceModal({
     invoices,
     selectedCustomer,
     selectedCarrier,
+    currencyRates,
   ]);
 
   const selectedOrderDebt = useMemo(() => {
@@ -539,6 +546,7 @@ export default function FinanceModal({
           partnerId,
           partnerName,
           invoices,
+          currencyRates,
         );
         return {
           orderId: Number(formData.orderId),
@@ -559,6 +567,7 @@ export default function FinanceModal({
     orders,
     selectedCustomer,
     selectedCarrier,
+    currencyRates,
   ]);
 
   const orderSelectRows = useMemo(() => {

@@ -49,6 +49,8 @@ import {
   queryMatchesCarrier,
 } from "../../../common/utils/entityActivity.utils";
 import { usePermissions } from "../../../common/hooks/usePermissions";
+import { useCurrencyRates } from "../../../common/hooks/useCurrencyRates";
+import { FALLBACK_AZN_RATES } from "../../../common/utils/currency.utils";
 
 const TAB_ITEMS: { label: string; permChild: string }[] = [
   { label: "Məlumatlar", permChild: "detail" },
@@ -90,6 +92,8 @@ export default function DasiyiciDetailPage() {
   const navigate = useNavigate();
   const { carrierId } = useParams();
   const dispatch = useAppDispatch();
+  const { ratesData } = useCurrencyRates();
+  const currencyRates = ratesData?.rates || FALLBACK_AZN_RATES;
   const { canView, canCreate } = usePermissions();
   const canCreateContact = canCreate("dasiyicilar", "contacts");
 
@@ -215,7 +219,7 @@ export default function DasiyiciDetailPage() {
     });
 
     const alinmisAzn = invoices.reduce(
-      (sum, inv) => sum + parseInvoiceAmountAzn(inv),
+      (sum, inv) => sum + parseInvoiceAmountAzn(inv, currencyRates),
       0,
     );
     if (alinmisAzn > 0) {
@@ -229,25 +233,25 @@ export default function DasiyiciDetailPage() {
       expenses,
       profit,
     };
-  }, [orders, invoices]);
+  }, [orders, invoices, currencyRates]);
 
   // Dynamic Finance Info — daşıyıcı YALNIZ "Alınmış hesab" ilə borclanır
   const financeStats = useMemo(() => {
     const payments: any[] = [];
     let totalPaid = 0;
     let outstandingDebt = invoices.reduce(
-      (sum, inv) => sum + parseInvoiceAmountAzn(inv),
+      (sum, inv) => sum + parseInvoiceAmountAzn(inv, currencyRates),
       0,
     );
 
     invoices.forEach((inv) => {
-      const azn = parseInvoiceAmountAzn(inv);
+      const azn = parseInvoiceAmountAzn(inv, currencyRates);
       if (!(azn > 0)) return;
       payments.push({
         date: inv.date || new Date().toISOString(),
         purpose: `Alınmış hesab ${inv.number || ""}`.trim(),
         amount: azn,
-        currency: inv.currency || "AZN",
+        currency: "AZN",
         status: "Ödənilməyib",
         type: "EXPENSE",
       });
@@ -295,7 +299,7 @@ export default function DasiyiciDetailPage() {
       overpayment: 0,
       payments,
     };
-  }, [financeTransactions, invoices]);
+  }, [financeTransactions, invoices, currencyRates]);
 
   const openEditModal = () => {
     if (!carrier) return;

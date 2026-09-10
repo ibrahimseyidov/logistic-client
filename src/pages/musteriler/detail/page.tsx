@@ -48,6 +48,8 @@ import {
 } from "../../sorgular/lib/queryDisplay.utils";
 import { matchesCustomerEntity } from "../../../common/utils/entityActivity.utils";
 import { usePermissions } from "../../../common/hooks/usePermissions";
+import { useCurrencyRates } from "../../../common/hooks/useCurrencyRates";
+import { FALLBACK_AZN_RATES } from "../../../common/utils/currency.utils";
 
 const TAB_ITEMS: { label: string; permChild: string }[] = [
   { label: "Məlumatlar", permChild: "detail" },
@@ -108,6 +110,8 @@ export default function MusteriDetailPage() {
   const navigate = useNavigate();
   const { customerId } = useParams();
   const dispatch = useAppDispatch();
+  const { ratesData } = useCurrencyRates();
+  const currencyRates = ratesData?.rates || FALLBACK_AZN_RATES;
   const { canView, canCreate } = usePermissions();
   const canCreateContact = canCreate("musteriler", "contacts");
 
@@ -278,7 +282,7 @@ export default function MusteriDetailPage() {
     });
 
     const ireliAzn = invoices.reduce(
-      (sum, inv) => sum + parseInvoiceAmountAzn(inv),
+      (sum, inv) => sum + parseInvoiceAmountAzn(inv, currencyRates),
       0,
     );
     if (ireliAzn > 0) {
@@ -292,7 +296,7 @@ export default function MusteriDetailPage() {
       expenses,
       profit,
     };
-  }, [orders, invoices]);
+  }, [orders, invoices, currencyRates]);
 
   // Dynamic Finance Info — müştəri YALNIZ "İrəli hesab" / tarif ilə borclanır
   const financeStats = useMemo(() => {
@@ -327,7 +331,7 @@ export default function MusteriDetailPage() {
     });
 
     invoices.forEach((inv) => {
-      const receivable = parseInvoiceAmountAzn(inv);
+      const receivable = parseInvoiceAmountAzn(inv, currencyRates);
       if (!(receivable > 0)) return;
       outstandingDebt += receivable;
       payments.push({
@@ -335,7 +339,7 @@ export default function MusteriDetailPage() {
         date: inv.date || inv.createdAt,
         purpose: `İrəli hesab ${inv.number || ""}`.trim(),
         amount: -receivable,
-        currency: inv.currency || "AZN",
+        currency: "AZN",
         status: String(inv.status || "Gözlənilir"),
       });
     });
@@ -359,7 +363,7 @@ export default function MusteriDetailPage() {
       totalSales: orderStats.sales,
       totalProfit: orderStats.profit,
     };
-  }, [orderStats, transactions, invoices]);
+  }, [orderStats, transactions, invoices, currencyRates]);
 
   const openEditModal = () => {
     if (!customer) return;

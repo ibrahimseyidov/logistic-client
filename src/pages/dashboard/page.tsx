@@ -418,7 +418,7 @@ export default function DashboardPage() {
     let customerDebt = 0;
     let carrierDebt = 0;
     invoices.forEach((inv) => {
-      const azn = parseInvoiceAmountAzn(inv);
+      const azn = parseInvoiceAmountAzn(inv, rates);
       if (!(azn > 0)) return;
       const t = invoiceTypeOf(inv);
       if (t === "ireli") customerDebt += azn;

@@ -38,6 +38,8 @@ import {
 import FinanceModal from "../FinanceModal";
 import { useAppDispatch } from "../../../common/store/hooks";
 import { showNotification } from "../../../common/store/modalSlice";
+import { useCurrencyRates } from "../../../common/hooks/useCurrencyRates";
+import { FALLBACK_AZN_RATES } from "../../../common/utils/currency.utils";
 import { usePermissions } from "../../../common/hooks/usePermissions";
 import { ENDPOINTS } from "../../../services/EndpointResources.g";
 import OrderStatusPicker from "../../sifarisler/components/OrderStatusPicker";
@@ -127,6 +129,8 @@ function parsePartnerId(key: string): string | null {
 
 export default function MaliyyeHesabatPage() {
   const dispatch = useAppDispatch();
+  const { ratesData } = useCurrencyRates();
+  const currencyRates = ratesData?.rates || FALLBACK_AZN_RATES;
   const { canEdit } = usePermissions();
   const allowEditOrderStatus = canEdit("sifarisler", "orders");
   const [activeReport, setActiveReport] = useState<ReportId | null>(null);
@@ -200,6 +204,7 @@ export default function MaliyyeHesabatPage() {
         customers,
         carriers,
         orders,
+        rates: currencyRates,
       }),
       filter,
     );
@@ -212,6 +217,7 @@ export default function MaliyyeHesabatPage() {
     carriers,
     orders,
     filter,
+    currencyRates,
   ]);
 
   const genericRows = useMemo(() => {
@@ -435,7 +441,7 @@ export default function MaliyyeHesabatPage() {
           const orderLines = buildPartnerOrderLines(
             activeReport === "carriers" ? "carriers" : "customers",
             partnerRows,
-            { orders, transactions, invoices, customers, carriers },
+            { orders, transactions, invoices, customers, carriers, rates: currencyRates },
           );
           await exportPartnerDetailedReportToExcel({
             title,

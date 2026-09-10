@@ -1,5 +1,9 @@
 /** Shared helpers: match real customers/carriers to orders & finance rows */
 
+import {
+  convertToAznWithRates,
+  FALLBACK_AZN_RATES,
+} from "../../../common/utils/currency.utils";
 import { isSystemBalanceAdjustment } from "./financeWallet.utils";
 
 export function fold(s: unknown) {
@@ -210,8 +214,11 @@ function parseInvoiceRowGross(r: any): number {
   return qty * price * (1 + vat / 100);
 }
 
-export function parseInvoiceAmountAzn(inv: any): number {
-  if (!inv) return 0;
+export function parseInvoiceGrossMoney(inv: any): {
+  amount: number;
+  currency: string;
+} {
+  if (!inv) return { amount: 0, currency: "AZN" };
   let fromRows = 0;
   const list = Array.isArray(inv.rows) ? inv.rows : null;
   if (list) {
@@ -229,12 +236,36 @@ export function parseInvoiceAmountAzn(inv: any): number {
       fromRows = 0;
     }
   }
+  const fromField = String(inv.currency || "").trim().toUpperCase();
   const text = String(inv.amount || "").trim();
-  const m = text.match(/([\d]+(?:[.,][\d]+)?)/);
+  const m = text.match(/([\d]+(?:[.,][\d]+)?)\s*([A-Za-z]{3})?/);
   const fromAmount = m
     ? Number.parseFloat(String(m[1]).replace(",", ".")) || 0
     : 0;
-  return fromRows > 0 ? fromRows : fromAmount;
+  const currency = (m?.[2] || fromField || "AZN").toUpperCase();
+  return { amount: fromRows > 0 ? fromRows : fromAmount, currency };
+}
+
+/** Hesab məbləğini AZN-ə çevirir (USD/EUR → CBAR və ya fallback kurs). */
+export function parseInvoiceAmountAzn(
+  inv: any,
+  rates?: Record<string, number> | null,
+): number {
+  if (!inv) return 0;
+  const paren = String(inv.amount || "").match(
+    /\(([0-9][0-9.,]*)\s*AZN/i,
+  );
+  if (paren) {
+    const stored = Number.parseFloat(String(paren[1]).replace(",", "."));
+    if (Number.isFinite(stored) && stored > 0) return stored;
+  }
+  const { amount, currency } = parseInvoiceGrossMoney(inv);
+  if (!(amount > 0)) return 0;
+  return convertToAznWithRates(
+    amount,
+    currency,
+    rates && Object.keys(rates).length ? rates : FALLBACK_AZN_RATES,
+  );
 }
 
 export function invoiceTypeOf(inv: any): string {
@@ -270,6 +301,7 @@ export function sumPartnerInvoicesAzn(
   orderId: unknown,
   type: "alinmis" | "ireli",
   partnerName?: string | null,
+  rates?: Record<string, number> | null,
 ): number {
   const rows = orderInvoicesOfType(invoices, orderId, type);
   if (rows.length === 0) return 0;
@@ -283,7 +315,7 @@ export function sumPartnerInvoicesAzn(
       )
     : rows;
   const use = matched.length > 0 ? matched : rows;
-  return use.reduce((s, inv) => s + parseInvoiceAmountAzn(inv), 0);
+  return use.reduce((s, inv) => s + parseInvoiceAmountAzn(inv, rates), 0);
 }
 
 export function resolveCustomerGroup(
