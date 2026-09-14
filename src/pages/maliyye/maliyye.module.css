@@ -394,6 +394,31 @@
   border-color: #cbd5e1;
 }
 
+.kasaExcelBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid #16a34a;
+  background: #16a34a;
+  color: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 0.65rem 1rem;
+  border-radius: 0.65rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.kasaExcelBtn:hover {
+  background: #15803d;
+  border-color: #15803d;
+}
+
+.kasaExcelBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .filterBadge {
   display: inline-flex;
   align-items: center;

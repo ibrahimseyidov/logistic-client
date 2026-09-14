@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import styles from "./maliyye.module.css";
-import { FiFilter, FiPlus, FiEdit2, FiTrash2 } from "react-icons/fi";
+import { FiDownload, FiFilter, FiPlus, FiEdit2, FiTrash2 } from "react-icons/fi";
 import {
   fetchFinanceTransactionsAction,
   createFinanceTransactionAction,
@@ -37,6 +37,7 @@ import {
 import { usePermissions } from "../../common/hooks/usePermissions";
 import { useCurrencyRates } from "../../common/hooks/useCurrencyRates";
 import { FALLBACK_AZN_RATES } from "../../common/utils/currency.utils";
+import { exportMaliyyeToExcel } from "./lib/exportMaliyyeExcel";
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
@@ -101,6 +102,7 @@ export default function MaliyyePage() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<any>(null);
 
+  const [exporting, setExporting] = useState(false);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [filterDraft, setFilterDraft] =
     useState<MaliyyeFilterState>(emptyMaliyyeFilter);
@@ -252,6 +254,23 @@ export default function MaliyyePage() {
     setCurrentPage(1);
   };
 
+  const handleExportExcel = async () => {
+    if (filteredTxs.length === 0) return;
+    setExporting(true);
+    try {
+      await exportMaliyyeToExcel({
+        tab: resolvedWallet,
+        rows: filteredTxs,
+        stats,
+        rates: currencyRates,
+      });
+    } catch {
+      alert("Excel faylı hazırlanarkən xəta baş verdi");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const handleSave = async (data: any) => {
     try {
       if (editingTx && isSystemBalanceAdjustment(editingTx)) {
@@ -367,6 +386,16 @@ export default function MaliyyePage() {
               {activeFilterCount > 0 ? (
                 <span className={styles.filterBadge}>{activeFilterCount}</span>
               ) : null}
+            </button>
+            <button
+              type="button"
+              className={styles.kasaExcelBtn}
+              onClick={() => void handleExportExcel()}
+              disabled={exporting || filteredTxs.length === 0}
+              title="Cədvəli Excel-ə çıxar"
+            >
+              <FiDownload />
+              {exporting ? "Hazırlanır..." : "Excel-ə çıxar"}
             </button>
             {allowCreateExpense ? (
               <button
