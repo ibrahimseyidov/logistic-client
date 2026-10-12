@@ -13,6 +13,7 @@ import Loading from "../../common/components/loading/Loading";
 import type { SelectOption } from "../../common/components/select/Select";
 import FinanceModal from "./FinanceModal";
 import SimpleExpenseModal from "./SimpleExpenseModal";
+import SystemAdjustmentModal from "./SystemAdjustmentModal";
 import MaliyyeFiltersDrawer from "./MaliyyeFiltersDrawer";
 import SorgularPagination from "../sorgular/components/SorgularPagination";
 import { useClientPagination } from "../../common/components/pagination";
@@ -100,6 +101,7 @@ export default function MaliyyePage() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [isSystemModalOpen, setIsSystemModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<any>(null);
 
   const [exporting, setExporting] = useState(false);
@@ -273,11 +275,6 @@ export default function MaliyyePage() {
 
   const handleSave = async (data: any) => {
     try {
-      if (editingTx && isSystemBalanceAdjustment(editingTx)) {
-        setIsModalOpen(false);
-        setEditingTx(null);
-        return;
-      }
       const payload = {
         ...data,
         paymentMethod:
@@ -293,21 +290,31 @@ export default function MaliyyePage() {
       }
       setIsModalOpen(false);
       setIsExpenseModalOpen(false);
+      setIsSystemModalOpen(false);
       setEditingTx(null);
       loadData();
-    } catch {
-      alert("Xəta baş verdi");
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "Xəta baş verdi";
+      alert(msg);
     }
   };
 
   const handleDelete = async (tx: any) => {
-    if (isSystemBalanceAdjustment(tx)) return;
     if (!window.confirm(`#${tx.id} əməliyyatı silinsin?`)) return;
     try {
       await deleteFinanceTransactionAction(tx.id);
       loadData();
-    } catch {
-      alert("Silinərkən xəta baş verdi");
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "Silinərkən xəta baş verdi";
+      alert(msg);
     }
   };
 
@@ -580,72 +587,65 @@ export default function MaliyyePage() {
                         )}
                       </td>
                       <td className={styles.td}>
-                        {isSystem ? (
-                          <span
-                            className={styles.lockedActions}
-                            title="Sistem əməliyyatı redaktə/silinə bilməz"
-                          >
-                            —
-                          </span>
-                        ) : (
-                          (() => {
-                            const isExpense = isSimpleExpenseTx(tx);
-                            const canEditRow = isExpense
-                              ? allowEditExpense
-                              : allowEditTx;
-                            const canDeleteRow = isExpense
-                              ? allowDeleteExpense
-                              : allowDeleteTx;
-                            if (!canEditRow && !canDeleteRow) {
-                              return <span className={styles.lockedActions}>—</span>;
-                            }
-                            return (
-                              <div style={{ display: "flex", gap: "0.4rem" }}>
-                                {canEditRow ? (
-                                  <button
-                                    type="button"
-                                    title="Redaktə"
-                                    onClick={() => {
-                                      setEditingTx(tx);
-                                      if (isExpense) {
-                                        setIsExpenseModalOpen(true);
-                                      } else {
-                                        setIsModalOpen(true);
-                                      }
-                                    }}
-                                    style={{
-                                      border: "none",
-                                      background: "#eff6ff",
-                                      color: "#2563eb",
-                                      borderRadius: "0.4rem",
-                                      padding: "0.35rem",
-                                      cursor: "pointer",
-                                    }}
-                                  >
-                                    <FiEdit2 size={14} />
-                                  </button>
-                                ) : null}
-                                {canDeleteRow ? (
-                                  <button
-                                    type="button"
-                                    title="Sil"
-                                    onClick={() => handleDelete(tx)}
-                                    style={{
-                                      border: "none",
-                                      background: "#fef2f2",
-                                      color: "#dc2626",
-                                      borderRadius: "0.4rem",
-                                      padding: "0.35rem",
-                                      cursor: "pointer",
-                                    }}
-                                  >
-                                    <FiTrash2 size={14} />
-                                  </button>
-                                ) : null}
-                              </div>
-                            );
-                          })()
-                        )}
+                        {(() => {
+                          const isExpense = isSimpleExpenseTx(tx);
+                          const canEditRow = isExpense
+                            ? allowEditExpense
+                            : allowEditTx;
+                          const canDeleteRow = isExpense
+                            ? allowDeleteExpense
+                            : allowDeleteTx;
+                          if (!canEditRow && !canDeleteRow) {
+                            return <span className={styles.lockedActions}>—</span>;
+                          }
+                          return (
+                            <div style={{ display: "flex", gap: "0.4rem" }}>
+                              {canEditRow ? (
+                                <button
+                                  type="button"
+                                  title="Redaktə"
+                                  onClick={() => {
+                                    setEditingTx(tx);
+                                    if (isSystem) {
+                                      setIsSystemModalOpen(true);
+                                    } else if (isExpense) {
+                                      setIsExpenseModalOpen(true);
+                                    } else {
+                                      setIsModalOpen(true);
+                                    }
+                                  }}
+                                  style={{
+                                    border: "none",
+                                    background: "#eff6ff",
+                                    color: "#2563eb",
+                                    borderRadius: "0.4rem",
+                                    padding: "0.35rem",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  <FiEdit2 size={14} />
+                                </button>
+                              ) : null}
+                              {canDeleteRow ? (
+                                <button
+                                  type="button"
+                                  title="Sil"
+                                  onClick={() => handleDelete(tx)}
+                                  style={{
+                                    border: "none",
+                                    background: "#fef2f2",
+                                    color: "#dc2626",
+                                    borderRadius: "0.4rem",
+                                    padding: "0.35rem",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  <FiTrash2 size={14} />
+                                </button>
+                              ) : null}
+                            </div>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );
@@ -701,6 +701,18 @@ export default function MaliyyePage() {
           editingTx && isSimpleExpenseTx(editingTx) ? editingTx : null
         }
         knownCategories={knownExpenseCategories}
+        defaultWallet={defaultWallet}
+      />
+      <SystemAdjustmentModal
+        isOpen={isSystemModalOpen}
+        onClose={() => {
+          setIsSystemModalOpen(false);
+          setEditingTx(null);
+        }}
+        onSave={handleSave}
+        initialData={
+          editingTx && isSystemBalanceAdjustment(editingTx) ? editingTx : null
+        }
         defaultWallet={defaultWallet}
       />
     </div>
