@@ -10,6 +10,7 @@ import {
   deleteFinanceTransactionAction,
 } from "../../common/actions/finance.actions";
 import Loading from "../../common/components/loading/Loading";
+import { ConfirmModal } from "../../common/components/ConfirmModal";
 import type { SelectOption } from "../../common/components/select/Select";
 import FinanceModal from "./FinanceModal";
 import SimpleExpenseModal from "./SimpleExpenseModal";
@@ -103,6 +104,8 @@ export default function MaliyyePage() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isSystemModalOpen, setIsSystemModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<any>(null);
+  const [txToDelete, setTxToDelete] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [exporting, setExporting] = useState(false);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
@@ -303,10 +306,12 @@ export default function MaliyyePage() {
     }
   };
 
-  const handleDelete = async (tx: any) => {
-    if (!window.confirm(`#${tx.id} əməliyyatı silinsin?`)) return;
+  const handleConfirmDelete = async () => {
+    if (!txToDelete?.id) return;
+    setIsDeleting(true);
     try {
-      await deleteFinanceTransactionAction(tx.id);
+      await deleteFinanceTransactionAction(txToDelete.id);
+      setTxToDelete(null);
       loadData();
     } catch (err: any) {
       const msg =
@@ -315,6 +320,8 @@ export default function MaliyyePage() {
         err?.message ||
         "Silinərkən xəta baş verdi";
       alert(msg);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -630,7 +637,7 @@ export default function MaliyyePage() {
                                 <button
                                   type="button"
                                   title="Sil"
-                                  onClick={() => handleDelete(tx)}
+                                  onClick={() => setTxToDelete(tx)}
                                   style={{
                                     border: "none",
                                     background: "#fef2f2",
@@ -714,6 +721,20 @@ export default function MaliyyePage() {
           editingTx && isSystemBalanceAdjustment(editingTx) ? editingTx : null
         }
         defaultWallet={defaultWallet}
+      />
+      <ConfirmModal
+        isOpen={txToDelete != null}
+        title="Əməliyyatı sil"
+        message={
+          txToDelete
+            ? `#${txToDelete.id}${txToDelete.name ? ` — ${txToDelete.name}` : ""} əməliyyatı silinsin? Bu əməliyyat geri qaytarıla bilməz.`
+            : ""
+        }
+        onConfirm={() => void handleConfirmDelete()}
+        onCancel={() => {
+          if (!isDeleting) setTxToDelete(null);
+        }}
+        isLoading={isDeleting}
       />
     </div>
   );
