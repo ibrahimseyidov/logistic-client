@@ -82,6 +82,8 @@ export default function SystemAdjustmentModal({
     setNote("");
   }, [isOpen, defaultWallet, initialData]);
 
+  const isEdit = Boolean(initialData?.id);
+
   const handleSave = () => {
     const value = Number.parseFloat(String(amount).replace(",", "."));
     if (!Number.isFinite(value) || !(value > 0)) {
@@ -99,7 +101,6 @@ export default function SystemAdjustmentModal({
         : "Kassa düzəlişi — məxaric";
 
     onSave({
-      ...(initialData || {}),
       type,
       name: name.trim(),
       category,
@@ -107,8 +108,11 @@ export default function SystemAdjustmentModal({
       currency: currency || "AZN",
       paymentMethod: paymentMethod || defaultWallet,
       partner: SYSTEM_PARTNER_MARKER,
-      source: initialData?.source || "SETTINGS_BALANCE",
-      description: note.trim() || name.trim(),
+      customerId: null,
+      carrierId: null,
+      orderId: null,
+      invoiceWritten: false,
+      invoiceReceived: false,
       costDate: date || todayInputDate(),
       date: date ? new Date(`${date}T12:00:00`) : new Date(),
     });
@@ -128,10 +132,12 @@ export default function SystemAdjustmentModal({
         <div className={modalStyles.drawerHeader}>
           <div>
             <h2 className={modalStyles.drawerTitle}>
-              Sistem əməliyyatını redaktə et
+              {isEdit
+                ? "Sistem əməliyyatını redaktə et"
+                : "Sistem əməliyyatı"}
             </h2>
             <p className={modalStyles.drawerHint}>
-              Kassa/Bank balans düzəlişi və sistem maliyyə əməliyyatının detalları
+              Kassa və bank balans düzəlişi — mədaxil və ya məxaric
             </p>
           </div>
           <button
@@ -234,12 +240,11 @@ export default function SystemAdjustmentModal({
           <label className={modalStyles.fieldStack}>
             <span className={modalStyles.label}>Qeyd / Təsvir</span>
             <textarea
-              className={modalStyles.input}
+              className={modalStyles.textarea}
               rows={3}
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Əlavə qeydlər..."
-              style={{ resize: "vertical" }}
             />
           </label>
         </div>
@@ -247,14 +252,14 @@ export default function SystemAdjustmentModal({
         <div className={modalStyles.drawerFooter}>
           <button
             type="button"
-            className={modalStyles.cancelBtn}
+            className={modalStyles.footerBtnSecondary}
             onClick={onClose}
           >
             Ləğv et
           </button>
           <button
             type="button"
-            className={modalStyles.saveBtn}
+            className={modalStyles.footerBtnPrimary}
             onClick={handleSave}
           >
             Yadda saxla
