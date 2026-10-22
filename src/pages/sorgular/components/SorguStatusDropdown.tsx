@@ -43,6 +43,14 @@ export default function SorguStatusDropdown({ status, onStatusChange }: Props) {
   const handleSelect = async (newStatus: SorguStatus) => {
     if (newStatus === status) {
       setIsOpen(false);
+      if (newStatus === SorguStatus.Approved) {
+        setIsUpdating(true);
+        try {
+          await onStatusChange(newStatus);
+        } finally {
+          setIsUpdating(false);
+        }
+      }
       return;
     }
     setIsOpen(false);

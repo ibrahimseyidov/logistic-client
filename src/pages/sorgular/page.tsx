@@ -19,6 +19,7 @@ import {
 import {
   createQueryAction,
   fetchQueriesAction,
+  fetchQueryDetailAction,
   updateQueryAction,
   approveQueryAction,
 } from "../../common/actions/query.actions";
@@ -436,6 +437,12 @@ export default function SorgularPage() {
         err?.response?.data?.detail ||
         "";
       if (status === 409) {
+        try {
+          const fresh = await fetchQueryDetailAction(queryId);
+          if (fresh && fresh.id != null) handleRowUpdate(fresh);
+        } catch {
+          // server artıq rədd edib; siyahı növbəti yükləmədə düzələr
+        }
         dispatch(
           showNotification({
             message: serverMessage || QUERY_ALREADY_CONFIRMED_MESSAGE,

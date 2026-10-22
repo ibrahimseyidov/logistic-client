@@ -26,11 +26,8 @@ export default function PriceOfferSelectionModal({
   const submitLock = useRef(false);
 
   useEffect(() => {
-    if (isOpen) {
-      setSelectedOfferId(null);
-      setSubmitting(false);
-      submitLock.current = false;
-    }
+    if (!isOpen) return;
+    setSelectedOfferId(null);
   }, [isOpen]);
 
   if (!isOpen || !query) return null;
@@ -83,6 +80,7 @@ export default function PriceOfferSelectionModal({
                   value={offer.id}
                   checked={selectedOfferId === offer.id}
                   onChange={() => setSelectedOfferId(offer.id)}
+                  disabled={busy}
                   className={styles.radioInput}
                 />
                 <div className={styles.offerDetails}>
