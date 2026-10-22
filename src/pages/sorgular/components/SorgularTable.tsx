@@ -24,6 +24,10 @@ import {
   PERSON_OPTIONS,
 } from "../constants/options.constants";
 import { getQueryCountryCityLabel } from "../lib/queryDisplay.utils";
+import {
+  isQueryAlreadyConfirmed,
+  QUERY_ALREADY_CONFIRMED_MESSAGE,
+} from "../lib/sorguStatus";
 
 interface Props {
   rows: LogisticQueryRow[];
@@ -200,6 +204,16 @@ export default function SorgularTable({
     if (!editRow) return;
     
     if (payload.fields.status === "approved" && onApproveStatus) {
+      if (isQueryAlreadyConfirmed(editRow)) {
+        dispatch(
+          showNotification({
+            message: QUERY_ALREADY_CONFIRMED_MESSAGE,
+            type: "error",
+            autoCloseDuration: 4000,
+          }),
+        );
+        return;
+      }
       setEditModalOpen(false);
       onApproveStatus(editRow, payload.fields);
       setEditRow(null);
@@ -352,6 +366,16 @@ export default function SorgularTable({
                         status={row.status}
                         onStatusChange={async (newStatus) => {
                           if (newStatus === SorguStatus.Approved) {
+                            if (isQueryAlreadyConfirmed(row)) {
+                              dispatch(
+                                showNotification({
+                                  message: QUERY_ALREADY_CONFIRMED_MESSAGE,
+                                  type: "error",
+                                  autoCloseDuration: 4000,
+                                }),
+                              );
+                              return;
+                            }
                             if (onApproveStatus) {
                               onApproveStatus(row, { status: "approved" });
                             }

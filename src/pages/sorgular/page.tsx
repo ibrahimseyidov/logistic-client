@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import Loading from "../../common/components/loading/Loading";
 import type { SelectOption } from "../../common/components/select/Select";
@@ -29,7 +29,12 @@ import PriceOfferSelectionModal from "./components/PriceOfferSelectionModal";
 import { ConfirmModal } from "../../common/components/ConfirmModal";
 import { useSorgularPagination } from "./hooks/useSorgularPagination";
 import { applyFilters, filterByTab } from "./lib/filterSorgular";
-import { countSorguStatuses, normalizeSorguStatus } from "./lib/sorguStatus";
+import {
+  countSorguStatuses,
+  isQueryAlreadyConfirmed,
+  normalizeSorguStatus,
+  QUERY_ALREADY_CONFIRMED_MESSAGE,
+} from "./lib/sorguStatus";
 import { isValidDigestStatusParam } from "../../common/utils/dailyQueryDigest.utils";
 import { exportSorgularToExcel } from "./lib/exportExcel";
 import styles from "./sorgular.module.css";
@@ -82,6 +87,8 @@ export default function SorgularPage() {
     offerId: string;
   } | null>(null);
   const [isDeletingOffer, setIsDeletingOffer] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  const approvingRef = useRef(false);
 
   useEffect(() => {
     const nextTab: SorguSubTab =
@@ -339,6 +346,17 @@ export default function SorgularPage() {
     if (!editRow) return;
 
     if (payload.fields.status === "approved") {
+      if (approvingRef.current) return;
+      if (isQueryAlreadyConfirmed(editRow)) {
+        dispatch(
+          showNotification({
+            message: QUERY_ALREADY_CONFIRMED_MESSAGE,
+            type: "error",
+            autoCloseDuration: 4000,
+          }),
+        );
+        return;
+      }
       setQueryToApprove(editRow);
       setPendingPayloadFields(payload.fields);
       setIsEditOpen(false);
@@ -370,12 +388,28 @@ export default function SorgularPage() {
   };
 
   const handleApproveSubmit = async (selectedOffer: any) => {
-    if (!queryToApprove) return;
+    if (!queryToApprove || approvingRef.current) return;
+    if (isQueryAlreadyConfirmed(queryToApprove)) {
+      dispatch(
+        showNotification({
+          message: QUERY_ALREADY_CONFIRMED_MESSAGE,
+          type: "error",
+          autoCloseDuration: 4000,
+        }),
+      );
+      setIsPriceOfferModalOpen(false);
+      setQueryToApprove(null);
+      setPendingPayloadFields(null);
+      return;
+    }
     const queryId =
       (queryToApprove as any).originalId || queryToApprove.id;
+    const fieldsToSave = pendingPayloadFields;
+    approvingRef.current = true;
+    setIsApproving(true);
     try {
-      if (pendingPayloadFields) {
-        const { status: _status, ...otherFields } = pendingPayloadFields;
+      if (fieldsToSave) {
+        const { status: _status, ...otherFields } = fieldsToSave;
         if (Object.keys(otherFields).length > 0) {
           await updateQueryAction(queryId, otherFields);
         }
@@ -396,11 +430,25 @@ export default function SorgularPage() {
         }),
       );
     } catch (err: any) {
-      const detail =
-        err?.response?.data?.detail ||
+      const status = err?.response?.status;
+      const serverMessage =
         err?.response?.data?.message ||
-        err?.message ||
+        err?.response?.data?.detail ||
         "";
+      if (status === 409) {
+        dispatch(
+          showNotification({
+            message: serverMessage || QUERY_ALREADY_CONFIRMED_MESSAGE,
+            type: "error",
+            autoCloseDuration: 5000,
+          }),
+        );
+        setIsPriceOfferModalOpen(false);
+        setQueryToApprove(null);
+        setPendingPayloadFields(null);
+        return;
+      }
+      const detail = serverMessage || err?.message || "";
       dispatch(
         showNotification({
           message: detail
@@ -410,6 +458,9 @@ export default function SorgularPage() {
           autoCloseDuration: 5000,
         }),
       );
+    } finally {
+      approvingRef.current = false;
+      setIsApproving(false);
     }
   };
 
@@ -473,6 +524,17 @@ export default function SorgularPage() {
   };
 
   const handleApproveRequest = (row: LogisticQueryRow, payloadFields: any) => {
+    if (approvingRef.current) return;
+    if (isQueryAlreadyConfirmed(row)) {
+      dispatch(
+        showNotification({
+          message: QUERY_ALREADY_CONFIRMED_MESSAGE,
+          type: "error",
+          autoCloseDuration: 4000,
+        }),
+      );
+      return;
+    }
     setQueryToApprove(row);
     setPendingPayloadFields(payloadFields);
     setIsPriceOfferModalOpen(true);
@@ -565,12 +627,14 @@ export default function SorgularPage() {
       <PriceOfferSelectionModal
         isOpen={isPriceOfferModalOpen}
         onClose={() => {
+          if (approvingRef.current) return;
           setIsPriceOfferModalOpen(false);
           setQueryToApprove(null);
           setPendingPayloadFields(null);
         }}
         query={queryToApprove}
         onApprove={handleApproveSubmit}
+        isSubmitting={isApproving}
       />
 
       <ConfirmModal

@@ -66,6 +66,28 @@ export function isSorguArchiveStatus(
   return n === SorguStatus.Approved || n === SorguStatus.Cancelled;
 }
 
+export const QUERY_ALREADY_CONFIRMED_MESSAGE =
+  "Bu sorğu artıq təsdiqlənib. Yenidən sifariş yaratmaq olmaz.";
+
+export function isQueryAlreadyConfirmed(
+  row:
+    | {
+        status?: string | null;
+        orders?: unknown[] | null;
+        orderId?: unknown;
+        order?: unknown;
+      }
+    | null
+    | undefined,
+): boolean {
+  if (!row) return false;
+  if (normalizeSorguStatus(row.status) === SorguStatus.Approved) return true;
+  if (Array.isArray(row.orders) && row.orders.length > 0) return true;
+  if (row.orderId != null && String(row.orderId).trim() !== "") return true;
+  if (row.order) return true;
+  return false;
+}
+
 export function countSorguStatuses(
   rows: Array<{ status?: string | null }>,
 ): Record<string, number> {
