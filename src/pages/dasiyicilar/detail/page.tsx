@@ -170,13 +170,35 @@ export default function DasiyiciDetailPage() {
         matchesCarrierEntity(order, entity),
       );
       setOrders(carrierOrders);
-      const orderIds = new Set(carrierOrders.map((o: any) => String(o.id)));
-      const carrierName = mappedCarrier.company || mappedCarrier.name || "";
+      const carrierAliases = [
+        mappedCarrier.company,
+        mappedCarrier.name,
+        mappedCarrier.shortName,
+      ].filter(Boolean);
       setInvoices(
         (allInvoices || []).filter((inv: any) => {
           if (invoiceTypeOf(inv) !== "alinmis") return false;
-          if (inv.orderId != null && orderIds.has(String(inv.orderId))) return true;
-          return namesMatch(inv.payer, carrierName);
+          // Hesabın Payer-i (daşıyıcı) varsa, dəqiq bu daşıyıcının adına olmalıdır
+          if (inv.payer && carrierAliases.some((n) => namesMatch(inv.payer, n))) {
+            return true;
+          }
+          // Payer boşdursa, yalnız sifarişin əsas daşıyıcısı bu daşıyıcı olduqda daxil et
+          if (
+            !inv.payer &&
+            inv.orderId != null &&
+            orderIds.has(String(inv.orderId))
+          ) {
+            const ord = allOrders.find(
+              (o: any) => String(o.id) === String(inv.orderId),
+            );
+            return (
+              ord &&
+              carrierAliases.some((n) =>
+                namesMatch(ord.carriers || ord.carrier, n),
+              )
+            );
+          }
+          return false;
         }),
       );
     } catch (err) {

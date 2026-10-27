@@ -306,16 +306,16 @@ export function sumPartnerInvoicesAzn(
   const rows = orderInvoicesOfType(invoices, orderId, type);
   if (rows.length === 0) return 0;
   const pname = String(partnerName || "").trim();
-  const matched = pname
-    ? rows.filter(
-        (inv) =>
-          namesMatch(inv.payer, pname) ||
-          namesMatch(inv.customerName, pname) ||
-          namesMatch(inv.partner, pname),
-      )
-    : rows;
-  const use = matched.length > 0 ? matched : rows;
-  return use.reduce((s, inv) => s + parseInvoiceAmountAzn(inv, rates), 0);
+  if (pname) {
+    const matched = rows.filter(
+      (inv) =>
+        namesMatch(inv.payer, pname) ||
+        namesMatch(inv.customerName, pname) ||
+        namesMatch(inv.partner, pname),
+    );
+    return matched.reduce((s, inv) => s + parseInvoiceAmountAzn(inv, rates), 0);
+  }
+  return rows.reduce((s, inv) => s + parseInvoiceAmountAzn(inv, rates), 0);
 }
 
 export function resolveCustomerGroup(

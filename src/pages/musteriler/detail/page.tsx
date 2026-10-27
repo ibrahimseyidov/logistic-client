@@ -222,20 +222,40 @@ export default function MusteriDetailPage() {
       );
 
       const customerQueryIds = new Set(customerQueries.map((q: any) => String(q.id)));
-      const customerOrders = allOrders.filter(
-        (order: any) =>
-          matchesCustomerEntity(order, entity) ||
-          (order.queryId != null && customerQueryIds.has(String(order.queryId))),
-      );
+      const customerAliases = [entity.company, entity.name].filter(Boolean);
+      const customerOrders = allOrders.filter((order: any) => {
+        if (matchesCustomerEntity(order, entity)) return true;
+        const hasOwnCustomer = Boolean(
+          order.customerId || order.customerName || order.customer,
+        );
+        if (
+          !hasOwnCustomer &&
+          order.queryId != null &&
+          customerQueryIds.has(String(order.queryId))
+        ) {
+          return true;
+        }
+        return false;
+      });
 
       const [directTx, allFinanceTx] = await Promise.all([
         fetchFinanceTransactionsAction({ customerId }),
         fetchFinanceTransactionsAction(),
       ]);
       const orderIds = new Set(customerOrders.map((order: any) => String(order.id)));
-      const orderLinkedTx = allFinanceTx.filter(
-        (tx: any) => tx.orderId != null && orderIds.has(String(tx.orderId)),
-      );
+      const orderLinkedTx = allFinanceTx.filter((tx: any) => {
+        if (!tx.orderId || !orderIds.has(String(tx.orderId))) return false;
+        if (tx.customerId != null && String(tx.customerId) !== entity.id) {
+          return false;
+        }
+        if (
+          tx.partner &&
+          !customerAliases.some((n) => namesMatch(tx.partner, n))
+        ) {
+          return false;
+        }
+        return true;
+      });
       const txMap = new Map<number, any>();
       [...directTx, ...orderLinkedTx].forEach((tx: any) => {
         if (tx?.id != null) txMap.set(tx.id, tx);
@@ -244,12 +264,30 @@ export default function MusteriDetailPage() {
       setQueries(customerQueries);
       setOrders(customerOrders);
       setTransactions([...txMap.values()]);
-      const customerName = entity.company || entity.name;
       setInvoices(
         (allInvoices || []).filter((inv: any) => {
           if (invoiceTypeOf(inv) !== "ireli") return false;
-          if (inv.orderId != null && orderIds.has(String(inv.orderId))) return true;
-          return namesMatch(inv.payer, customerName);
+          // Hesabın Payer-i varsa, dəqiq bu müştərinin adına olmalıdır
+          if (inv.payer && customerAliases.some((n) => namesMatch(inv.payer, n))) {
+            return true;
+          }
+          // Payer boşdursa, yalnız sifarişin əsas müştərisi bu müştəri olduqda daxil et
+          if (
+            !inv.payer &&
+            inv.orderId != null &&
+            orderIds.has(String(inv.orderId))
+          ) {
+            const ord = allOrders.find(
+              (o: any) => String(o.id) === String(inv.orderId),
+            );
+            return (
+              ord &&
+              customerAliases.some((n) =>
+                namesMatch(ord.customerName || ord.customer, n),
+              )
+            );
+          }
+          return false;
         }),
       );
     } catch (err) {

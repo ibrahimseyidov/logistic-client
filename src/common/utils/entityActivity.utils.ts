@@ -60,21 +60,30 @@ export function matchesCustomerEntity(record: any, entity: EntityRef): boolean {
       ? customerRef.id
       : customerRef;
 
-  if (customerId != null && String(customerId) === entityId) return true;
+  if (customerId != null) {
+    return String(customerId) === entityId;
+  }
 
-  const queryCustomer = record.query?.customer;
-  if (queryCustomer != null && String(queryCustomer) === entityId) return true;
+  // Əgər sifarişin birbaşa müştəri adı varsa, dəqiq ona baxırıq
+  const directCustomerName =
+    record.customerName ||
+    (typeof record.customer === "string" ? record.customer : null);
 
-  const nameCandidates = [
-    record.customerName,
-    queryCustomer,
-    typeof record.customer === "string" ? record.customer : null,
-    record.company,
-    ...(Array.isArray(record.loads) ? record.loads.map((item: any) => item?.customer) : []),
-    ...(Array.isArray(record.voyages) ? record.voyages.map((item: any) => item?.customer) : []),
+  if (directCustomerName) {
+    return nameMatches(directCustomerName, names);
+  }
+
+  // Yalnız sifarişdə heç bir müştəri adı yoxdursa, reys və ya yüklərə baxırıq
+  const fallbackCandidates = [
+    ...(Array.isArray(record.loads)
+      ? record.loads.map((item: any) => item?.customer)
+      : []),
+    ...(Array.isArray(record.voyages)
+      ? record.voyages.map((item: any) => item?.customer)
+      : []),
   ];
 
-  return nameCandidates.some((candidate) => nameMatches(candidate, names));
+  return fallbackCandidates.some((candidate) => nameMatches(candidate, names));
 }
 
 export function queryMatchesCarrier(query: any, entity: EntityRef): boolean {
@@ -107,14 +116,32 @@ export function matchesCarrierEntity(record: any, entity: EntityRef): boolean {
   const carrierNameCandidates = [
     record.carrierName,
     record.carriers,
-    ...(Array.isArray(record.voyages) ? record.voyages.map((v: any) => v?.carrier) : []),
+    ...(Array.isArray(record.voyages)
+      ? record.voyages.map((v: any) => v?.carrier)
+      : []),
   ];
 
   if (carrierNameCandidates.some((candidate) => nameMatches(candidate, names))) {
     return true;
   }
 
-  if (record.query && queryMatchesCarrier(record.query, entity)) return true;
+  // Yalnız sifarişdə heç bir daşıyıcı təyin olunmayıbsa və sorğu bu daşıyıcıya aiddirsə
+  const hasAssignedCarrier = Boolean(
+    record.carrier ||
+      record.carrierId ||
+      record.carrierName ||
+      record.carriers ||
+      (Array.isArray(record.voyages) &&
+        record.voyages.some((v: any) => v?.carrier && v?.carrier !== "—")),
+  );
+
+  if (
+    !hasAssignedCarrier &&
+    record.query &&
+    queryMatchesCarrier(record.query, entity)
+  ) {
+    return true;
+  }
 
   return false;
 }
